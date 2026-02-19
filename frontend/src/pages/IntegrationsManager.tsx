@@ -1,15 +1,16 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Plug, CheckCircle2, Circle } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Circle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useIntegrationCatalog,
   useIntegrationConnections,
 } from '@/hooks/queries/useIntegrationQueries';
+import { useGitHubInstallations } from '@/hooks/queries/useGithubQueries';
 import { cn } from '@/lib/utils';
 
-/** Static metadata for the two D5 providers (AWS + Slack). */
+/** Static metadata for integration providers. */
 const PROVIDER_META: Record<
   string,
   {
@@ -37,10 +38,18 @@ const PROVIDER_META: Record<
     badgeClass: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
     category: 'Notifications',
   },
+  github: {
+    logo: '/icons/github.svg',
+    route: '/integrations/github',
+    gradient: '',
+    borderAccent: 'hover:border-slate-300 dark:hover:border-slate-700',
+    badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-400',
+    category: 'Code Security',
+  },
 };
 
 /** IDs of the providers shown on this page, in display order. */
-const VISIBLE_PROVIDERS = ['aws', 'slack'] as const;
+const VISIBLE_PROVIDERS = ['github', 'aws', 'slack'] as const;
 
 export function IntegrationsManager() {
   const navigate = useNavigate();
@@ -48,6 +57,7 @@ export function IntegrationsManager() {
   const { data: catalog = [], isLoading: loadingCatalog } = useIntegrationCatalog();
   const { data: orgConnections = [], isLoading: loadingOrgConnections } =
     useIntegrationConnections();
+  const { data: githubInstallations = [], isLoading: loadingGitHub } = useGitHubInstallations();
 
   /** Map provider id -> number of org-scoped connections. */
   const connectionCounts = useMemo(() => {
@@ -55,38 +65,26 @@ export function IntegrationsManager() {
     for (const conn of orgConnections) {
       counts.set(conn.provider, (counts.get(conn.provider) ?? 0) + 1);
     }
+    // GitHub uses installations instead of integration connections
+    if (githubInstallations.length > 0) {
+      counts.set('github', githubInstallations.length);
+    }
     return counts;
-  }, [orgConnections]);
+  }, [orgConnections, githubInstallations]);
 
   /** Catalog entries keyed by id for quick lookup. */
   const catalogById = useMemo(() => {
     return new Map(catalog.map((entry) => [entry.id, entry]));
   }, [catalog]);
 
-  const isLoading = loadingCatalog || loadingOrgConnections;
+  const isLoading = loadingCatalog || loadingOrgConnections || loadingGitHub;
 
   return (
     <div className="flex-1 bg-background">
-      <div className="container mx-auto py-10 px-6 max-w-5xl">
-        {/* Page header */}
-        <div className="mb-10">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-              <Plug className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Integrations</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Connect external services to enable cloud security scanning, notifications, and
-                more.
-              </p>
-            </div>
-          </div>
-        </div>
-
+      <div className="container mx-auto py-10 px-6 max-w-7xl">
         {/* Loading skeleton */}
         {isLoading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {VISIBLE_PROVIDERS.map((id) => (
               <div key={id} className="rounded-xl border bg-card p-6 space-y-4">
                 <div className="flex items-start gap-4">
@@ -108,7 +106,7 @@ export function IntegrationsManager() {
 
         {/* Provider cards */}
         {!isLoading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {VISIBLE_PROVIDERS.map((providerId) => {
               const meta = PROVIDER_META[providerId];
               const entry = catalogById.get(providerId);
@@ -119,7 +117,7 @@ export function IntegrationsManager() {
                 <div
                   key={providerId}
                   className={cn(
-                    'group relative rounded-xl border bg-card transition-all duration-200 cursor-pointer',
+                    'group relative rounded-xl border bg-card transition-all duration-200 cursor-pointer overflow-hidden',
                     'hover:shadow-lg hover:-translate-y-0.5',
                     meta.borderAccent,
                   )}
@@ -135,7 +133,9 @@ export function IntegrationsManager() {
                       background:
                         providerId === 'aws'
                           ? 'linear-gradient(to right, #f97316, #f59e0b)'
-                          : 'linear-gradient(to right, #a855f7, #ec4899)',
+                          : providerId === 'github'
+                            ? 'linear-gradient(to right, #24292f, #57606a)'
+                            : 'linear-gradient(to right, #a855f7, #ec4899)',
                     }}
                   />
 
@@ -213,10 +213,7 @@ export function IntegrationsManager() {
               Coming Soon
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {[
-                { name: 'GitHub', icon: '/icons/github.svg' },
-                { name: 'Jira', icon: '/icons/jira.svg' },
-              ].map((item) => (
+              {[{ name: 'Jira', icon: '/icons/jira.svg' }].map((item) => (
                 <div
                   key={item.name}
                   className="flex items-center gap-3 rounded-lg border border-dashed border-border/60 bg-muted/30 p-3 opacity-50 grayscale"
