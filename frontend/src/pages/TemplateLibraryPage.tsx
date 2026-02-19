@@ -412,40 +412,47 @@ function TemplateCard({ template, onUse, canUse }: TemplateCardProps) {
         {/* Tags & Metadata */}
         <div className="space-y-2.5">
           {/* Tags */}
-          {template.tags && template.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {template.tags.slice(0, 3).map((tag) => (
-                <span
-                  key={tag}
-                  className={cn(
-                    'inline-flex items-center px-3 py-1 rounded-full text-xs',
-                    'bg-gray-100 text-gray-700 border border-gray-200',
-                    'dark:bg-white/5 dark:text-gray-300 dark:border-white/10',
-                  )}
-                >
-                  {tag}
-                </span>
-              ))}
-              {template.tags.length > 3 && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span
-                        className={cn(
-                          'inline-flex items-center px-3 py-1 rounded-full text-xs cursor-default',
-                          'bg-gray-100 text-gray-700 border border-gray-200',
-                          'dark:bg-white/5 dark:text-gray-300 dark:border-white/10',
-                        )}
-                      >
-                        +{template.tags.length - 3}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>{template.tags.slice(3).join(', ')}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-            </div>
-          )}
+          {(() => {
+            const categoryLower = (template.category || '').toLowerCase();
+            const filteredTags = (template.tags || []).filter(
+              (t) => t.toLowerCase() !== categoryLower,
+            );
+            if (filteredTags.length === 0) return null;
+            return (
+              <div className="flex flex-wrap gap-1.5">
+                {filteredTags.slice(0, 3).map((tag) => (
+                  <span
+                    key={tag}
+                    className={cn(
+                      'inline-flex items-center px-3 py-1 rounded-full text-xs',
+                      'bg-gray-100 text-gray-700 border border-gray-200',
+                      'dark:bg-white/5 dark:text-gray-300 dark:border-white/10',
+                    )}
+                  >
+                    {tag}
+                  </span>
+                ))}
+                {filteredTags.length > 3 && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          className={cn(
+                            'inline-flex items-center px-3 py-1 rounded-full text-xs cursor-default',
+                            'bg-gray-100 text-gray-700 border border-gray-200',
+                            'dark:bg-white/5 dark:text-gray-300 dark:border-white/10',
+                          )}
+                        >
+                          +{filteredTags.length - 3}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>{filteredTags.slice(3).join(', ')}</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Marketplace metadata */}
           <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
@@ -477,8 +484,6 @@ function TemplateCard({ template, onUse, canUse }: TemplateCardProps) {
           <Button
             className={cn(
               'flex-1 h-11 rounded-xl font-medium gap-2',
-              'bg-indigo-600 hover:bg-indigo-700 text-white',
-              'dark:bg-indigo-500 dark:hover:bg-indigo-400',
               'active:scale-[0.98] transition-all duration-200',
             )}
             onClick={() => onUse(template)}
