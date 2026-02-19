@@ -21,13 +21,15 @@ interface WorkflowPreviewCanvasProps {
   nodes: TemplateNode[];
   edges: TemplateEdge[];
   className?: string;
+  /** When false, disables pan/zoom/scroll — suitable for static card thumbnails */
+  interactive?: boolean;
 }
 
 const nodeTypes = { preview: PreviewNode };
 
 const FIT_VIEW_OPTIONS = { padding: 0.15, duration: 0 };
 
-function PreviewFlow({ nodes, edges, className }: WorkflowPreviewCanvasProps) {
+function PreviewFlow({ nodes, edges, className, interactive = true }: WorkflowPreviewCanvasProps) {
   const { fitView } = useReactFlow();
 
   const rfNodes: Node[] = useMemo(
@@ -80,11 +82,11 @@ function PreviewFlow({ nodes, edges, className }: WorkflowPreviewCanvasProps) {
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
-        panOnDrag
-        zoomOnScroll
-        zoomOnPinch
+        panOnDrag={interactive}
+        zoomOnScroll={interactive}
+        zoomOnPinch={interactive}
         zoomOnDoubleClick={false}
-        preventScrolling
+        preventScrolling={interactive}
         proOptions={{ hideAttribution: true }}
       >
         <Background gap={16} size={1} color="hsl(var(--muted-foreground) / 0.15)" />

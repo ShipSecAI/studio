@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
 import { TemplateDetailDialog } from '@/components/templates/TemplateDetailDialog';
-import { WorkflowGraphSvg } from '@/components/templates/WorkflowGraphSvg';
+import { WorkflowPreviewCanvas } from '@/components/templates/WorkflowPreviewCanvas';
 import type { WorkflowTemplate } from '@/components/templates/types';
 
 const CATEGORY_CONFIG: Record<
@@ -165,26 +165,13 @@ function TemplateCard({
     >
       {/* Preview — full on sm+, compact icon on mobile */}
       <div className="hidden sm:block aspect-video w-full bg-muted relative overflow-hidden">
-        {template.screenshotUrl ? (
-          <img
-            src={template.screenshotUrl}
-            alt={`${template.name} preview`}
-            className="w-full h-full object-contain"
-            loading="lazy"
-            decoding="async"
-            width={400}
-            height={225}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        ) : (template.graph?.nodes?.length ?? 0) > 0 ? (
-          <WorkflowGraphSvg
+        {(template.graph?.nodes?.length ?? 0) > 0 ? (
+          <WorkflowPreviewCanvas
             nodes={template.graph!.nodes!}
             edges={
               (template.graph!.edges ?? []) as { id: string; source: string; target: string }[]
             }
-            className="p-2"
+            interactive={false}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-muted-foreground">

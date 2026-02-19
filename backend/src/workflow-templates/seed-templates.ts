@@ -62,7 +62,7 @@ function makeEdge(
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 1: Secret Scan
-// Entry Point → Clone Repo → TruffleHog → Normalize → Markdown
+// Entry Point → Clone Repo → TruffleHog → Normalize → [Markdown, Analytics Sink]
 // ──────────────────────────────────────────────────────────────────────────────
 function secretScanTemplate(): SeedTemplate {
   resetCounter();
@@ -71,6 +71,7 @@ function secretScanTemplate(): SeedTemplate {
   const trufflehog = nid('node');
   const normalize = nid('node');
   const markdown = nid('node');
+  const analytics = nid('node');
 
   return {
     name: 'Secret Scan',
@@ -79,7 +80,6 @@ function secretScanTemplate(): SeedTemplate {
       'Scan a repository for exposed secrets, API keys, and credentials using TruffleHog.',
     category: 'code-security',
     icon: 'shield',
-    screenshotUrl: '/templates/secret-scan.png',
     isFeatured: true,
     isDefault: true,
     graph: {
@@ -92,7 +92,10 @@ function secretScanTemplate(): SeedTemplate {
         makeNode(cloneRepo, 'github.repo.clone', 'Clone Repo', 300, 0),
         makeNode(trufflehog, 'scanner.trufflehog', 'TruffleHog', 600, 0),
         makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 900, 0),
-        makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, 0),
+        makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, -100),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1200, 100, {
+          dataInputs: [{ id: 'input1', label: 'Secret Findings', sourceTag: 'trufflehog' }],
+        }),
       ],
       edges: [
         // entrypoint → clone: repo info injected via componentParams at trigger time
@@ -103,6 +106,8 @@ function secretScanTemplate(): SeedTemplate {
         makeEdge('e3', trufflehog, normalize, 'findings', 'rawFindings'),
         // normalize → markdown: pass normalized findings
         makeEdge('e4', normalize, markdown, 'findings', 'findings'),
+        // normalize → analytics: index findings for dashboards
+        makeEdge('e5', normalize, analytics, 'findings', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -111,7 +116,7 @@ function secretScanTemplate(): SeedTemplate {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 2: SAST Scan
-// Entry Point → Clone Repo → OpenGrep → Normalize → Markdown
+// Entry Point → Clone Repo → OpenGrep → Normalize → [Markdown, Analytics Sink]
 // ──────────────────────────────────────────────────────────────────────────────
 function sastScanTemplate(): SeedTemplate {
   resetCounter();
@@ -120,6 +125,7 @@ function sastScanTemplate(): SeedTemplate {
   const opengrep = nid('node');
   const normalize = nid('node');
   const markdown = nid('node');
+  const analytics = nid('node');
 
   return {
     name: 'SAST Scan',
@@ -128,7 +134,6 @@ function sastScanTemplate(): SeedTemplate {
       'Static Application Security Testing using OpenGrep (Semgrep) to find code vulnerabilities.',
     category: 'code-security',
     icon: 'search',
-    screenshotUrl: '/templates/sast-scan.png',
     isFeatured: true,
     isDefault: true,
     graph: {
@@ -141,13 +146,18 @@ function sastScanTemplate(): SeedTemplate {
         makeNode(cloneRepo, 'github.repo.clone', 'Clone Repo', 300, 0),
         makeNode(opengrep, 'scanner.opengrep', 'OpenGrep', 600, 0),
         makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 900, 0),
-        makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, 0),
+        makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, -100),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1200, 100, {
+          dataInputs: [{ id: 'input1', label: 'SAST Findings', sourceTag: 'opengrep' }],
+        }),
       ],
       edges: [
         makeEdge('e1', entryPoint, cloneRepo),
         makeEdge('e2', cloneRepo, opengrep, 'volumeName', 'volumeName'),
         makeEdge('e3', opengrep, normalize, 'findings', 'rawFindings'),
         makeEdge('e4', normalize, markdown, 'findings', 'findings'),
+        // normalize → analytics: index findings for dashboards
+        makeEdge('e5', normalize, analytics, 'findings', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -156,7 +166,7 @@ function sastScanTemplate(): SeedTemplate {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 3: Dependency Scan
-// Entry Point → Clone Repo → Dependency Scanner → Normalize → Markdown
+// Entry Point → Clone Repo → Dependency Scanner → Normalize → [Markdown, Analytics Sink]
 // ──────────────────────────────────────────────────────────────────────────────
 function dependencyScanTemplate(): SeedTemplate {
   resetCounter();
@@ -165,6 +175,7 @@ function dependencyScanTemplate(): SeedTemplate {
   const depScanner = nid('node');
   const normalize = nid('node');
   const markdown = nid('node');
+  const analytics = nid('node');
 
   return {
     name: 'Dependency Scan',
@@ -172,7 +183,6 @@ function dependencyScanTemplate(): SeedTemplate {
     description: 'Scan dependencies for known vulnerabilities using dependency analysis.',
     category: 'code-security',
     icon: 'package',
-    screenshotUrl: '/templates/dependency-scan.png',
     isFeatured: true,
     isDefault: true,
     graph: {
@@ -185,13 +195,18 @@ function dependencyScanTemplate(): SeedTemplate {
         makeNode(cloneRepo, 'github.repo.clone', 'Clone Repo', 300, 0),
         makeNode(depScanner, 'scanner.dependency', 'Dependency Scanner', 600, 0),
         makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 900, 0),
-        makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, 0),
+        makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, -100),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1200, 100, {
+          dataInputs: [{ id: 'input1', label: 'Dependency Findings', sourceTag: 'dependency' }],
+        }),
       ],
       edges: [
         makeEdge('e1', entryPoint, cloneRepo),
         makeEdge('e2', cloneRepo, depScanner, 'volumeName', 'volumeName'),
         makeEdge('e3', depScanner, normalize, 'findings', 'rawFindings'),
         makeEdge('e4', normalize, markdown, 'findings', 'findings'),
+        // normalize → analytics: index findings for dashboards
+        makeEdge('e5', normalize, analytics, 'findings', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -202,6 +217,7 @@ function dependencyScanTemplate(): SeedTemplate {
 // Template 4: Full Code Security
 // Entry Point → Clone Repo → [TruffleHog, OpenGrep, Dep Scanner] (parallel)
 //   each scanner → Normalize → Markdown → Text Joiner (unified summary)
+//   each Normalize → Analytics Sink (indexed findings)
 // ──────────────────────────────────────────────────────────────────────────────
 function fullCodeSecurityTemplate(): SeedTemplate {
   resetCounter();
@@ -217,6 +233,7 @@ function fullCodeSecurityTemplate(): SeedTemplate {
   const mdSast = nid('node');
   const mdDeps = nid('node');
   const joiner = nid('node');
+  const analytics = nid('node');
 
   return {
     name: 'Full Code Security',
@@ -225,7 +242,6 @@ function fullCodeSecurityTemplate(): SeedTemplate {
       'Multi-scanner analysis: secrets, SAST, and dependency vulnerabilities in parallel.',
     category: 'code-security',
     icon: 'shield-check',
-    screenshotUrl: '/templates/full-code-security.png',
     isFeatured: true,
     isDefault: true,
     graph: {
@@ -249,8 +265,16 @@ function fullCodeSecurityTemplate(): SeedTemplate {
         makeNode(mdSast, 'security.findings.markdown', 'SAST Report', 1200, 0),
         makeNode(mdDeps, 'security.findings.markdown', 'Deps Report', 1200, 200),
         // Unified summary
-        makeNode(joiner, 'core.text.joiner', 'Combined Report', 1500, 0, {
+        makeNode(joiner, 'core.text.joiner', 'Combined Report', 1500, -100, {
           separator: '\n\n---\n\n',
+        }),
+        // Analytics sink (all scanner findings)
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1500, 150, {
+          dataInputs: [
+            { id: 'input1', label: 'Secret Findings', sourceTag: 'trufflehog' },
+            { id: 'input2', label: 'SAST Findings', sourceTag: 'opengrep' },
+            { id: 'input3', label: 'Dependency Findings', sourceTag: 'dependency' },
+          ],
         }),
       ],
       edges: [
@@ -272,6 +296,10 @@ function fullCodeSecurityTemplate(): SeedTemplate {
         makeEdge('e11', mdSecrets, joiner, 'markdown', 'items'),
         makeEdge('e12', mdSast, joiner, 'markdown', 'items'),
         makeEdge('e13', mdDeps, joiner, 'markdown', 'items'),
+        // Normalize → Analytics (index all findings for dashboards)
+        makeEdge('e14', normSecrets, analytics, 'findings', 'input1'),
+        makeEdge('e15', normSast, analytics, 'findings', 'input2'),
+        makeEdge('e16', normDeps, analytics, 'findings', 'input3'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.5 },
     },
@@ -282,6 +310,7 @@ function fullCodeSecurityTemplate(): SeedTemplate {
 // Template 5: PR Security Gate
 // PR Context → Clone Repo → [TruffleHog, OpenGrep, Dep Scanner] (parallel)
 //   each → Normalize → Markdown → Joiner → [PR Comment, Check Run]
+//   each Normalize → Analytics Sink (indexed findings)
 // ──────────────────────────────────────────────────────────────────────────────
 function prSecurityGateTemplate(): SeedTemplate {
   resetCounter();
@@ -299,6 +328,7 @@ function prSecurityGateTemplate(): SeedTemplate {
   const joiner = nid('node');
   const prComment = nid('node');
   const checkRun = nid('node');
+  const analytics = nid('node');
 
   return {
     name: 'PR Security Gate',
@@ -307,7 +337,6 @@ function prSecurityGateTemplate(): SeedTemplate {
       'Auto-scan every PR with secrets, SAST, and dependency checks. Posts results as PR comment and check run.',
     category: 'code-security',
     icon: 'git-pull-request',
-    screenshotUrl: '/templates/pr-security-gate.png',
     isFeatured: false,
     isDefault: true,
     graph: {
@@ -333,8 +362,16 @@ function prSecurityGateTemplate(): SeedTemplate {
           separator: '\n\n---\n\n',
         }),
         // PR outputs
-        makeNode(prComment, 'github.pr.comment', 'PR Comment', 1800, -75),
-        makeNode(checkRun, 'github.check.create', 'Check Run', 1800, 75),
+        makeNode(prComment, 'github.pr.comment', 'PR Comment', 1800, -150),
+        makeNode(checkRun, 'github.check.create', 'Check Run', 1800, 0),
+        // Analytics sink (all scanner findings)
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1800, 150, {
+          dataInputs: [
+            { id: 'input1', label: 'Secret Findings', sourceTag: 'trufflehog' },
+            { id: 'input2', label: 'SAST Findings', sourceTag: 'opengrep' },
+            { id: 'input3', label: 'Dependency Findings', sourceTag: 'dependency' },
+          ],
+        }),
       ],
       edges: [
         // PR Context → Clone (pass repo info)
@@ -362,6 +399,10 @@ function prSecurityGateTemplate(): SeedTemplate {
         makeEdge('e15', joiner, prComment, 'text', 'body'),
         // PR Context → Check Run (pass SHA and repo info)
         makeEdge('e16', prContext, checkRun, 'headSha', 'headSha'),
+        // Normalize → Analytics (index all findings for dashboards)
+        makeEdge('e17', normSecrets, analytics, 'findings', 'input1'),
+        makeEdge('e18', normSast, analytics, 'findings', 'input2'),
+        makeEdge('e19', normDeps, analytics, 'findings', 'input3'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.45 },
     },
@@ -371,6 +412,7 @@ function prSecurityGateTemplate(): SeedTemplate {
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 6: AI Code Review
 // PR Context → Clone → [Scanners] → Normalize → Markdown → Joiner → AI Agent → PR Comment
+//   each Normalize → Analytics Sink (indexed findings)
 // ──────────────────────────────────────────────────────────────────────────────
 function aiCodeReviewTemplate(): SeedTemplate {
   resetCounter();
@@ -388,6 +430,7 @@ function aiCodeReviewTemplate(): SeedTemplate {
   const joiner = nid('node');
   const aiAgent = nid('node');
   const prComment = nid('node');
+  const analytics = nid('node');
 
   return {
     name: 'AI Code Review',
@@ -396,7 +439,6 @@ function aiCodeReviewTemplate(): SeedTemplate {
       'AI-powered code review: scans PR with SAST, secrets, and dependencies, then uses AI to analyze findings in context and post a review.',
     category: 'code-security',
     icon: 'sparkles',
-    screenshotUrl: '/templates/ai-code-review.png',
     isFeatured: true,
     isDefault: true,
     graph: {
@@ -417,11 +459,19 @@ function aiCodeReviewTemplate(): SeedTemplate {
         makeNode(joiner, 'core.text.joiner', 'Combined Report', 1500, 0, {
           separator: '\n\n---\n\n',
         }),
-        makeNode(aiAgent, 'core.ai.agent', 'AI Agent', 1800, 0, {
+        makeNode(aiAgent, 'core.ai.agent', 'AI Agent', 1800, -100, {
           systemPrompt:
             'You are a security code reviewer. Analyze the following security scan report from a pull request. For each finding, assess whether it is actionable or a likely false positive. Provide clear remediation guidance and prioritize the most critical issues.',
         }),
-        makeNode(prComment, 'github.pr.comment', 'PR Comment', 2100, 0),
+        makeNode(prComment, 'github.pr.comment', 'PR Comment', 2100, -100),
+        // Analytics sink (all scanner findings)
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1800, 150, {
+          dataInputs: [
+            { id: 'input1', label: 'SAST Findings', sourceTag: 'opengrep' },
+            { id: 'input2', label: 'Secret Findings', sourceTag: 'trufflehog' },
+            { id: 'input3', label: 'Dependency Findings', sourceTag: 'dependency' },
+          ],
+        }),
       ],
       edges: [
         // PR Context → Clone
@@ -449,6 +499,10 @@ function aiCodeReviewTemplate(): SeedTemplate {
         makeEdge('e14', joiner, aiAgent, 'text', 'userInput'),
         // AI Agent → PR Comment
         makeEdge('e15', aiAgent, prComment, 'responseText', 'body'),
+        // Normalize → Analytics (index all findings for dashboards)
+        makeEdge('e16', normSast, analytics, 'findings', 'input1'),
+        makeEdge('e17', normSecrets, analytics, 'findings', 'input2'),
+        makeEdge('e18', normDeps, analytics, 'findings', 'input3'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.4 },
     },
@@ -474,7 +528,6 @@ function cloudSecurityScanTemplate(): SeedTemplate {
       'Scan AWS accounts with Prowler and index findings into Analytics. Supports single-account or org-wide scanning.',
     category: 'cloud-security',
     icon: 'cloud',
-    screenshotUrl: '/templates/cloud-security-scan.png',
     isFeatured: true,
     isDefault: true,
     graph: {
@@ -507,8 +560,8 @@ function cloudSecurityScanTemplate(): SeedTemplate {
         makeEdge('e2c', awsCreds, prowler, 'regions', 'regions'),
         // Prowler → Normalize (for normalized findings output)
         makeEdge('e3', prowler, normalize, 'findings', 'rawFindings'),
-        // Prowler → Analytics (analytics-ready results)
-        makeEdge('e4', prowler, analytics, 'results', 'input1'),
+        // Normalize → Analytics (index normalized findings for dashboards)
+        makeEdge('e4', normalize, analytics, 'findings', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -537,7 +590,6 @@ function attackSurfaceReconTemplate(): SeedTemplate {
       'Full recon pipeline: subdomain discovery, DNS resolution, HTTP probing, port scanning, and vulnerability scanning.',
     category: 'attack-surface',
     icon: 'globe',
-    screenshotUrl: '/templates/attack-surface-recon.png',
     isFeatured: true,
     isDefault: true,
     graph: {
@@ -577,7 +629,7 @@ function attackSurfaceReconTemplate(): SeedTemplate {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 9: Container Image Scan
-// Entry Point → Trivy (image scan) → Normalize → [Markdown, Analytics]
+// Entry Point → Trivy (image scan) → Normalize → [Markdown, Analytics Sink]
 // ──────────────────────────────────────────────────────────────────────────────
 function containerImageScanTemplate(): SeedTemplate {
   resetCounter();
@@ -585,6 +637,7 @@ function containerImageScanTemplate(): SeedTemplate {
   const trivy = nid('node');
   const normalize = nid('node');
   const markdown = nid('node');
+  const analytics = nid('node');
 
   return {
     name: 'Container Image Scan',
@@ -593,7 +646,6 @@ function containerImageScanTemplate(): SeedTemplate {
       'Scan container images from any registry (Docker Hub, ECR, GCR, GHCR) for vulnerabilities using Trivy. Supports public and private images with registry credentials.',
     category: 'cloud-security',
     icon: 'container',
-    screenshotUrl: '/templates/container-image-scan.png',
     isFeatured: true,
     isDefault: true,
     graph: {
@@ -616,7 +668,10 @@ function containerImageScanTemplate(): SeedTemplate {
           scanType: 'image',
         }),
         makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 800, 0),
-        makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, 0),
+        makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, -100),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1200, 100, {
+          dataInputs: [{ id: 'input1', label: 'Container Findings', sourceTag: 'trivy' }],
+        }),
       ],
       edges: [
         // Entry Point → Trivy: pass image reference
@@ -625,6 +680,8 @@ function containerImageScanTemplate(): SeedTemplate {
         makeEdge('e2', trivy, normalize, 'findings', 'rawFindings'),
         // Normalize → Markdown: pass normalized findings
         makeEdge('e3', normalize, markdown, 'findings', 'findings'),
+        // Normalize → Analytics: index findings for dashboards
+        makeEdge('e4', normalize, analytics, 'findings', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.7 },
     },
