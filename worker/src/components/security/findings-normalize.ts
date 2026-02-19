@@ -176,13 +176,14 @@ function detectScannerType(finding: Record<string, unknown>): string {
   if ('rule_id' in finding && 'message' in finding) {
     return 'opengrep';
   }
-  // Dependency: has package, vulnerability_id
+  // Trivy: has VulnerabilityID or PkgName (camelCase — checked BEFORE dependency
+  // to avoid misclassifying Trivy container findings as dependency findings)
+  if ('VulnerabilityID' in finding || ('PkgName' in finding && 'Target' in finding)) {
+    return 'trivy';
+  }
+  // Dependency: has package, vulnerability_id (lowercase keys)
   if ('package' in finding && ('vulnerability_id' in finding || 'vuln_id' in finding)) {
     return 'dependency';
-  }
-  // Trivy: has VulnerabilityID, PkgName
-  if ('VulnerabilityID' in finding || 'Target' in finding) {
-    return 'trivy';
   }
   // Nuclei: has template-id, matched-at
   if ('template-id' in finding || 'templateID' in finding) {

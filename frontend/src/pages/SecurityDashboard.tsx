@@ -195,7 +195,7 @@ export function SecurityDashboardContent() {
         if (filters.order !== 'desc') params.set('order', filters.order);
         if (selectedFinding) {
           params.set('finding', selectedFinding._id);
-        } else if (deepLinkedFindingId) {
+        } else if (deepLinkedFindingId && !userClosedRef.current) {
           // Preserve the finding param while the deep-linked finding is still loading
           params.set('finding', deepLinkedFindingId);
         }

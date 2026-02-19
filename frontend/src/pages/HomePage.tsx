@@ -13,6 +13,7 @@ import { getCurrentUserId } from '@/lib/currentUser';
 import { useSecurityViewStore } from '@/store/securityViewStore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCategoryCounts } from '@/hooks/queries/useSecurityQueries';
+import { QueryErrorBoundary } from '@/components/ui/QueryErrorBoundary';
 
 // Lazy-load the heavy SecurityDashboardContent (pulls in recharts, markdown-it, etc.)
 const SecurityDashboardContent = lazy(() =>
@@ -59,15 +60,19 @@ type UserState = 'new' | 'partial' | 'complete';
 const CATEGORY_KEYS = ['cloud-security', 'code-security', 'dependency-security'];
 
 export function HomePage() {
-  const { data: installations = [] } = useGitHubInstallations();
+  const { data: installations = [], isLoading: installationsLoading } = useGitHubInstallations();
   const { data: repositories = [] } = useGitHubRepositories();
   const { data: scanResultsData } = useGitHubScanResults({ limit: 5 });
   const scanResults = scanResultsData?.data ?? [];
   const { data: triggerRules = [] } = useTriggerRules();
   const { data: schedules = [] } = useSchedules();
   const userId = getCurrentUserId();
-  const { data: orgConnections = [] } = useIntegrationConnections(userId);
+  const { data: orgConnections = [], isLoading: connectionsLoading } =
+    useIntegrationConnections(userId);
   const activeViewId = useSecurityViewStore((s) => s.activeViewId);
+
+  // True until we have enough data to determine the user's onboarding state
+  const stateLoading = installationsLoading || connectionsLoading;
 
   // Per-category severity counts from analytics via TanStack Query
   const {
@@ -76,6 +81,7 @@ export function HomePage() {
       'code-security': { ...EMPTY_COUNTS },
       'dependency-security': { ...EMPTY_COUNTS },
     },
+    isError: analyticsError,
   } = useCategoryCounts(SCANNER_TO_CATEGORY, CATEGORY_KEYS);
 
   // Getting started checklist
@@ -217,6 +223,24 @@ export function HomePage() {
 
   // --- Home tab: adaptive layout ---
   if (activeViewId === 'home') {
+    // Show lightweight skeleton while determining user state to avoid flash of wrong layout
+    if (stateLoading && !stageOverride) {
+      return (
+        <div className="p-6 max-w-7xl mx-auto space-y-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-20 rounded-lg" />
+            ))}
+          </div>
+          <Skeleton className="h-32 rounded-lg" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Skeleton className="lg:col-span-2 h-48 rounded-lg" />
+            <Skeleton className="h-48 rounded-lg" />
+          </div>
+        </div>
+      );
+    }
+
     // ═══════════════════════════════════════════
     // STATE 1: New User (0/5 done)
     // ═══════════════════════════════════════════
@@ -241,7 +265,7 @@ export function HomePage() {
       return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
           <QuickStatsRow
-            totalFindings={totalFindings}
+            totalFindings={analyticsError ? 0 : totalFindings}
             totalRepos={repositories.length}
             totalScans={scanResults.length}
             integrationsConnected={integrationsConnected}
@@ -254,24 +278,26 @@ export function HomePage() {
             defaultOpen={completedCount < 3}
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <NeedsAttentionCard categories={attentionCategories} mode="normal" />
+          <QueryErrorBoundary>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <NeedsAttentionCard categories={attentionCategories} mode="normal" />
+              </div>
+              <RecentActivityFeed scanResults={scanResults} repositories={repositories} />
             </div>
-            <RecentActivityFeed scanResults={scanResults} repositories={repositories} />
-          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <FindingsTrendChart />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <FindingsTrendChart />
+              </div>
+              <Card>
+                <CardContent className="p-6 flex flex-col items-center justify-center h-full">
+                  <span className="text-sm text-muted-foreground mb-3">Security Score</span>
+                  <SecurityScoreRing score={securityScore} size={100} strokeWidth={8} />
+                </CardContent>
+              </Card>
             </div>
-            <Card>
-              <CardContent className="p-6 flex flex-col items-center justify-center h-full">
-                <span className="text-sm text-muted-foreground mb-3">Security Score</span>
-                <SecurityScoreRing score={securityScore} size={100} strokeWidth={8} />
-              </CardContent>
-            </Card>
-          </div>
+          </QueryErrorBoundary>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <CoverageDetailCard repositories={repositories} triggerRules={triggerRules} />
@@ -308,22 +334,24 @@ export function HomePage() {
     return (
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         <QuickStatsRow
-          totalFindings={totalFindings}
+          totalFindings={analyticsError ? 0 : totalFindings}
           totalRepos={repositories.length}
           totalScans={scanResults.length}
           integrationsConnected={integrationsConnected}
-          securityScore={securityScore}
+          securityScore={analyticsError ? 0 : securityScore}
           showScore
         />
 
-        <NeedsAttentionCard categories={attentionCategories} mode="prominent" />
+        <QueryErrorBoundary>
+          <NeedsAttentionCard categories={attentionCategories} mode="prominent" />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2">
-            <FindingsTrendChart />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <FindingsTrendChart />
+            </div>
+            <RecentActivityFeed scanResults={scanResults} repositories={repositories} />
           </div>
-          <RecentActivityFeed scanResults={scanResults} repositories={repositories} />
-        </div>
+        </QueryErrorBoundary>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">

@@ -19,6 +19,8 @@ export interface SystemWorkflowDto {
 @Injectable()
 export class SystemWorkflowsService {
   private readonly logger = new Logger(SystemWorkflowsService.name);
+  /** Orgs that have been verified/initialized this process lifetime. */
+  private readonly initializedOrgs = new Set<string>();
 
   constructor(
     @Inject(DRIZZLE_TOKEN) private readonly db: NodePgDatabase,
@@ -27,6 +29,11 @@ export class SystemWorkflowsService {
   ) {}
 
   async ensureSystemWorkflows(organizationId: string): Promise<SystemWorkflowDto[]> {
+    // Fast path: skip DB queries if this org was already initialized this process lifetime
+    if (this.initializedOrgs.has(organizationId)) {
+      return this.findSystemWorkflows(organizationId);
+    }
+
     // 1. Get existing system workflows for this org
     const existing = await this.findSystemWorkflows(organizationId);
 
@@ -71,6 +78,7 @@ export class SystemWorkflowsService {
       );
     }
 
+    this.initializedOrgs.add(organizationId);
     return this.findSystemWorkflows(organizationId);
   }
 

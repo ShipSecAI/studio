@@ -170,6 +170,10 @@ function TemplateCard({
             src={template.screenshotUrl}
             alt={`${template.name} preview`}
             className="w-full h-full object-contain"
+            loading="lazy"
+            decoding="async"
+            width={400}
+            height={225}
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none';
             }}
@@ -235,6 +239,10 @@ function TemplateCard({
                   alt={tool.label}
                   title={tool.label}
                   className="w-5 h-5 rounded-sm object-contain"
+                  loading="lazy"
+                  decoding="async"
+                  width={20}
+                  height={20}
                 />
               ))}
               {tools.length > 5 && (
@@ -326,9 +334,9 @@ export function WorkflowTemplatesPage() {
         title: 'Workflow created',
         description: `Created "${template.name}" workflow`,
       });
-      // Close dialog before navigating to prevent Radix Dialog from blocking route transition
+      // Close dialog first, then navigate after a tick so Radix Dialog unmounts cleanly
       setDetailOpen(false);
-      navigate(`/workflows/${workflow.id}`);
+      requestAnimationFrame(() => navigate(`/workflows/${workflow.id}`));
     } catch {
       toast({
         title: 'Error',

@@ -51,6 +51,10 @@ export function TemplateDetailDialog({
               src={template.screenshotUrl}
               alt={`${template.name} workflow preview`}
               className="w-full h-full object-cover"
+              loading="lazy"
+              decoding="async"
+              width={672}
+              height={378}
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = 'none';
                 (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
@@ -105,6 +109,10 @@ export function TemplateDetailDialog({
                         src={tool.logo}
                         alt={tool.label}
                         className="w-4 h-4 rounded-sm object-contain"
+                        loading="lazy"
+                        decoding="async"
+                        width={16}
+                        height={16}
                       />
                       <span className="text-xs">{tool.label}</span>
                     </div>
