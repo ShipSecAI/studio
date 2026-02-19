@@ -80,6 +80,9 @@ export const queryKeys = {
     categoryCounts: () => ['security', getOrgScope(), 'categoryCounts'] as const,
     summary: (viewFilter?: unknown) => ['security', getOrgScope(), 'summary', viewFilter] as const,
   },
+  cloud: {
+    scans: (connectionId?: string) => ['cloud', getOrgScope(), 'scans', connectionId] as const,
+  },
   github: {
     status: () => ['github', getOrgScope(), 'status'] as const,
     installations: () => ['github', getOrgScope(), 'installations'] as const,

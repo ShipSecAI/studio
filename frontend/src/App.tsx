@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { ToastProvider } from '@/components/ui/toast-provider';
@@ -88,6 +88,9 @@ const WorkflowTemplatesPage = lazy(() =>
   import('@/pages/WorkflowTemplatesPage').then((m) => ({ default: m.WorkflowTemplatesPage })),
 );
 const ReconPage = lazy(() => import('@/pages/ReconPage').then((m) => ({ default: m.ReconPage })));
+const CloudAccountsPage = lazy(() =>
+  import('@/pages/CloudAccountsPage').then((m) => ({ default: m.CloudAccountsPage })),
+);
 
 function AuthIntegration({ children }: { children: React.ReactNode }) {
   useAuthStoreIntegration();
@@ -179,17 +182,17 @@ function App() {
                         <Route path="/secrets" element={<SecretsManager />} />
                         <Route path="/api-keys" element={<ApiKeysManager />} />
                         <Route path="/integrations" element={<IntegrationsManager />} />
-                        <Route path="/integrations/github" element={<GitHubPage />} />
-                        <Route
-                          path="/integrations/github/triggers/new"
-                          element={<CreateTriggerRulePage />}
-                        />
-                        <Route
-                          path="/integrations/github/triggers/:id"
-                          element={<EditTriggerRulePage />}
-                        />
-                        <Route path="/integrations/github/scans/:id" element={<ScanResultPage />} />
                         <Route path="/integrations/:provider" element={<IntegrationDetailPage />} />
+                        <Route
+                          path="/github"
+                          element={<Navigate to="/github/repositories" replace />}
+                        />
+                        <Route path="/github/repositories" element={<GitHubPage />} />
+                        <Route path="/github/scans" element={<GitHubPage />} />
+                        <Route path="/github/scans/:id" element={<ScanResultPage />} />
+                        <Route path="/github/triggers" element={<GitHubPage />} />
+                        <Route path="/github/triggers/new" element={<CreateTriggerRulePage />} />
+                        <Route path="/github/triggers/:id" element={<EditTriggerRulePage />} />
                         <Route path="/webhooks" element={<WebhooksPage />} />
                         <Route path="/webhooks/new" element={<WebhookEditorPage />} />
                         <Route path="/webhooks/:id" element={<WebhookEditorPage />} />
@@ -201,6 +204,7 @@ function App() {
                         <Route path="/dashboards/security" element={<SecurityDashboard />} />
                         <Route path="/artifacts" element={<ArtifactLibrary />} />
                         <Route path="/mcp-library" element={<McpLibraryPage />} />
+                        <Route path="/cloud/accounts" element={<CloudAccountsPage />} />
                         <Route path="/recon" element={<ReconPage />} />
                         <Route path="/runs/:runId" element={<RunRedirect />} />
                         <Route
