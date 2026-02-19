@@ -86,7 +86,23 @@ export function AppTopBar({
       };
     }
 
-    if (location.pathname === '/integrations' || location.pathname.startsWith('/integrations/')) {
+    if (location.pathname.startsWith('/integrations/')) {
+      const provider = location.pathname.split('/')[2];
+      if (provider) {
+        const providerName =
+          provider.toUpperCase() === 'AWS'
+            ? 'AWS'
+            : provider.charAt(0).toUpperCase() + provider.slice(1);
+        return {
+          title: `Integrations / ${providerName}`,
+          shortTitle: providerName,
+          subtitle: `Connect external services to enable cloud security scanning, notifications, and more`,
+          breadcrumb: { label: 'Integrations', href: '/integrations' },
+        };
+      }
+    }
+
+    if (location.pathname === '/integrations') {
       return {
         title: 'Integrations',
         shortTitle: 'Integrations',

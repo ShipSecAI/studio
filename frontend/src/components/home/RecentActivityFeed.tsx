@@ -20,7 +20,7 @@ const STATUS_DOT_COLOR: Record<string, string> = {
 /** Provider logo paths keyed by scan source type */
 const PROVIDER_LOGO: Record<string, { src: string; alt: string }> = {
   github: { src: '/icons/github.svg', alt: 'GitHub' },
-  aws: { src: '/icons/aws.png', alt: 'AWS' },
+  aws: { src: '/icons/aws.svg', alt: 'AWS' },
 };
 
 function getProviderLogo(scan: GitHubScanResult) {

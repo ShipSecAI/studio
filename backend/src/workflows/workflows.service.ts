@@ -713,9 +713,46 @@ export class WorkflowsService {
     } = {},
   ) {
     const organizationId = this.requireOrganizationId(auth);
+    const limit = options.limit ?? 50;
+    const offset = options.offset ?? 0;
+
+    // When status filter is set, use chunked fetching because status is resolved
+    // dynamically via buildRunSummary (Temporal lookup), not stored reliably in DB.
+    if (options.status) {
+      const target = offset + limit;
+      const CHUNK = 200;
+      let dbOffset = 0;
+      const matches: WorkflowRunSummary[] = [];
+
+      while (matches.length < target) {
+        const chunk = await this.runRepository.list({
+          workflowId: options.workflowId,
+          organizationId,
+          limit: CHUNK,
+          offset: dbOffset,
+        });
+        if (chunk.length === 0) break;
+        const summaries = await Promise.all(
+          chunk.map((r) => this.buildRunSummary(r, organizationId)),
+        );
+        matches.push(...summaries.filter((s) => s.status === options.status));
+        dbOffset += CHUNK;
+      }
+
+      const runs = matches.slice(offset, offset + limit);
+      runs.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+      this.logger.log(
+        `Loaded ${runs.length} workflow run(s) for timeline (status-filtered from ${dbOffset} DB rows)`,
+      );
+      return { runs };
+    }
+
+    // No status filter — pass through to repo unchanged
     const runs = await this.runRepository.list({
-      ...options,
+      workflowId: options.workflowId,
       organizationId,
+      limit,
+      offset,
     });
     const summaries = await Promise.all(
       runs.map((run) => this.buildRunSummary(run, organizationId)),

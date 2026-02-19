@@ -67,7 +67,7 @@ const TOOL_LOGO_MAP: Record<string, { logo: string; label: string }> = {
   httpx: { logo: '/icons/projectdiscovery.svg', label: 'HTTPx' },
   naabu: { logo: '/icons/projectdiscovery.svg', label: 'Naabu' },
   github: { logo: '/icons/github.svg', label: 'GitHub' },
-  aws: { logo: '/icons/aws.png', label: 'AWS' },
+  aws: { logo: '/icons/aws.svg', label: 'AWS' },
   slack: { logo: '/icons/slack.svg', label: 'Slack' },
   ai: { logo: '/icons/ai.svg', label: 'AI Agent' },
 };

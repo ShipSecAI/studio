@@ -80,6 +80,9 @@ const EditTriggerRulePage = lazy(() => import('@/pages/EditTriggerRulePage'));
 const IntegrationDetailPage = lazy(() =>
   import('@/pages/IntegrationDetailPage').then((m) => ({ default: m.IntegrationDetailPage })),
 );
+const GitHubIntegrationPage = lazy(() =>
+  import('@/pages/GitHubIntegrationPage').then((m) => ({ default: m.GitHubIntegrationPage })),
+);
 const SecurityDashboard = lazy(() =>
   import('@/pages/SecurityDashboard').then((m) => ({ default: m.SecurityDashboardContent })),
 );
@@ -182,6 +185,7 @@ function App() {
                         <Route path="/secrets" element={<SecretsManager />} />
                         <Route path="/api-keys" element={<ApiKeysManager />} />
                         <Route path="/integrations" element={<IntegrationsManager />} />
+                        <Route path="/integrations/github" element={<GitHubIntegrationPage />} />
                         <Route path="/integrations/:provider" element={<IntegrationDetailPage />} />
                         <Route
                           path="/github"

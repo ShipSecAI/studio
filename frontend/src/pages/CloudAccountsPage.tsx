@@ -11,22 +11,19 @@ import { useWorkflowsSummary } from '@/hooks/queries/useWorkflowQueries';
 import { useGitHubStore } from '@/store/githubStore';
 import { useToast } from '@/components/ui/use-toast';
 import {
-  Cloud,
   Plus,
   Shield,
   ScanSearch,
   PlayCircle,
   ExternalLink,
   CheckCircle2,
-  AlertTriangle,
-  Clock,
   Loader2,
   Container,
   MoreVertical,
   RefreshCw,
   Unlink,
   Workflow,
-  ChevronDown,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,9 +48,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { AwsSetupForm } from '@/components/integrations/AwsSetupForm';
+import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
 import type { WorkflowSummary } from '@/services/api';
+import { useCloudScans, type CloudScansFilters } from '@/hooks/queries/useCloudScanQueries';
+import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
+import { formatRelativeTime, formatExactTime, formatDuration } from '@/components/scans/scan-utils';
+import type { ExecutionStatus } from '@/schemas/execution';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,93 +80,13 @@ interface AwsConnection {
   createdAt?: string;
 }
 
-// ── Freshness Badge ──────────────────────────────────────────────────────────
-
-function FreshnessBadge({ lastValidatedAt }: { lastValidatedAt?: string }) {
-  if (!lastValidatedAt) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
-        <Clock className="h-3 w-3" /> Never
-      </span>
-    );
-  }
-
-  const diffMs = Date.now() - new Date(lastValidatedAt).getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-  if (diffDays < 1) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-        <CheckCircle2 className="h-3 w-3" /> &lt;24h
-      </span>
-    );
-  }
-  if (diffDays <= 7) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-        <Clock className="h-3 w-3" /> {Math.floor(diffDays)}d ago
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
-      <AlertTriangle className="h-3 w-3" /> &gt;7d
-    </span>
-  );
-}
-
-// ── KPI Stats Row ────────────────────────────────────────────────────────────
-
-function KpiRow({ connections }: { connections: AwsConnection[] }) {
-  const validCount = connections.filter(
-    (c) => c.status === 'valid' || c.status === 'active',
-  ).length;
-  const freshCount = connections.filter((c) => {
-    if (!c.lastValidatedAt) return false;
-    return Date.now() - new Date(c.lastValidatedAt).getTime() < 24 * 60 * 60 * 1000;
-  }).length;
-
-  const stats = [
-    {
-      label: 'Connected',
-      value: `${validCount}/${connections.length}`,
-      sub: 'accounts',
-      color: 'text-blue-600 dark:text-blue-400',
-    },
-    {
-      label: 'Validated <24h',
-      value: `${freshCount}`,
-      sub: 'accounts',
-      color: 'text-green-600 dark:text-green-400',
-    },
-    {
-      label: 'Total Accounts',
-      value: `${connections.length}`,
-      sub: 'AWS',
-      color: 'text-purple-600 dark:text-purple-400',
-    },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-      {stats.map((stat) => (
-        <div key={stat.label} className="border rounded-lg p-4 bg-card">
-          <p className="text-xs text-muted-foreground">{stat.label}</p>
-          <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
-          <p className="text-xs text-muted-foreground">{stat.sub}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ── Empty State ──────────────────────────────────────────────────────────────
 
 function CloudEmptyState({ onConnect }: { onConnect: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="rounded-full bg-muted p-4 mb-4">
-        <Cloud className="h-8 w-8 text-muted-foreground" />
+        <img src="/icons/aws.svg" alt="AWS" className="h-8 w-8" />
       </div>
       <h3 className="text-lg font-semibold mb-2">Connect Your AWS Account</h3>
       <p className="text-muted-foreground mb-6 max-w-md">
@@ -431,64 +364,101 @@ function AccountCard({
 }) {
   const region = (connection.config as Record<string, string>)?.region;
   const accountId = (connection.config as Record<string, string>)?.accountId;
+  const isActive = connection.status === 'valid' || connection.status === 'active';
+  const connectedAt = connection.createdAt ? formatRelativeTime(connection.createdAt) : 'Unknown';
+  const lastValidated = connection.lastValidatedAt
+    ? formatRelativeTime(connection.lastValidatedAt)
+    : 'Never';
 
   return (
-    <div className="border rounded-lg p-4 space-y-3 bg-card text-card-foreground">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2">
-          <img src="/icons/aws.png" alt="AWS" className="h-6 w-6 object-contain" />
-          <div>
-            <p className="font-medium">{connection.displayName || 'AWS Account'}</p>
-            {accountId && <p className="text-xs text-muted-foreground font-mono">{accountId}</p>}
-            {region && <p className="text-xs text-muted-foreground">{region}</p>}
+    <Card
+      className={cn(
+        'overflow-hidden transition-shadow hover:shadow-md',
+        'border-orange-200 dark:border-orange-800',
+      )}
+    >
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-[#232F3E] p-1.5">
+              <img src="/icons/aws-dark.svg" alt="AWS" className="h-full w-full object-contain" />
+            </div>
+            <div>
+              <CardTitle className="text-base">{connection.displayName || 'AWS Account'}</CardTitle>
+              <CardDescription className="text-xs">
+                {accountId ? `Account ${accountId}` : 'AWS'}
+                {region ? ` · ${region}` : ''}
+              </CardDescription>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant={isActive ? 'default' : 'secondary'} className="text-xs">
+              {isActive ? (
+                <>
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Connected
+                </>
+              ) : (
+                connection.status || 'Unknown'
+              )}
+            </Badge>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={onValidate}>
+                  <RefreshCw className="mr-2 h-4 w-4" /> Validate
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onDisconnect} className="text-red-600 dark:text-red-400">
+                  <Unlink className="mr-2 h-4 w-4" /> Disconnect
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onValidate}>
-              <RefreshCw className="mr-2 h-4 w-4" /> Validate
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onDisconnect} className="text-red-600 dark:text-red-400">
-              <Unlink className="mr-2 h-4 w-4" /> Disconnect
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <div className="flex items-center gap-2 flex-wrap">
-        <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-            connection.status === 'valid' || connection.status === 'active'
-              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-              : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-          }`}
-        >
-          {connection.status === 'valid' || connection.status === 'active'
-            ? connection.status.charAt(0).toUpperCase() + connection.status.slice(1)
-            : connection.status || 'Unknown'}
-        </span>
-        <FreshnessBadge lastValidatedAt={connection.lastValidatedAt} />
-      </div>
-
-      <div className="flex items-center gap-2 pt-1">
-        <Button size="sm" variant="default" onClick={onScan} className="gap-1.5">
-          <PlayCircle className="h-3.5 w-3.5" /> Scan
-        </Button>
-        <Button size="sm" variant="outline" asChild>
-          <Link
-            to={`/dashboards/security?view=cloud-security&account=${encodeURIComponent(connection.displayName || '')}`}
-            className="gap-1.5"
-          >
-            <ExternalLink className="h-3.5 w-3.5" /> View Findings
-          </Link>
-        </Button>
-      </div>
-    </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          {accountId && (
+            <div>
+              <span className="text-muted-foreground">Account ID</span>
+              <p className="font-medium font-mono text-xs">{accountId}</p>
+            </div>
+          )}
+          {region && (
+            <div>
+              <span className="text-muted-foreground">Region</span>
+              <p className="font-medium">{region}</p>
+            </div>
+          )}
+          <div>
+            <span className="text-muted-foreground">Connected</span>
+            <p className="font-medium">{connectedAt}</p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Last validated</span>
+            <p className="font-medium">{lastValidated}</p>
+          </div>
+        </div>
+        <div className="flex gap-2 pt-1">
+          <Button variant="outline" size="sm" className="flex-1" onClick={onScan}>
+            <PlayCircle className="h-3.5 w-3.5 mr-1.5" />
+            Scan
+          </Button>
+          <Button variant="outline" size="sm" className="flex-1" asChild>
+            <Link
+              to={`/dashboards/security?view=cloud-security&account=${encodeURIComponent(connection.displayName || '')}`}
+            >
+              <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+              View Findings
+            </Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -506,6 +476,16 @@ function AccountsTab({
   const { toast } = useToast();
   const validateMutation = useValidateAwsConnection();
   const disconnectMutation = useDisconnectIntegration();
+  const { data: catalog = [] } = useIntegrationCatalog();
+
+  const awsEntry = useMemo(() => catalog.find((c) => c.id === 'aws'), [catalog]);
+  const sections = awsEntry?.setupInstructions?.sections;
+  const hasSetupSections = sections && sections.length > 0;
+
+  const healthyCount = useMemo(
+    () => connections.filter((c) => c.status === 'valid' || c.status === 'active').length,
+    [connections],
+  );
 
   if (connections.length === 0) {
     return <CloudEmptyState onConnect={onConnect} />;
@@ -542,25 +522,142 @@ function AccountsTab({
   };
 
   return (
-    <div className="space-y-6">
-      <KpiRow connections={connections} />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {connections.map((conn) => (
-          <AccountCard
-            key={conn.id}
-            connection={conn}
-            onScan={() => onScan(conn)}
-            onValidate={() => handleValidate(conn)}
-            onDisconnect={() => handleDisconnect(conn)}
-          />
-        ))}
-        <button
-          onClick={onConnect}
-          className="border border-dashed rounded-lg p-4 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:bg-muted/50 transition-colors min-h-[180px]"
-        >
-          <Plus className="h-6 w-6" />
-          <span className="text-sm font-medium">Connect Account</span>
-        </button>
+    <div className="space-y-8">
+      {/* Connections Section */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">
+          Connections
+          <span className="text-sm font-normal text-muted-foreground ml-2">
+            ({connections.length})
+          </span>
+        </h2>
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {connections.map((conn) => (
+            <AccountCard
+              key={conn.id}
+              connection={conn}
+              onScan={() => onScan(conn)}
+              onValidate={() => handleValidate(conn)}
+              onDisconnect={() => handleDisconnect(conn)}
+            />
+          ))}
+          <Card
+            className="overflow-hidden border-2 border-dashed hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer"
+            onClick={onConnect}
+          >
+            <CardContent className="p-4 h-full flex flex-col items-center justify-center gap-2 min-h-[160px]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                <Plus className="h-5 w-5 text-primary" />
+              </div>
+              <span className="text-sm font-medium text-muted-foreground">Add Connection</span>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Two-column bottom: Setup Instructions + Info Sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* Left column: Setup Instructions */}
+        {hasSetupSections && (
+          <div className="lg:col-span-3">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Setup</CardTitle>
+                <CardDescription>Choose a scenario that matches your environment.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue={sections[0]?.scenario} className="w-full">
+                  <TabsList className="w-full h-auto flex-wrap">
+                    {sections.map((section: { scenario: string; title: string }) => (
+                      <TabsTrigger
+                        key={section.scenario}
+                        value={section.scenario}
+                        className="flex-1 text-xs"
+                      >
+                        {section.title}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  {sections.map((section: { scenario: string; steps: string[] }) => (
+                    <TabsContent key={section.scenario} value={section.scenario} className="mt-4">
+                      <ol className="space-y-3">
+                        {section.steps.map((step: string, stepIdx: number) => (
+                          <li
+                            key={stepIdx}
+                            className="flex gap-3 text-sm text-muted-foreground leading-relaxed"
+                          >
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                              {stepIdx + 1}
+                            </span>
+                            <span className="pt-0.5">{renderStepText(step)}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Right column: Info Sidebar */}
+        <div className={hasSetupSections ? 'lg:col-span-2' : 'lg:col-span-5'}>
+          <div className="space-y-4">
+            {/* Documentation link */}
+            {awsEntry?.docsUrl && (
+              <Card>
+                <CardContent className="p-4">
+                  <a
+                    href={awsEntry.docsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 text-sm font-medium text-primary hover:underline"
+                  >
+                    <ExternalLink className="h-4 w-4 flex-shrink-0" />
+                    View Amazon Web Services Documentation
+                  </a>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Connection stats */}
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <h3 className="text-sm font-semibold">Connection Summary</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-md bg-muted/50 p-3 text-center">
+                    <p className="text-2xl font-bold">{connections.length}</p>
+                    <p className="text-xs text-muted-foreground">Total</p>
+                  </div>
+                  <div className="rounded-md bg-muted/50 p-3 text-center">
+                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                      {healthyCount}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Healthy</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Auth methods */}
+            {awsEntry?.authMethods && awsEntry.authMethods.length > 0 && (
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <h3 className="text-sm font-semibold">Supported Auth Methods</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {awsEntry.authMethods.map((method: { type: string; label: string }) => (
+                      <Badge key={method.type} variant="secondary" className="gap-1.5">
+                        <Shield className="h-3 w-3" />
+                        {method.label}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -568,67 +665,73 @@ function AccountsTab({
 
 // ── Scans Tab ────────────────────────────────────────────────────────────────
 
-interface CloudScanRun {
-  runId: string;
-  workflowName: string;
-  status: string;
-  startedAt: string;
-}
+const ALL_STATUSES_VALUE = '__all__';
+
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: ALL_STATUSES_VALUE, label: 'All statuses' },
+  { value: 'RUNNING', label: 'Running' },
+  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'FAILED', label: 'Failed' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+  { value: 'TIMED_OUT', label: 'Timed Out' },
+];
+
+const LIVE_STATUSES: ReadonlySet<string> = new Set(['QUEUED', 'RUNNING', 'AWAITING_INPUT']);
 
 function ScansTab({ connections }: { connections: AwsConnection[] }) {
-  const { data: workflows = [] } = useWorkflowsSummary();
-  const [runs, setRuns] = useState<CloudScanRun[]>([]);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
+  const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
+  const systemWorkflowsLoading = useGitHubStore((s) => s.systemWorkflowsLoading);
+  const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUSES_VALUE);
 
-  // Cloud template slugs to match
-  const cloudWorkflows = useMemo(() => {
-    return workflows.filter(
-      (w: WorkflowSummary) =>
-        /cloud security|prowler/i.test(w.name) || /container image|trivy/i.test(w.name),
-    );
-  }, [workflows]);
-
+  // Fetch systemWorkflows on mount so cloud workflow IDs are available
   useEffect(() => {
-    if (cloudWorkflows.length === 0) {
-      setLoading(false);
-      return;
-    }
+    fetchSystemWorkflows();
+  }, [fetchSystemWorkflows]);
 
-    let cancelled = false;
-    setLoading(true);
+  const activeStatus =
+    statusFilter === ALL_STATUSES_VALUE ? undefined : (statusFilter as ExecutionStatus);
 
-    Promise.all(
-      cloudWorkflows.map(async (wf: WorkflowSummary) => {
-        try {
-          const result = await api.executions.listRuns({ workflowId: wf.id, limit: 20 });
-          const runList = Array.isArray(result)
-            ? result
-            : (result as { runs?: unknown[] })?.runs || [];
-          return runList.map((r: any) => ({
-            runId: r.runId || r.id || '',
-            workflowName: wf.name,
-            status: r.status || 'unknown',
-            startedAt: r.startedAt || r.createdAt || '',
-          }));
-        } catch {
-          return [];
-        }
-      }),
-    ).then((results) => {
-      if (cancelled) return;
-      const all = results
-        .flat()
-        .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
-      setRuns(all);
-      setLoading(false);
-    });
+  const filters: CloudScansFilters = useMemo(() => ({ status: activeStatus }), [activeStatus]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [cloudWorkflows]);
+  const { data, isLoading, isError, error, isFetching, dataUpdatedAt, refetch } =
+    useCloudScans(filters);
 
-  if (loading) {
+  const runs = data?.runs ?? [];
+  const liveCount = data?.liveCount ?? 0;
+  const successRate = data?.successRate ?? 0;
+  const totalFetched = data?.totalFetched ?? 0;
+
+  // Determine which cloud workflow IDs we have
+  const hasCloudWorkflows = useMemo(
+    () =>
+      systemWorkflows.some(
+        (sw) =>
+          sw.slug && new Set(['sys-cloud-security-scan', 'sys-container-image-scan']).has(sw.slug),
+      ),
+    [systemWorkflows],
+  );
+
+  // ── Empty state hierarchy ──────────────────────────────────────────────────
+
+  // 1. No AWS connections
+  if (connections.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <div className="rounded-full bg-muted p-4 mb-4">
+          <img src="/icons/aws.svg" alt="AWS" className="h-8 w-8" />
+        </div>
+        <h3 className="text-lg font-semibold mb-2">Connect an AWS Account First</h3>
+        <p className="text-muted-foreground max-w-md">
+          Connect an AWS account from the Accounts tab to start running cloud scans.
+        </p>
+      </div>
+    );
+  }
+
+  // 2. Loading system workflows
+  if (systemWorkflowsLoading) {
     return (
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
@@ -638,56 +741,259 @@ function ScansTab({ connections }: { connections: AwsConnection[] }) {
     );
   }
 
-  if (runs.length === 0) {
+  // 3. No cloud workflows found
+  if (!hasCloudWorkflows) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <div className="rounded-full bg-muted p-4 mb-4">
-          <ScanSearch className="h-8 w-8 text-muted-foreground" />
+          <Workflow className="h-8 w-8 text-muted-foreground" />
         </div>
-        <h3 className="text-lg font-semibold mb-2">No Cloud Scans Yet</h3>
-        <p className="text-muted-foreground max-w-md">
-          {connections.length > 0
-            ? 'Run your first cloud scan from the Accounts tab to see scan history here.'
-            : 'Connect an AWS account first, then run a cloud scan.'}
+        <h3 className="text-lg font-semibold mb-2">No Cloud Scan Workflows</h3>
+        <p className="text-muted-foreground max-w-md mb-4">
+          No cloud scan workflows found. Create one from Templates first.
         </p>
+        <Button variant="outline" asChild>
+          <Link to="/workflows">Browse Templates</Link>
+        </Button>
       </div>
     );
   }
 
+  // 4. First query loading
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <Skeleton key={i} className="h-14 rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  // 5. Error state
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <div className="rounded-full bg-red-100 dark:bg-red-900/30 p-4 mb-4">
+          <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
+        </div>
+        <h3 className="text-lg font-semibold mb-2">Failed to Load Scans</h3>
+        <p className="text-muted-foreground max-w-md mb-4">
+          {error instanceof Error ? error.message : 'An unexpected error occurred.'}
+        </p>
+        <Button onClick={() => refetch()}>Retry</Button>
+      </div>
+    );
+  }
+
+  // Separate live runs from completed
+  const liveRuns = runs.filter((r) => LIVE_STATUSES.has(r.status));
+  const tableRuns = runs;
+
+  const updatedAgo = dataUpdatedAt
+    ? formatRelativeTime(new Date(dataUpdatedAt).toISOString())
+    : null;
+
   return (
-    <div className="space-y-2">
-      {runs.slice(0, 50).map((run) => (
-        <Link
-          key={run.runId}
-          to={`/runs/${run.runId}`}
-          className="flex items-center justify-between border rounded-lg p-3 hover:bg-muted/50 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <StatusDot status={run.status} />
-            <div>
-              <p className="text-sm font-medium">{run.workflowName}</p>
-              <p className="text-xs text-muted-foreground">
-                {run.startedAt ? new Date(run.startedAt).toLocaleString() : 'Unknown time'}
-              </p>
-            </div>
+    <div className="space-y-4">
+      {/* Summary chips */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {liveCount > 0 && (
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-blue-500/10 text-blue-700 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-700/50">
+            <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+            {liveCount} live
+          </span>
+        )}
+        {runs.length > 0 && (
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground border">
+            {successRate}% success rate
+          </span>
+        )}
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
+          <SelectTrigger className="w-[160px] h-9">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="flex items-center gap-2 ml-auto">
+          {updatedAgo && (
+            <span className="text-xs text-muted-foreground">Updated {updatedAgo}</span>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="h-8 w-8 p-0"
+          >
+            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+      </div>
+
+      {/* Live runs section */}
+      {liveRuns.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground">Live Scans</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {liveRuns.map((run) => {
+              const elapsed = run.startTime
+                ? formatDuration(run.startTime, new Date().toISOString())
+                : null;
+              return (
+                <div
+                  key={run.id}
+                  className="rounded-lg border border-blue-200 dark:border-blue-700/50 bg-blue-500/5 p-3 space-y-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                    <span className="text-sm font-medium truncate">{run.workflowName}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">
+                      Started {formatRelativeTime(run.startTime)}
+                      {elapsed ? ` \u00b7 Elapsed ${elapsed}` : ''}
+                    </span>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" asChild>
+                      <Link to={`/runs/${run.id}`}>Open Run</Link>
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <span className="text-xs text-muted-foreground capitalize">{run.status}</span>
-        </Link>
-      ))}
+        </div>
+      )}
+
+      {/* 6. No runs match filter */}
+      {runs.length === 0 && activeStatus && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="rounded-full bg-muted p-4 mb-4">
+            <ScanSearch className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">No Runs Match Your Filter</h3>
+          <p className="text-muted-foreground max-w-md mb-4">
+            No cloud scan runs with status &ldquo;
+            {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? statusFilter}&rdquo;
+            were found.
+          </p>
+          <Button variant="outline" onClick={() => setStatusFilter(ALL_STATUSES_VALUE)}>
+            Reset Filter
+          </Button>
+        </div>
+      )}
+
+      {/* 7. No runs, no filter */}
+      {runs.length === 0 && !activeStatus && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="rounded-full bg-muted p-4 mb-4">
+            <ScanSearch className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">No Cloud Scans Yet</h3>
+          <p className="text-muted-foreground max-w-md">
+            Run your first cloud scan from the Accounts tab to see scan history here.
+          </p>
+        </div>
+      )}
+
+      {/* 8. Runs table */}
+      {runs.length > 0 && (
+        <TooltipProvider>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Status</TableHead>
+                <TableHead>Scan Type</TableHead>
+                <TableHead>Started</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Trigger</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tableRuns.map((run) => {
+                const duration = LIVE_STATUSES.has(run.status)
+                  ? null
+                  : formatDuration(run.startTime, run.endTime ?? null);
+                return (
+                  <TableRow
+                    key={run.id}
+                    className="cursor-pointer"
+                    onClick={() => navigate(`/runs/${run.id}`)}
+                  >
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={getStatusBadgeClassFromStatus(run.status)}
+                      >
+                        {run.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{run.workflowName}</span>
+                        {run.workflowVersion != null && (
+                          <span className="text-xs text-muted-foreground">
+                            v{run.workflowVersion}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-sm">{formatRelativeTime(run.startTime)}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>{formatExactTime(run.startTime)}</TooltipContent>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {duration ?? <span className="text-muted-foreground">&mdash;</span>}
+                    </TableCell>
+                    <TableCell className="text-sm">{run.triggerLabel ?? run.triggerType}</TableCell>
+                    <TableCell className="text-right">
+                      <Link
+                        to={`/runs/${run.id}`}
+                        className="text-sm text-primary hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Open Run
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TooltipProvider>
+      )}
+
+      {/* Pagination / count */}
+      {runs.length > 0 && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground pt-2">
+          <span>
+            Showing {runs.length} cloud scan run{runs.length !== 1 ? 's' : ''}
+          </span>
+          {totalFetched >= (filters.limit ?? 100) && (
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              Load more
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
-}
-
-function StatusDot({ status }: { status: string }) {
-  const color =
-    status === 'completed' || status === 'COMPLETED'
-      ? 'bg-green-500'
-      : status === 'running' || status === 'RUNNING'
-        ? 'bg-blue-500 animate-pulse'
-        : status === 'failed' || status === 'FAILED'
-          ? 'bg-red-500'
-          : 'bg-gray-400';
-  return <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${color}`} />;
 }
 
 // ── Connect Account Dialog ───────────────────────────────────────────────────
@@ -760,37 +1066,32 @@ export function CloudAccountsPage() {
   return (
     <div className="flex-1 overflow-auto">
       <div className="container py-6 space-y-6">
-        {awsConnections.length > 0 && (
-          <div className="flex justify-end">
-            <Button onClick={() => setShowConnectDialog(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Connect Account
-            </Button>
-          </div>
-        )}
-
         {isLoading ? (
           <CloudLoadingSkeleton />
         ) : (
           <Tabs value={tab} onValueChange={handleTabChange}>
             <TabsList>
-              <TabsTrigger value="accounts">Accounts</TabsTrigger>
-              <TabsTrigger value="scans">Scans</TabsTrigger>
+              <TabsTrigger value="accounts">
+                <Shield className="h-4 w-4 mr-2" />
+                Accounts
+              </TabsTrigger>
+              <TabsTrigger value="scans">
+                <ScanSearch className="h-4 w-4 mr-2" />
+                Scans
+              </TabsTrigger>
             </TabsList>
-            <TabsContent value="accounts" className="mt-4">
+            <TabsContent value="accounts" className="mt-6">
               <AccountsTab
                 connections={awsConnections}
                 onConnect={() => setShowConnectDialog(true)}
                 onScan={(conn) => setScanTarget(conn)}
               />
             </TabsContent>
-            <TabsContent value="scans" className="mt-4">
+            <TabsContent value="scans" className="mt-6">
               <ScansTab connections={awsConnections} />
             </TabsContent>
           </Tabs>
         )}
-
-        <AwsSetupInstructions />
       </div>
 
       <ConnectAccountDialog open={showConnectDialog} onOpenChange={setShowConnectDialog} />
@@ -818,62 +1119,4 @@ function renderStepText(text: string): React.ReactNode {
     }
     return <span key={i}>{part}</span>;
   });
-}
-
-function AwsSetupInstructions() {
-  const { data: catalog = [] } = useIntegrationCatalog();
-  const [open, setOpen] = useState(false);
-
-  const awsEntry = useMemo(() => catalog.find((c) => c.id === 'aws'), [catalog]);
-  const sections = awsEntry?.setupInstructions?.sections;
-
-  if (!sections || sections.length === 0) return null;
-
-  return (
-    <div className="border rounded-lg">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center justify-between w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors"
-      >
-        <span className="text-sm font-semibold">Setup Instructions</span>
-        <ChevronDown
-          className={`h-4 w-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-      {open && (
-        <div className="px-4 pb-4">
-          <Tabs defaultValue={sections[0]?.scenario} className="w-full">
-            <TabsList className="w-full h-auto flex-wrap">
-              {sections.map((section: { scenario: string; title: string }) => (
-                <TabsTrigger
-                  key={section.scenario}
-                  value={section.scenario}
-                  className="flex-1 text-xs"
-                >
-                  {section.title}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            {sections.map((section: { scenario: string; steps: string[] }) => (
-              <TabsContent key={section.scenario} value={section.scenario} className="mt-4">
-                <ol className="space-y-3">
-                  {section.steps.map((step: string, stepIdx: number) => (
-                    <li
-                      key={stepIdx}
-                      className="flex gap-3 text-sm text-muted-foreground leading-relaxed"
-                    >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                        {stepIdx + 1}
-                      </span>
-                      <span className="pt-0.5">{renderStepText(step)}</span>
-                    </li>
-                  ))}
-                </ol>
-              </TabsContent>
-            ))}
-          </Tabs>
-        </div>
-      )}
-    </div>
-  );
 }

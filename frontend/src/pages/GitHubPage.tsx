@@ -487,7 +487,7 @@ function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="rounded-full bg-muted p-6 mb-6">
-        <Github className="h-12 w-12 text-muted-foreground" />
+        <img src="/icons/github.svg" alt="GitHub" className="h-12 w-12" />
       </div>
       <h2 className="text-2xl font-bold mb-2">Connect GitHub</h2>
       <p className="text-muted-foreground mb-6 max-w-lg">
@@ -498,7 +498,7 @@ function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
         <div className="w-full max-w-xl space-y-4">
           <Button asChild size="lg">
             <a href={installUrl} target="_blank" rel="noopener noreferrer">
-              <Github className="mr-2 h-5 w-5" />
+              <img src="/icons/github.svg" alt="GitHub" className="mr-2 h-5 w-5" />
               Install GitHub App
             </a>
           </Button>

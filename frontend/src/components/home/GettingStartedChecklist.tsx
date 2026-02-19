@@ -21,7 +21,7 @@ interface GettingStartedChecklistProps {
 
 export const CHECKLIST_ICONS = {
   github: '/icons/github.svg',
-  aws: '/icons/aws.png',
+  aws: '/icons/aws.svg',
   scan: '/icons/nuclei.svg',
   prGate: '/icons/github.svg',
   template: '/icons/ai.svg',
