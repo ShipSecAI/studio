@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Workflow } from 'lucide-react';
+import { Container, Workflow } from 'lucide-react';
 import { formatRelativeTime } from '@/components/scans/scan-utils';
 import type { GitHubScanResult, GitHubRepo } from '@/store/githubStore';
 import type { ExecutionRun } from '@/hooks/queries/useRunQueries';
@@ -24,6 +24,7 @@ interface FeedItem {
   timestamp: string;
   href: string;
   provider: 'github' | 'aws' | 'workflow';
+  containerRegistry?: ContainerRegistry;
 }
 
 const STATUS_DOT_COLOR: Record<string, string> = {
@@ -45,6 +46,22 @@ const PROVIDER_LOGO: Record<string, { src: string; alt: string }> = {
   aws: { src: '/icons/aws.svg', alt: 'AWS' },
 };
 
+/** Container registry types detected from imageRef */
+type ContainerRegistry = 'dockerhub' | 'ghcr' | 'ecr';
+
+const REGISTRY_LOGO: Record<ContainerRegistry, { src: string; alt: string }> = {
+  dockerhub: { src: '/icons/docker.svg', alt: 'Docker Hub' },
+  ghcr: { src: '/icons/github.svg', alt: 'GHCR' },
+  ecr: { src: '/icons/aws.svg', alt: 'AWS ECR' },
+};
+
+function detectContainerRegistry(imageRef: string): ContainerRegistry {
+  const ref = imageRef.toLowerCase();
+  if (ref.startsWith('ghcr.io/')) return 'ghcr';
+  if (/\.dkr\.ecr\.[^.]+\.amazonaws\.com\//.test(ref)) return 'ecr';
+  return 'dockerhub';
+}
+
 function isCloudWorkflow(name: string): boolean {
   const lower = name.toLowerCase();
   return lower.includes('prowler') || lower.includes('cloud') || lower.includes('cspm');
@@ -61,7 +78,24 @@ function formatFullTimestamp(dateString: string): string {
   });
 }
 
-function ProviderIcon({ provider }: { provider: FeedItem['provider'] }) {
+function ProviderIcon({
+  provider,
+  containerRegistry,
+}: {
+  provider: FeedItem['provider'];
+  containerRegistry?: ContainerRegistry;
+}) {
+  if (containerRegistry) {
+    const logo = REGISTRY_LOGO[containerRegistry];
+    return (
+      <div className="relative w-6 h-6">
+        <img src={logo.src} alt={logo.alt} className="w-6 h-6 rounded object-contain" />
+        <div className="absolute -bottom-1 -left-1 w-3.5 h-3.5 rounded-full bg-background border border-border flex items-center justify-center">
+          <Container className="h-2.5 w-2.5 text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
   if (provider === 'workflow') {
     return (
       <div className="w-6 h-6 rounded bg-muted flex items-center justify-center">
@@ -150,6 +184,9 @@ export function RecentActivityFeed({
           timestamp: run.endTime ?? run.startTime,
           href: `/workflows/${run.workflowId}/runs/${run.id}`,
           provider: isCloud ? 'aws' : ('workflow' as const),
+          containerRegistry: runtimeInputs.imageRef
+            ? detectContainerRegistry(String(runtimeInputs.imageRef))
+            : undefined,
         };
       });
 
@@ -194,7 +231,10 @@ export function RecentActivityFeed({
                     className="flex items-start gap-2 text-xs hover:bg-muted/50 rounded p-1.5 -mx-1 transition-colors"
                   >
                     <div className="relative w-6 h-6 flex-shrink-0 mt-0.5">
-                      <ProviderIcon provider={item.provider} />
+                      <ProviderIcon
+                        provider={item.provider}
+                        containerRegistry={item.containerRegistry}
+                      />
                       <span
                         className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background ${dotColor}`}
                       />
