@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TemplatesRepository } from './templates.repository';
 import { TemplateManifest } from '../database/schema/templates';
@@ -60,9 +60,13 @@ interface CachedResponse<T> {
  * - If changed: GitHub returns 200 with new data + new ETag
  */
 @Injectable()
-export class GitHubSyncService implements OnModuleInit {
+export class GitHubSyncService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(GitHubSyncService.name);
   private isSyncing = false;
+  private syncInterval: ReturnType<typeof setInterval> | null = null;
+
+  /** Sync interval in milliseconds (30 minutes) */
+  private static readonly SYNC_INTERVAL_MS = 30 * 60 * 1000;
 
   /** In-memory ETag cache keyed by request URL */
   private readonly etagCache = new Map<string, CachedResponse<unknown>>();
@@ -73,7 +77,7 @@ export class GitHubSyncService implements OnModuleInit {
   ) {}
 
   /**
-   * Sync templates once on startup.
+   * Sync templates on startup and schedule recurring sync every 30 minutes.
    */
   async onModuleInit(): Promise<void> {
     const { owner, repo, branch } = this.getRepoConfig();
@@ -91,6 +95,30 @@ export class GitHubSyncService implements OnModuleInit {
     } catch (err) {
       this.logger.error('Startup sync failed', err);
       // Don't throw - allow the application to start even if sync fails
+    }
+
+    // Schedule recurring sync every 30 minutes
+    this.syncInterval = setInterval(() => {
+      this.logger.log('Running scheduled template sync (every 30 min)...');
+      this.syncTemplates()
+        .then((result) => {
+          this.logger.log(
+            `Scheduled sync complete: ${result.synced.length} synced, ${result.failed.length} failed`,
+          );
+        })
+        .catch((err) => {
+          this.logger.error('Scheduled sync failed', err);
+        });
+    }, GitHubSyncService.SYNC_INTERVAL_MS);
+
+    this.logger.log('Scheduled template sync every 30 minutes');
+  }
+
+  onModuleDestroy(): void {
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+      this.syncInterval = null;
+      this.logger.log('Cleared scheduled template sync interval');
     }
   }
 
