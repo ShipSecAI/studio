@@ -21,20 +21,23 @@ export const TIME_RANGES = [
 export const QUICK_SCANS = [
   {
     id: 'secret-detection',
+    templateSlug: 'sys-secret-scan',
     name: 'Secret Detection',
     description: 'Scan for exposed secrets, API keys, and credentials',
     icon: Shield,
   },
   {
     id: 'sast-semgrep',
+    templateSlug: 'sys-sast-scan',
     name: 'SAST',
     description: 'Static Application Security Testing',
     icon: Shield,
   },
   {
     id: 'dependency-audit',
+    templateSlug: 'sys-dependency-scan',
     name: 'Dependency Audit',
     description: 'Check dependencies for known vulnerabilities',
     icon: Shield,
   },
-] as const;
+];

@@ -1,12 +1,14 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  useIntegrationCatalog,
   useIntegrationConnections,
   useValidateAwsConnection,
   useDisconnectIntegration,
 } from '@/hooks/queries/useIntegrationQueries';
 import { useWorkflowsSummary } from '@/hooks/queries/useWorkflowQueries';
+import { useGitHubStore } from '@/store/githubStore';
 import { useToast } from '@/components/ui/use-toast';
 import {
   Cloud,
@@ -24,6 +26,7 @@ import {
   RefreshCw,
   Unlink,
   Workflow,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -200,17 +203,17 @@ function CloudLoadingSkeleton() {
 const CLOUD_QUICK_SCANS = [
   {
     slug: 'cloud-security-scan',
+    templateSlug: 'sys-cloud-security-scan',
     name: 'Misconfiguration Scan',
     description: 'Prowler — CIS, GDPR, HIPAA benchmarks',
     icon: Shield,
-    matchPattern: /cloud security|prowler/i,
   },
   {
     slug: 'container-image-scan',
+    templateSlug: 'sys-container-image-scan',
     name: 'Container Image Scan',
     description: 'Trivy — ECR image vulnerability scan',
     icon: Container,
-    matchPattern: /container image|trivy/i,
   },
 ];
 
@@ -224,18 +227,24 @@ function CloudScanPickerModal({ open, onClose, connection }: CloudScanPickerModa
   const { toast } = useToast();
   const navigate = useNavigate();
   const { data: workflows = [] } = useWorkflowsSummary();
+  const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
+  const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
   const [triggering, setTriggering] = useState<string | null>(null);
   const [expandedScan, setExpandedScan] = useState<string | null>(null);
   const [imageRef, setImageRef] = useState('');
   const imageRefInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (open) fetchSystemWorkflows();
+  }, [open, fetchSystemWorkflows]);
+
   const resolvedScans = useMemo(() => {
     return CLOUD_QUICK_SCANS.flatMap((scan) => {
-      const match = workflows.find((w: WorkflowSummary) => scan.matchPattern.test(w.name));
+      const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
       if (!match) return [];
       return [{ ...scan, workflowId: match.id }];
     });
-  }, [workflows]);
+  }, [systemWorkflows]);
 
   const quickScanIds = useMemo(
     () => new Set(resolvedScans.map((s) => s.workflowId)),
@@ -751,20 +760,14 @@ export function CloudAccountsPage() {
   return (
     <div className="flex-1 overflow-auto">
       <div className="container py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Cloud Accounts</h1>
-            <p className="text-muted-foreground">
-              Manage your AWS accounts and run cloud security scans
-            </p>
-          </div>
-          {awsConnections.length > 0 && (
+        {awsConnections.length > 0 && (
+          <div className="flex justify-end">
             <Button onClick={() => setShowConnectDialog(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Connect Account
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         {isLoading ? (
           <CloudLoadingSkeleton />
@@ -786,6 +789,8 @@ export function CloudAccountsPage() {
             </TabsContent>
           </Tabs>
         )}
+
+        <AwsSetupInstructions />
       </div>
 
       <ConnectAccountDialog open={showConnectDialog} onOpenChange={setShowConnectDialog} />
@@ -794,6 +799,81 @@ export function CloudAccountsPage() {
         onClose={() => setScanTarget(null)}
         connection={scanTarget}
       />
+    </div>
+  );
+}
+
+// ── Setup Instructions Section ────────────────────────────────────────────────
+
+function renderStepText(text: string): React.ReactNode {
+  const parts = text.split(/(`[^`]+`)/g);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) => {
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code key={i} className="rounded bg-muted px-1.5 py-0.5 text-[0.8em] font-mono break-all">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
+function AwsSetupInstructions() {
+  const { data: catalog = [] } = useIntegrationCatalog();
+  const [open, setOpen] = useState(false);
+
+  const awsEntry = useMemo(() => catalog.find((c) => c.id === 'aws'), [catalog]);
+  const sections = awsEntry?.setupInstructions?.sections;
+
+  if (!sections || sections.length === 0) return null;
+
+  return (
+    <div className="border rounded-lg">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center justify-between w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors"
+      >
+        <span className="text-sm font-semibold">Setup Instructions</span>
+        <ChevronDown
+          className={`h-4 w-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="px-4 pb-4">
+          <Tabs defaultValue={sections[0]?.scenario} className="w-full">
+            <TabsList className="w-full h-auto flex-wrap">
+              {sections.map((section: { scenario: string; title: string }) => (
+                <TabsTrigger
+                  key={section.scenario}
+                  value={section.scenario}
+                  className="flex-1 text-xs"
+                >
+                  {section.title}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {sections.map((section: { scenario: string; steps: string[] }) => (
+              <TabsContent key={section.scenario} value={section.scenario} className="mt-4">
+                <ol className="space-y-3">
+                  {section.steps.map((step: string, stepIdx: number) => (
+                    <li
+                      key={stepIdx}
+                      className="flex gap-3 text-sm text-muted-foreground leading-relaxed"
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                        {stepIdx + 1}
+                      </span>
+                      <span className="pt-0.5">{renderStepText(step)}</span>
+                    </li>
+                  ))}
+                </ol>
+              </TabsContent>
+            ))}
+          </Tabs>
+        </div>
+      )}
     </div>
   );
 }

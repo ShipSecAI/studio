@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Search, Loader2, FolderGit } from 'lucide-react';
 import { useGitHubRepositories, useTriggerScan } from '@/hooks/queries/useGithubQueries';
 import type { GitHubRepo } from '@/store/githubStore';
+import { useGitHubStore } from '@/store/githubStore';
 import { useToast } from '@/components/ui/use-toast';
 import { QUICK_SCANS } from './constants';
 
@@ -26,6 +27,8 @@ export function FirstScanModal({
 }) {
   const { toast } = useToast();
   const { data: repositories = [], isLoading: repositoriesLoading } = useGitHubRepositories();
+  const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
+  const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
   const triggerScanMutation = useTriggerScan();
 
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
@@ -38,10 +41,24 @@ export function FirstScanModal({
     return repositories.filter((r) => r.fullName.toLowerCase().includes(q));
   }, [repositories, repoSearch]);
 
-  const scansForCategory =
-    scanCategory === 'code'
-      ? QUICK_SCANS.filter((s) => s.id !== 'dependency-audit')
-      : QUICK_SCANS.filter((s) => s.id === 'dependency-audit');
+  // Ensure system workflows are loaded
+  useEffect(() => {
+    fetchSystemWorkflows();
+  }, [fetchSystemWorkflows]);
+
+  // Resolve QUICK_SCANS to actual workflow UUIDs via system workflow template slugs
+  const resolvedScans = useMemo(() => {
+    const categoryScans =
+      scanCategory === 'code'
+        ? QUICK_SCANS.filter((s) => s.id !== 'dependency-audit')
+        : QUICK_SCANS.filter((s) => s.id === 'dependency-audit');
+
+    return categoryScans.flatMap((scan) => {
+      const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
+      if (!match) return [];
+      return [{ ...scan, workflowId: match.id }];
+    });
+  }, [systemWorkflows, scanCategory]);
 
   const handleTrigger = async (workflowId: string) => {
     if (!selectedRepo) return;
@@ -132,17 +149,17 @@ export function FirstScanModal({
               &larr; Back to repos
             </Button>
             <div className="grid gap-2">
-              {scansForCategory.map((scan) => {
+              {resolvedScans.map((scan) => {
                 const Icon = scan.icon;
                 return (
                   <Button
-                    key={scan.id}
+                    key={scan.workflowId}
                     variant="outline"
                     className="justify-start h-auto py-3 px-4"
-                    onClick={() => handleTrigger(scan.id)}
+                    onClick={() => handleTrigger(scan.workflowId)}
                     disabled={triggering !== null}
                   >
-                    {triggering === scan.id ? (
+                    {triggering === scan.workflowId ? (
                       <Loader2 className="h-5 w-5 mr-3 animate-spin" />
                     ) : (
                       <Icon className="h-5 w-5 mr-3 text-muted-foreground" />
