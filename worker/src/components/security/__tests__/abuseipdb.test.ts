@@ -3,6 +3,26 @@ import * as sdk from '@shipsec/component-sdk';
 import { componentRegistry } from '../../index';
 import { AbuseIPDBInput, AbuseIPDBOutput } from '../abuseipdb';
 
+// URL-aware fetch mock: creates a vi.fn() tracker that ONLY records calls to abuseipdb.com URLs.
+// Non-matching calls pass through to Bun.fetch.
+// Uses direct globalThis.fetch assignment (NOT vi.spyOn) so parallel test files sharing
+// globalThis cannot inflate mock.calls with their own fetch calls.
+const nativeFetch = Bun.fetch as typeof fetch;
+function mockAbuseIPDBFetch(response: Response) {
+  const tracker = vi.fn();
+
+  globalThis.fetch = ((url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const urlStr = String(url instanceof Request ? url.url : url);
+    if (urlStr.includes('abuseipdb.com')) {
+      tracker(url, init);
+      return Promise.resolve(response);
+    }
+    return nativeFetch(urlStr, init);
+  }) as typeof fetch;
+
+  return tracker;
+}
+
 describe('abuseipdb component', () => {
   beforeAll(async () => {
     // Ensure registry is populated
@@ -11,6 +31,8 @@ describe('abuseipdb component', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // Restore native fetch — mockAbuseIPDBFetch uses direct assignment, not vi.spyOn
+    globalThis.fetch = nativeFetch as unknown as typeof fetch;
   });
 
   it('should be registered with correct metadata', () => {
@@ -66,7 +88,7 @@ describe('abuseipdb component', () => {
       },
     };
 
-    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+    const fetchSpy = mockAbuseIPDBFetch(
       new Response(JSON.stringify(mockResponse), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -108,7 +130,7 @@ describe('abuseipdb component', () => {
       },
     };
 
-    vi.spyOn(global, 'fetch').mockResolvedValue(
+    mockAbuseIPDBFetch(
       new Response(null, {
         status: 404,
       }),
@@ -139,7 +161,7 @@ describe('abuseipdb component', () => {
       },
     };
 
-    vi.spyOn(global, 'fetch').mockResolvedValue(
+    mockAbuseIPDBFetch(
       new Response('Unauthorized', {
         status: 401,
         statusText: 'Unauthorized',
@@ -233,7 +255,7 @@ describe('abuseipdb component', () => {
       },
     };
 
-    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+    const fetchSpy = mockAbuseIPDBFetch(
       new Response(JSON.stringify(mockResponse), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

@@ -2,10 +2,11 @@ import { describe, expect, test, beforeAll, afterAll } from 'bun:test';
 import { definition } from '../http-request';
 import type { ExecutionContext } from '@shipsec/component-sdk';
 
-// Capture real fetch before any parallel test file can replace globalThis.fetch with a spy.
-// bun runs test files in parallel sharing globalThis, so without this snapshot other tests'
-// vi.spyOn(global, 'fetch') mocks would intercept our real localhost requests.
-const realFetch = globalThis.fetch;
+// Use Bun.fetch (the native fetch) instead of globalThis.fetch.
+// bun runs test files in parallel sharing globalThis, so vi.spyOn(global, 'fetch') in other
+// test files replaces globalThis.fetch but CANNOT replace Bun.fetch which is the underlying
+// native implementation.
+const nativeFetch = Bun.fetch as typeof fetch;
 
 // Helper to create a dummy context
 const mockContext: ExecutionContext = {
@@ -20,7 +21,7 @@ const mockContext: ExecutionContext = {
   },
   emitProgress: () => {},
   http: {
-    fetch: async (input, init) => realFetch(input as string, init),
+    fetch: async (input, init) => nativeFetch(input as string, init),
     toCurl: () => '',
   },
 };

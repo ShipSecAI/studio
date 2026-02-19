@@ -6,6 +6,28 @@ import type {
   GitHubRemoveOrgMembershipOutput,
 } from '../remove-org-membership';
 
+// URL-aware fetch mock: creates a vi.fn() tracker that ONLY records calls to expected
+// URL patterns (localhost and api.github.com). Non-matching calls pass through to Bun.fetch.
+// Uses direct globalThis.fetch assignment (NOT vi.spyOn) so parallel test files sharing
+// globalThis cannot inflate mock.calls with their own fetch calls.
+const nativeFetch = Bun.fetch as typeof fetch;
+function setupFetchMock(responses: Response[]) {
+  const queue = [...responses];
+  const tracker = vi.fn();
+
+  globalThis.fetch = ((url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const urlStr = String(url instanceof Request ? url.url : url);
+    if (urlStr.includes('localhost') || urlStr.includes('api.github.com')) {
+      tracker(url, init);
+      const response = queue.shift();
+      if (response) return Promise.resolve(response);
+    }
+    return nativeFetch(urlStr, init as RequestInit);
+  }) as typeof fetch;
+
+  return tracker;
+}
+
 describe('github.org.membership.remove component', () => {
   let previousInternalToken: string | undefined;
 
@@ -20,6 +42,8 @@ describe('github.org.membership.remove component', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // Restore native fetch — setupFetchMock uses direct assignment, not vi.spyOn
+    globalThis.fetch = nativeFetch as unknown as typeof fetch;
     if (previousInternalToken === undefined) {
       delete process.env.INTERNAL_SERVICE_TOKEN;
     } else {
@@ -37,8 +61,7 @@ describe('github.org.membership.remove component', () => {
 
     process.env.INTERNAL_SERVICE_TOKEN = 'test-internal-token';
 
-    const fetchMock = vi.spyOn(globalThis, 'fetch');
-    fetchMock.mockResolvedValueOnce(
+    const fetchMock = setupFetchMock([
       new Response(
         JSON.stringify({
           accessToken: 'stored-token',
@@ -50,13 +73,11 @@ describe('github.org.membership.remove component', () => {
           headers: { 'Content-Type': 'application/json' },
         },
       ),
-    );
-    fetchMock.mockResolvedValueOnce(
       new Response(null, {
         status: 204,
         statusText: 'No Content',
       }),
-    );
+    ]);
 
     const context = createExecutionContext({
       runId: 'test-run',
@@ -108,8 +129,7 @@ describe('github.org.membership.remove component', () => {
 
     process.env.INTERNAL_SERVICE_TOKEN = 'test-internal-token';
 
-    const fetchMock = vi.spyOn(globalThis, 'fetch');
-    fetchMock.mockResolvedValueOnce(
+    const fetchMock = setupFetchMock([
       new Response(
         JSON.stringify({
           accessToken: 'stored-token',
@@ -121,19 +141,15 @@ describe('github.org.membership.remove component', () => {
           headers: { 'Content-Type': 'application/json' },
         },
       ),
-    );
-    fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ total_count: 1, items: [{ login: 'octocat' }] }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
-    );
-    fetchMock.mockResolvedValueOnce(
       new Response(null, {
         status: 404,
         statusText: 'Not Found',
       }),
-    );
+    ]);
 
     const context = createExecutionContext({
       runId: 'test-run',
@@ -172,8 +188,7 @@ describe('github.org.membership.remove component', () => {
 
     delete process.env.INTERNAL_SERVICE_TOKEN;
 
-    const fetchMock = vi.spyOn(globalThis, 'fetch');
-    fetchMock.mockResolvedValueOnce(
+    const fetchMock = setupFetchMock([
       new Response(
         JSON.stringify({
           accessToken: 'stored-token',
@@ -184,13 +199,11 @@ describe('github.org.membership.remove component', () => {
           headers: { 'Content-Type': 'application/json' },
         },
       ),
-    );
-    fetchMock.mockResolvedValueOnce(
       new Response(null, {
         status: 204,
         statusText: 'No Content',
       }),
-    );
+    ]);
 
     const context = createExecutionContext({
       runId: 'test-run',
@@ -238,8 +251,7 @@ describe('github.org.membership.remove component', () => {
 
     process.env.INTERNAL_SERVICE_TOKEN = 'test-internal-token';
 
-    const fetchMock = vi.spyOn(globalThis, 'fetch');
-    fetchMock.mockResolvedValueOnce(
+    const fetchMock = setupFetchMock([
       new Response(
         JSON.stringify({
           accessToken: 'stored-token',
@@ -249,13 +261,11 @@ describe('github.org.membership.remove component', () => {
           headers: { 'Content-Type': 'application/json' },
         },
       ),
-    );
-    fetchMock.mockResolvedValueOnce(
       new Response(null, {
         status: 500,
         statusText: 'Server Error',
       }),
-    );
+    ]);
 
     const context = createExecutionContext({
       runId: 'test-run',
