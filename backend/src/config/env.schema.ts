@@ -62,6 +62,10 @@ export const backendEnvSchema = z
     MINIO_ROOT_USER: z.string().optional(),
     MINIO_ROOT_PASSWORD: z.string().optional(),
 
+    // --- GitHub App ---
+    GITHUB_APP_ID: z.string().optional(),
+    GITHUB_APP_SLUG: z.string().optional(),
+
     // --- GitHub OAuth ---
     GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
     GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
@@ -106,6 +110,17 @@ export const backendEnvSchema = z
           path: ['LOG_KAFKA_BROKERS'],
           message:
             'LOG_KAFKA_BROKERS is required (set SKIP_INGEST_SERVICES=true or ENABLE_INGEST_SERVICES=false to skip)',
+        });
+      }
+    }
+
+    // GITHUB_APP_SLUG required when GITHUB_APP_ID is set
+    if (data.GITHUB_APP_ID) {
+      if (!data.GITHUB_APP_SLUG) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['GITHUB_APP_SLUG'],
+          message: 'GITHUB_APP_SLUG is required when GITHUB_APP_ID is set',
         });
       }
     }
