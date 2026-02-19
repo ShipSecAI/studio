@@ -255,6 +255,14 @@ export function canConnect(source: ConnectionType, target: ConnectionType): bool
     return source.name === target.name || canCoercePrimitive(source.name!, target.name!);
   }
 
+  // JSON primitive is compatible with any contract (untyped data)
+  if (
+    (source.kind === 'primitive' && source.name === 'json' && target.kind === 'contract') ||
+    (source.kind === 'contract' && target.kind === 'primitive' && target.name === 'json')
+  ) {
+    return true;
+  }
+
   // Contract to contract: strict name match
   if (source.kind === 'contract' && target.kind === 'contract') {
     return source.name === target.name && source.credential === target.credential;

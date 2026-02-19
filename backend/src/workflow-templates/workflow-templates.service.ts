@@ -182,8 +182,8 @@ export class WorkflowTemplatesService implements OnModuleInit {
         await this.db
           .update(workflowsTable)
           .set({
-            name: seed.graph.name,
-            description: seed.graph.description ?? null,
+            name: (seed.graph as any).name,
+            description: (seed.graph as any).description ?? null,
             graph: seed.graph as any,
             updatedAt: new Date(),
           })
