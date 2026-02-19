@@ -68,23 +68,3 @@ export class ChatController {
     await this.chatService.streamChatToResponse(id, body.messages, auth, res);
   }
 }
-
-// Separate controller for internal tool API (avoids route conflict with :id param)
-@Controller('chat/tools')
-export class ChatToolsController {
-  constructor(private readonly chatService: ChatService) {}
-
-  @Get()
-  getToolDefinitions(@CurrentAuth() auth: AuthContext) {
-    return this.chatService.getToolDefinitionsForWorker(auth);
-  }
-
-  @Post(':name/execute')
-  async executeToolForWorker(
-    @Param('name') name: string,
-    @Body() args: Record<string, unknown>,
-    @CurrentAuth() auth: AuthContext,
-  ) {
-    return this.chatService.executeToolForWorker(name, args, auth);
-  }
-}

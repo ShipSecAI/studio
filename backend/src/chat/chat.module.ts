@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
 
-import { StudioMcpModule } from '../studio-mcp/studio-mcp.module';
-import { ChatController, ChatToolsController } from './chat.controller';
+import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatSessionRepository } from './chat-session.repository';
 import { ChatStreamService } from './chat-stream.service';
+import { TerminalModule } from '../terminal/terminal.module';
 
 @Module({
-  imports: [StudioMcpModule],
-  controllers: [ChatController, ChatToolsController],
+  imports: [TerminalModule],
+  controllers: [ChatController],
   providers: [ChatService, ChatSessionRepository, ChatStreamService],
 })
 export class ChatModule {}

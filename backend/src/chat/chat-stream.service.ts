@@ -17,13 +17,16 @@ export class ChatStreamService {
   private subscriber: Redis | null = null;
 
   constructor(@Optional() @Inject(TERMINAL_REDIS) private readonly redis: Redis | null) {
+    console.log('[ChatStreamService] Constructor called, redis:', !!this.redis);
     if (this.redis) {
       // Create a duplicate connection for subscribing (Redis requires separate connections
       // for pub/sub subscribers vs regular commands)
       this.subscriber = this.redis.duplicate();
       this.logger.log('Chat stream service initialized with Redis pub/sub');
+      console.log('[ChatStreamService] Subscriber created');
     } else {
       this.logger.warn('Chat stream service: Redis not available, streaming disabled');
+      console.log('[ChatStreamService] No Redis - streaming disabled');
     }
   }
 
