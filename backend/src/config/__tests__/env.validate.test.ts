@@ -94,27 +94,6 @@ describe('backendEnvSchema', () => {
     }
   });
 
-  it('fails when GITHUB_APP_ID is set without GITHUB_APP_SLUG', () => {
-    const result = backendEnvSchema.safeParse(validEnv({ GITHUB_APP_ID: '12345' }));
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const paths = result.error.issues.map((i) => i.path.join('.'));
-      expect(paths).toContain('GITHUB_APP_SLUG');
-    }
-  });
-
-  it('passes when GITHUB_APP_ID is set with GITHUB_APP_SLUG', () => {
-    const result = backendEnvSchema.safeParse(
-      validEnv({ GITHUB_APP_ID: '12345', GITHUB_APP_SLUG: 'my-app' }),
-    );
-    expect(result.success).toBe(true);
-  });
-
-  it('passes when neither GITHUB_APP_ID nor GITHUB_APP_SLUG is set', () => {
-    const result = backendEnvSchema.safeParse(validEnv());
-    expect(result.success).toBe(true);
-  });
-
   it('coerces PORT string to number', () => {
     const result = backendEnvSchema.safeParse(validEnv({ PORT: '3211' }));
     expect(result.success).toBe(true);

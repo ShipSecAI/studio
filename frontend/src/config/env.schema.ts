@@ -27,8 +27,8 @@ export const frontendEnvSchema = z
     VITE_GIT_SHA: z.string().optional().default(''),
 
     // Feature flags
+    VITE_ENABLE_CONNECTIONS: viteBoolean(false),
     VITE_ENABLE_IT_OPS: viteBoolean(false),
-    VITE_ENABLE_DEVTOOLS: viteBoolean(false),
     VITE_DISABLE_ANALYTICS: viteBoolean(false),
 
     // Third-party integrations

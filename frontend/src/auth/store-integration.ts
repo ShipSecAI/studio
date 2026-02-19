@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useAuth, useAuthProvider } from './auth-context';
 import { useAuthStore } from '../store/authStore';
+import { useIntegrationStore } from '../store/integrationStore';
 import { queryClient } from '@/lib/queryClient';
 
 /**
@@ -27,6 +28,7 @@ export function useAuthStoreIntegration() {
     if (prevOrgRef.current !== organizationId) {
       queryClient.cancelQueries();
       queryClient.clear();
+      useIntegrationStore.getState().resetForOrgSwitch();
       prevOrgRef.current = organizationId;
     }
   }, [organizationId]);

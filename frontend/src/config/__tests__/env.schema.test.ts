@@ -5,6 +5,7 @@ describe('frontendEnvSchema', () => {
   it('accepts a valid config', () => {
     const result = frontendEnvSchema.safeParse({
       VITE_API_URL: 'http://localhost:3211',
+      VITE_ENABLE_CONNECTIONS: 'true',
     });
     expect(result.success).toBe(true);
   });
@@ -22,6 +23,22 @@ describe('frontendEnvSchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.VITE_API_URL).toBe('http://localhost:3211');
+    }
+  });
+
+  it('VITE_ENABLE_CONNECTIONS="false" → false (not truthy)', () => {
+    const result = frontendEnvSchema.safeParse({ VITE_ENABLE_CONNECTIONS: 'false' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.VITE_ENABLE_CONNECTIONS).toBe(false);
+    }
+  });
+
+  it('VITE_ENABLE_CONNECTIONS=undefined → false', () => {
+    const result = frontendEnvSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.VITE_ENABLE_CONNECTIONS).toBe(false);
     }
   });
 

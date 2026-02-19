@@ -133,7 +133,7 @@ export default function CreateTriggerRulePage() {
 
       await createTriggerRule(input);
       toast({ title: 'Success', description: 'Trigger rule created' });
-      navigate('/github/triggers');
+      navigate('/github?tab=triggers');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create trigger rule';
       toast({ title: 'Error', description: message, variant: 'destructive' });
@@ -145,7 +145,7 @@ export default function CreateTriggerRulePage() {
   return (
     <div className="container max-w-6xl py-8">
       <div className="mb-6">
-        <Button variant="ghost" onClick={() => navigate('/github/triggers')}>
+        <Button variant="ghost" onClick={() => navigate('/github?tab=triggers')}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to GitHub
         </Button>
@@ -394,7 +394,11 @@ export default function CreateTriggerRulePage() {
                 {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Create Rule
               </Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/github/triggers')}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate('/github?tab=triggers')}
+              >
                 Cancel
               </Button>
             </div>

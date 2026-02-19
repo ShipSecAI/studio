@@ -160,26 +160,6 @@ export function ActionCenterPage() {
     <TooltipProvider>
       <div className="flex-1 bg-background">
         <div className="container mx-auto px-3 md:px-4 py-4 md:py-8 space-y-4 md:space-y-6">
-          {/* Header */}
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Zap className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">Action Center</h1>
-                <p className="text-sm text-muted-foreground">
-                  Review and respond to workflow requests
-                </p>
-              </div>
-            </div>
-            {pendingCount > 0 && (
-              <Badge variant="default" className="text-base px-3 py-1">
-                {pendingCount} pending
-              </Badge>
-            )}
-          </div>
-
           {/* Filters */}
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div className="flex-1 space-y-2">
@@ -193,7 +173,12 @@ export function ActionCenterPage() {
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {pendingCount > 0 && (
+                <Badge variant="default" className="px-2.5 py-0.5">
+                  {pendingCount} pending
+                </Badge>
+              )}
               <Select
                 value={statusFilter}
                 onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -61,10 +61,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
-  AlertCircle,
 } from 'lucide-react';
 import type { GitHubRepo, GitHubScanResult } from '@/store/githubStore';
-import { useGitHubStore } from '@/store/githubStore';
 import {
   useGitHubStatus,
   useGitHubInstallations,
@@ -158,37 +156,37 @@ function EmptyState({
 }
 
 // Predefined quick scan workflow templates.
-// `templateSlug` matches against system workflow template slugs to resolve to a real workflow UUID.
+// `matchPattern` is matched (case-insensitive) against workflow names to resolve to a real workflow UUID.
 const QUICK_SCANS = [
   {
     slug: 'secret-detection',
-    templateSlug: 'sys-secret-scan',
     name: 'Secret Detection',
     description: 'Scan for exposed secrets, API keys, and credentials',
     icon: Shield,
+    matchPattern: /secret|trufflehog/i,
   },
   {
     slug: 'sast-opengrep',
-    templateSlug: 'sys-sast-scan',
     name: 'SAST (OpenGrep)',
     description: 'Static Application Security Testing',
     icon: Search,
+    matchPattern: /sast|opengrep|semgrep/i,
   },
   {
     slug: 'dependency-audit',
-    templateSlug: 'sys-dependency-scan',
     name: 'Dependency Audit',
     description: 'Check dependencies for known vulnerabilities',
     icon: Package,
+    matchPattern: /dependency|audit/i,
   },
 ];
 
-/** Resolve a quick scan slug to a real workflow UUID by matching system workflow template slugs. */
+/** Resolve a quick scan slug to a real workflow UUID by matching workflow names. */
 function resolveQuickScans(
-  systemWorkflows: { id: string; slug: string | null }[],
+  workflows: WorkflowOption[],
 ): { slug: string; workflowId: string; name: string; description: string; icon: typeof Shield }[] {
   return QUICK_SCANS.flatMap((scan) => {
-    const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
+    const match = workflows.find((w) => scan.matchPattern.test(w.name));
     if (!match) return [];
     return [
       {
@@ -210,10 +208,8 @@ interface WorkflowPickerModalProps {
 }
 
 function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowPickerModalProps) {
-  const { mutate: triggerScan } = useTriggerScan();
+  const { mutateAsync: triggerScan } = useTriggerScan();
   const { toast } = useToast();
-  const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
-  const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([]);
   const [workflowCompatibility, setWorkflowCompatibility] = useState<
     Record<string, WorkflowCompatibility>
@@ -222,11 +218,6 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
   const [selectedWorkflow, setSelectedWorkflow] = useState<string>('');
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [triggering, setTriggering] = useState<string | null>(null);
-
-  // Ensure system workflows are loaded
-  useEffect(() => {
-    if (open) fetchSystemWorkflows();
-  }, [open, fetchSystemWorkflows]);
 
   // Fetch workflows when modal opens
   useEffect(() => {
@@ -275,7 +266,7 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
   const selectedWorkflowRequiresPrContext =
     selectedWorkflowCompatibility?.requiresPrContext ?? false;
 
-  const handleTrigger = (workflowId: string) => {
+  const handleTrigger = async (workflowId: string) => {
     if (!repository) return;
     const compatibility = workflowCompatibility[workflowId];
     if (compatibility?.requiresPrContext) {
@@ -288,29 +279,23 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
       return;
     }
     setTriggering(workflowId);
-    triggerScan(
-      { repoId: repository.id, workflowId, branch: selectedBranch || undefined },
-      {
-        onSuccess: () => {
-          toast({
-            title: 'Scan started',
-            description: `Security scan started for ${repository.fullName}`,
-          });
-          onClose();
-          onSuccess();
-        },
-        onError: (error) => {
-          toast({
-            title: 'Scan failed',
-            description: error instanceof Error ? error.message : 'Failed to start scan',
-            variant: 'destructive',
-          });
-        },
-        onSettled: () => {
-          setTriggering(null);
-        },
-      },
-    );
+    try {
+      await triggerScan({ repoId: repository.id, workflowId, branch: selectedBranch || undefined });
+      toast({
+        title: 'Scan started',
+        description: `Security scan started for ${repository.fullName}`,
+      });
+      onClose();
+      onSuccess();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to start scan',
+        variant: 'destructive',
+      });
+    } finally {
+      setTriggering(null);
+    }
   };
 
   if (!repository) return null;
@@ -345,7 +330,7 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground">Quick Scans</h4>
             <div className="grid gap-2">
-              {resolveQuickScans(systemWorkflows).map((scan) => {
+              {resolveQuickScans(workflows).map((scan) => {
                 const Icon = scan.icon;
                 return (
                   <Button
@@ -487,7 +472,7 @@ function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="rounded-full bg-muted p-6 mb-6">
-        <img src="/icons/github.svg" alt="GitHub" className="h-12 w-12" />
+        <Github className="h-12 w-12 text-muted-foreground" />
       </div>
       <h2 className="text-2xl font-bold mb-2">Connect GitHub</h2>
       <p className="text-muted-foreground mb-6 max-w-lg">
@@ -498,7 +483,7 @@ function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
         <div className="w-full max-w-xl space-y-4">
           <Button asChild size="lg">
             <a href={installUrl} target="_blank" rel="noopener noreferrer">
-              <img src="/icons/github.svg" alt="GitHub" className="mr-2 h-5 w-5" />
+              <Github className="mr-2 h-5 w-5" />
               Install GitHub App
             </a>
           </Button>
@@ -548,13 +533,7 @@ interface RepositoriesTabProps {
 
 function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const {
-    data: repositories = [],
-    isLoading: loading,
-    isError: reposError,
-    error: reposErrorDetail,
-    refetch: refetchRepos,
-  } = useGitHubRepositories();
+  const { data: repositories = [], isLoading: loading } = useGitHubRepositories();
   const { mutateAsync: syncRepositories } = useSyncRepositories();
   const { mutateAsync: toggleRepoScans } = useToggleRepoScans();
   const qc = useQueryClient();
@@ -734,20 +713,6 @@ function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
         {[...Array(3)].map((_, i) => (
           <Skeleton key={i} className="h-16 w-full" />
         ))}
-      </div>
-    );
-  }
-
-  if (reposError && repositories.length === 0) {
-    return (
-      <div className="text-center py-12 border rounded-lg bg-card border-destructive">
-        <AlertCircle className="h-10 w-10 mx-auto mb-3 text-destructive" />
-        <h3 className="text-lg font-semibold mb-2">Failed to load repositories</h3>
-        <p className="text-muted-foreground mb-4">{reposErrorDetail?.message ?? 'Unknown error'}</p>
-        <Button onClick={() => refetchRepos()} variant="outline">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Try Again
-        </Button>
       </div>
     );
   }
@@ -1002,10 +967,7 @@ function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRunScan(repo);
-                    }}
+                    onClick={() => onRunScan(repo)}
                     disabled={!repo.scansEnabled}
                     title={!repo.scansEnabled ? 'Enable scans first to run a scan' : undefined}
                   >
@@ -1025,13 +987,7 @@ function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
 function TriggerRulesTab() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const {
-    data: triggerRules = [],
-    isLoading: loading,
-    isError: triggersError,
-    error: triggersErrorDetail,
-    refetch: refetchTriggers,
-  } = useTriggerRules();
+  const { data: triggerRules = [], isLoading: loading } = useTriggerRules();
   const { data: repositories = [] } = useGitHubRepositories();
   const { mutateAsync: deleteTriggerRule } = useDeleteTriggerRule();
   const { toast } = useToast();
@@ -1217,22 +1173,6 @@ function TriggerRulesTab() {
           <Skeleton className="h-[420px] w-full" />
           <Skeleton className="h-[420px] w-full" />
         </div>
-      </div>
-    );
-  }
-
-  if (triggersError && triggerRules.length === 0) {
-    return (
-      <div className="text-center py-12 border rounded-lg bg-card border-destructive">
-        <AlertCircle className="h-10 w-10 mx-auto mb-3 text-destructive" />
-        <h3 className="text-lg font-semibold mb-2">Failed to load trigger rules</h3>
-        <p className="text-muted-foreground mb-4">
-          {triggersErrorDetail?.message ?? 'Unknown error'}
-        </p>
-        <Button onClick={() => refetchTriggers()} variant="outline">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Try Again
-        </Button>
       </div>
     );
   }
@@ -1518,7 +1458,7 @@ function TriggerRulesTab() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigate(`/github/scans?triggerRuleId=${selectedRule.id}`)}
+                      onClick={() => navigate(`/github?tab=scans&triggerRuleId=${selectedRule.id}`)}
                     >
                       View all in Scans
                     </Button>
@@ -1597,7 +1537,7 @@ function TriggerRulesTab() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => navigate(`/github/scans?scan=${scan.id}`)}
+                                  onClick={() => navigate(`/github?tab=scans&scan=${scan.id}`)}
                                 >
                                   Scan
                                 </Button>
@@ -1803,13 +1743,7 @@ function ScansTab() {
         ? 'desc'
         : 'asc';
 
-  const {
-    data: scanResultsData,
-    isLoading: loading,
-    isError: scansError,
-    error: scansErrorDetail,
-    refetch: refetchScans,
-  } = useGitHubScanResults({
+  const { data: scanResultsData, isLoading: loading } = useGitHubScanResults({
     limit: SCAN_PAGE_SIZE,
     offset,
     repositoryId: repositoryFilter || undefined,
@@ -2072,20 +2006,6 @@ function ScansTab() {
         {[...Array(5)].map((_, i) => (
           <Skeleton key={i} className="h-12 w-full" />
         ))}
-      </div>
-    );
-  }
-
-  if (scansError && scanResults.length === 0) {
-    return (
-      <div className="text-center py-12 border rounded-lg bg-card border-destructive">
-        <AlertCircle className="h-10 w-10 mx-auto mb-3 text-destructive" />
-        <h3 className="text-lg font-semibold mb-2">Failed to load scan results</h3>
-        <p className="text-muted-foreground mb-4">{scansErrorDetail?.message ?? 'Unknown error'}</p>
-        <Button onClick={() => refetchScans()} variant="outline">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Try Again
-        </Button>
       </div>
     );
   }
@@ -2440,12 +2360,13 @@ function ScansTab() {
                       {historyScans.map((scan, idx) => {
                         const source = getScanSourceMeta(scan);
                         const sourceFilterParams = new URLSearchParams({
+                          tab: 'scans',
                           source: 'schedule',
                         });
                         if (source.scheduleId) {
                           sourceFilterParams.set('scheduleId', source.scheduleId);
                         }
-                        const scheduleScanLink = `/github/scans?${sourceFilterParams.toString()}`;
+                        const scheduleScanLink = `/github?${sourceFilterParams.toString()}`;
                         return (
                           <TableRow
                             key={scan.id}
@@ -2796,13 +2717,7 @@ function ConnectionOverview({
 
 export function GitHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const {
-    data: statusData,
-    isError: statusError,
-    error: statusErrorDetail,
-    refetch: refetchStatus,
-  } = useGitHubStatus();
+  const { data: statusData } = useGitHubStatus();
   const isConfigured = statusData?.configured ?? null;
   const installUrl = statusData?.installUrl ?? null;
   const { data: installations = [] } = useGitHubInstallations();
@@ -2813,22 +2728,65 @@ export function GitHubPage() {
 
   // Modal state for workflow picker
   const [selectedRepoForScan, setSelectedRepoForScan] = useState<GitHubRepo | null>(null);
-  const location = useLocation();
-  const activeTab = location.pathname.startsWith('/github/scans')
-    ? 'scans'
-    : location.pathname.startsWith('/github/triggers')
-      ? 'triggers'
-      : 'repos';
+  const validTabs = ['repos', 'scans', 'triggers'];
+  const tabParam = searchParams.get('tab');
+  const activeTab = validTabs.includes(tabParam ?? '') ? tabParam! : 'repos';
   const [settingUp, setSettingUp] = useState(false);
 
-  const setActiveTab = (tab: string) => {
-    const pathMap: Record<string, string> = {
-      repos: '/github/repositories',
-      scans: '/github/scans',
-      triggers: '/github/triggers',
+  const sanitizeParamsForTab = useCallback((tab: string, params: URLSearchParams) => {
+    const allowedByTab: Record<string, Set<string>> = {
+      repos: new Set([
+        'repoQ',
+        'repoScans',
+        'repoVisibility',
+        'repoOwner',
+        'repoLanguage',
+        'repoSort',
+        'repoDir',
+      ]),
+      scans: new Set([
+        'tab',
+        'scan',
+        'finding',
+        'page',
+        'repositoryId',
+        'status',
+        'source',
+        'scheduleId',
+        'triggerRuleId',
+        'scansSort',
+        'scansDir',
+      ]),
+      triggers: new Set(['tab', 'trQ', 'trStatus', 'trEvent', 'trRule', 'trRunsQ', 'trScan']),
     };
-    navigate(pathMap[tab] ?? '/github/repositories');
+
+    const cleaned = new URLSearchParams();
+    const allowed = allowedByTab[tab] ?? new Set<string>();
+
+    for (const [key, value] of params.entries()) {
+      if (allowed.has(key)) {
+        cleaned.set(key, value);
+      }
+    }
+
+    if (tab !== 'repos') {
+      cleaned.set('tab', tab);
+    }
+
+    return cleaned;
+  }, []);
+
+  const setActiveTab = (tab: string) => {
+    const newParams = sanitizeParamsForTab(tab, searchParams);
+    setSearchParams(newParams, { replace: true });
   };
+
+  useEffect(() => {
+    const sanitized = sanitizeParamsForTab(activeTab, searchParams);
+    if (sanitized.toString() !== searchParams.toString()) {
+      setSearchParams(sanitized, { replace: true });
+    }
+  }, [activeTab, sanitizeParamsForTab, searchParams, setSearchParams]);
 
   // Handle GitHub App installation callback
   useEffect(() => {
@@ -2838,8 +2796,11 @@ export function GitHubPage() {
     if (installationId && setupAction === 'install') {
       setSettingUp(true);
 
-      // Clean installation URL params
-      setSearchParams(new URLSearchParams(), { replace: true });
+      // Clean installation URL params, preserve tab
+      const cleanParams = new URLSearchParams();
+      const currentTab = searchParams.get('tab');
+      if (currentTab) cleanParams.set('tab', currentTab);
+      setSearchParams(cleanParams, { replace: true });
 
       const id = parseInt(installationId, 10);
       if (!isNaN(id)) {
@@ -2872,9 +2833,9 @@ export function GitHubPage() {
     }
   }, []);
 
-  const handleRunScan = useCallback((repo: GitHubRepo) => {
+  const handleRunScan = (repo: GitHubRepo) => {
     setSelectedRepoForScan(repo);
-  }, []);
+  };
 
   const handleScanSuccess = () => {
     // Switch to Scans tab and refresh scan results
@@ -2892,27 +2853,6 @@ export function GitHubPage() {
           <p className="text-muted-foreground">
             Syncing your repositories from GitHub. This will only take a moment.
           </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Error fetching GitHub status
-  if (statusError) {
-    return (
-      <div className="container py-6 space-y-6">
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="rounded-full bg-destructive/10 p-4 mb-4">
-            <AlertCircle className="h-8 w-8 text-destructive" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">Failed to load GitHub status</h3>
-          <p className="text-muted-foreground mb-4 max-w-md">
-            {statusErrorDetail?.message ?? 'Could not connect to the server. Please try again.'}
-          </p>
-          <Button onClick={() => refetchStatus()} variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Try Again
-          </Button>
         </div>
       </div>
     );

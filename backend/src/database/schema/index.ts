@@ -20,5 +20,7 @@ export * from './mcp-servers';
 
 export * from './node-io';
 export * from './organization-settings';
+
+export * from './chat-sessions';
+export * from './chat-messages';
 export * from './github-app';
-export * from './workflow-templates';

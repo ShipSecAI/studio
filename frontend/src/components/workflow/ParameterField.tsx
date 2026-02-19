@@ -27,6 +27,7 @@ import {
   useGitHubRepositories,
   useGitHubBranches,
 } from '@/hooks/queries/useGithubQueries';
+import { env } from '@/config/env';
 import { api } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
 import {
@@ -415,15 +416,17 @@ export function ParameterField({
         )}
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => navigate('/integrations')}
-            disabled={isReceivingInput}
-          >
-            Manage connections
-          </Button>
+          {env.VITE_ENABLE_CONNECTIONS && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => navigate('/integrations')}
+              disabled={isReceivingInput}
+            >
+              Manage connections
+            </Button>
+          )}
           <Button
             type="button"
             size="sm"

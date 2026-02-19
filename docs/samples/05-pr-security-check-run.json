@@ -335,13 +335,6 @@
       "targetHandle": "volumeName"
     },
     {
-      "id": "edge-pr-context-changed-files-to-opengrep",
-      "source": "pr-context",
-      "target": "opengrep-scanner",
-      "sourceHandle": "changedFiles",
-      "targetHandle": "includePaths"
-    },
-    {
       "id": "edge-clone-to-trufflehog",
       "source": "clone-repo",
       "target": "trufflehog-scanner",

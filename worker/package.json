@@ -34,6 +34,7 @@
     "@shipsec/contracts": "*",
     "@shipsec/shared": "*",
     "@temporalio/activity": "^1.14.1",
+    "@temporalio/ai-sdk": "^1.14.1",
     "@temporalio/client": "^1.14.1",
     "@temporalio/common": "^1.14.1",
     "@temporalio/worker": "^1.14.1",

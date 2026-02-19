@@ -39,6 +39,12 @@ import {
   cacheDiscoveryResultActivity,
 } from '../activities/mcp-discovery.activity';
 import { executeWebhookParsingScriptActivity } from '../activities/webhook-parsing.activity';
+import {
+  runChatAgentStepActivity,
+  saveChatMessagesActivity,
+  loadChatMessagesActivity,
+  initializeChatAgentActivities,
+} from '../activities/chat-agent.activities';
 
 // ... (existing imports)
 
@@ -218,7 +224,12 @@ async function main() {
   });
 
   // Initialize human input activity with database, trace and backend URL
-  const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:3211';
+  // STUDIO_API_BASE_URL includes /api/v1 suffix; BACKEND_URL is the bare origin.
+  // Derive the origin from whichever is available.
+  const studioApiBase = process.env.STUDIO_API_BASE_URL; // e.g. http://localhost:3611/api/v1
+  const backendUrl = studioApiBase
+    ? studioApiBase.replace(/\/api\/v1\/?$/, '')
+    : (process.env.BACKEND_URL ?? 'http://localhost:3211');
   initializeHumanInputActivity({
     database: db,
     trace: traceAdapter,
@@ -228,6 +239,13 @@ async function main() {
   // Initialize trace activity
   initializeTraceActivity({
     trace: traceAdapter,
+  });
+
+  // Initialize chat agent activities
+  initializeChatAgentActivities({
+    database: db,
+    redis: terminalStream ? new Redis(terminalRedisUrl!) : undefined,
+    backendUrl: backendUrl,
   });
 
   console.log(`✅ Service adapters initialized`);
@@ -292,6 +310,9 @@ async function main() {
       discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
       executeWebhookParsingScriptActivity,
+      runChatAgentStepActivity,
+      saveChatMessagesActivity,
+      loadChatMessagesActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],

@@ -90,25 +90,6 @@ bun --cwd backend run migration:push       # Push schema
 bun --cwd backend run db:studio            # View data
 ```
 
-### Database Schema Safety (CRITICAL)
-
-**`drizzle-kit push` runs automatically on every backend startup** (via `bun run dev` / `bun run start`). It syncs the Drizzle schema to the live database. This means:
-
-- **Any schema change you make is applied immediately when the backend restarts** (including PM2 auto-restarts on file save).
-- `drizzle-kit push --force` (used in dev) will **silently truncate tables** if a schema change requires it (e.g., adding a column-level `.unique()` to an existing column with data).
-- PM2 runs non-interactively, so interactive prompts from `drizzle-kit push` will **hang indefinitely**, causing repeated restart loops.
-
-**Rules for modifying database schema files (`backend/src/database/schema/*.ts`):**
-
-1. **NEVER let PM2 auto-apply schema changes.** Before modifying any schema file, stop the backend PM2 process first (`just dev stop` or `pm2 stop shipsec-backend-N`). Then run `bun --cwd backend run migration:push` interactively and inspect the SQL plan before confirming.
-2. **Adding constraints to existing columns** (e.g., `.unique()`, `.notNull()`) can trigger destructive operations (table truncation, column recreation). Always review what drizzle-kit plans to do.
-3. **NEVER change a column type** (e.g., `varchar` → `text`) — drizzle-kit push may drop and recreate the column, losing data.
-4. **NEVER rename columns or tables** via schema changes — drizzle-kit interprets renames as drop + create.
-5. **If drizzle-kit push shows a plan that truncates or drops anything, STOP and ask the user.** Never proceed with destructive schema operations.
-6. **Safe operations** (no data loss risk): adding new nullable columns, adding new tables, adding indexes.
-
-**SQL migration files** in `backend/drizzle/` are documentation — they are NOT auto-applied. `drizzle-kit push` is the mechanism for schema sync in dev and production startup.
-
 ## Rules
 
 1. TypeScript, 2-space indent
@@ -116,7 +97,6 @@ bun --cwd backend run db:studio            # View data
 3. Tests alongside code in `__tests__/` folders
 4. **E2E Tests**: Mandatory for significant features. Place in `e2e-tests/` folder.
 5. **GitHub CLI**: Use `gh` for all GitHub operations (issues, PRs, actions, releases). Never use browser automation for GitHub tasks.
-6. **No shortcuts to avoid best practices.** Never use a non-idiomatic workaround just because the correct approach has a local dev constraint (e.g., an interactive prompt, a manual step, or a one-time migration). Use the proper, idiomatic pattern and handle the constraint explicitly — even if it means asking the user to run a command manually. Hacks that avoid good engineering to save a step are not acceptable.
 
 ### Frontend: Read Before Writing Code
 

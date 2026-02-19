@@ -109,11 +109,6 @@ dev action="start":
                 echo "⏳  Waiting for OpenSearch security initialization..."
                 timeout 120s bash -c 'until docker exec shipsec-opensearch curl -sf -u admin:${OPENSEARCH_ADMIN_PASSWORD:-admin} --cacert /usr/share/opensearch/config/certs/root-ca.pem https://localhost:9200/_cluster/health >/dev/null 2>&1; do sleep 2; done' || true
 
-                # Run database migrations interactively (before PM2, so prompts work)
-                echo "🗄️  Running database migrations..."
-                DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/shipsec_instance_${INST}" \
-                    bun --cwd=backend run migration:push
-
                 # Update git SHA and start PM2 with security enabled
                 ./scripts/set-git-sha.sh || true
                 SHIPSEC_INSTANCE="$INST" SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=true NODE_TLS_REJECT_UNAUTHORIZED=0 \
@@ -141,11 +136,6 @@ dev action="start":
                 # Wait for Postgres
                 echo "⏳  Waiting for infrastructure..."
                 timeout 30s bash -c 'until docker exec shipsec-postgres pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done' || true
-
-                # Run database migrations interactively (before PM2, so prompts work)
-                echo "🗄️  Running database migrations..."
-                DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/shipsec_instance_${INST}" \
-                    bun --cwd=backend run migration:push
 
                 # Update git SHA and start PM2
                 ./scripts/set-git-sha.sh || true

@@ -15,8 +15,6 @@ export interface WorkflowSummaryRecord {
   name: string;
   description: string | null;
   organizationId: string | null;
-  isSystem: boolean;
-  templateId: string | null;
   lastRun: Date | null;
   latestRunStatus: string | null;
   runCount: number;
@@ -50,26 +48,6 @@ export class WorkflowRepository {
         graph: input,
         compiledDefinition: null,
         organizationId: options.organizationId ?? null,
-      })
-      .returning();
-
-    return record;
-  }
-
-  async createSystemWorkflow(
-    input: WorkflowGraph,
-    options: { organizationId: string; templateId: string },
-  ): Promise<WorkflowRecord> {
-    const [record] = await this.db
-      .insert(workflowsTable)
-      .values({
-        name: input.name,
-        description: input.description ?? null,
-        graph: input,
-        compiledDefinition: null,
-        organizationId: options.organizationId,
-        isSystem: true,
-        templateId: options.templateId,
       })
       .returning();
 
@@ -174,8 +152,6 @@ export class WorkflowRepository {
       name: workflowsTable.name,
       description: workflowsTable.description,
       organizationId: workflowsTable.organizationId,
-      isSystem: workflowsTable.isSystem,
-      templateId: workflowsTable.templateId,
       lastRun: workflowsTable.lastRun,
       latestRunStatus: sql<string | null>`(
         SELECT wr.status FROM workflow_runs wr

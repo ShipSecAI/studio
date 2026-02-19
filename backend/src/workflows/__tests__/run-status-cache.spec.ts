@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock, vi } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { TERMINAL_STATUSES } from '@shipsec/shared';
 import { WorkflowsService } from '../workflows.service';
 import type { WorkflowRunRepository } from '../repository/workflow-run.repository';
@@ -148,10 +148,6 @@ describe('Run status caching', () => {
       trackWorkflowCancelled: mock(() => {}),
     };
 
-    const systemWorkflowsServiceMock = {
-      ensureSystemWorkflows: vi.fn().mockResolvedValue(undefined),
-    };
-
     service = new WorkflowsService(
       repositoryMock as any,
       roleRepositoryMock as any,
@@ -160,7 +156,6 @@ describe('Run status caching', () => {
       traceRepositoryMock as any,
       temporalServiceMock,
       analyticsServiceMock as any,
-      systemWorkflowsServiceMock as any,
     );
   });
 

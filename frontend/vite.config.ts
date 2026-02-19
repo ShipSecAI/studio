@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 const instance = parseInt(process.env.SHIPSEC_INSTANCE || '0', 10);
@@ -8,7 +9,7 @@ const backendPort = 3211 + instance * 100;
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [tailwindcss(), react()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -65,9 +66,7 @@ export default defineConfig({
             '@radix-ui/react-tabs',
             '@radix-ui/react-tooltip',
           ],
-          'vendor-icons': ['lucide-react'],
           'vendor-analytics': ['posthog-js'],
-          'vendor-query': ['@tanstack/react-query'],
         },
       },
     },

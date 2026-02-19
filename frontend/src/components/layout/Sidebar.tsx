@@ -219,18 +219,6 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
   // Get category text color with good contrast in both light and dark modes
   const getCategoryTextColor = (category: string): string => {
     return getCategoryTextColorClass(category);
-    const categoryColors: Record<string, string> = {
-      input: 'text-blue-600 dark:text-blue-400',
-      transform: 'text-orange-600 dark:text-orange-400',
-      ai: 'text-purple-600 dark:text-purple-400',
-      mcp: 'text-teal-600 dark:text-teal-400',
-      security: 'text-red-600 dark:text-red-400',
-      scanners: 'text-rose-600 dark:text-rose-400',
-      it_ops: 'text-cyan-600 dark:text-cyan-400',
-      notification: 'text-pink-600 dark:text-pink-400',
-      output: 'text-green-600 dark:text-green-400',
-    };
-    return categoryColors[category] || 'text-foreground';
   };
 
   // Custom scrollbar state

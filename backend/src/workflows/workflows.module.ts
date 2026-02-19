@@ -15,7 +15,6 @@ import { TerminalArchiveService } from './terminal-archive.service';
 import { WorkflowsController } from './workflows.controller';
 import { InternalRunsController } from './internal-runs.controller';
 import { WorkflowsService } from './workflows.service';
-import { SystemWorkflowsService } from './system-workflows.service';
 import { WorkflowRoleGuard } from './workflow-role.guard';
 // import { WorkflowsBootstrapService } from './workflows.bootstrap';
 
@@ -33,7 +32,6 @@ import { WorkflowRoleGuard } from './workflow-role.guard';
   controllers: [WorkflowsController, InternalRunsController],
   providers: [
     WorkflowsService,
-    SystemWorkflowsService,
     WorkflowRepository,
     WorkflowRunRepository,
     WorkflowVersionRepository,
@@ -42,12 +40,6 @@ import { WorkflowRoleGuard } from './workflow-role.guard';
     TerminalArchiveService,
     WorkflowRoleGuard,
   ],
-  exports: [
-    WorkflowsService,
-    SystemWorkflowsService,
-    WorkflowRepository,
-    WorkflowRunRepository,
-    WorkflowVersionRepository,
-  ],
+  exports: [WorkflowsService, WorkflowRepository, WorkflowRunRepository, WorkflowVersionRepository],
 })
 export class WorkflowsModule {}

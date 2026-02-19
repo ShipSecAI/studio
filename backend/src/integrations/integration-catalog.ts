@@ -43,7 +43,7 @@ export const AWS_PROVIDER: IntegrationProviderDefinition = {
     'Connect AWS accounts for cloud security posture management (CSPM), compliance scanning, and resource discovery.',
   docsUrl:
     'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html',
-  iconUrl: '/icons/aws.svg',
+  iconUrl: '/icons/aws.png',
   supportsMultipleConnections: true,
   authMethods: [
     {
