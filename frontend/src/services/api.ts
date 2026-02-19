@@ -871,6 +871,8 @@ export const api = {
     listRuns: async (options?: {
       workflowId?: string;
       status?: string;
+      triggerType?: string;
+      search?: string;
       limit?: number;
       offset?: number;
     }) => {

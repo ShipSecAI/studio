@@ -1,4 +1,8 @@
-import { ExecutionStatusSchema, ExecutionTriggerMetadataSchema } from '@shipsec/shared';
+import {
+  ExecutionStatusSchema,
+  ExecutionTriggerMetadataSchema,
+  ExecutionTriggerTypeSchema,
+} from '@shipsec/shared';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
@@ -71,8 +75,10 @@ export const WorkflowGraphSchema = z
         const targetHandle = edge.targetHandle ?? edge.sourceHandle;
         if (!targetHandle) continue;
 
-        // Allow multiple edges to the 'tools' port (for connecting multiple tools to an agent)
-        if (targetHandle === 'tools') {
+        // Allow multiple edges to aggregation ports:
+        // - 'tools': connecting multiple tools to an agent
+        // - 'items': connecting multiple inputs to a joiner/collector
+        if (targetHandle === 'tools' || targetHandle === 'items') {
           continue;
         }
 
@@ -86,7 +92,7 @@ export const WorkflowGraphSchema = z
     },
     {
       message:
-        'Multiple edges connecting to the same input port are not allowed. Each port must have only one source. (Note: The "tools" port allows multiple connections.)',
+        'Multiple edges connecting to the same input port are not allowed. Each port must have only one source. (Note: The "tools" and "items" ports allow multiple connections.)',
       path: ['edges'],
     },
   );
@@ -148,6 +154,13 @@ export const ListRunsQuerySchema = z.object({
     .transform((value) => value.toUpperCase())
     .pipe(ExecutionStatusSchema)
     .optional(),
+  triggerType: z
+    .string()
+    .trim()
+    .transform((value) => value.toLowerCase())
+    .pipe(ExecutionTriggerTypeSchema)
+    .optional(),
+  search: z.string().trim().min(1).max(200).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0).optional(),
 });
@@ -200,6 +213,8 @@ export interface ServiceWorkflowResponse {
   description?: string | null;
   graph: z.infer<typeof WorkflowGraphSchema>; // The original stored graph (contains nodes, edges, viewport)
   compiledDefinition: any | null;
+  isSystem: boolean;
+  templateId: string | null;
   lastRun: Date | null;
   runCount: number;
   createdAt: Date;
@@ -215,6 +230,8 @@ export const WorkflowResponseSchema = z.object({
   description: z.string().optional().nullable(),
   graph: WorkflowGraphSchema, // The original stored graph (contains nodes, edges, viewport)
   compiledDefinition: z.unknown().nullable(),
+  isSystem: z.boolean(),
+  templateId: z.string().uuid().nullable(),
   lastRun: z.string().nullable(), // Date string from JSON serialization
   runCount: z.number().int().nonnegative(),
   createdAt: z.string(), // Date string from JSON serialization

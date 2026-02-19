@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, ilike, sql, type SQL } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { DRIZZLE_TOKEN } from '../../database/database.module';
 import {
   workflowRunsTable,
+  workflowsTable,
   humanInputRequests as humanInputRequestsTable,
   type WorkflowRunInsert,
   type WorkflowRunRecord,
@@ -113,20 +114,45 @@ export class WorkflowRunRepository {
     options: {
       workflowId?: string;
       status?: string;
+      triggerType?: string;
+      search?: string;
       limit?: number;
       offset?: number;
       organizationId?: string | null;
     } = {},
   ): Promise<WorkflowRunRecord[]> {
-    let condition: ReturnType<typeof eq> | undefined;
+    const conditions: SQL[] = [];
 
     if (options.workflowId) {
-      condition = eq(workflowRunsTable.workflowId, options.workflowId);
+      conditions.push(eq(workflowRunsTable.workflowId, options.workflowId));
     }
 
     if (options.organizationId) {
-      const organizationCondition = eq(workflowRunsTable.organizationId, options.organizationId);
-      condition = condition ? and(condition, organizationCondition) : organizationCondition;
+      conditions.push(eq(workflowRunsTable.organizationId, options.organizationId));
+    }
+
+    if (options.triggerType) {
+      conditions.push(eq(workflowRunsTable.triggerType, options.triggerType));
+    }
+
+    if (options.search) {
+      conditions.push(ilike(workflowsTable.name, `%${options.search}%`));
+    }
+
+    const condition = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // When search is used, join with workflows table for name matching
+    if (options.search) {
+      const query = this.db
+        .select({ run: workflowRunsTable })
+        .from(workflowRunsTable)
+        .innerJoin(workflowsTable, eq(workflowRunsTable.workflowId, workflowsTable.id));
+      const filtered = condition ? query.where(condition) : query;
+      const rows = await filtered
+        .orderBy(desc(workflowRunsTable.createdAt))
+        .limit(options.limit ?? 50)
+        .offset(options.offset ?? 0);
+      return rows.map((r) => r.run);
     }
 
     const baseQuery = this.db.select().from(workflowRunsTable);

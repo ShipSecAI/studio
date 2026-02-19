@@ -266,10 +266,17 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         invalidateRunsForWorkflow(workflowId);
       }
     } catch (error) {
+      // 403 = server rejected the cancel (e.g. system-triggered run) — don't
+      // optimistically set status to cancelled; keep current status and re-throw
+      // so callers can surface the error in the UI.
+      const isForbidden = error instanceof Error && error.message.includes('403');
+      if (!isForbidden) {
+        // Still stop polling on cancel failure to avoid zombie polling
+        get().stopPolling();
+        set({ status: 'cancelled' });
+      }
       console.error('Failed to stop execution:', error);
-      // Still stop polling on cancel failure to avoid zombie polling
-      get().stopPolling();
-      set({ status: 'cancelled' });
+      throw error;
     }
   },
 

@@ -36,7 +36,7 @@ export class ShipSecApiClient {
   private baseUrl: string;
 
   constructor(config: ClientConfig = {}) {
-    this.baseUrl = config.baseUrl ?? 'http://localhost:3211';
+    this.baseUrl = config.baseUrl || 'http://localhost:3211';
     
     this.client = createClient<paths>({
       baseUrl: this.baseUrl,
@@ -186,6 +186,8 @@ export class ShipSecApiClient {
   async listWorkflowRuns(options?: {
     workflowId?: string;
     status?: string;
+    triggerType?: string;
+    search?: string;
     limit?: number;
     offset?: number;
   }) {
@@ -194,6 +196,8 @@ export class ShipSecApiClient {
         query: {
           workflowId: options?.workflowId,
           status: options?.status,
+          triggerType: options?.triggerType,
+          search: options?.search,
           limit: options?.limit,
           offset: options?.offset,
         },

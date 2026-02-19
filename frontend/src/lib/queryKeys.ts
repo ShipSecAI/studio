@@ -15,6 +15,8 @@ export const queryKeys = {
     byWorkflow: (workflowId: string) => ['runs', getOrgScope(), workflowId] as const,
     global: () => ['runs', getOrgScope(), '__global__'] as const,
     detail: (runId: string) => ['runs', getOrgScope(), 'detail', runId] as const,
+    activity: (filters?: Record<string, unknown>) =>
+      ['runs', getOrgScope(), 'activity', filters] as const,
   },
   schedules: {
     all: (filters?: Record<string, unknown>) => ['schedules', getOrgScope(), filters] as const,
@@ -66,6 +68,23 @@ export const queryKeys = {
     detail: (id: string) => ['workflow', getOrgScope(), id] as const,
     runtimeInputs: (workflowId: string) =>
       ['workflowRuntimeInputs', getOrgScope(), workflowId] as const,
+  },
+  security: {
+    findings: (filters?: unknown, viewFilter?: unknown) =>
+      ['security', getOrgScope(), 'findings', filters, viewFilter] as const,
+    timeSeries: (filters?: unknown, viewFilter?: unknown, interval?: string) =>
+      ['security', getOrgScope(), 'timeSeries', filters, viewFilter, interval] as const,
+    findingDetail: (docId: string) => ['security', getOrgScope(), 'findingDetail', docId] as const,
+    findingLifecycle: (hash: string) =>
+      ['security', getOrgScope(), 'findingLifecycle', hash] as const,
+    batchLifecycles: (hashes: string[]) =>
+      ['security', getOrgScope(), 'batchLifecycles', [...hashes].sort()] as const,
+    categoryCounts: () => ['security', getOrgScope(), 'categoryCounts'] as const,
+    summary: (viewFilter?: unknown) => ['security', getOrgScope(), 'summary', viewFilter] as const,
+  },
+  cloud: {
+    scans: (filters?: { status?: string; offset?: number; limit?: number }) =>
+      ['cloud', getOrgScope(), 'scans', filters] as const,
   },
   github: {
     status: () => ['github', getOrgScope(), 'status'] as const,

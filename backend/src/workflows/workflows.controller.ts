@@ -382,6 +382,8 @@ export class WorkflowsController {
     return this.workflowsService.listRuns(auth, {
       workflowId: query.workflowId,
       status: query.status,
+      triggerType: query.triggerType,
+      search: query.search,
       limit: query.limit,
       offset: query.offset,
     });

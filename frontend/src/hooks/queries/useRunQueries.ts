@@ -35,14 +35,14 @@ export interface ExecutionRun {
 const INITIAL_LIMIT = 5;
 const LOAD_MORE_LIMIT = 20;
 
-const TRIGGER_LABELS: Record<ExecutionTriggerType, string> = {
+export const TRIGGER_LABELS: Record<ExecutionTriggerType, string> = {
   manual: 'Manual run',
   schedule: 'Scheduled run',
   api: 'API run',
   webhook: 'Webhook trigger',
 };
 
-const normalizeRun = (run: any): ExecutionRun => {
+export const normalizeRun = (run: any): ExecutionRun => {
   const startTime = typeof run.startTime === 'string' ? run.startTime : new Date().toISOString();
   const rawEndTime = typeof run.endTime === 'string' ? run.endTime : undefined;
   const status = (
