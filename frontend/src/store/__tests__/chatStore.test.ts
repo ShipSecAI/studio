@@ -1,5 +1,17 @@
 import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test';
 import { useChatStore } from '../chatStore';
+import { useAuthStore } from '../authStore';
+
+// Save original authStore getState for restoration
+const originalGetState = useAuthStore.getState;
+
+// Mock useAuthStore.getState for API auth headers
+(useAuthStore as any).getState = () => ({
+  token: 'test-token',
+  provider: 'local',
+  organizationId: 'local-dev',
+  setToken: () => {},
+});
 
 // Save original fetch to restore after tests
 const originalFetch = globalThis.fetch;
@@ -118,6 +130,8 @@ describe('chatStore', () => {
   afterEach(() => {
     // Restore original fetch to prevent contaminating other test files
     globalThis.fetch = originalFetch;
+    // Restore original authStore getState
+    (useAuthStore as any).getState = originalGetState;
   });
 
   describe('Initial State', () => {
