@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  ExternalLink,
+  Eye,
   Filter,
   Package,
   RefreshCw,
@@ -37,7 +37,6 @@ import {
   ZoomOut,
   Workflow,
   KeyRound,
-  Users,
   ArrowRight,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -47,6 +46,7 @@ import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
 import { UseTemplateModal } from '@/features/templates/UseTemplateModal';
 import { WorkflowPreview } from '@/features/templates/WorkflowPreview';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -141,16 +141,31 @@ function getCategoryStyle(category?: string | null): CategoryStyle {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function toTitleCase(str: string): string {
+  return str.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function timeAgo(date: string | Date): string {
+  const now = new Date();
+  const past = new Date(date);
+  const diffMs = now.getTime() - past.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'today';
+  if (diffDays === 1) return '1d ago';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
+  return `${Math.floor(diffDays / 365)}y ago`;
+}
+
+// ---------------------------------------------------------------------------
 // Preview section with zoom
 // ---------------------------------------------------------------------------
 
-function PreviewSection({
-  graph,
-  category,
-}: {
-  graph?: Record<string, unknown>;
-  category?: string | null;
-}) {
+function PreviewSection({ graph }: { graph?: Record<string, unknown>; category?: string | null }) {
   const [zoom, setZoom] = useState(1);
   const [origin, setOrigin] = useState({ x: 50, y: 50 }); // percentage-based origin
   const containerRef = useRef<HTMLDivElement>(null);
@@ -159,8 +174,6 @@ function PreviewSection({
     (graph as any)?.nodes &&
     Array.isArray((graph as any).nodes) &&
     (graph as any).nodes.length > 0;
-
-  const catStyle = getCategoryStyle(category);
 
   // Track cursor position for zoom origin
   const updateOrigin = (e: React.MouseEvent) => {
@@ -202,17 +215,32 @@ function PreviewSection({
     <div
       ref={containerRef}
       className={cn(
-        'relative h-36 w-full overflow-hidden rounded-t-xl border-b border-border/40',
-        'bg-gradient-to-br',
-        catStyle.gradient,
-        'bg-muted/20',
+        'relative h-44 w-full overflow-hidden rounded-xl',
         hasGraph && 'cursor-zoom-in',
         hasGraph && zoom > 1 && 'cursor-zoom-out',
       )}
+      style={{
+        background: 'linear-gradient(180deg, #F8FAFF 0%, #F1F5FF 100%)',
+      }}
       onWheel={hasGraph ? handleWheel : undefined}
       onMouseMove={hasGraph ? updateOrigin : undefined}
       onDoubleClick={hasGraph ? handleDoubleClick : undefined}
     >
+      {/* Dark theme gradient overlay */}
+      <div
+        className="absolute inset-0 hidden dark:block"
+        style={{
+          background: 'linear-gradient(180deg, #111827 0%, #0B1220 100%)',
+        }}
+      />
+      {/* Subtle radial glow in dark mode */}
+      <div
+        className="absolute inset-0 hidden dark:block pointer-events-none"
+        style={{
+          background: 'radial-gradient(circle at 50% 0%, rgba(99,102,241,0.08), transparent 60%)',
+        }}
+      />
+
       {/* Subtle dot pattern */}
       <div
         className="absolute inset-0 opacity-[0.03] pointer-events-none"
@@ -226,7 +254,7 @@ function PreviewSection({
       {hasGraph ? (
         <>
           <div
-            className="absolute inset-0 flex items-center justify-center p-2 transition-transform duration-150 ease-out"
+            className="absolute inset-0 flex items-center justify-center p-2 transition-transform duration-300 ease-out group-hover:scale-[1.02]"
             style={{
               transform: `scale(${zoom})`,
               transformOrigin: `${origin.x}% ${origin.y}%`,
@@ -320,126 +348,171 @@ function TemplateCard({ template, onUse, canUse }: TemplateCardProps) {
   return (
     <div
       className={cn(
-        'group flex flex-col rounded-xl border border-border/60 bg-card',
+        'group flex flex-col rounded-2xl',
+        'bg-white dark:bg-zinc-900',
+        'border border-gray-100 dark:border-white/5',
+        'shadow-sm',
         'transition-all duration-300 ease-out',
-        'hover:shadow-lg hover:shadow-primary/5 hover:border-primary/30',
-        'hover:-translate-y-0.5',
+        'hover:shadow-lg hover:-translate-y-1',
+        'dark:hover:border-white/10',
       )}
     >
-      {/* Preview */}
-      <PreviewSection graph={template.graph} category={template.category} />
+      {/* Content wrapper with padding */}
+      <div className="flex flex-col flex-1 p-5 md:p-6 gap-6">
+        {/* Preview */}
+        <PreviewSection graph={template.graph} category={template.category} />
 
-      {/* Content */}
-      <div className="flex flex-col flex-1 p-4">
-        {/* Header: Category badge + Official */}
-        <div className="flex items-center justify-between mb-2">
+        {/* Header: Category badge + Author */}
+        <div className="flex items-center justify-between">
           <Badge
             variant="outline"
-            className={cn('text-[10px] font-medium gap-1 border', catStyle.badge)}
+            className={cn(
+              'text-xs font-medium gap-1 rounded-full px-3 py-1 border',
+              catStyle.badge,
+            )}
           >
             <CategoryIcon className="h-3 w-3" />
-            {template.category || 'Uncategorized'}
+            {template.category || 'Automation'}
           </Badge>
 
-          {template.isOfficial && (
-            <Badge
-              variant="secondary"
-              className="text-[10px] gap-1 bg-primary/10 text-primary border-primary/20"
-            >
-              <CheckCircle2 className="h-3 w-3" />
-              Official
-            </Badge>
+          {template.author && (
+            <div className="flex items-center gap-1.5">
+              <div className="h-5 w-5 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">
+                {template.author.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[80px]">
+                {template.author}
+              </span>
+            </div>
           )}
         </div>
 
-        {/* Name */}
-        <h3
-          className="font-semibold text-sm leading-tight mb-1.5 line-clamp-1"
-          title={template.name}
-        >
-          {template.name}
-        </h3>
-
-        {/* Description */}
-        {template.description && (
-          <p
-            className="text-xs text-muted-foreground leading-relaxed mb-3 line-clamp-2"
-            title={template.description}
+        {/* Title + Description */}
+        <div>
+          <h3
+            className="text-xl font-semibold text-gray-900 dark:text-white leading-tight line-clamp-1"
+            title={template.name}
           >
-            {template.description}
-          </p>
-        )}
+            {toTitleCase(template.name)}
+          </h3>
 
-        {/* Spacer to push tags/metadata and actions to bottom */}
+          {template.description && (
+            <p
+              className="text-sm text-gray-500 dark:text-gray-400 mt-2 line-clamp-2"
+              title={template.description}
+            >
+              {template.description}
+            </p>
+          )}
+        </div>
+
+        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Tags & Metadata — side by side */}
-        <div className="flex items-center justify-between gap-2 mb-3">
-          {/* Tags (left) */}
-          <div className="flex flex-wrap gap-1 min-w-0">
-            {template.tags?.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted/80 text-muted-foreground border border-border/40"
-              >
-                {tag}
-              </span>
-            ))}
-            {template.tags && template.tags.length > 3 && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted/80 text-muted-foreground border border-border/40">
-                +{template.tags.length - 3}
-              </span>
-            )}
-          </div>
+        {/* Tags & Metadata */}
+        <div className="space-y-2.5">
+          {/* Tags */}
+          {template.tags && template.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {template.tags.slice(0, 3).map((tag) => (
+                <span
+                  key={tag}
+                  className={cn(
+                    'inline-flex items-center px-3 py-1 rounded-full text-xs',
+                    'bg-gray-100 text-gray-700 border border-gray-200',
+                    'dark:bg-white/5 dark:text-gray-300 dark:border-white/10',
+                  )}
+                >
+                  {tag}
+                </span>
+              ))}
+              {template.tags.length > 3 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className={cn(
+                          'inline-flex items-center px-3 py-1 rounded-full text-xs cursor-default',
+                          'bg-gray-100 text-gray-700 border border-gray-200',
+                          'dark:bg-white/5 dark:text-gray-300 dark:border-white/10',
+                        )}
+                      >
+                        +{template.tags.length - 3}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{template.tags.slice(3).join(', ')}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
+          )}
 
-          {/* Metadata (right) */}
-          <div className="flex items-center gap-2.5 text-[11px] text-muted-foreground flex-shrink-0">
-            {template.author && (
-              <span className="flex items-center gap-1" title={template.author}>
-                <Users className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate max-w-[70px]">{template.author}</span>
-              </span>
-            )}
+          {/* Marketplace metadata */}
+          <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
             {template.popularity > 0 && (
-              <span className="flex items-center gap-1">
-                <Star className="h-3 w-3 flex-shrink-0 text-amber-500" />
-                {template.popularity}
-              </span>
+              <>
+                <span className="flex items-center gap-1">
+                  <Star className="h-3 w-3 text-amber-500" />
+                  {template.popularity}
+                </span>
+                <span className="text-gray-300 dark:text-gray-600">&middot;</span>
+              </>
             )}
             {template.requiredSecrets && template.requiredSecrets.length > 0 && (
-              <span
-                className="flex items-center gap-1"
-                title={`${template.requiredSecrets.length} secret(s) required`}
-              >
-                <KeyRound className="h-3 w-3 flex-shrink-0" />
-                {template.requiredSecrets.length}
-              </span>
+              <>
+                <span className="flex items-center gap-1">
+                  <KeyRound className="h-3 w-3" />
+                  {template.requiredSecrets.length} secret
+                  {template.requiredSecrets.length !== 1 ? 's' : ''}
+                </span>
+                <span className="text-gray-300 dark:text-gray-600">&middot;</span>
+              </>
             )}
+            {template.updatedAt && <span>Updated {timeAgo(template.updatedAt)}</span>}
           </div>
         </div>
 
         {/* Actions */}
         <div className="flex gap-2">
           <Button
-            size="sm"
-            className="flex-1 h-8 text-xs gap-1.5 font-medium"
+            className={cn(
+              'flex-1 h-11 rounded-xl font-medium gap-2',
+              'bg-indigo-600 hover:bg-indigo-700 text-white',
+              'dark:bg-indigo-500 dark:hover:bg-indigo-400',
+              'active:scale-[0.98] transition-all duration-200',
+            )}
             onClick={() => onUse(template)}
             disabled={!canUse}
           >
             Use Template
-            <ArrowRight className="h-3 w-3" />
+            <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
           </Button>
+
           {template.repository && (
-            <Button size="sm" variant="outline" className="h-8 px-2.5" asChild>
-              <a
-                href={`https://github.com/${template.repository}/blob/${template.branch || 'main'}/${template.path}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="View on GitHub"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      'h-11 w-11 rounded-xl p-0 flex-shrink-0',
+                      'bg-gray-50 border-gray-200 hover:bg-gray-100',
+                      'dark:bg-white/5 dark:border-white/10 dark:hover:bg-white/10',
+                    )}
+                    asChild
+                  >
+                    <a
+                      href={`https://github.com/${template.repository}/blob/${template.branch || 'main'}/${template.path}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </a>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Preview</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
       </div>
@@ -453,23 +526,32 @@ function TemplateCard({ template, onUse, canUse }: TemplateCardProps) {
 
 function CardSkeleton() {
   return (
-    <div className="flex flex-col rounded-xl border border-border/60 bg-card overflow-hidden">
-      <Skeleton className="h-36 w-full rounded-none" />
-      <div className="p-4 space-y-3">
+    <div className="flex flex-col rounded-2xl border border-gray-100 dark:border-white/5 bg-white dark:bg-zinc-900 shadow-sm">
+      <div className="p-5 md:p-6 space-y-6">
+        <Skeleton className="h-44 w-full rounded-xl" />
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-6 w-24 rounded-full" />
+          <div className="flex items-center gap-1.5">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="h-4 w-16" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-3/4" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+        <div className="space-y-2.5">
+          <div className="flex gap-1.5">
+            <Skeleton className="h-7 w-16 rounded-full" />
+            <Skeleton className="h-7 w-16 rounded-full" />
+            <Skeleton className="h-7 w-16 rounded-full" />
+          </div>
+          <Skeleton className="h-4 w-40" />
+        </div>
         <div className="flex gap-2">
-          <Skeleton className="h-5 w-20 rounded-full" />
-        </div>
-        <Skeleton className="h-5 w-3/4" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-1/2" />
-        <div className="flex gap-1.5 pt-1">
-          <Skeleton className="h-5 w-12 rounded" />
-          <Skeleton className="h-5 w-12 rounded" />
-          <Skeleton className="h-5 w-12 rounded" />
-        </div>
-        <div className="flex gap-2 pt-2">
-          <Skeleton className="h-8 flex-1 rounded-md" />
-          <Skeleton className="h-8 w-10 rounded-md" />
+          <Skeleton className="h-11 flex-1 rounded-xl" />
+          <Skeleton className="h-11 w-11 rounded-xl" />
         </div>
       </div>
     </div>
