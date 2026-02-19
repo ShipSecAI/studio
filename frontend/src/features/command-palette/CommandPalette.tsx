@@ -4,11 +4,11 @@ import * as LucideIcons from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { useThemeStore } from '@/store/themeStore';
-import { useComponentStore } from '@/store/componentStore';
+import { useComponents } from '@/hooks/queries/useComponentQueries';
+import { useWorkflowsList } from '@/hooks/queries/useWorkflowQueries';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { usePlacementStore } from '@/components/layout/sidebar-state';
-import { api } from '@/services/api';
 import { cn } from '@/lib/utils';
 import {
   Workflow,
@@ -28,7 +28,6 @@ import {
   Puzzle,
 } from 'lucide-react';
 import { env } from '@/config/env';
-import type { WorkflowMetadataNormalized } from '@/schemas/workflow';
 import { WorkflowMetadataSchema } from '@/schemas/workflow';
 import type { ComponentMetadata } from '@/schemas/component';
 
@@ -90,15 +89,12 @@ export function CommandPalette() {
   const navigate = useNavigate();
   const location = useLocation();
   const { theme, startTransition } = useThemeStore();
-  const { fetchComponents, loading: componentsLoading } = useComponentStore();
-  // Subscribe to components from store to trigger re-renders when they load
-  const storeComponents = useComponentStore((state) => state.components);
+  const { data: componentIndex, isLoading: componentsLoading } = useComponents();
+  const storeComponents = componentIndex?.byId ?? {};
   const mode = useWorkflowUiStore((state) => state.mode);
+  const { data: rawWorkflows = [], isLoading: isLoadingWorkflows } = useWorkflowsList();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [workflows, setWorkflows] = useState<WorkflowMetadataNormalized[]>([]);
-  const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(false);
-  const [componentsFetched, setComponentsFetched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -120,34 +116,12 @@ export function CommandPalette() {
     }
   }, [isOpen]);
 
-  // Load workflows when palette opens
-  useEffect(() => {
-    if (isOpen && workflows.length === 0) {
-      setIsLoadingWorkflows(true);
-      api.workflows
-        .list()
-        .then((data) => {
-          const normalized = data.map((w) => WorkflowMetadataSchema.parse(w));
-          setWorkflows(normalized);
-        })
-        .catch(() => {
-          // Silent fail - workflows just won't appear in search
-        })
-        .finally(() => {
-          setIsLoadingWorkflows(false);
-        });
-    }
-  }, [isOpen, workflows.length]);
+  const workflows = useMemo(
+    () => rawWorkflows.map((w) => WorkflowMetadataSchema.parse(w)),
+    [rawWorkflows],
+  );
 
-  // Fetch components when palette opens (if not already fetched)
-  useEffect(() => {
-    if (isOpen && !componentsFetched && Object.keys(storeComponents).length === 0) {
-      setComponentsFetched(true);
-      fetchComponents().catch(() => {
-        // Silent fail
-      });
-    }
-  }, [isOpen, componentsFetched, storeComponents, fetchComponents]);
+  // Components are auto-fetched by useComponents() - no manual fetch needed
 
   // Get all components (filtered same as Sidebar)
   // Depend on storeComponents to re-render when they're loaded

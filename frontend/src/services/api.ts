@@ -36,7 +36,7 @@ type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto'];
 type CreateApiKeyDto = components['schemas']['CreateApiKeyDto'];
 type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto'];
 
-interface TerminalChunkResponse {
+export interface TerminalChunkResponse {
   runId: string;
   cursor?: string;
   chunks: {
@@ -59,6 +59,7 @@ export interface WorkflowSummary {
   isSystem: boolean;
   templateId: string | null;
   lastRun: string | null;
+  latestRunStatus: string | null;
   runCount: number;
   nodeCount: number;
   createdAt: string;

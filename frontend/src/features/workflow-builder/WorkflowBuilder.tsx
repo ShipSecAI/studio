@@ -31,12 +31,14 @@ import { HistoryDebugger } from '@/features/workflow-builder/components/HistoryD
 import { useToast } from '@/components/ui/use-toast';
 import { useExecutionStore } from '@/store/executionStore';
 import { useWorkflowStore } from '@/store/workflowStore';
-import { useComponentStore } from '@/store/componentStore';
+import { useComponents } from '@/hooks/queries/useComponentQueries';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
 import { useWorkflowExecutionLifecycle } from '@/features/workflow-builder/hooks/useWorkflowExecutionLifecycle';
 import { api, API_BASE_URL } from '@/services/api';
-import { useRunStore } from '@/store/runStore';
+import { getRunByIdFromCache } from '@/hooks/queries/useRunQueries';
+import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/lib/queryKeys';
 import {
   deserializeNodes,
   deserializeEdges,
@@ -156,8 +158,7 @@ function WorkflowBuilderContent() {
   } = useWorkflowUiStore();
 
   const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId);
-  const getRunById = useRunStore((state) => state.getRunById);
-  const selectedRun = selectedRunId ? getRunById(selectedRunId) : null;
+  const selectedRun = selectedRunId ? (getRunByIdFromCache(selectedRunId) ?? null) : null;
   const isMobile = useIsMobile();
 
   // Undo/redo history management
@@ -321,7 +322,14 @@ function WorkflowBuilderContent() {
     },
     [onEdgesChangeBase, markDirty, mode, captureSnapshot],
   );
-  const { getComponent } = useComponentStore();
+  const { data: componentIndex } = useComponents();
+  const getComponent = (ref: string) => {
+    if (!componentIndex || !ref) return null;
+    if (componentIndex.byId[ref]) return componentIndex.byId[ref];
+    const idFromSlug = componentIndex.slugIndex[ref];
+    if (idFromSlug && componentIndex.byId[idFromSlug]) return componentIndex.byId[idFromSlug];
+    return null;
+  };
   const createEntryPointNode = useCallback((): ReactFlowNode<FrontendNodeData> => {
     const component = getComponent(ENTRY_COMPONENT_ID);
     const slug = component?.slug ?? ENTRY_COMPONENT_SLUG;
@@ -377,10 +385,12 @@ function WorkflowBuilderContent() {
       workflowRoutePrefix: builderRoutePrefix,
     });
 
+  // Use route param `id` for queries — available immediately, unlike metadata.id
+  // which requires a useEffect cycle to propagate from route → store.
   const { mostRecentRunId, fetchRuns, resetHistoricalTracking } = useWorkflowExecutionLifecycle({
-    workflowId,
+    workflowId: isNewWorkflow ? 'new' : (id ?? null),
     metadata: {
-      id: metadata.id,
+      id: metadata.id ?? id ?? null,
       currentVersionId: metadata.currentVersionId,
     },
     routeRunId,
@@ -651,13 +661,18 @@ function WorkflowBuilderContent() {
         // Skip runs fetch entirely in design mode to avoid the slow /workflows/runs call
         // Runs will be fetched on-demand when the user switches to execution mode
         try {
-          const cachedRuns = useRunStore.getState().cache[workflow.id]?.runs;
+          const cachedRunsPage = queryClient.getQueryData<{ runs: any[]; hasMore: boolean }>(
+            queryKeys.runs.byWorkflow(workflow.id),
+          );
           const runs = openedInExecutionMode
-            ? (cachedRuns ??
+            ? (cachedRunsPage?.runs ??
               (await fetchRuns({ workflowId: workflow.id }).then(
-                () => useRunStore.getState().cache[workflow.id]?.runs ?? [],
+                () =>
+                  queryClient.getQueryData<{ runs: any[]; hasMore: boolean }>(
+                    queryKeys.runs.byWorkflow(workflow.id),
+                  )?.runs ?? [],
               )))
-            : (cachedRuns ?? []);
+            : (cachedRunsPage?.runs ?? []);
 
           if (runs && runs.length > 0) {
             const latestRun = runs[0];

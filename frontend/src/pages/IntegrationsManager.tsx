@@ -26,7 +26,14 @@ import {
 } from 'lucide-react';
 
 import type { components } from '@shipsec/backend-client';
-import { useIntegrationStore } from '@/store/integrationStore';
+import {
+  useIntegrationProviders,
+  useIntegrationConnections,
+  useRefreshConnection,
+  useDisconnectIntegration,
+  useProviderConfig,
+} from '@/hooks/queries/useIntegrationQueries';
+import { useQueryClient } from '@tanstack/react-query';
 import { getCurrentUserId } from '@/lib/currentUser';
 import { api } from '@/services/api';
 import { env } from '@/config/env';
@@ -64,38 +71,29 @@ export function IntegrationsManager() {
   const navigate = useNavigate();
   const location = useLocation();
   const userId = getCurrentUserId();
-  const {
-    providers,
-    connections,
-    fetchProviders,
-    fetchConnections,
-    refreshConnection,
-    disconnect,
-    upsertConnection,
-    error,
-    resetError,
-    loadingProviders,
-    loadingConnections,
-  } = useIntegrationStore();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const {
+    data: providers = [],
+    isLoading: loadingProviders,
+    error: providersError,
+  } = useIntegrationProviders();
+  const {
+    data: connections = [],
+    isLoading: loadingConnections,
+    error: connectionsError,
+  } = useIntegrationConnections(userId);
+  const refreshConnectionMutation = useRefreshConnection();
+  const disconnectMutation = useDisconnectIntegration();
+
+  const error = providersError?.message ?? connectionsError?.message ?? null;
 
   const [configProvider, setConfigProvider] = useState<IntegrationProvider | null>(null);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [refreshingConnectionId, setRefreshingConnectionId] = useState<string | null>(null);
   const [deletingConnectionId, setDeletingConnectionId] = useState<string | null>(null);
   const [customScopes, setCustomScopes] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    fetchProviders().catch((err) => {
-      console.error('Failed to load providers', err);
-    });
-  }, [fetchProviders]);
-
-  useEffect(() => {
-    fetchConnections(userId).catch((err) => {
-      console.error('Failed to load integrations', err);
-    });
-  }, [fetchConnections, userId]);
 
   useEffect(() => {
     if (!error) {
@@ -147,7 +145,7 @@ export function IntegrationsManager() {
   };
 
   const handleConnect = async (provider: IntegrationProvider) => {
-    resetError();
+    // errors are auto-managed by react-query
 
     if (!provider.isConfigured) {
       setConfigProvider(provider);
@@ -176,15 +174,15 @@ export function IntegrationsManager() {
   };
 
   const handleConfigureProvider = (provider: IntegrationProvider) => {
-    resetError();
+    // errors are auto-managed by react-query
     setConfigProvider(provider);
   };
 
   const handleRefresh = async (connection: IntegrationConnection) => {
-    resetError();
+    // errors are auto-managed by react-query
     setRefreshingConnectionId(connection.id);
     try {
-      await refreshConnection(connection.id, userId);
+      await refreshConnectionMutation.mutateAsync({ id: connection.id, userId });
       toast({
         title: 'Token refreshed',
         description: `${connection.providerName} token has been refreshed.`,
@@ -202,10 +200,10 @@ export function IntegrationsManager() {
   };
 
   const handleDisconnect = async (connection: IntegrationConnection) => {
-    resetError();
+    // errors are auto-managed by react-query
     setDeletingConnectionId(connection.id);
     try {
-      await disconnect(connection.id, userId);
+      await disconnectMutation.mutateAsync({ id: connection.id, userId });
       toast({
         title: 'Connection removed',
         description: `${connection.providerName} credentials have been deleted.`,
@@ -241,7 +239,7 @@ export function IntegrationsManager() {
   ) => {
     setConfigProvider(null);
 
-    fetchProviders().catch((err) => {
+    queryClient.invalidateQueries({ queryKey: ['integrationProviders'] }).catch((err) => {
       console.error('Failed to refresh providers', err);
     });
 
@@ -261,7 +259,7 @@ export function IntegrationsManager() {
   };
 
   const handleConnectionComplete = (connection: IntegrationConnection) => {
-    upsertConnection(connection);
+    queryClient.invalidateQueries({ queryKey: ['integrationConnections'] });
     toast({
       title: `${connection.providerName} connected`,
       description: 'Credentials stored successfully.',
@@ -594,7 +592,6 @@ interface ProviderConfigDialogProps {
 }
 
 function ProviderConfigDialog({ provider, open, onClose, onCompleted }: ProviderConfigDialogProps) {
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
@@ -608,6 +605,14 @@ function ProviderConfigDialog({ provider, open, onClose, onCompleted }: Provider
     ? `${window.location.origin}/integrations/callback/${provider.id}`
     : '';
 
+  // --- Query hook for provider config (only fetches when dialog is open) ---
+  const {
+    data: configData,
+    isLoading: loading,
+    error: configError,
+  } = useProviderConfig(provider?.id, open);
+
+  // Reset form fields when dialog closes
   useEffect(() => {
     if (!open) {
       setClientSecret('');
@@ -615,49 +620,34 @@ function ProviderConfigDialog({ provider, open, onClose, onCompleted }: Provider
       setCopiedRedirect(false);
       return;
     }
-
-    if (!provider) {
-      return;
-    }
-
-    let cancelled = false;
-    setLoading(true);
+    // Reset fields when dialog opens with a new provider
     setError(null);
     setClientId('');
     setClientSecret('');
     setHasStoredSecret(false);
     setConfiguredBy('user');
     setUpdatedAt(null);
-
-    api.integrations
-      .getProviderConfig(provider.id)
-      .then((config) => {
-        if (cancelled) {
-          return;
-        }
-        setClientId(config.clientId ?? '');
-        setHasStoredSecret(config.hasClientSecret);
-        setConfiguredBy(config.configuredBy);
-        setUpdatedAt(config.updatedAt ?? null);
-      })
-      .catch((err) => {
-        if (cancelled) {
-          return;
-        }
-        const message =
-          err instanceof Error ? err.message : 'Failed to load provider configuration.';
-        setError(message);
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
   }, [open, provider?.id]);
+
+  // Sync query data → local form state
+  useEffect(() => {
+    if (!configData || !open) return;
+    setClientId(configData.clientId ?? '');
+    setHasStoredSecret(configData.hasClientSecret);
+    setConfiguredBy(configData.configuredBy);
+    setUpdatedAt(configData.updatedAt ?? null);
+  }, [configData, open]);
+
+  // Propagate query error
+  useEffect(() => {
+    if (configError && open) {
+      const message =
+        configError instanceof Error
+          ? configError.message
+          : 'Failed to load provider configuration.';
+      setError(message);
+    }
+  }, [configError, open]);
 
   useEffect(() => {
     setCopiedRedirect(false);

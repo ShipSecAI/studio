@@ -106,6 +106,19 @@ export class McpGroupsService implements OnModuleInit {
     return groups.map((g) => this.mapGroupToResponse(g));
   }
 
+  async listGroupsWithServers(
+    enabledOnly = false,
+  ): Promise<(McpGroupResponse & { servers: McpGroupServerResponse[] })[]> {
+    const [groups, serversMap] = await Promise.all([
+      this.repository.findAll(enabledOnly ? { enabled: true } : {}),
+      this.repository.findAllServersGrouped(),
+    ]);
+    return groups.map((g) => ({
+      ...this.mapGroupToResponse(g),
+      servers: (serversMap.get(g.id) ?? []).map((s) => this.mapGroupServerToResponse(s)),
+    }));
+  }
+
   listTemplates(): GroupTemplateDto[] {
     return this.seedingService.getAllTemplates();
   }

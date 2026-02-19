@@ -1,6 +1,6 @@
 import { KeyRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSecretStore } from '@/store/secretStore';
+import { useSecrets } from '@/hooks/queries/useSecretQueries';
 import { getSecretLabel } from '@/api/secrets';
 import type { ParametersDisplayProps } from './types';
 
@@ -13,7 +13,7 @@ export function ParametersDisplay({
   nodeParameters,
   position = 'bottom',
 }: ParametersDisplayProps) {
-  const secrets = useSecretStore((state) => state.secrets);
+  const { data: secrets = [] } = useSecrets();
 
   // Show required parameters and important select parameters (like mode)
   // Exclude nested parameters (those with visibleWhen) like schemaType

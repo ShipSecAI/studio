@@ -28,9 +28,8 @@ import { useExecutionStore } from '@/store/executionStore';
 import { useWorkflowExecution } from '@/hooks/useWorkflowExecution';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useWorkflowStore } from '@/store/workflowStore';
-import { useArtifactStore } from '@/store/artifactStore';
 import { useToast } from '@/components/ui/use-toast';
-import { useRunStore } from '@/store/runStore';
+import { useWorkflowRuns } from '@/hooks/queries/useRunQueries';
 import { cn } from '@/lib/utils';
 import type { ExecutionLog } from '@/schemas/execution';
 import { RunArtifactsPanel } from '@/components/artifacts/RunArtifactsPanel';
@@ -117,12 +116,10 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
   const { id: workflowId, currentVersion: currentWorkflowVersion } = useWorkflowStore(
     (state) => state.metadata,
   );
-  const workflowCacheKey = workflowId ?? '__global__';
-  const scopedRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs);
-  const runs = scopedRuns ?? [];
+  const { data: runsPage, isLoading: isLoadingRuns } = useWorkflowRuns(workflowId);
+  const runs = runsPage?.runs ?? [];
   const { status, runStatus, stopExecution, runId: liveRunId } = useWorkflowExecution();
   const { inspectorTab, setInspectorTab } = useWorkflowUiStore();
-  const fetchRunArtifacts = useArtifactStore((state) => state.fetchRunArtifacts);
   const { getDisplayLogs, setLogMode } = useExecutionStore();
   const [logModal, setLogModal] = useState<{ open: boolean; message: string; title: string }>({
     open: false,
@@ -227,12 +224,6 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
   }, [selectedRun, toast]);
 
   useEffect(() => {
-    if (selectedRunId && inspectorTab === 'artifacts') {
-      void fetchRunArtifacts(selectedRunId);
-    }
-  }, [selectedRunId, inspectorTab, fetchRunArtifacts]);
-
-  useEffect(() => {
     // Switch log mode based on timeline playback mode
     if (playbackMode === 'live') {
       setLogMode('live');
@@ -262,7 +253,11 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
       <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
         {/* Header - Run Selector */}
         <div className="border-b px-3 py-2.5 flex items-center justify-between gap-2">
-          <RunSelector onRerun={onRerunRun} />
+          <RunSelector
+            onRerun={onRerunRun}
+            runsPage={runsPage ?? null}
+            isLoadingRuns={isLoadingRuns}
+          />
           <div className="flex items-center gap-2">
             {runStatus?.progress &&
               selectedRunId === liveRunId &&

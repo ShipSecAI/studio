@@ -54,6 +54,7 @@ export interface WorkflowSummaryResponse {
   description: string | null;
   organizationId: string | null;
   lastRun: string | null;
+  latestRunStatus: string | null;
   runCount: number;
   nodeCount: number;
   createdAt: string;
@@ -560,6 +561,7 @@ export class WorkflowsService {
     return records.map((record) => ({
       ...record,
       lastRun: record.lastRun?.toISOString() ?? null,
+      latestRunStatus: record.latestRunStatus ?? null,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
     }));

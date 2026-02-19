@@ -11,6 +11,7 @@ export interface McpGroupResponse {
   defaultDockerImage?: string | null;
   createdAt: string;
   updatedAt: string;
+  servers?: McpGroupServerResponse[];
 }
 
 export interface McpGroupServerResponse {
@@ -68,6 +69,23 @@ export const mcpGroupsApi = {
   async listGroups(): Promise<McpGroupResponse[]> {
     const headers = await getApiAuthHeaders();
     const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Failed to fetch groups' }));
+      throw new Error(error.message || 'Failed to fetch MCP groups');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Fetch all MCP groups with their servers embedded (avoids N+1 queries)
+   */
+  async listGroupsWithServers(): Promise<McpGroupResponse[]> {
+    const headers = await getApiAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups?includeServers=true`, {
       headers,
     });
 

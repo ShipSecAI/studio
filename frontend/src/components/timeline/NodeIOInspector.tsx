@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { api } from '@/services/api';
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
+import { useExecutionNodeIO } from '@/hooks/queries/useExecutionQueries';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertCircle, CheckCircle2, XCircle, Clock } from 'lucide-react';
@@ -29,10 +30,7 @@ export function NodeIOInspector() {
   const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId);
   const selectedNodeId = useExecutionTimelineStore((state) => state.selectedNodeId);
 
-  const [loading, setLoading] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [nodeIOList, setNodeIOList] = useState<NodeIO[]>([]);
   const [selectedNodeIO, setSelectedNodeIO] = useState<NodeIO | null>(null);
   const [fullViewModal, setFullViewModal] = useState<{
     open: boolean;
@@ -44,54 +42,31 @@ export function NodeIOInspector() {
     content: '',
   });
 
-  // Track the previous run ID to detect actual run changes
-  const previousRunIdRef = useRef<string | null>(null);
+  const {
+    data: rawNodeIOData,
+    isLoading: loading,
+    error: queryError,
+  } = useExecutionNodeIO(selectedRunId);
+  const error = queryError?.message ?? null;
 
-  useEffect(() => {
-    const isNewRun = selectedRunId !== previousRunIdRef.current;
-
-    // Only reset completely when switching to a different run
-    if (isNewRun) {
-      setSelectedNodeIO(null);
-      setError(null);
-      setNodeIOList([]);
-      previousRunIdRef.current = selectedRunId;
-    }
-
-    if (!selectedRunId) {
-      return;
-    }
-
-    const fetchNodeIO = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await api.executions.listNodeIO(selectedRunId);
-        // Cast the API response to match our interface, ensuring required fields are present
-        const nodes = (data.nodes || []).map((n: any) => ({
-          ...n,
-          nodeRef: n.nodeRef || 'unknown',
-          componentId: n.componentId || 'unknown',
-          status: n.status || 'running',
-          startedAt: n.startedAt || null,
-          completedAt: n.completedAt || null,
-          durationMs: n.durationMs ?? null,
-          inputs: n.inputs || null,
-          outputs: n.outputs || null,
-          inputsTruncated: !!n.inputsTruncated,
-          outputsTruncated: !!n.outputsTruncated,
-          errorMessage: n.errorMessage || null,
-        })) as NodeIO[];
-        setNodeIOList(nodes);
-      } catch (err: any) {
-        setError(err.message || 'Failed to fetch node I/O');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchNodeIO();
-  }, [selectedRunId]);
+  const nodeIOList = useMemo(() => {
+    if (!rawNodeIOData) return [];
+    const nodes = (rawNodeIOData.nodes || []) as any[];
+    return nodes.map((n: any) => ({
+      ...n,
+      nodeRef: n.nodeRef || 'unknown',
+      componentId: n.componentId || 'unknown',
+      status: n.status || 'running',
+      startedAt: n.startedAt || null,
+      completedAt: n.completedAt || null,
+      durationMs: n.durationMs ?? null,
+      inputs: n.inputs || null,
+      outputs: n.outputs || null,
+      inputsTruncated: !!n.inputsTruncated,
+      outputsTruncated: !!n.outputsTruncated,
+      errorMessage: n.errorMessage || null,
+    })) as NodeIO[];
+  }, [rawNodeIOData]);
 
   useEffect(() => {
     if (selectedNodeId) {

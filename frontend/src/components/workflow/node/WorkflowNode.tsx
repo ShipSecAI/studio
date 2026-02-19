@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils';
 import { MarkdownView } from '@/components/ui/markdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useComponentStore } from '@/store/componentStore';
+import { useComponents } from '@/hooks/queries/useComponentQueries';
 import { useExecutionStore } from '@/store/executionStore';
 import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executionTimelineStore';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -43,11 +43,11 @@ import {
   isCredentialInput,
 } from '@/utils/portUtils';
 import { WebhookDetails } from '../WebhookDetails';
-import { useApiKeyStore } from '@/store/apiKeyStore';
+import { useApiKeyUiStore } from '@/hooks/queries/useApiKeyQueries';
 import { API_V1_URL } from '@/services/api';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useEntryPointActions } from '../entry-point-context';
-import { useSecretStore } from '@/store/secretStore';
+import { useSecrets } from '@/hooks/queries/useSecretQueries';
 import { getSecretLabel } from '@/api/secrets';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
@@ -79,8 +79,15 @@ const TOOL_MODE_ONLY_COMPONENTS = new Set([
  */
 export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   // Store hooks
-  const { getComponent, loading } = useComponentStore();
-  const secrets = useSecretStore((state) => state.secrets);
+  const { data: componentIndex, isLoading: loading } = useComponents();
+  const getComponent = (ref: string) => {
+    if (!componentIndex || !ref) return null;
+    if (componentIndex.byId[ref]) return componentIndex.byId[ref];
+    const idFromSlug = componentIndex.slugIndex[ref];
+    if (idFromSlug && componentIndex.byId[idFromSlug]) return componentIndex.byId[idFromSlug];
+    return null;
+  };
+  const { data: secrets = [] } = useSecrets();
   const { getNodes, getEdges, setNodes, deleteElements } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const { nodeStates, selectedRunId, selectNode, isPlaying, playbackMode, isLiveFollowing } =
@@ -91,7 +98,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const prefetchTerminal = useExecutionStore((state) => state.prefetchTerminal);
   const terminalSession = useExecutionStore((state) => state.getTerminalSession(id, 'pty'));
   const theme = useThemeStore((state) => state.theme);
-  const { lastCreatedKey } = useApiKeyStore();
+  const lastCreatedKey = useApiKeyUiStore((state) => state.lastCreatedKey);
   // @ts-expect-error - FIXME: Check actual store structure
   const workflowIdFromStore = useWorkflowStore((state) => state.workflow?.id);
   const {
@@ -147,7 +154,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   // Cast to access extended frontend fields
   const nodeData = data as FrontendNodeData;
   const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug;
-  const component = getComponent(componentRef);
+  const component = componentRef ? getComponent(componentRef) : null;
   const isTextBlock = component?.id === 'core.ui.text';
   const isEntryPoint = component?.id === 'core.workflow.entrypoint';
   const isDarkMode = theme === 'dark';

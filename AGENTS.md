@@ -98,6 +98,35 @@ bun --cwd backend run db:studio            # View data
 4. **E2E Tests**: Mandatory for significant features. Place in `e2e-tests/` folder.
 5. **GitHub CLI**: Use `gh` for all GitHub operations (issues, PRs, actions, releases). Never use browser automation for GitHub tasks.
 
+### Frontend: Read Before Writing Code
+
+Before writing ANY frontend code that fetches data or adds a page, you MUST read these files first:
+
+1. `frontend/docs/state.md` — Decision guide: TanStack Query vs Zustand, hook patterns, anti-patterns
+2. `frontend/docs/performance.md` — Stale time tiers, bundle splitting, prefetch patterns, query key architecture
+3. `frontend/src/lib/queryKeys.ts` — Existing query key factories (add new keys here, never inline)
+4. Browse `frontend/src/hooks/queries/` — Follow existing hook naming conventions (`use<Domain>Queries.ts`)
+
+### Frontend Data Fetching (Mandatory)
+
+6. **All API data must use TanStack Query hooks** in `frontend/src/hooks/queries/`. Never use `useState` + `useEffect` to fetch backend data — this is the single most important frontend rule.
+7. **Query keys** go in `frontend/src/lib/queryKeys.ts` (org-scoped, factory functions).
+8. **After mutations**, invalidate the relevant query cache via `queryClient.invalidateQueries()` — do not manually update local state.
+9. **Derive data** from query results using `useMemo`, not by copying into separate `useState`.
+10. **Zustand stores** are for client-only UI state (canvas, timeline, auth). Never store API data in Zustand.
+
+See `frontend/docs/state.md` for patterns, anti-patterns, and the full decision guide.
+
+### Frontend Performance (Mandatory)
+
+See `frontend/docs/performance.md` for the complete reference with code examples.
+
+11. **Every new page must use `React.lazy()`** in `App.tsx`. Add the route to `routePrefetchMap` in `src/lib/prefetch-routes.ts`.
+12. **Set `staleTime: Infinity` for static/reference data** (components, templates, providers). The 30s default is wrong for them.
+13. **Use `skipToken` for conditional queries** instead of `enabled: false` alone. See `useRunQueries.ts`.
+14. **Granular Zustand selectors**: `useStore((s) => s.field)`, never `const store = useStore()`.
+15. **No N+1 queries**: never call a query hook inside `.map()`. Use a batched endpoint (see `useMcpGroupsWithServers`).
+
 ---
 
 ## Architecture
@@ -138,6 +167,16 @@ When tasks match a skill, load it: `cat .claude/skills/<name>/SKILL.md`
 <skill>
 <name>component-development</name>
 <description>Creating components (inline/docker). Dynamic ports, retry policies, PTY patterns, IsolatedContainerVolume.</description>
+<location>project</location>
+</skill>
+<skill>
+<name>performance-review</name>
+<description>Review code changes for frontend performance anti-patterns. Checks stale times, bundle splitting, Zustand selectors, N+1 queries, and React rendering.</description>
+<location>project</location>
+</skill>
+<skill>
+<name>stress-test-frontend</name>
+<description>Run a frontend load testing audit. Seeds data, tests all pages via Chrome DevTools MCP, records network calls, TanStack queries, DOM sizes, and generates a timestamped report.</description>
 <location>project</location>
 </skill>
 </available_skills>

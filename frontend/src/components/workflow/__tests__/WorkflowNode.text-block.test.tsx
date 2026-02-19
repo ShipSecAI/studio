@@ -1,9 +1,7 @@
-import { describe, it, beforeEach, afterEach, expect } from 'bun:test';
+import { describe, it, afterEach, expect, mock } from 'bun:test';
 import { render, screen, cleanup } from '@testing-library/react';
 import { ReactFlowProvider } from 'reactflow';
 import { MemoryRouter } from 'react-router-dom';
-import { WorkflowNode } from '../WorkflowNode';
-import { useComponentStore } from '@/store/componentStore';
 
 const noopStorage = {
   getItem: () => null,
@@ -76,16 +74,24 @@ const textBlockMetadata = {
   examples: [],
 };
 
-describe('WorkflowNode – text block rendering', () => {
-  beforeEach(() => {
-    useComponentStore.setState({
-      components: { 'core.ui.text': textBlockMetadata },
+mock.module('@/hooks/queries/useComponentQueries', () => ({
+  useComponents: () => ({
+    data: {
+      byId: { 'core.ui.text': textBlockMetadata },
       slugIndex: { 'text-block': 'core.ui.text' },
-      loading: false,
-      error: null,
-    });
-  });
+    },
+    isLoading: false,
+    error: null,
+  }),
+  useComponent: () => ({ data: null }),
+  useAllComponents: () => ({ data: [] }),
+  getComponentFromCache: () => null,
+}));
 
+// Import WorkflowNode after mock.module so the mock is in place
+const { WorkflowNode } = await import('../WorkflowNode');
+
+describe('WorkflowNode – text block rendering', () => {
   afterEach(() => {
     cleanup();
   });

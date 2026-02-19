@@ -28,63 +28,65 @@ mock.module('@/components/ui/dialog', () => {
   };
 });
 
-mock.module('@/store/secretStore', () => {
-  const createMockState = () => ({
-    secrets: [],
-    loading: false,
-    error: null,
-    initialized: false,
-    fetchSecrets: mock().mockResolvedValue(undefined),
-    createSecret: mock(),
-    rotateSecret: mock(),
-    updateSecret: mock(),
-    deleteSecret: mock(),
-    getSecretById: mock(),
-    refresh: mock().mockResolvedValue(undefined),
-  });
+// Mutable mock state for TanStack Query hooks
+const mockQueryState: {
+  secrets: SecretSummary[];
+  isLoading: boolean;
+  error: Error | null;
+  createSecret: any;
+  updateSecret: any;
+  rotateSecret: any;
+  deleteSecret: any;
+} = {
+  secrets: [],
+  isLoading: false,
+  error: null,
+  createSecret: mock().mockResolvedValue(undefined),
+  updateSecret: mock().mockResolvedValue(undefined),
+  rotateSecret: mock().mockResolvedValue(undefined),
+  deleteSecret: mock().mockResolvedValue(undefined),
+};
 
-  const store = createMockState();
+mock.module('@/hooks/queries/useSecretQueries', () => ({
+  useSecrets: () => ({
+    data: mockQueryState.secrets,
+    isLoading: mockQueryState.isLoading,
+    error: mockQueryState.error,
+  }),
+  useCreateSecret: () => ({
+    mutateAsync: mockQueryState.createSecret,
+  }),
+  useUpdateSecret: () => ({
+    mutateAsync: mockQueryState.updateSecret,
+  }),
+  useRotateSecret: () => ({
+    mutateAsync: mockQueryState.rotateSecret,
+  }),
+  useDeleteSecret: () => ({
+    mutateAsync: mockQueryState.deleteSecret,
+  }),
+}));
 
-  const useSecretStore = mock((selector?: (state: typeof store) => unknown) => {
-    if (selector) {
-      return selector(store);
-    }
-    return store;
-  }) as any;
+const mockInvalidateQueries = mock().mockResolvedValue(undefined);
 
-  useSecretStore.__setState = (partial: Partial<typeof store>) => {
-    Object.assign(store, partial);
-  };
-
-  useSecretStore.__reset = () => {
-    const fresh = createMockState();
-    Object.assign(store, fresh);
-  };
-
-  useSecretStore.__getState = () => store;
-
-  return { useSecretStore };
-});
+mock.module('@tanstack/react-query', () => ({
+  useQueryClient: () => ({
+    invalidateQueries: mockInvalidateQueries,
+  }),
+}));
 
 import { SecretsManager } from '@/pages/SecretsManager';
-import { useSecretStore } from '@/store/secretStore';
 import { useAuthStore, DEFAULT_ORG_ID } from '@/store/authStore';
 
-interface MockStoreState {
-  secrets: SecretSummary[];
-  loading: boolean;
-  error: string | null;
-  initialized: boolean;
-  fetchSecrets: (...args: any[]) => Promise<void>;
-  createSecret: (...args: any[]) => Promise<SecretSummary>;
-  rotateSecret: (...args: any[]) => Promise<SecretSummary>;
-  updateSecret: (...args: any[]) => Promise<SecretSummary>;
-  deleteSecret: (...args: any[]) => Promise<void>;
-  getSecretById: (...args: any[]) => SecretSummary | undefined;
-  refresh: (...args: any[]) => Promise<void>;
+interface MockQueryOverrides {
+  secrets?: SecretSummary[];
+  isLoading?: boolean;
+  error?: Error | null;
+  createSecret?: (...args: any[]) => Promise<SecretSummary>;
+  updateSecret?: (...args: any[]) => Promise<SecretSummary>;
+  rotateSecret?: (...args: any[]) => Promise<SecretSummary>;
+  deleteSecret?: (...args: any[]) => Promise<void>;
 }
-
-const useSecretStoreMock = useSecretStore as any;
 
 async function resetAuthStore() {
   const persist = (useAuthStore as typeof useAuthStore & { persist?: any }).persist;
@@ -124,27 +126,17 @@ const renderSecretsManager = () =>
     </MemoryRouter>,
   );
 
-const setupStore = (overrides: Partial<MockStoreState> = {}) => {
-  useSecretStoreMock.__reset();
-  useSecretStoreMock.mockClear();
+const setupStore = (overrides: MockQueryOverrides = {}) => {
+  mockQueryState.secrets = overrides.secrets ?? [baseSecret];
+  mockQueryState.isLoading = overrides.isLoading ?? false;
+  mockQueryState.error = overrides.error ?? null;
+  mockQueryState.createSecret = overrides.createSecret ?? mock().mockResolvedValue(baseSecret);
+  mockQueryState.updateSecret = overrides.updateSecret ?? mock().mockResolvedValue(baseSecret);
+  mockQueryState.rotateSecret = overrides.rotateSecret ?? mock().mockResolvedValue(baseSecret);
+  mockQueryState.deleteSecret = overrides.deleteSecret ?? mock().mockResolvedValue(undefined);
+  mockInvalidateQueries.mockClear();
 
-  const state: MockStoreState = {
-    secrets: [baseSecret],
-    loading: false,
-    error: null,
-    initialized: true,
-    fetchSecrets: overrides.fetchSecrets ?? mock().mockResolvedValue(undefined),
-    createSecret: overrides.createSecret ?? mock().mockResolvedValue(baseSecret),
-    rotateSecret: overrides.rotateSecret ?? mock().mockResolvedValue(baseSecret),
-    updateSecret: overrides.updateSecret ?? mock().mockResolvedValue(baseSecret),
-    deleteSecret: overrides.deleteSecret ?? mock().mockResolvedValue(undefined),
-    getSecretById: overrides.getSecretById ?? mock(),
-    refresh: overrides.refresh ?? mock().mockResolvedValue(undefined),
-  };
-
-  useSecretStoreMock.__setState(state);
-
-  return state;
+  return mockQueryState;
 };
 
 const openEditDialog = async () => {
@@ -194,10 +186,13 @@ describe('SecretsManager edit dialog', () => {
     await screen.findByText('Secret "Updated Secret" updated successfully.');
 
     expect(updateSecret).toHaveBeenCalledTimes(1);
-    expect(updateSecret).toHaveBeenCalledWith(baseSecret.id, {
-      name: 'Updated Secret',
-      description: 'Original secret',
-      tags: ['prod', 'api'],
+    expect(updateSecret).toHaveBeenCalledWith({
+      id: baseSecret.id,
+      input: {
+        name: 'Updated Secret',
+        description: 'Original secret',
+        tags: ['prod', 'api'],
+      },
     });
     expect(rotateSecret).not.toHaveBeenCalled();
   });
@@ -224,7 +219,10 @@ describe('SecretsManager edit dialog', () => {
     await screen.findByText('Secret "Prod API Key" rotated successfully.');
 
     expect(rotateSecret).toHaveBeenCalledTimes(1);
-    expect(rotateSecret).toHaveBeenCalledWith(baseSecret.id, { value: 'rotated-value' });
+    expect(rotateSecret).toHaveBeenCalledWith({
+      id: baseSecret.id,
+      input: { value: 'rotated-value' },
+    });
     expect(updateSecret).not.toHaveBeenCalled();
   });
 
@@ -256,12 +254,18 @@ describe('SecretsManager edit dialog', () => {
 
     await screen.findByText('Secret "Prod API Key v2" updated and rotated successfully.');
 
-    expect(updateSecret).toHaveBeenCalledWith(baseSecret.id, {
-      name: 'Prod API Key v2',
-      description: 'Original secret',
-      tags: ['prod', 'api'],
+    expect(updateSecret).toHaveBeenCalledWith({
+      id: baseSecret.id,
+      input: {
+        name: 'Prod API Key v2',
+        description: 'Original secret',
+        tags: ['prod', 'api'],
+      },
     });
-    expect(rotateSecret).toHaveBeenCalledWith(baseSecret.id, { value: 'next-secret' });
+    expect(rotateSecret).toHaveBeenCalledWith({
+      id: baseSecret.id,
+      input: { value: 'next-secret' },
+    });
   });
 
   it('does not call update or rotate when no changes are submitted', async () => {

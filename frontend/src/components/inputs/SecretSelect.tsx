@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
 import { KeyRound, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { getSecretLabel, getSecretDescription } from '@/api/secrets';
 import { LeanSelect, type SelectOption } from './LeanSelect';
-import { useSecretStore } from '@/store/secretStore';
+import { useSecrets } from '@/hooks/queries/useSecretQueries';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface SecretSelectProps {
   value?: string;
@@ -28,17 +28,9 @@ export function SecretSelect({
   onRefresh,
   clearable = true,
 }: SecretSelectProps) {
-  const secrets = useSecretStore((state) => state.secrets);
-  const loading = useSecretStore((state) => state.loading);
-  const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
-  const refreshSecrets = useSecretStore((state) => state.refresh);
+  const { data: secrets = [], isLoading: loading } = useSecrets();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    fetchSecrets().catch((error) => {
-      console.error('Failed to load secrets:', error);
-    });
-  }, [fetchSecrets]);
 
   const options: SelectOption[] = secrets.map((s) => ({
     label: getSecretLabel(s),
@@ -59,7 +51,7 @@ export function SecretSelect({
       : undefined;
 
   const handleRefresh = async () => {
-    await refreshSecrets();
+    await queryClient.invalidateQueries({ queryKey: ['secrets'] });
     onRefresh?.();
   };
 

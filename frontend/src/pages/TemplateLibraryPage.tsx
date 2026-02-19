@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,7 +40,13 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useTemplateStore, type Template } from '@/store/templateStore';
+import {
+  useTemplates,
+  useTemplateCategories,
+  useTemplateTags,
+  useSyncTemplates,
+  type Template,
+} from '@/hooks/queries/useTemplateQueries';
 import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
@@ -597,42 +603,31 @@ export function TemplateLibraryPage() {
   const roles = useAuthStore((state) => state.roles);
   const canManageWorkflows = hasAdminRole(roles);
 
-  const {
-    templates,
-    categories,
-    tags,
-    isLoading,
-    error,
-    selectedCategory,
-    selectedTags,
-    searchQuery,
-    fetchTemplates,
-    fetchCategories,
-    fetchTags,
-    syncTemplates,
-    setSelectedCategory,
-    setSelectedTags,
-    setSearchQuery,
-    clearError,
-  } = useTemplateStore();
+  // UI-only filter state (not server data, so local useState is correct)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const [isSyncing, setIsSyncing] = useState(false);
+  // Build filters object for query key
+  const filters = useMemo(() => {
+    const f: { category?: string; search?: string; tags?: string[] } = {};
+    if (selectedCategory) f.category = selectedCategory;
+    if (searchQuery) f.search = searchQuery;
+    if (selectedTags.length > 0) f.tags = selectedTags;
+    return Object.keys(f).length > 0 ? f : undefined;
+  }, [selectedCategory, searchQuery, selectedTags]);
+
+  // Server state via TanStack Query
+  const { data: templates = [], isLoading, error } = useTemplates(filters);
+  const { data: categories = [] } = useTemplateCategories();
+  const { data: tags = [] } = useTemplateTags();
+  const syncMutation = useSyncTemplates();
+
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isUseModalOpen, setIsUseModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchTemplates();
-    fetchCategories();
-    fetchTags();
-  }, []);
-
-  const handleSync = async () => {
-    setIsSyncing(true);
-    try {
-      await syncTemplates();
-    } finally {
-      setIsSyncing(false);
-    }
+  const handleSync = () => {
+    syncMutation.mutate();
   };
 
   const handleSearchChange = (value: string) => {
@@ -644,10 +639,9 @@ export function TemplateLibraryPage() {
   };
 
   const toggleTag = (tag: string) => {
-    const newTags = selectedTags.includes(tag)
-      ? selectedTags.filter((t) => t !== tag)
-      : [...selectedTags, tag];
-    setSelectedTags(newTags);
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
   };
 
   const clearFilters = () => {
@@ -673,6 +667,7 @@ export function TemplateLibraryPage() {
     navigate(`/workflows/${workflowId}`);
   };
 
+  const isSyncing = syncMutation.isPending;
   const hasFilters = Boolean(selectedCategory || selectedTags.length > 0 || searchQuery);
 
   return (
@@ -802,19 +797,8 @@ export function TemplateLibraryPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm text-destructive">Error loading templates</p>
-                <p className="text-xs text-destructive/70 truncate">{error}</p>
+                <p className="text-xs text-destructive/70 truncate">{error.message}</p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8"
-                onClick={() => {
-                  clearError();
-                  fetchTemplates();
-                }}
-              >
-                Retry
-              </Button>
             </div>
           </div>
         )}
