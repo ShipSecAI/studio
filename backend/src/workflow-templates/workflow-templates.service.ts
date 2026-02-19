@@ -106,10 +106,12 @@ export class WorkflowTemplatesService implements OnModuleInit {
 
   private async backfillSlugs(existing: WorkflowTemplate[]) {
     const slugMap = new Map(SEED_TEMPLATES.map((t) => [t.name, t.slug]));
-    const toBackfill = existing.filter((t) => !t.slug && slugMap.has(t.name));
+    const toBackfill = existing.filter(
+      (t) => slugMap.has(t.name) && t.slug !== slugMap.get(t.name),
+    );
     if (toBackfill.length === 0) return;
 
-    this.logger.log(`Backfilling slugs for ${toBackfill.length} template(s)...`);
+    this.logger.log(`Syncing slugs for ${toBackfill.length} template(s)...`);
     for (const template of toBackfill) {
       const slug = slugMap.get(template.name);
       if (!slug) continue;
@@ -118,7 +120,7 @@ export class WorkflowTemplatesService implements OnModuleInit {
         .set({ slug, updatedAt: new Date() })
         .where(eq(workflowTemplatesTable.id, template.id));
     }
-    this.logger.log('Slug backfill complete');
+    this.logger.log('Slug sync complete');
   }
 
   private async backfillMetadata(existing: WorkflowTemplate[]) {

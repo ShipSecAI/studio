@@ -21,7 +21,7 @@ export type TemplateCategory = (typeof templateCategoryEnum)[number];
 export const workflowTemplatesTable = pgTable('workflow_templates', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
-  slug: varchar('slug', { length: 100 }),
+  slug: varchar('slug', { length: 100 }).unique(),
   description: text('description'),
   category: varchar('category', { length: 50 }).notNull().$type<TemplateCategory>(),
   graph: jsonb('graph').notNull(),

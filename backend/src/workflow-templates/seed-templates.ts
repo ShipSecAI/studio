@@ -74,7 +74,7 @@ function secretScanTemplate(): SeedTemplate {
 
   return {
     name: 'Secret Scan',
-    slug: 'secret-scan',
+    slug: 'sys-secret-scan',
     description:
       'Scan a repository for exposed secrets, API keys, and credentials using TruffleHog.',
     category: 'code-security',
@@ -123,7 +123,7 @@ function sastScanTemplate(): SeedTemplate {
 
   return {
     name: 'SAST Scan',
-    slug: 'sast-scan',
+    slug: 'sys-sast-scan',
     description:
       'Static Application Security Testing using OpenGrep (Semgrep) to find code vulnerabilities.',
     category: 'code-security',
@@ -168,7 +168,7 @@ function dependencyScanTemplate(): SeedTemplate {
 
   return {
     name: 'Dependency Scan',
-    slug: 'dependency-scan',
+    slug: 'sys-dependency-scan',
     description: 'Scan dependencies for known vulnerabilities using dependency analysis.',
     category: 'code-security',
     icon: 'package',
@@ -220,7 +220,7 @@ function fullCodeSecurityTemplate(): SeedTemplate {
 
   return {
     name: 'Full Code Security',
-    slug: 'full-code-security',
+    slug: 'sys-full-code-security',
     description:
       'Multi-scanner analysis: secrets, SAST, and dependency vulnerabilities in parallel.',
     category: 'code-security',
@@ -302,7 +302,7 @@ function prSecurityGateTemplate(): SeedTemplate {
 
   return {
     name: 'PR Security Gate',
-    slug: 'pr-security-gate',
+    slug: 'sys-pr-security-gate',
     description:
       'Auto-scan every PR with secrets, SAST, and dependency checks. Posts results as PR comment and check run.',
     category: 'code-security',
@@ -391,7 +391,7 @@ function aiCodeReviewTemplate(): SeedTemplate {
 
   return {
     name: 'AI Code Review',
-    slug: 'ai-code-review',
+    slug: 'sys-ai-code-review',
     description:
       'AI-powered code review: scans PR with SAST, secrets, and dependencies, then uses AI to analyze findings in context and post a review.',
     category: 'code-security',
@@ -469,7 +469,7 @@ function cloudSecurityScanTemplate(): SeedTemplate {
 
   return {
     name: 'Cloud Security Scan',
-    slug: 'cloud-security-scan',
+    slug: 'sys-cloud-security-scan',
     description:
       'Scan AWS accounts with Prowler and index findings into Analytics. Supports single-account or org-wide scanning.',
     category: 'cloud-security',
@@ -532,7 +532,7 @@ function attackSurfaceReconTemplate(): SeedTemplate {
 
   return {
     name: 'Attack Surface Recon',
-    slug: 'attack-surface-recon',
+    slug: 'sys-attack-surface-recon',
     description:
       'Full recon pipeline: subdomain discovery, DNS resolution, HTTP probing, port scanning, and vulnerability scanning.',
     category: 'attack-surface',
@@ -588,7 +588,7 @@ function containerImageScanTemplate(): SeedTemplate {
 
   return {
     name: 'Container Image Scan',
-    slug: 'container-image-scan',
+    slug: 'sys-container-image-scan',
     description:
       'Scan container images from any registry (Docker Hub, ECR, GCR, GHCR) for vulnerabilities using Trivy. Supports public and private images with registry credentials.',
     category: 'cloud-security',
