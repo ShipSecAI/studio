@@ -86,15 +86,17 @@ function secretScanTemplate(): SeedTemplate {
       name: 'Secret Scan',
       description: 'Scan for exposed secrets using TruffleHog',
       nodes: [
-        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0),
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [],
+        }),
         makeNode(cloneRepo, 'github.repo.clone', 'Clone Repo', 300, 0),
         makeNode(trufflehog, 'scanner.trufflehog', 'TruffleHog', 600, 0),
         makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 900, 0),
         makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, 0),
       ],
       edges: [
-        // entrypoint → clone: pass repository name
-        makeEdge('e1', entryPoint, cloneRepo, 'input1', 'repository'),
+        // entrypoint → clone: repo info injected via componentParams at trigger time
+        makeEdge('e1', entryPoint, cloneRepo),
         // clone → trufflehog: pass volume name so scanner can access cloned files
         makeEdge('e2', cloneRepo, trufflehog, 'volumeName', 'volumeName'),
         // trufflehog → normalize: pass raw findings
@@ -133,14 +135,16 @@ function sastScanTemplate(): SeedTemplate {
       name: 'SAST Scan',
       description: 'Static analysis with OpenGrep',
       nodes: [
-        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0),
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [],
+        }),
         makeNode(cloneRepo, 'github.repo.clone', 'Clone Repo', 300, 0),
         makeNode(opengrep, 'scanner.opengrep', 'OpenGrep', 600, 0),
         makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 900, 0),
         makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, 0),
       ],
       edges: [
-        makeEdge('e1', entryPoint, cloneRepo, 'input1', 'repository'),
+        makeEdge('e1', entryPoint, cloneRepo),
         makeEdge('e2', cloneRepo, opengrep, 'volumeName', 'volumeName'),
         makeEdge('e3', opengrep, normalize, 'findings', 'rawFindings'),
         makeEdge('e4', normalize, markdown, 'findings', 'findings'),
@@ -175,14 +179,16 @@ function dependencyScanTemplate(): SeedTemplate {
       name: 'Dependency Scan',
       description: 'Dependency vulnerability analysis',
       nodes: [
-        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0),
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [],
+        }),
         makeNode(cloneRepo, 'github.repo.clone', 'Clone Repo', 300, 0),
         makeNode(depScanner, 'scanner.dependency', 'Dependency Scanner', 600, 0),
         makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 900, 0),
         makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, 0),
       ],
       edges: [
-        makeEdge('e1', entryPoint, cloneRepo, 'input1', 'repository'),
+        makeEdge('e1', entryPoint, cloneRepo),
         makeEdge('e2', cloneRepo, depScanner, 'volumeName', 'volumeName'),
         makeEdge('e3', depScanner, normalize, 'findings', 'rawFindings'),
         makeEdge('e4', normalize, markdown, 'findings', 'findings'),
@@ -226,7 +232,9 @@ function fullCodeSecurityTemplate(): SeedTemplate {
       name: 'Full Code Security',
       description: 'Secrets + SAST + Dependencies in parallel',
       nodes: [
-        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0),
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [],
+        }),
         makeNode(cloneRepo, 'github.repo.clone', 'Clone Repo', 300, 0),
         // Scanners (parallel)
         makeNode(trufflehog, 'scanner.trufflehog', 'TruffleHog', 600, -200),
@@ -246,8 +254,8 @@ function fullCodeSecurityTemplate(): SeedTemplate {
         }),
       ],
       edges: [
-        // Entry → Clone
-        makeEdge('e1', entryPoint, cloneRepo, 'input1', 'repository'),
+        // Entry → Clone (repo info injected via componentParams at trigger time)
+        makeEdge('e1', entryPoint, cloneRepo),
         // Clone → Scanners (volume name)
         makeEdge('e2', cloneRepo, trufflehog, 'volumeName', 'volumeName'),
         makeEdge('e3', cloneRepo, opengrep, 'volumeName', 'volumeName'),
@@ -473,21 +481,34 @@ function cloudSecurityScanTemplate(): SeedTemplate {
       name: 'Cloud Security Scan',
       description: 'AWS cloud security scan with Prowler',
       nodes: [
-        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0),
-        makeNode(awsCreds, 'core.credentials.aws', 'AWS Credentials', 300, 0),
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [{ id: 'connectionId', label: 'AWS Account', type: 'text' }],
+        }),
+        makeNode(
+          awsCreds,
+          'core.integration.resolve-credentials',
+          'Resolve AWS Credentials',
+          300,
+          0,
+          { parameters: { provider: 'aws' } },
+        ),
         makeNode(prowler, 'security.prowler.scan', 'Prowler', 600, 0),
         makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 900, 0),
-        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1200, 0),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1200, 0, {
+          dataInputs: [{ id: 'input1', label: 'Prowler Findings', sourceTag: 'prowler' }],
+        }),
       ],
       edges: [
-        // Entry Point → Prowler (pass orgScan flag from trigger/integration)
-        makeEdge('e1', entryPoint, prowler, 'input1', 'orgScan'),
-        // AWS Creds → Prowler
-        makeEdge('e2', awsCreds, prowler, 'credentials', 'credentials'),
-        // Prowler → Normalize
+        // Entry Point → Resolve Credentials (connectionId)
+        makeEdge('e1', entryPoint, awsCreds, 'connectionId', 'connectionId'),
+        // Resolve Credentials → Prowler (data→credentials, accountId, regions)
+        makeEdge('e2', awsCreds, prowler, 'data', 'credentials'),
+        makeEdge('e2b', awsCreds, prowler, 'accountId', 'accountId'),
+        makeEdge('e2c', awsCreds, prowler, 'regions', 'regions'),
+        // Prowler → Normalize (for normalized findings output)
         makeEdge('e3', prowler, normalize, 'findings', 'rawFindings'),
-        // Normalize → Analytics
-        makeEdge('e4', normalize, analytics, 'findings', 'input1'),
+        // Prowler → Analytics (analytics-ready results)
+        makeEdge('e4', prowler, analytics, 'results', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -523,7 +544,9 @@ function attackSurfaceReconTemplate(): SeedTemplate {
       name: 'Attack Surface Recon',
       description: 'Domain → Subdomains → Ports → Vulns',
       nodes: [
-        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0),
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [],
+        }),
         makeNode(subfinder, 'shipsec.subfinder.run', 'Subfinder', 300, 0),
         makeNode(dnsx, 'shipsec.dnsx.run', 'DNSx', 600, 0),
         makeNode(httpx, 'shipsec.httpx.scan', 'HTTPx', 900, -100),
@@ -533,8 +556,8 @@ function attackSurfaceReconTemplate(): SeedTemplate {
         makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1800, 0),
       ],
       edges: [
-        // Entry Point → Subfinder (pass domains)
-        makeEdge('e1', entryPoint, subfinder, 'input1', 'domains'),
+        // Entry Point → Subfinder (domains injected at trigger time)
+        makeEdge('e1', entryPoint, subfinder),
         // Subfinder → DNSx (pass discovered subdomains)
         makeEdge('e2', subfinder, dnsx, 'subdomains', 'domains'),
         // DNSx → HTTPx + Naabu (pass resolved hosts)

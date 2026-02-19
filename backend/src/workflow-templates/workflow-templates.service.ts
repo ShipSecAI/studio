@@ -16,6 +16,7 @@ import {
 } from '../database/schema/workflow-templates';
 import { eq, desc, and, inArray } from 'drizzle-orm';
 import { workflowsTable } from '../database/schema/workflows';
+import { workflowVersionsTable } from '../database/schema/workflow-versions';
 import { SEED_TEMPLATES } from './seed-templates';
 
 @Injectable()
@@ -91,6 +92,9 @@ export class WorkflowTemplatesService implements OnModuleInit {
         // Backfill metadata for existing templates that lack screenshotUrl
         await this.backfillMetadata(existing);
 
+        // Sync default template graphs (e.g. fix Entry Point runtimeInputs)
+        await this.syncDefaultGraphs(existing);
+
         // Remove stale default templates no longer in SEED_TEMPLATES
         await this.removeStaleDefaults(existing);
       }
@@ -137,6 +141,56 @@ export class WorkflowTemplatesService implements OnModuleInit {
         .where(eq(workflowTemplatesTable.id, template.id));
     }
     this.logger.log('Backfill complete');
+  }
+
+  /**
+   * Sync default template graphs with seed data and propagate to system workflows.
+   * This ensures Entry Point nodes have correct runtimeInputs and edges are valid.
+   */
+  private async syncDefaultGraphs(existing: WorkflowTemplate[]) {
+    const seedByName = new Map(SEED_TEMPLATES.map((t) => [t.name, t]));
+    let updated = 0;
+
+    for (const template of existing) {
+      if (!template.isDefault) continue;
+      const seed = seedByName.get(template.name);
+      if (!seed) continue;
+
+      // Compare graphs by serialization
+      const currentGraph = JSON.stringify(template.graph);
+      const seedGraph = JSON.stringify(seed.graph);
+      if (currentGraph === seedGraph) continue;
+
+      // Update template graph
+      await this.db
+        .update(workflowTemplatesTable)
+        .set({ graph: seed.graph as any, updatedAt: new Date() })
+        .where(eq(workflowTemplatesTable.id, template.id));
+
+      // Update all system workflow versions that reference this template.
+      // Find system workflows for this template, then update their latest version's
+      // graph and clear the compiled definition so it gets re-compiled on next run.
+      const systemWorkflows = await this.db
+        .select({ id: workflowsTable.id })
+        .from(workflowsTable)
+        .where(and(eq(workflowsTable.templateId, template.id), eq(workflowsTable.isSystem, true)));
+
+      for (const sw of systemWorkflows) {
+        await this.db
+          .update(workflowVersionsTable)
+          .set({ graph: seed.graph as any, compiledDefinition: null })
+          .where(eq(workflowVersionsTable.workflowId, sw.id));
+      }
+
+      updated++;
+      this.logger.log(
+        `Synced graph for template "${template.name}" and ${systemWorkflows.length} system workflow(s)`,
+      );
+    }
+
+    if (updated > 0) {
+      this.logger.log(`Synced ${updated} default template graph(s)`);
+    }
   }
 
   private async removeStaleDefaults(existing: WorkflowTemplate[]) {
