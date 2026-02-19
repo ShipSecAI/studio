@@ -178,6 +178,18 @@ export class WorkflowTemplatesService implements OnModuleInit {
         .where(and(eq(workflowsTable.templateId, template.id), eq(workflowsTable.isSystem, true)));
 
       for (const sw of systemWorkflows) {
+        // Update the workflow record's graph (this is what the API returns)
+        await this.db
+          .update(workflowsTable)
+          .set({
+            name: seed.graph.name,
+            description: seed.graph.description ?? null,
+            graph: seed.graph as any,
+            updatedAt: new Date(),
+          })
+          .where(eq(workflowsTable.id, sw.id));
+
+        // Update the version's graph and clear compiled definition for re-compilation
         await this.db
           .update(workflowVersionsTable)
           .set({ graph: seed.graph as any, compiledDefinition: null })
