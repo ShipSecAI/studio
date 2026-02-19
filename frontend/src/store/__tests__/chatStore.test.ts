@@ -1,16 +1,10 @@
-import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, afterEach, afterAll, describe, expect, it, mock } from 'bun:test';
 import { useChatStore } from '../chatStore';
-import { useAuthStore } from '../authStore';
-
-// Skip these tests in CI due to Zustand store initialization issues
-// Tests pass locally but fail in CI with store method undefined errors
-if (process.env.CI) {
-  console.log('[chatStore tests] Skipping in CI - see issue with Zustand store initialization');
-  process.exit(0);
-}
+import { useAuthStore, DEFAULT_ORG_ID } from '../authStore';
 
 // Save original fetch to restore after tests
 const originalFetch = globalThis.fetch;
+const originalLocalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage');
 
 // Mock fetch globally for server-backed session operations
 const mockFetch = mock(() =>
@@ -39,11 +33,6 @@ const localStorageMock = (() => {
     },
   };
 })();
-
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
-  writable: true,
-});
 
 let sessionCounter = 0;
 
@@ -107,6 +96,11 @@ describe('chatStore', () => {
   beforeEach(() => {
     // Set up mock fetch for this file's tests
     globalThis.fetch = mockFetch as any;
+    Object.defineProperty(window, 'localStorage', {
+      value: localStorageMock,
+      writable: true,
+      configurable: true,
+    });
 
     localStorageMock.clear();
     sessionCounter = 0;
@@ -135,8 +129,32 @@ describe('chatStore', () => {
   });
 
   afterEach(() => {
-    // Restore original fetch to prevent contaminating other test files
+    // Restore globals/state to prevent contaminating other test files
     globalThis.fetch = originalFetch;
+    useAuthStore.setState({
+      token: null,
+      userId: null,
+      organizationId: DEFAULT_ORG_ID,
+      roles: ['ADMIN'],
+      provider: 'local',
+      adminUsername: null,
+      adminPassword: null,
+    });
+    useChatStore.setState({
+      sessions: [],
+      currentSessionId: null,
+      isLoadingSessions: false,
+      isCommandPaletteOpen: false,
+      isWorkflowPreviewOpen: false,
+      selectedWorkflowId: null,
+      isSidebarOpen: true,
+    });
+  });
+
+  afterAll(() => {
+    if (originalLocalStorage) {
+      Object.defineProperty(window, 'localStorage', originalLocalStorage);
+    }
   });
 
   describe('Initial State', () => {

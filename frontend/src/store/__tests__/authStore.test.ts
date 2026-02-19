@@ -1,113 +1,148 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { useAuthStore, DEFAULT_ORG_ID } from '../authStore';
 
-// Mock the auth store for testing
-const mockStoreState: any = {
-  token: null,
-  userId: null,
-  organizationId: DEFAULT_ORG_ID,
-  roles: ['ADMIN'],
-  provider: 'local' as const,
-  adminUsername: null,
-  adminPassword: null,
-  setToken: mock((token: string | null) => {
+type AuthProvider = 'local' | 'clerk' | 'custom';
+
+const mockStoreState: any = {};
+const clearStorageMock = mock(async () => {});
+const subscribeMock = mock(() => () => {});
+
+function applyDefaultState() {
+  Object.assign(mockStoreState, {
+    token: null,
+    userId: null,
+    organizationId: DEFAULT_ORG_ID,
+    roles: ['ADMIN'],
+    provider: 'local' as AuthProvider,
+    adminUsername: null,
+    adminPassword: null,
+  });
+}
+
+Object.assign(mockStoreState, {
+  setToken: (token: string | null) => {
     mockStoreState.token = token && token.trim().length > 0 ? token.trim() : null;
-  }),
-  setUserId: mock((userId: string | null) => {
+  },
+  setUserId: (userId: string | null) => {
     mockStoreState.userId = userId && userId.trim().length > 0 ? userId.trim() : null;
-  }),
-  setOrganizationId: mock((organizationId: string) => {
+  },
+  setOrganizationId: (organizationId: string) => {
     mockStoreState.organizationId =
       organizationId && organizationId.trim().length > 0 ? organizationId.trim() : DEFAULT_ORG_ID;
-  }),
-  setRoles: mock((roles: string[]) => {
+  },
+  setRoles: (roles: string[]) => {
     mockStoreState.roles = Array.isArray(roles) && roles.length > 0 ? roles : ['ADMIN'];
-  }),
-  setProvider: mock((provider: 'local' | 'clerk' | 'custom') => {
+  },
+  setProvider: (provider: AuthProvider) => {
     mockStoreState.provider = provider;
-  }),
-  setAdminCredentials: mock((username: string, password: string) => {
+  },
+  setAdminCredentials: (username: string, password: string) => {
     mockStoreState.adminUsername = username.trim() || null;
     mockStoreState.adminPassword = password.trim() || null;
     mockStoreState.userId = 'admin';
     mockStoreState.organizationId = 'local-dev';
     mockStoreState.roles = ['ADMIN'];
     mockStoreState.provider = 'local';
-  }),
-  setAuthContext: mock((context: any) => {
-    if (context.token !== undefined) {
-      mockStoreState.token =
-        context.token && context.token.trim().length > 0 ? context.token.trim() : null;
-    }
-    if (context.userId !== undefined) {
-      mockStoreState.userId =
-        context.userId && context.userId.trim().length > 0 ? context.userId.trim() : null;
-    }
-    if (context.organizationId !== undefined) {
-      mockStoreState.organizationId =
-        context.organizationId &&
-        typeof context.organizationId === 'string' &&
-        context.organizationId.trim().length > 0
-          ? context.organizationId.trim()
-          : DEFAULT_ORG_ID;
-    }
-    if (context.roles !== undefined) {
-      mockStoreState.roles =
-        Array.isArray(context.roles) && context.roles.length > 0 ? context.roles : ['ADMIN'];
-      // When roles fallback to ADMIN, also fallback provider to local
-      if (!Array.isArray(context.roles) || context.roles.length === 0) {
-        mockStoreState.provider = 'local';
-      }
-    }
-    if (context.provider !== undefined) {
-      mockStoreState.provider = context.provider || 'local';
-    }
-  }),
-  clear: mock(() => {
-    mockStoreState.token = null;
-    mockStoreState.userId = null;
-    mockStoreState.organizationId = DEFAULT_ORG_ID;
-    mockStoreState.roles = ['ADMIN'];
-    mockStoreState.provider = 'local';
-    mockStoreState.adminUsername = null;
-    mockStoreState.adminPassword = null;
-  }),
-  persist: {
-    clearStorage: mock(async () => {}),
   },
-};
+  setAuthContext: (context: {
+    token?: string | null;
+    userId?: string | null;
+    organizationId?: string | null;
+    roles?: string[] | null;
+    provider?: AuthProvider;
+  }) => {
+    const hasTokenUpdate = context.token !== undefined;
+    const sanitizedToken =
+      hasTokenUpdate && context.token
+        ? context.token.trim().length > 0
+          ? context.token.trim()
+          : null
+        : hasTokenUpdate
+          ? null
+          : mockStoreState.token;
 
-mock.module('../authStore', () => ({
-  useAuthStore: (selector?: (state: typeof mockStoreState) => any) => {
+    const hasUserUpdate = context.userId !== undefined;
+    const sanitizedUserId =
+      hasUserUpdate && context.userId
+        ? context.userId.trim().length > 0
+          ? context.userId.trim()
+          : null
+        : hasUserUpdate
+          ? null
+          : mockStoreState.userId;
+
+    const hasOrgUpdate = context.organizationId !== undefined;
+    const sanitizedOrgId =
+      hasOrgUpdate && typeof context.organizationId === 'string'
+        ? context.organizationId.trim().length > 0
+          ? context.organizationId.trim()
+          : DEFAULT_ORG_ID
+        : hasOrgUpdate && context.organizationId === null
+          ? DEFAULT_ORG_ID
+          : mockStoreState.organizationId;
+
+    const hasRolesUpdate = context.roles !== undefined;
+    const sanitizedRoles =
+      hasRolesUpdate && Array.isArray(context.roles) && context.roles.length > 0
+        ? context.roles
+        : hasRolesUpdate && context.roles === null
+          ? ['ADMIN']
+          : mockStoreState.roles;
+
+    const nextProvider =
+      context.provider ?? (hasTokenUpdate && !sanitizedToken ? 'local' : mockStoreState.provider);
+
+    Object.assign(mockStoreState, {
+      token: sanitizedToken,
+      userId: sanitizedUserId,
+      organizationId: sanitizedOrgId,
+      roles: sanitizedRoles,
+      provider: nextProvider,
+    });
+  },
+  clear: () => {
+    applyDefaultState();
+  },
+});
+
+applyDefaultState();
+
+const useAuthStoreMock = Object.assign(
+  (selector?: (state: typeof mockStoreState) => any) => {
     if (selector) {
       return selector(mockStoreState);
     }
     return mockStoreState;
   },
+  {
+    getState: () => mockStoreState,
+    setState: (partial: any) => {
+      const nextState = typeof partial === 'function' ? partial(mockStoreState) : partial;
+      if (nextState && typeof nextState === 'object') {
+        Object.assign(mockStoreState, nextState);
+      }
+    },
+    subscribe: subscribeMock,
+    persist: {
+      clearStorage: clearStorageMock,
+    },
+  },
+);
+
+mock.module('../authStore', () => ({
+  useAuthStore: useAuthStoreMock,
   DEFAULT_ORG_ID,
 }));
 
 describe('authStore', () => {
-  beforeEach(async () => {
-    // Reset mock state
-    mockStoreState.token = null;
-    mockStoreState.userId = null;
-    mockStoreState.organizationId = DEFAULT_ORG_ID;
-    mockStoreState.roles = ['ADMIN'];
-    mockStoreState.provider = 'local';
-    mockStoreState.adminUsername = null;
-    mockStoreState.adminPassword = null;
-
-    // Clear all mock calls
-    Object.values(mockStoreState).forEach((value) => {
-      if (value && typeof value === 'object' && 'mockClear' in value) {
-        (value as any).mockClear();
-      }
-    });
+  beforeEach(() => {
+    applyDefaultState();
+    clearStorageMock.mockClear();
+    subscribeMock.mockClear();
   });
 
   it('initializes with default organization id and no token', () => {
-    const state = useAuthStore();
+    const state = useAuthStore.getState();
     expect(state.organizationId).toBe(DEFAULT_ORG_ID);
     expect(state.token).toBeNull();
     expect(state.roles).toEqual(['ADMIN']);
@@ -116,53 +151,54 @@ describe('authStore', () => {
   });
 
   it('sets and clears API token', () => {
-    const state = useAuthStore();
-    state.setToken('  test-token  ');
-    expect(state.token).toBe('test-token');
+    useAuthStore.getState().setToken('  test-token  ');
+    expect(useAuthStore.getState().token).toBe('test-token');
 
-    state.setToken('');
-    expect(state.token).toBeNull();
+    useAuthStore.getState().setToken('');
+    expect(useAuthStore.getState().token).toBeNull();
   });
 
   it('updates organization id and falls back to default when blank', () => {
-    const state = useAuthStore();
-    state.setOrganizationId('team-123');
-    expect(state.organizationId).toBe('team-123');
+    useAuthStore.getState().setOrganizationId('team-123');
+    expect(useAuthStore.getState().organizationId).toBe('team-123');
 
-    state.setOrganizationId('');
-    expect(state.organizationId).toBe(DEFAULT_ORG_ID);
+    useAuthStore.getState().setOrganizationId('');
+    expect(useAuthStore.getState().organizationId).toBe(DEFAULT_ORG_ID);
   });
 
   it('sets roles and falls back to admin when empty', () => {
-    const state = useAuthStore();
-    state.setRoles(['MEMBER']);
-    expect(state.roles).toEqual(['MEMBER']);
+    useAuthStore.getState().setRoles(['MEMBER']);
+    expect(useAuthStore.getState().roles).toEqual(['MEMBER']);
 
-    state.setRoles([]);
-    expect(state.roles).toEqual(['ADMIN']);
+    useAuthStore.getState().setRoles([]);
+    expect(useAuthStore.getState().roles).toEqual(['ADMIN']);
   });
 
   it('resets state when cleared', () => {
-    // Manually set state first
-    mockStoreState.token = 'abc';
-    mockStoreState.organizationId = 'team-42';
-    mockStoreState.roles = ['MEMBER'];
-    mockStoreState.userId = 'user-123';
-    mockStoreState.provider = 'clerk';
+    useAuthStore.setState({
+      token: 'abc',
+      organizationId: 'team-42',
+      roles: ['MEMBER'],
+      userId: 'user-123',
+      provider: 'clerk',
+      adminUsername: 'admin',
+      adminPassword: 'password',
+    });
 
-    const state = useAuthStore();
-    state.clear();
+    useAuthStore.getState().clear();
 
+    const state = useAuthStore.getState();
     expect(state.token).toBeNull();
     expect(state.organizationId).toBe(DEFAULT_ORG_ID);
     expect(state.roles).toEqual(['ADMIN']);
     expect(state.userId).toBeNull();
     expect(state.provider).toBe('local');
+    expect(state.adminUsername).toBeNull();
+    expect(state.adminPassword).toBeNull();
   });
 
   it('sets auth context with fallbacks', () => {
-    const state = useAuthStore();
-    state.setAuthContext({
+    useAuthStore.getState().setAuthContext({
       token: ' bearer-token ',
       userId: 'user-123',
       organizationId: 'org-777',
@@ -170,19 +206,21 @@ describe('authStore', () => {
       provider: 'clerk',
     });
 
+    let state = useAuthStore.getState();
     expect(state.token).toBe('bearer-token');
     expect(state.userId).toBe('user-123');
     expect(state.organizationId).toBe('org-777');
     expect(state.roles).toEqual(['MEMBER']);
     expect(state.provider).toBe('clerk');
 
-    state.setAuthContext({
+    useAuthStore.getState().setAuthContext({
       token: '',
       userId: '',
       organizationId: null,
       roles: null,
     });
 
+    state = useAuthStore.getState();
     expect(state.token).toBeNull();
     expect(state.userId).toBeNull();
     expect(state.organizationId).toBe(DEFAULT_ORG_ID);
