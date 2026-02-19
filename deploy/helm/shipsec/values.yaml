@@ -107,17 +107,8 @@ ingress:
     secretName: shipsec-tls
 
 execution:
-  # "docker" = use Docker CLI (local dev / DIND), "k8s" = K8s Jobs (GKE / production)
+  # "docker" = use local Docker socket (local dev), "k8s" = K8s Jobs (GKE / production)
   mode: docker
-  dind:
-    enabled: false
-    serviceName: shipsec-dind
-    namespace: shipsec-workloads
-    port: 2375
-    storage:
-      enabled: true
-      size: 20Gi
-  workerDockerHost: ''
   k8s:
     # Namespace where component Jobs are created
     jobNamespace: shipsec-workloads

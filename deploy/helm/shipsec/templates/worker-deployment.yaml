@@ -47,6 +47,11 @@ spec:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
               key: SECRET_STORE_MASTER_KEY
+        - name: INTERNAL_SERVICE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: INTERNAL_SERVICE_TOKEN
         {{- if eq .Values.execution.mode "k8s" }}
         - name: EXECUTION_MODE
           value: "k8s"
@@ -66,9 +71,6 @@ spec:
         - name: K8S_JOB_SERVICE_ACCOUNT
           value: {{ .Values.execution.k8s.jobServiceAccount | quote }}
         {{- end }}
-        {{- else if .Values.execution.workerDockerHost }}
-        - name: DOCKER_HOST
-          value: {{ .Values.execution.workerDockerHost | quote }}
         {{- end }}
         {{- range $k, $v := .Values.worker.env }}
         - name: {{ $k }}

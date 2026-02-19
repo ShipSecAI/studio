@@ -1,5 +1,0 @@
-execution:
-  dind:
-    enabled: false
-  workerDockerHost: ""
-

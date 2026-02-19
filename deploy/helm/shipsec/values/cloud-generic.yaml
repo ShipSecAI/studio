@@ -8,9 +8,3 @@ backend:
 frontend:
   service:
     type: ClusterIP
-
-execution:
-  dind:
-    enabled: false
-  workerDockerHost: ""
-

@@ -1,5 +1,0 @@
-execution:
-  dind:
-    enabled: true
-  workerDockerHost: tcp://shipsec-dind.shipsec-workloads.svc.cluster.local:2375
-
