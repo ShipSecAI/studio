@@ -102,7 +102,16 @@ export type FindingsNormalizeOutput = typeof outputSchema;
 const parameterSchema = parameters({
   scannerType: param(
     z
-      .enum(['trufflehog', 'opengrep', 'dependency', 'trivy', 'nuclei', 'prowler', 'auto'])
+      .enum([
+        'trufflehog',
+        'opengrep',
+        'dependency',
+        'trivy',
+        'trivy-container',
+        'nuclei',
+        'prowler',
+        'auto',
+      ])
       .default('auto'),
     {
       label: 'Scanner Type',
@@ -112,7 +121,8 @@ const parameterSchema = parameters({
         { label: 'TruffleHog (Secrets)', value: 'trufflehog' },
         { label: 'OpenGrep (SAST)', value: 'opengrep' },
         { label: 'Dependency Scanner', value: 'dependency' },
-        { label: 'Trivy (Container/IaC)', value: 'trivy' },
+        { label: 'Trivy (Filesystem/Deps)', value: 'trivy' },
+        { label: 'Trivy (Container Image)', value: 'trivy-container' },
         { label: 'Nuclei', value: 'nuclei' },
         { label: 'Prowler', value: 'prowler' },
       ],
@@ -331,7 +341,10 @@ function normalizeDependency(finding: Record<string, unknown>): NormalizedFindin
 /**
  * Normalize Trivy finding
  */
-function normalizeTrivy(finding: Record<string, unknown>): NormalizedFinding {
+function normalizeTrivy(
+  finding: Record<string, unknown>,
+  forceContainer?: boolean,
+): NormalizedFinding {
   const vulnId = String(finding.VulnerabilityID || finding.vulnerability_id || '');
   const pkgName = String(finding.PkgName || finding.package || '');
   const target = String(finding.Target || finding.target || '');
@@ -339,9 +352,22 @@ function normalizeTrivy(finding: Record<string, unknown>): NormalizedFinding {
   const title = String(finding.Title || finding.title || vulnId);
   const description = String(finding.Description || finding.description || '');
 
+  // Detect container image scans: trivy targets look like "nginx:1.21 (debian 11.2)"
+  // while filesystem scans target file paths like "package-lock.json" or "Gemfile.lock"
+  const trivyClass = String(finding.Class || finding.class || '');
+  const isContainer =
+    forceContainer ||
+    trivyClass === 'os-pkgs' ||
+    (target && target.includes('(') && target.includes(')'));
+
   return {
-    scanner: 'trivy',
-    finding_hash: generateFindingHash('trivy', target, pkgName, vulnId),
+    scanner: isContainer ? 'trivy-container' : 'trivy',
+    finding_hash: generateFindingHash(
+      isContainer ? 'trivy-container' : 'trivy',
+      target,
+      pkgName,
+      vulnId,
+    ),
     severity,
     asset_key: target || pkgName,
     rule_id: vulnId,
@@ -528,6 +554,9 @@ const definition = defineComponent({
           break;
         case 'trivy':
           normalized = normalizeTrivy(finding);
+          break;
+        case 'trivy-container':
+          normalized = normalizeTrivy(finding, true);
           break;
         case 'nuclei':
           normalized = normalizeNuclei(finding);

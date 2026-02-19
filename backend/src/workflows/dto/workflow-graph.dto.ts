@@ -71,8 +71,10 @@ export const WorkflowGraphSchema = z
         const targetHandle = edge.targetHandle ?? edge.sourceHandle;
         if (!targetHandle) continue;
 
-        // Allow multiple edges to the 'tools' port (for connecting multiple tools to an agent)
-        if (targetHandle === 'tools') {
+        // Allow multiple edges to aggregation ports:
+        // - 'tools': connecting multiple tools to an agent
+        // - 'items': connecting multiple inputs to a joiner/collector
+        if (targetHandle === 'tools' || targetHandle === 'items') {
           continue;
         }
 
@@ -86,7 +88,7 @@ export const WorkflowGraphSchema = z
     },
     {
       message:
-        'Multiple edges connecting to the same input port are not allowed. Each port must have only one source. (Note: The "tools" port allows multiple connections.)',
+        'Multiple edges connecting to the same input port are not allowed. Each port must have only one source. (Note: The "tools" and "items" ports allow multiple connections.)',
       path: ['edges'],
     },
   );
