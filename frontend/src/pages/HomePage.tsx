@@ -95,28 +95,28 @@ export function HomePage() {
         label: 'Connect GitHub',
         description: 'Link your repos',
         done: hasGitHub,
-        href: '/integrations/github',
+        href: '/github/repositories',
         icon: CHECKLIST_ICONS.github,
       },
       {
         label: 'Connect AWS',
         description: 'Audit your cloud',
         done: hasAws,
-        href: '/integrations/aws',
+        href: '/cloud/accounts',
         icon: CHECKLIST_ICONS.aws,
       },
       {
         label: 'Run first scan',
         description: 'Find vulnerabilities',
         done: hasScans,
-        href: '/integrations/github',
+        href: '/github/repositories',
         icon: CHECKLIST_ICONS.scan,
       },
       {
         label: 'Enable PR gate',
         description: 'Block risky PRs',
         done: hasTriggers,
-        href: '/integrations/github?tab=triggers',
+        href: '/github/triggers',
         icon: CHECKLIST_ICONS.prGate,
       },
       {
@@ -274,8 +274,7 @@ export function HomePage() {
           <GettingStartedChecklist
             checklist={checklist}
             completedCount={completedCount}
-            mode="compact"
-            defaultOpen={completedCount < 3}
+            mode="expanded"
           />
 
           <QueryErrorBoundary>

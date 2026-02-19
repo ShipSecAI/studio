@@ -86,7 +86,7 @@ export function AppTopBar({
       };
     }
 
-    if (location.pathname === '/integrations') {
+    if (location.pathname === '/integrations' || location.pathname.startsWith('/integrations/')) {
       return {
         title: 'Integrations',
         shortTitle: 'Integrations',
@@ -151,28 +151,19 @@ export function AppTopBar({
       };
     }
 
-    if (location.pathname.startsWith('/integrations/github')) {
+    if (location.pathname.startsWith('/github')) {
       return {
-        title: 'Integrations / GitHub Integration',
+        title: 'GitHub',
         shortTitle: 'GitHub',
         subtitle: 'Manage repositories, trigger rules, and scan results',
-        breadcrumb: { label: 'Integrations', href: '/integrations' },
       };
     }
 
-    if (location.pathname.startsWith('/integrations/')) {
-      const providerSlug = location.pathname.split('/')[2] ?? '';
-      const providerNames: Record<string, string> = {
-        aws: 'Amazon Web Services',
-        slack: 'Slack',
-      };
-      const providerName =
-        providerNames[providerSlug] ?? providerSlug.charAt(0).toUpperCase() + providerSlug.slice(1);
+    if (location.pathname.startsWith('/cloud/accounts')) {
       return {
-        title: `Integrations / ${providerName}`,
-        shortTitle: providerName,
-        subtitle: `Manage ${providerName} connections`,
-        breadcrumb: { label: 'Integrations', href: '/integrations' },
+        title: 'Cloud Accounts',
+        shortTitle: 'Cloud',
+        subtitle: 'Manage your AWS accounts and run cloud security scans',
       };
     }
 
@@ -287,7 +278,7 @@ function QuickScanButton({ isMobile }: { isMobile: boolean }) {
       variant="default"
       size={isMobile ? 'sm' : 'default'}
       className="gap-1.5"
-      onClick={() => navigate('/integrations/github')}
+      onClick={() => navigate('/github/repositories')}
     >
       <Zap className="h-3.5 w-3.5" />
       <span className="hidden sm:inline">Quick Scan</span>

@@ -261,7 +261,7 @@ export function SchedulesPage() {
 
   const isActionBusy = (id: string) => Boolean(actionState[id]);
   const getScheduleScansHref = (scheduleId: string) =>
-    `/integrations/github?tab=scans&source=schedule&scheduleId=${encodeURIComponent(scheduleId)}`;
+    `/github/scans?source=schedule&scheduleId=${encodeURIComponent(scheduleId)}`;
 
   const renderStatusBadge = (status: string) => {
     const variant = STATUS_VARIANTS[status] || 'outline';

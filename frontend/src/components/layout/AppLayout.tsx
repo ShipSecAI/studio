@@ -32,6 +32,7 @@ import {
   GitPullRequest,
   ScanSearch,
   LayoutTemplate,
+  Cloud,
   type LucideIcon,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -323,11 +324,11 @@ export function AppLayout({ children }: AppLayoutProps) {
     {
       label: 'CODE SECURITY',
       items: [
-        { name: 'Repositories', href: '/integrations/github', icon: Archive },
-        { name: 'Scan Results', href: '/integrations/github?tab=scans', icon: ScanSearch },
+        { name: 'Repositories', href: '/github/repositories', icon: Archive },
+        { name: 'Scan Results', href: '/github/scans', icon: ScanSearch },
         {
           name: 'PR Protection',
-          href: '/integrations/github?tab=triggers',
+          href: '/github/triggers',
           icon: GitPullRequest,
         },
       ],
@@ -335,11 +336,13 @@ export function AppLayout({ children }: AppLayoutProps) {
     {
       label: 'CLOUD SECURITY',
       items: [
+        { name: 'Cloud Accounts', href: '/cloud/accounts', icon: Cloud },
         {
           name: 'Cloud Findings',
           href: '/dashboards/security?view=cloud-security',
           icon: ShieldCheck,
         },
+        { name: 'Cloud Scans', href: '/cloud/accounts?tab=scans', icon: ScanSearch },
       ],
     },
     {
@@ -400,7 +403,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       : []),
   ];
 
-  // Collect all base paths that have query-param siblings (e.g. /integrations/github has ?tab=scans, ?tab=triggers)
+  // Collect all base paths that have query-param siblings (e.g. /cloud/accounts has ?tab=scans)
   const queryParamPaths = new Set<string>();
   for (const group of navigationGroups) {
     for (const item of group.items) {
@@ -421,7 +424,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     if (path === '/builder') {
       return location.pathname === '/builder' || location.pathname.startsWith('/workflows');
     }
-    // Handle query-param-based nav items like /integrations/github?tab=triggers or /?view=all-findings
+    // Handle query-param-based nav items like /cloud/accounts?tab=scans or /dashboards/security?view=cloud-security
     if (path.includes('?')) {
       const [basePath, queryString] = path.split('?');
       const queryParams = new URLSearchParams(queryString);

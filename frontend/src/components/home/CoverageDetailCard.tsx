@@ -46,7 +46,7 @@ export function CoverageDetailCard({ repositories, triggerRules }: CoverageDetai
                 </span>
                 {!repo.protected && (
                   <Link
-                    to="/integrations/github?tab=triggers"
+                    to="/github/triggers"
                     className="text-[10px] text-primary hover:underline flex-shrink-0"
                   >
                     Protect
