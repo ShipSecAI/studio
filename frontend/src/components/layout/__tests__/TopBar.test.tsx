@@ -14,6 +14,8 @@ const resetStores = () => {
       id: 'workflow-1',
       name: 'Demo Workflow',
       description: '',
+      icon: null,
+      iconColor: null,
       currentVersionId: null,
       currentVersion: null,
       isSystem: false,

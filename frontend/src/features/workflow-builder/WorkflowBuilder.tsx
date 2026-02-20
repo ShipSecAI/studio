@@ -571,6 +571,8 @@ function WorkflowBuilderContent() {
           setLastSavedMetadata({
             name: baseMetadata.name,
             description: baseMetadata.description ?? '',
+            icon: baseMetadata.icon ?? null,
+            iconColor: baseMetadata.iconColor ?? null,
           });
 
           // Initialize undo/redo history with the initial state
@@ -641,6 +643,8 @@ function WorkflowBuilderContent() {
         setLastSavedMetadata({
           name: workflow.name,
           description: workflow.description ?? '',
+          icon: workflow.icon ?? null,
+          iconColor: workflow.iconColor ?? null,
         });
 
         // Initialize undo/redo history with the loaded workflow

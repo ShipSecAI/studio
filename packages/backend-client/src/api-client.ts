@@ -17,8 +17,8 @@ type UpdateSecretPayload = components['schemas']['UpdateSecretDto'];
 type UpsertProviderConfigPayload = components['schemas']['UpsertProviderConfigDto'];
 type StartOAuthPayload = components['schemas']['StartOAuthDto'];
 type CompleteOAuthPayload = components['schemas']['CompleteOAuthDto'];
-type RefreshConnectionPayload = components['schemas']['RefreshConnectionDto'];
-type DisconnectConnectionPayload = components['schemas']['DisconnectConnectionDto'];
+type RefreshConnectionPayload = Record<string, never>;
+type DisconnectConnectionPayload = Record<string, never>;
 type ArtifactDestination = 'run' | 'library';
 type CreateSchedulePayload = components['schemas']['CreateScheduleRequestDto'];
 type UpdateSchedulePayload = components['schemas']['UpdateScheduleRequestDto'];
@@ -572,17 +572,15 @@ export class ShipSecApiClient {
     });
   }
 
-  async refreshIntegrationConnection(id: string, payload: RefreshConnectionPayload) {
+  async refreshIntegrationConnection(id: string, _payload?: RefreshConnectionPayload) {
     return this.client.POST('/api/v1/integrations/connections/{id}/refresh', {
       params: { path: { id } },
-      body: payload,
     });
   }
 
-  async disconnectIntegrationConnection(id: string, payload: DisconnectConnectionPayload) {
+  async disconnectIntegrationConnection(id: string, _payload?: DisconnectConnectionPayload) {
     return this.client.DELETE('/api/v1/integrations/connections/{id}', {
       params: { path: { id } },
-      body: payload,
     });
   }
 

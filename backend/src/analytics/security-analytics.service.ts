@@ -309,10 +309,10 @@ export class SecurityAnalyticsService {
     try {
       const indexPattern = `security-findings-${orgId}-*`;
       const response = await client.cat.indices({
-        index: indexPattern,
+        index: indexPattern as unknown as string[],
         format: 'json',
-        bytes: 'b',
-        h: 'store.size,docs.count',
+        bytes: 'b' as const,
+        h: ['store.size', 'docs.count'],
       });
 
       const indices = (response.body ?? []) as {

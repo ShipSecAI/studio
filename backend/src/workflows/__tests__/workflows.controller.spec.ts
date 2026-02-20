@@ -176,6 +176,8 @@ describe('WorkflowsController', () => {
         id,
         name: input.name,
         description: input.description ?? null,
+        icon: null,
+        iconColor: null,
         graph: input,
         compiledDefinition: null,
         lastRun: null,
