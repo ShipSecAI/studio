@@ -207,8 +207,8 @@ export function RunWorkflowDialog({
               id={input.id}
               placeholder='{"key": "value"}'
               onChange={(e) => handleInputChange(input.id, e.target.value, inputType)}
-              className={hasError ? 'border-red-500' : ''}
-              rows={4}
+              className={`${hasError ? 'border-red-500' : ''} max-h-[120px] overflow-y-auto`}
+              rows={2}
               defaultValue={
                 typeof inputs[input.id] === 'string'
                   ? (inputs[input.id] as string)
@@ -235,8 +235,8 @@ export function RunWorkflowDialog({
               id={input.id}
               placeholder='value1, value2 or ["value1", "value2"]'
               onChange={(e) => handleInputChange(input.id, e.target.value, input.type)}
-              className={hasError ? 'border-red-500 font-mono' : 'font-mono'}
-              rows={3}
+              className={`${hasError ? 'border-red-500 font-mono' : 'font-mono'} max-h-[120px] overflow-y-auto`}
+              rows={2}
               defaultValue={
                 typeof inputs[input.id] === 'string'
                   ? (inputs[input.id] as string)
@@ -319,8 +319,8 @@ export function RunWorkflowDialog({
               id={input.id}
               placeholder="Enter text"
               onChange={(e) => handleInputChange(input.id, e.target.value, inputType)}
-              className={hasError ? 'border-red-500 font-mono' : 'font-mono'}
-              rows={8}
+              className={`${hasError ? 'border-red-500 font-mono' : 'font-mono'} max-h-[120px] overflow-y-auto`}
+              rows={2}
               defaultValue={
                 inputs[input.id] !== undefined && inputs[input.id] !== null
                   ? String(inputs[input.id])
@@ -349,7 +349,7 @@ export function RunWorkflowDialog({
         </DialogHeader>
 
         {runtimeInputs.length > 0 && (
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
             {runtimeInputs.map((input) => (
               <div key={`${input.id}-${formSeed}`}>{renderInput(input)}</div>
             ))}

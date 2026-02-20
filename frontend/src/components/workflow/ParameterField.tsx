@@ -483,8 +483,8 @@ export function ParameterField({
           placeholder={parameter.placeholder}
           defaultValue={currentValue || ''}
           onBlur={handleBlur}
-          rows={parameter.rows || 3}
-          className="w-full px-3 py-2 text-sm border rounded-md bg-background resize-y font-mono"
+          rows={Math.min(parameter.rows || 3, 4)}
+          className="w-full px-3 py-2 text-sm border rounded-md bg-background resize-y font-mono max-h-[160px] overflow-y-auto"
         />
       );
     }
@@ -750,8 +750,8 @@ export function ParameterField({
                   : JSON.stringify(value, null, 2)
             }
             onBlur={handleJsonBlur}
-            className="w-full px-3 py-2 text-sm border rounded-md bg-background resize-y font-mono"
-            rows={parameter.rows || 4}
+            className="w-full px-3 py-2 text-sm border rounded-md bg-background resize-y font-mono max-h-[160px] overflow-y-auto"
+            rows={Math.min(parameter.rows || 4, 4)}
             placeholder={parameter.placeholder || '{\n  "key": "value"\n}'}
           />
           {jsonError && <p className="text-xs text-red-500">{jsonError}</p>}

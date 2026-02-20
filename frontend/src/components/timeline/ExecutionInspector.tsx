@@ -529,25 +529,21 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                               </span>
                             )}
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1">
-                                <pre
-                                  className={cn(
-                                    'text-[11px] leading-tight flex-1',
-                                    tone.text,
-                                    isJson
-                                      ? 'whitespace-pre-wrap'
-                                      : 'whitespace-nowrap overflow-hidden text-ellipsis',
-                                  )}
-                                >
-                                  {truncatedMessage}
-                                </pre>
-                                {isTruncated && (
-                                  <span className="text-slate-400 text-[9px] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    ⋯
-                                  </span>
+                              <pre
+                                className={cn(
+                                  'text-[11px] leading-tight',
+                                  tone.text,
+                                  isJson
+                                    ? 'whitespace-pre-wrap'
+                                    : 'whitespace-nowrap overflow-hidden text-ellipsis',
                                 )}
-                              </div>
+                              >
+                                {truncatedMessage}
+                              </pre>
                             </div>
+                            <span className="sticky right-0 z-10 flex-shrink-0 bg-slate-900/90 text-blue-400 text-[9px] leading-tight px-1.5 py-px rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                              click to expand
+                            </span>
                           </div>
                         </div>
                       );
