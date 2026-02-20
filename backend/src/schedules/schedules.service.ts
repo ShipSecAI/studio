@@ -30,11 +30,20 @@ export class SchedulesService {
       ...filters,
       organizationId,
     });
-    return records.map((record) => this.mapRecord(record));
+    // Sync times from Temporal in parallel for all active schedules
+    const synced = await Promise.all(
+      records.map((record) =>
+        record.status === 'active'
+          ? this.syncTimesFromTemporal(record).catch(() => record)
+          : record,
+      ),
+    );
+    return synced.map((record) => this.mapRecord(record));
   }
 
   async get(auth: AuthContext | null, id: string): Promise<WorkflowSchedule> {
-    const record = await this.findOwnedScheduleOrThrow(id, auth);
+    let record = await this.findOwnedScheduleOrThrow(id, auth);
+    record = await this.syncTimesFromTemporal(record);
     return this.mapRecord(record);
   }
 

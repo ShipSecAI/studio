@@ -1,6 +1,7 @@
 import { lazy, Suspense, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   useGitHubInstallations,
   useGitHubRepositories,
@@ -37,6 +38,42 @@ import { CoverageDetailCard } from '@/components/home/CoverageDetailCard';
 import { FindingsTrendChart } from '@/components/home/FindingsTrendChart';
 import { ActivityHeatmap } from '@/components/home/ActivityHeatmap';
 
+function formatFutureRelative(dateString: string | null | undefined): string {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  if (diffMs > 0) {
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 60) return `in ${diffMins}m`;
+    const diffHours = Math.floor(diffMs / 3600000);
+    if (diffHours < 24) return `in ${diffHours}h`;
+    const diffDays = Math.floor(diffMs / 86400000);
+    return `in ${diffDays}d`;
+  }
+  // Past: show how long ago
+  const agoMs = -diffMs;
+  const agoMins = Math.floor(agoMs / 60000);
+  if (agoMins < 1) return 'now';
+  if (agoMins < 60) return `${agoMins}m ago`;
+  const agoHours = Math.floor(agoMs / 3600000);
+  if (agoHours < 24) return `${agoHours}h ago`;
+  const agoDays = Math.floor(agoMs / 86400000);
+  return `${agoDays}d ago`;
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    timeZoneName: 'short',
+  }).format(date);
+}
+
 /** Map scanner names to category key using the built-in view definitions */
 const SCANNER_TO_CATEGORY: Record<string, string> = {};
 for (const view of BUILT_IN_VIEWS) {
@@ -61,6 +98,7 @@ type UserState = 'new' | 'partial' | 'complete';
 const CATEGORY_KEYS = ['cloud-security', 'code-security', 'dependency-security'];
 
 export function HomePage() {
+  const navigate = useNavigate();
   const { data: installations = [], isLoading: installationsLoading } = useGitHubInstallations();
   const { data: repositories = [] } = useGitHubRepositories();
   const { data: scanResultsData } = useGitHubScanResults({ limit: 5 });
@@ -311,17 +349,37 @@ export function HomePage() {
                 {upcomingSchedules.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No scheduled scans.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {upcomingSchedules.map((schedule) => (
-                      <div key={schedule.id} className="flex items-center gap-2 text-sm">
-                        <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">{schedule.name}</span>
-                        <span className="text-xs text-muted-foreground ml-auto">
-                          {schedule.cronExpression}
-                        </span>
+                  <TooltipProvider>
+                    <div className="space-y-1">
+                      <div className="flex items-center text-[11px] text-muted-foreground uppercase tracking-wide px-2 -mx-2 mb-1">
+                        <span className="flex-1">Scan</span>
+                        <span>Next run</span>
                       </div>
-                    ))}
-                  </div>
+                      {upcomingSchedules.map((schedule) => (
+                        <div
+                          key={schedule.id}
+                          className="flex items-start gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50 transition-colors"
+                          onClick={() => navigate('/schedules')}
+                        >
+                          <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <span className="truncate block">{schedule.name}</span>
+                            <span className="text-[10px] text-muted-foreground/70 font-mono">
+                              {schedule.cronExpression}
+                            </span>
+                          </div>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-xs text-muted-foreground whitespace-nowrap ml-2 mt-0.5">
+                                {formatFutureRelative(schedule.nextRunAt)}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>{formatDateTime(schedule.nextRunAt)}</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      ))}
+                    </div>
+                  </TooltipProvider>
                 )}
               </CardContent>
             </Card>
@@ -377,17 +435,37 @@ export function HomePage() {
               {upcomingSchedules.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No scheduled scans.</p>
               ) : (
-                <div className="space-y-2">
-                  {upcomingSchedules.map((schedule) => (
-                    <div key={schedule.id} className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="truncate">{schedule.name}</span>
-                      <span className="text-xs text-muted-foreground ml-auto">
-                        {schedule.cronExpression}
-                      </span>
+                <TooltipProvider>
+                  <div className="space-y-1">
+                    <div className="flex items-center text-[11px] text-muted-foreground uppercase tracking-wide px-2 -mx-2 mb-1">
+                      <span className="flex-1">Scan</span>
+                      <span>Next run</span>
                     </div>
-                  ))}
-                </div>
+                    {upcomingSchedules.map((schedule) => (
+                      <div
+                        key={schedule.id}
+                        className="flex items-start gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50 transition-colors"
+                        onClick={() => navigate('/schedules')}
+                      >
+                        <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <span className="truncate block">{schedule.name}</span>
+                          <span className="text-[10px] text-muted-foreground/70 font-mono">
+                            {schedule.cronExpression}
+                          </span>
+                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap ml-2 mt-0.5">
+                              {formatFutureRelative(schedule.nextRunAt)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>{formatDateTime(schedule.nextRunAt)}</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    ))}
+                  </div>
+                </TooltipProvider>
               )}
             </CardContent>
           </Card>
