@@ -591,8 +591,11 @@ function WorkflowBuilderContent() {
           id: workflow.id,
           name: workflow.name,
           description: workflow.description ?? '',
+          icon: (workflow as any).icon ?? null,
+          iconColor: (workflow as any).iconColor ?? null,
           currentVersionId: workflow.currentVersionId ?? null,
           currentVersion: workflow.currentVersion ?? null,
+          isSystem: (workflow as Record<string, unknown>).isSystem === true,
         });
 
         const hasRunContext = Boolean(routeRunId || selectedRunId);
@@ -969,6 +972,7 @@ function WorkflowBuilderContent() {
       isNew={isNewWorkflow}
       onRun={handleRun}
       onSave={handleSave}
+      onAutoSave={() => handleSave(false)}
       onImport={handleImportWorkflow}
       onExport={handleExportWorkflow}
       canManageWorkflows={canManageWorkflows}

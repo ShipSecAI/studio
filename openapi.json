@@ -319,6 +319,14 @@
                         "type": "string",
                         "nullable": true
                       },
+                      "icon": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "iconColor": {
+                        "type": "string",
+                        "nullable": true
+                      },
                       "isSystem": {
                         "type": "boolean"
                       },
@@ -7801,6 +7809,14 @@
           "compiledDefinition": {
             "nullable": true
           },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "iconColor": {
+            "type": "string",
+            "nullable": true
+          },
           "isSystem": {
             "type": "boolean"
           },
@@ -7843,6 +7859,8 @@
           "name",
           "graph",
           "compiledDefinition",
+          "icon",
+          "iconColor",
           "isSystem",
           "templateId",
           "lastRun",
@@ -8086,6 +8104,17 @@
           },
           "description": {
             "type": "string",
+            "nullable": true
+          },
+          "icon": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50,
+            "nullable": true
+          },
+          "iconColor": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$",
             "nullable": true
           }
         },

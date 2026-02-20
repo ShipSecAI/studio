@@ -33,13 +33,13 @@ export function useSecurityFindings(
         from: (filters.page - 1) * PAGE_SIZE,
         sort: buildSort(filters),
         aggs: {
-          severity_counts: { terms: { field: 'severity.keyword' } },
+          severity_counts: { terms: { field: 'severity' } },
           accounts: { terms: { field: 'account_id.keyword', size: 50 } },
-          regions: { terms: { field: 'region.keyword', size: 50 } },
-          services: { terms: { field: 'service_name.keyword', size: 100 } },
+          regions: { terms: { field: 'region', size: 50 } },
+          services: { terms: { field: 'service_name', size: 100 } },
           compliance_frameworks: { terms: { field: 'compliance.keyword', size: 50 } },
-          check_names: { terms: { field: 'check_name.keyword', size: 200 } },
-          status_counts: { terms: { field: 'status.keyword' } },
+          check_names: { terms: { field: 'check_name', size: 200 } },
+          status_counts: { terms: { field: 'status' } },
           scanners: { terms: { field: 'scanner', size: 50 } },
           repositories: { terms: { field: 'shipsec.trigger_source.keyword', size: 100 } },
           rule_ids: { terms: { field: 'rule_id.keyword', size: 200 } },
@@ -100,7 +100,7 @@ export function useSecurityTimeSeries(
               min_doc_count: 0,
             },
             aggs: {
-              by_severity: { terms: { field: 'severity.keyword' } },
+              by_severity: { terms: { field: 'severity' } },
             },
           },
         },
@@ -148,7 +148,7 @@ export function useSecurityTimeSeriesForHeatmap(days = 90) {
               min_doc_count: 0,
             },
             aggs: {
-              by_severity: { terms: { field: 'severity.keyword' } },
+              by_severity: { terms: { field: 'severity' } },
             },
           },
         },
@@ -202,7 +202,7 @@ export function useFindingLifecycle(hash: string | null) {
           const result = await api.analytics.query({
             query: {
               bool: {
-                filter: [{ term: { 'finding_hash.keyword': hash } }],
+                filter: [{ term: { finding_hash: hash } }],
               },
             },
             size: 0,
@@ -240,14 +240,14 @@ export function useBatchLifecycles(hashes: string[]) {
             const result = await api.analytics.query({
               query: {
                 bool: {
-                  filter: [{ terms: { 'finding_hash.keyword': uniqueHashes } }],
+                  filter: [{ terms: { finding_hash: uniqueHashes } }],
                 },
               },
               size: 0,
               aggs: {
                 by_hash: {
                   terms: {
-                    field: 'finding_hash.keyword',
+                    field: 'finding_hash',
                     size: uniqueHashes.length,
                   },
                   aggs: {
@@ -294,7 +294,7 @@ export function useCategoryCounts(scannerToCategory: Record<string, string>, cat
           by_scanner: {
             terms: { field: 'scanner', size: 20 },
             aggs: {
-              by_severity: { terms: { field: 'severity.keyword' } },
+              by_severity: { terms: { field: 'severity' } },
             },
           },
         },

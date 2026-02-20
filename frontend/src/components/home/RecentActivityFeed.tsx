@@ -233,7 +233,7 @@ export function RecentActivityFeed({
 
   return (
     <TooltipProvider>
-      <Card className="h-full">
+      <Card className="h-full overflow-hidden">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <CardTitle className="text-base">Recent Scans</CardTitle>
@@ -251,7 +251,7 @@ export function RecentActivityFeed({
             <div
               className={
                 feedItems.length > 5
-                  ? 'max-h-[320px] overflow-y-auto space-y-1 pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [scrollbar-width:thin]'
+                  ? 'max-h-[320px] overflow-y-auto overflow-x-hidden space-y-1 pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [scrollbar-width:thin]'
                   : 'space-y-1'
               }
             >
@@ -275,7 +275,7 @@ export function RecentActivityFeed({
                         className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background ${dotColor}`}
                       />
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 overflow-hidden">
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate font-medium">{item.label}</span>
                         <Tooltip>
@@ -288,9 +288,16 @@ export function RecentActivityFeed({
                         </Tooltip>
                       </div>
                       {item.subtitle && (
-                        <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                          {item.subtitle}
-                        </p>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <p className="text-[11px] text-muted-foreground truncate mt-0.5 max-w-[calc(100%-4rem)]">
+                              {item.subtitle}
+                            </p>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs break-words">
+                            {item.subtitle}
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                     </div>
                   </Link>

@@ -167,19 +167,19 @@ export function buildBaseFilter(
   }
 
   if (filters.severity.length > 0) {
-    filter.push({ terms: { 'severity.keyword': filters.severity } });
+    filter.push({ terms: { severity: filters.severity } });
   }
 
   if (filters.status.length > 0) {
-    filter.push({ terms: { 'status.keyword': filters.status } });
+    filter.push({ terms: { status: filters.status } });
   }
 
   if (filters.region.length > 0) {
-    filter.push({ terms: { 'region.keyword': filters.region } });
+    filter.push({ terms: { region: filters.region } });
   }
 
   if (filters.service.length > 0) {
-    filter.push({ terms: { 'service_name.keyword': filters.service } });
+    filter.push({ terms: { service_name: filters.service } });
   }
 
   if (filters.tags.length > 0) {
@@ -193,7 +193,7 @@ export function buildBaseFilter(
   }
 
   if (filters.checkName.length > 0) {
-    filter.push({ terms: { 'check_name.keyword': filters.checkName } });
+    filter.push({ terms: { check_name: filters.checkName } });
   }
 
   if (filters.scanner.length > 0) {
@@ -234,8 +234,25 @@ export function buildBaseFilter(
   return { bool: { must, filter } };
 }
 
+// Fields explicitly mapped as keyword in the index template — sort directly without .keyword
+const KEYWORD_SORT_FIELDS = new Set([
+  'severity',
+  'status',
+  'scanner',
+  'region',
+  'service_name',
+  'check_name',
+]);
+
 export function buildSort(filters: SecurityDashboardFilters): Record<string, any>[] {
-  const field = filters.sort === '@timestamp' ? '@timestamp' : `${filters.sort}.keyword`;
+  let field: string;
+  if (filters.sort === '@timestamp') {
+    field = '@timestamp';
+  } else if (KEYWORD_SORT_FIELDS.has(filters.sort)) {
+    field = filters.sort;
+  } else {
+    field = `${filters.sort}.keyword`;
+  }
   return [{ [field]: filters.order }];
 }
 

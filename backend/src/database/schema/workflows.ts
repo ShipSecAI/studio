@@ -24,6 +24,8 @@ export const workflowsTable = pgTable('workflows', {
   isSystem: boolean('is_system').notNull().default(false),
   templateId: uuid('template_id'),
   compiledDefinition: jsonb('compiled_definition').$type<WorkflowDefinition | null>().default(null),
+  icon: text('icon'),
+  iconColor: text('icon_color'),
   lastRun: timestamp('last_run', { withTimezone: true }),
   runCount: integer('run_count').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

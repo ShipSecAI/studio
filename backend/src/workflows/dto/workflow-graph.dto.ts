@@ -105,6 +105,12 @@ export class UpdateWorkflowRequestDto extends WorkflowGraphDto {}
 export const UpdateWorkflowMetadataSchema = z.object({
   name: z.string().trim().min(1),
   description: z.string().optional().nullable(),
+  icon: z.string().trim().min(1).max(50).optional().nullable(),
+  iconColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional()
+    .nullable(),
 });
 
 export class UpdateWorkflowMetadataDto extends createZodDto(UpdateWorkflowMetadataSchema) {}
@@ -232,6 +238,8 @@ export interface ServiceWorkflowResponse {
   description?: string | null;
   graph: z.infer<typeof WorkflowGraphSchema>; // The original stored graph (contains nodes, edges, viewport)
   compiledDefinition: any | null;
+  icon: string | null;
+  iconColor: string | null;
   isSystem: boolean;
   templateId: string | null;
   lastRun: Date | null;
@@ -249,6 +257,8 @@ export const WorkflowResponseSchema = z.object({
   description: z.string().optional().nullable(),
   graph: WorkflowGraphSchema, // The original stored graph (contains nodes, edges, viewport)
   compiledDefinition: z.unknown().nullable(),
+  icon: z.string().nullable(),
+  iconColor: z.string().nullable(),
   isSystem: z.boolean(),
   templateId: z.string().uuid().nullable(),
   lastRun: z.string().nullable(), // Date string from JSON serialization

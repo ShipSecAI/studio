@@ -4,6 +4,8 @@ interface WorkflowMetadata {
   id: string | null;
   name: string;
   description: string;
+  icon: string | null;
+  iconColor: string | null;
   currentVersionId: string | null;
   currentVersion: number | null;
   isSystem: boolean;
@@ -28,6 +30,8 @@ const initialMetadata: WorkflowMetadata = {
   id: null,
   name: 'Untitled Workflow',
   description: '',
+  icon: null,
+  iconColor: null,
   currentVersionId: null,
   currentVersion: null,
   isSystem: false,

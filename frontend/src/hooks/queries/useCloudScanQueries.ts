@@ -168,14 +168,14 @@ export function useCloudScanFindings(runId: string | null | undefined) {
           const result = await api.analytics.query({
             query: {
               bool: {
-                filter: [{ term: { 'shipsec.run_id.keyword': runId } }],
+                filter: [{ term: { 'shipsec.run_id': runId } }],
               },
             },
             size: CLOUD_SCAN_FINDINGS_LIMIT,
             from: 0,
-            sort: [{ 'severity.keyword': 'asc' }, { '@timestamp': 'desc' }],
+            sort: [{ severity: 'asc' }, { '@timestamp': 'desc' }],
             aggs: {
-              severity_counts: { terms: { field: 'severity.keyword' } },
+              severity_counts: { terms: { field: 'severity' } },
             },
           });
           return transformCloudScanFindingsResponse(result);

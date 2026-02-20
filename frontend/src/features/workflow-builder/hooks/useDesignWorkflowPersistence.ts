@@ -17,6 +17,8 @@ interface WorkflowMetadataShape {
   id: string | null;
   name: string;
   description: string;
+  icon: string | null;
+  iconColor: string | null;
   currentVersionId: string | null;
   currentVersion: number | null;
 }
@@ -24,6 +26,8 @@ interface WorkflowMetadataShape {
 interface SavedMetadata {
   name: string;
   description: string;
+  icon: string | null;
+  iconColor: string | null;
 }
 
 type ToastFn = (params: {
@@ -108,6 +112,8 @@ export function useDesignWorkflowPersistence({
     const normalizedMetadata: SavedMetadata = {
       name: metadata.name,
       description: metadata.description ?? '',
+      icon: metadata.icon ?? null,
+      iconColor: metadata.iconColor ?? null,
     };
 
     if (lastSavedMetadata === null) {
@@ -118,9 +124,11 @@ export function useDesignWorkflowPersistence({
 
     const changed =
       normalizedMetadata.name !== lastSavedMetadata.name ||
-      normalizedMetadata.description !== lastSavedMetadata.description;
+      normalizedMetadata.description !== lastSavedMetadata.description ||
+      normalizedMetadata.icon !== lastSavedMetadata.icon ||
+      normalizedMetadata.iconColor !== lastSavedMetadata.iconColor;
     setHasMetadataChanges(changed);
-  }, [metadata.name, metadata.description, lastSavedMetadata]);
+  }, [metadata.name, metadata.description, metadata.icon, metadata.iconColor, lastSavedMetadata]);
 
   useEffect(() => {
     const shouldBeDirty = hasGraphChanges || hasMetadataChanges;
@@ -213,12 +221,16 @@ export function useDesignWorkflowPersistence({
           const updatedMetadata = await api.workflows.updateMetadata(workflowId, {
             name: metadata.name,
             description: metadata.description ?? '',
+            icon: metadata.icon,
+            iconColor: metadata.iconColor,
           });
 
           setMetadata({
             id: updatedMetadata.id,
             name: updatedMetadata.name,
             description: updatedMetadata.description ?? '',
+            icon: updatedMetadata.icon ?? null,
+            iconColor: updatedMetadata.iconColor ?? null,
             currentVersionId: updatedMetadata.currentVersionId ?? null,
             currentVersion: updatedMetadata.currentVersion ?? null,
           });
@@ -226,9 +238,12 @@ export function useDesignWorkflowPersistence({
           setLastSavedMetadata({
             name: updatedMetadata.name,
             description: updatedMetadata.description ?? '',
+            icon: updatedMetadata.icon ?? null,
+            iconColor: updatedMetadata.iconColor ?? null,
           });
           setHasMetadataChanges(false);
           markClean();
+          queryClient.invalidateQueries({ queryKey: queryKeys.workflows.summary() });
 
           if (showToast) {
             toast({
@@ -266,6 +281,8 @@ export function useDesignWorkflowPersistence({
             id: savedWorkflow.id,
             name: savedWorkflow.name,
             description: savedWorkflow.description ?? '',
+            icon: savedWorkflow.icon ?? null,
+            iconColor: savedWorkflow.iconColor ?? null,
             currentVersionId: savedWorkflow.currentVersionId ?? null,
             currentVersion: savedWorkflow.currentVersion ?? null,
           });
@@ -278,6 +295,8 @@ export function useDesignWorkflowPersistence({
           setLastSavedMetadata({
             name: savedWorkflow.name,
             description: savedWorkflow.description ?? '',
+            icon: savedWorkflow.icon ?? null,
+            iconColor: savedWorkflow.iconColor ?? null,
           });
           setHasGraphChanges(false);
           setHasMetadataChanges(false);
@@ -316,6 +335,8 @@ export function useDesignWorkflowPersistence({
             id: updatedWorkflow.id,
             name: updatedWorkflow.name,
             description: updatedWorkflow.description ?? '',
+            icon: updatedWorkflow.icon ?? null,
+            iconColor: updatedWorkflow.iconColor ?? null,
             currentVersionId: updatedWorkflow.currentVersionId ?? null,
             currentVersion: updatedWorkflow.currentVersion ?? null,
           });
@@ -328,6 +349,8 @@ export function useDesignWorkflowPersistence({
           setLastSavedMetadata({
             name: updatedWorkflow.name,
             description: updatedWorkflow.description ?? '',
+            icon: updatedWorkflow.icon ?? null,
+            iconColor: updatedWorkflow.iconColor ?? null,
           });
           setHasGraphChanges(false);
           setHasMetadataChanges(false);

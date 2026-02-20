@@ -708,6 +708,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/batch-run-summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AnalyticsController_batchRunSummaries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/storage-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AnalyticsController_getStorageUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["AnalyticsController_purgeData"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/ensure-tenant": {
         parameters: {
             query?: never;
@@ -2585,6 +2633,8 @@ export interface components {
                 };
             };
             compiledDefinition: unknown;
+            icon: string | null;
+            iconColor: string | null;
             isSystem: boolean;
             /** Format: uuid */
             templateId: string | null;
@@ -2672,6 +2722,8 @@ export interface components {
         UpdateWorkflowMetadataDto: {
             name: string;
             description?: string | null;
+            icon?: string | null;
+            iconColor?: string | null;
         };
         WorkflowRuntimeInputsResponseDto: {
             workflowId: string;
@@ -4209,6 +4261,8 @@ export interface operations {
                         id?: string;
                         name?: string;
                         description?: string | null;
+                        icon?: string | null;
+                        iconColor?: string | null;
                         isSystem?: boolean;
                         /** Format: uuid */
                         templateId?: string | null;
@@ -4256,6 +4310,7 @@ export interface operations {
         parameters: {
             query?: {
                 workflowId?: string;
+                workflowIds?: string;
                 status?: string;
                 triggerType?: string;
                 search?: string;
@@ -5407,6 +5462,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AnalyticsSettingsResponseDto"];
+                };
+            };
+        };
+    };
+    AnalyticsController_batchRunSummaries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Get severity counts for multiple run IDs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AnalyticsController_getStorageUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Get OpenSearch storage usage for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        usedBytes?: number;
+                        documentCount?: number;
+                        indexCount?: number;
+                        opensearchEnabled?: boolean;
+                    };
+                };
+            };
+        };
+    };
+    AnalyticsController_purgeData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Purge all analytics data for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        deletedIndices?: number;
+                    };
                 };
             };
         };

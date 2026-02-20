@@ -51,6 +51,8 @@ export interface WorkflowSummary {
   id: string;
   name: string;
   description: string | null;
+  icon: string | null;
+  iconColor: string | null;
   organizationId: string | null;
   isSystem: boolean;
   templateId: string | null;
@@ -285,7 +287,12 @@ export const api = {
 
     updateMetadata: async (
       id: string,
-      metadata: { name: string; description?: string | null },
+      metadata: {
+        name: string;
+        description?: string | null;
+        icon?: string | null;
+        iconColor?: string | null;
+      },
     ): Promise<WorkflowResponseDto> => {
       const response = await apiClient.updateWorkflowMetadata(id, metadata);
       if (response.error) throw new Error('Failed to update workflow metadata');

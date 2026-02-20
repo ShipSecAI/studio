@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
+import { WorkflowIconPicker } from '@/components/workflow/WorkflowIconPicker';
 import { useAuthStore, DEFAULT_ORG_ID } from '@/store/authStore';
 import { cn } from '@/lib/utils';
 import { env } from '@/config/env';
@@ -40,6 +41,7 @@ interface TopBarProps {
   isNew?: boolean;
   onRun?: () => void;
   onSave: () => Promise<void> | void;
+  onAutoSave?: () => Promise<void> | void;
   onImport?: (file: File) => Promise<void> | void;
   onExport?: () => void;
   canManageWorkflows?: boolean;
@@ -59,6 +61,7 @@ export function TopBar({
   selectedRunOrgId,
   onRun,
   onSave,
+  onAutoSave,
   onImport,
   onExport,
   canManageWorkflows = true,
@@ -77,7 +80,7 @@ export function TopBar({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
 
-  const { metadata, isDirty, setWorkflowName } = useWorkflowStore();
+  const { metadata, isDirty, setWorkflowName, setMetadata } = useWorkflowStore();
   const mode = useWorkflowUiStore((state) => state.mode);
   const organizationId = useAuthStore((s) => s.organizationId);
   const authProvider = useAuthStore((s) => s.provider);
@@ -93,12 +96,23 @@ export function TopBar({
       setWorkflowName(DEFAULT_WORKFLOW_NAME);
       setTempWorkflowName(DEFAULT_WORKFLOW_NAME);
       setIsEditingTitle(false);
+      // Auto-save the default name after store update propagates
+      if (onAutoSave) setTimeout(() => void onAutoSave(), 0);
       return;
     }
     if (trimmed !== metadata.name) {
       setWorkflowName(trimmed);
+      // Auto-save after name change — use setTimeout so the store update propagates first
+      if (onAutoSave) setTimeout(() => void onAutoSave(), 0);
     }
     setIsEditingTitle(false);
+  };
+
+  const handleIconPickerClose = () => {
+    // Auto-save when icon picker popover closes (icon/color may have changed)
+    if (onAutoSave) {
+      void onAutoSave();
+    }
   };
 
   const handleStartEditing = () => {
@@ -291,6 +305,13 @@ export function TopBar({
         <div className="flex w-full gap-2 md:gap-4 items-center">
           {/* Workflow name - fixed width left section for consistent centering */}
           <div className="flex items-center justify-start gap-2 min-w-0 w-[140px] sm:w-[200px] md:w-[280px] lg:w-[360px] flex-shrink-0">
+            <WorkflowIconPicker
+              icon={metadata.icon}
+              iconColor={metadata.iconColor}
+              onChange={(icon, iconColor) => setMetadata({ icon, iconColor })}
+              onClose={handleIconPickerClose}
+              disabled={!canEdit}
+            />
             <div
               className={cn(
                 'flex items-center gap-2 min-w-0 max-w-[120px] sm:max-w-[180px] md:max-w-[280px] lg:max-w-[360px]',

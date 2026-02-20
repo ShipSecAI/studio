@@ -55,6 +55,8 @@ export interface WorkflowSummaryResponse {
   id: string;
   name: string;
   description: string | null;
+  icon: string | null;
+  iconColor: string | null;
   organizationId: string | null;
   isSystem: boolean;
   templateId: string | null;
@@ -374,7 +376,12 @@ export class WorkflowsService {
     const organizationId = await this.requireWorkflowAdmin(id, auth);
     const record = await this.repository.updateMetadata(
       id,
-      { name: dto.name, description: dto.description ?? null },
+      {
+        name: dto.name,
+        description: dto.description ?? null,
+        ...(dto.icon !== undefined && { icon: dto.icon }),
+        ...(dto.iconColor !== undefined && { iconColor: dto.iconColor }),
+      },
       { organizationId },
     );
     const version = await this.versionRepository.findLatestByWorkflowId(id, { organizationId });

@@ -14,7 +14,11 @@ export interface WorkflowSummaryRecord {
   id: string;
   name: string;
   description: string | null;
+  icon: string | null;
+  iconColor: string | null;
   organizationId: string | null;
+  isSystem: boolean;
+  templateId: string | null;
   lastRun: Date | null;
   latestRunStatus: string | null;
   runCount: number;
@@ -54,6 +58,26 @@ export class WorkflowRepository {
     return record;
   }
 
+  async createSystemWorkflow(
+    input: WorkflowGraph,
+    options: { organizationId: string; templateId: string },
+  ): Promise<WorkflowRecord> {
+    const [record] = await this.db
+      .insert(workflowsTable)
+      .values({
+        name: input.name,
+        description: input.description ?? null,
+        graph: input,
+        compiledDefinition: null,
+        organizationId: options.organizationId,
+        isSystem: true,
+        templateId: options.templateId,
+      })
+      .returning();
+
+    return record;
+  }
+
   async update(
     id: string,
     input: WorkflowGraph,
@@ -79,16 +103,25 @@ export class WorkflowRepository {
 
   async updateMetadata(
     id: string,
-    metadata: { name: string; description?: string | null },
+    metadata: {
+      name: string;
+      description?: string | null;
+      icon?: string | null;
+      iconColor?: string | null;
+    },
     options: WorkflowRepositoryOptions = {},
   ): Promise<WorkflowRecord> {
+    const setValues: Record<string, any> = {
+      name: metadata.name,
+      description: metadata.description ?? null,
+      updatedAt: new Date(),
+    };
+    if (metadata.icon !== undefined) setValues.icon = metadata.icon;
+    if (metadata.iconColor !== undefined) setValues.iconColor = metadata.iconColor;
+
     const [record] = await this.db
       .update(workflowsTable)
-      .set({
-        name: metadata.name,
-        description: metadata.description ?? null,
-        updatedAt: new Date(),
-      })
+      .set(setValues)
       .where(this.buildIdFilter(id, options.organizationId))
       .returning();
 
@@ -151,7 +184,11 @@ export class WorkflowRepository {
       id: workflowsTable.id,
       name: workflowsTable.name,
       description: workflowsTable.description,
+      icon: workflowsTable.icon,
+      iconColor: workflowsTable.iconColor,
       organizationId: workflowsTable.organizationId,
+      isSystem: workflowsTable.isSystem,
+      templateId: workflowsTable.templateId,
       lastRun: workflowsTable.lastRun,
       latestRunStatus: sql<string | null>`(
         SELECT wr.status FROM workflow_runs wr

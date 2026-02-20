@@ -35,6 +35,7 @@ import {
   Search,
   Shield,
 } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import { api, type WorkflowSummary } from '@/services/api';
 import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
 import { useAuthStore } from '@/store/authStore';
@@ -63,6 +64,25 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+
+function WorkflowIcon({
+  icon,
+  iconColor,
+  className,
+}: {
+  icon: string | null;
+  iconColor: string | null;
+  className?: string;
+}) {
+  const iconName = icon && icon in LucideIcons ? icon : 'Workflow';
+  const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as React.ComponentType<{
+    className?: string;
+    style?: React.CSSProperties;
+  }>;
+  return (
+    <IconComponent className={className} style={iconColor ? { color: iconColor } : undefined} />
+  );
+}
 
 const WORKFLOW_ORDER_KEY = 'workflow-list-order';
 
@@ -577,6 +597,12 @@ function WorkflowRowItem({
       </TableCell>
       <TableCell className="font-medium">
         <div className="flex items-center gap-2">
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-md shrink-0"
+            style={{ backgroundColor: workflow.iconColor ? `${workflow.iconColor}20` : undefined }}
+          >
+            <WorkflowIcon icon={workflow.icon} iconColor={workflow.iconColor} className="h-4 w-4" />
+          </div>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

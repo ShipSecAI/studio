@@ -298,6 +298,8 @@ export class WorkflowsController {
           id: { type: 'string', format: 'uuid' },
           name: { type: 'string' },
           description: { type: 'string', nullable: true },
+          icon: { type: 'string', nullable: true },
+          iconColor: { type: 'string', nullable: true },
           isSystem: { type: 'boolean' },
           templateId: { type: 'string', format: 'uuid', nullable: true },
           lastRun: { type: 'string', format: 'date-time', nullable: true },
