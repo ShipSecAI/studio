@@ -1156,6 +1156,7 @@ export async function scheduleTriggerWorkflow(
         workflowVersionId: prepared.workflowVersionId,
         workflowVersion: prepared.workflowVersion,
         organizationId: prepared.organizationId,
+        triggerSource: prepared.trigger?.sourceId,
       },
     ],
     workflowId: prepared.runId,
@@ -1169,6 +1170,3 @@ export { mcpDiscoveryWorkflow, mcpGroupDiscoveryWorkflow } from './mcp-discovery
 
 // Export webhook parsing workflow (Docker execution must run in worker).
 export { webhookParsingWorkflow } from './webhook-parsing-workflow.js';
-
-// Export chat agent workflow
-export { chatAgentWorkflow } from './chat-agent.workflow.js';

@@ -10,6 +10,7 @@ interface IndexOptions {
   assetKeyField?: string;
   indexSuffix?: string;
   trace?: IScopedTraceService;
+  triggerSource?: string | null;
 }
 
 /**
@@ -205,6 +206,7 @@ export class OpenSearchIndexer {
         component_id: options.componentId,
         node_ref: options.nodeRef,
         ...(assetKey && { asset_key: assetKey }),
+        ...(options.triggerSource && { trigger_source: options.triggerSource }),
       },
 
       // Standard timestamp

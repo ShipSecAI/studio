@@ -31,7 +31,6 @@ import {
   CHECKLIST_ICONS,
 } from '@/components/home/GettingStartedChecklist';
 import { QuickStatsRow } from '@/components/home/QuickStatsRow';
-import { SecurityScoreRing } from '@/components/home/SecurityScoreRing';
 import { NeedsAttentionCard } from '@/components/home/NeedsAttentionCard';
 import { RecentActivityFeed } from '@/components/home/RecentActivityFeed';
 import { CoverageDetailCard } from '@/components/home/CoverageDetailCard';
@@ -282,13 +281,16 @@ export function HomePage() {
           />
 
           <QueryErrorBoundary>
-            <ActivityHeatmap />
-          </QueryErrorBoundary>
-
-          <QueryErrorBoundary>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2">
-                <NeedsAttentionCard categories={attentionCategories} mode="normal" />
+                <FindingsTrendChart />
+              </div>
+              <NeedsAttentionCard categories={attentionCategories} mode="normal" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <ActivityHeatmap />
               </div>
               <RecentActivityFeed
                 scanResults={scanResults}
@@ -296,18 +298,6 @@ export function HomePage() {
                 recentRuns={recentRuns}
                 connections={orgConnections}
               />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-2">
-                <FindingsTrendChart />
-              </div>
-              <Card>
-                <CardContent className="p-6 flex flex-col items-center justify-center h-full">
-                  <span className="text-sm text-muted-foreground mb-3">Security Score</span>
-                  <SecurityScoreRing score={securityScore} size={100} strokeWidth={8} />
-                </CardContent>
-              </Card>
             </div>
           </QueryErrorBoundary>
 
@@ -355,15 +345,16 @@ export function HomePage() {
         />
 
         <QueryErrorBoundary>
-          <ActivityHeatmap />
-        </QueryErrorBoundary>
-
-        <QueryErrorBoundary>
-          <NeedsAttentionCard categories={attentionCategories} mode="prominent" />
-
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2">
               <FindingsTrendChart />
+            </div>
+            <NeedsAttentionCard categories={attentionCategories} mode="prominent" />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <ActivityHeatmap />
             </div>
             <RecentActivityFeed
               scanResults={scanResults}

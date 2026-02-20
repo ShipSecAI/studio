@@ -408,6 +408,7 @@ export interface ExecutionContext {
   workflowId?: string;
   workflowName?: string;
   organizationId?: string | null;
+  triggerSource?: string | null;
 
   // Service interfaces - implemented by adapters
   storage?: IFileStorageService;

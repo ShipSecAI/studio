@@ -48,10 +48,11 @@ export interface CreateContextOptions {
   workflowId?: string;
   workflowName?: string;
   organizationId?: string | null;
+  triggerSource?: string | null;
 }
 
 export function createExecutionContext(options: CreateContextOptions): ExecutionContext {
-  const { runId, componentRef, metadata: metadataInput, storage, secrets, artifacts, trace, logCollector, terminalCollector, agentTracePublisher, workflowId, workflowName, organizationId } =
+  const { runId, componentRef, metadata: metadataInput, storage, secrets, artifacts, trace, logCollector, terminalCollector, agentTracePublisher, workflowId, workflowName, organizationId, triggerSource } =
     options;
   const metadata = createMetadata(runId, componentRef, metadataInput);
   const scopedTrace = trace ? createScopedTrace(trace, metadata) : undefined;
@@ -151,6 +152,7 @@ export function createExecutionContext(options: CreateContextOptions): Execution
     workflowId,
     workflowName,
     organizationId,
+    triggerSource,
     http: undefined as unknown as ExecutionContext['http'],
   };
 

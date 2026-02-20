@@ -39,6 +39,7 @@ export interface ExecuteWorkflowOptions {
   organizationId?: string | null;
   workflowId?: string;
   workflowVersionId?: string | null;
+  triggerSource?: string | null;
 }
 
 /**
@@ -307,6 +308,7 @@ export async function executeWorkflow(
         workflowId: options.workflowId,
         workflowName: definition.title,
         organizationId: options.organizationId,
+        triggerSource: options.triggerSource,
       });
 
       try {

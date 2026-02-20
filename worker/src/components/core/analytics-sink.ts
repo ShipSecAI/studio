@@ -337,6 +337,7 @@ const definition = defineComponent({
         assetKeyField,
         indexSuffix: fallbackIndexSuffix,
         trace: context.trace,
+        triggerSource: context.triggerSource,
       };
 
       context.logger.info(

@@ -154,9 +154,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground">{title}</p>
                         {description && (
-                          <p className="mt-1 text-xs text-muted-foreground break-words line-clamp-3">
-                            {typeof description === 'string' ? description : ''}
-                          </p>
+                          <div className="mt-1 text-xs text-muted-foreground break-words line-clamp-3">
+                            {description}
+                          </div>
                         )}
                       </div>
                       <button
@@ -239,9 +239,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                       <p className="text-sm font-semibold text-foreground truncate">
                         {toast.title}
                       </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground truncate">
-                        {typeof toast.description === 'string' ? toast.description : ''}
-                      </p>
+                      <div className="mt-0.5 text-xs text-muted-foreground truncate">
+                        {toast.description}
+                      </div>
                     </div>
                   </div>
                 );
@@ -270,11 +270,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-foreground">{frontToast.title}</p>
                       {frontToast.description && (
-                        <p className="mt-1 text-xs text-muted-foreground break-words max-h-[80px] overflow-y-auto">
-                          {typeof frontToast.description === 'string'
-                            ? frontToast.description
-                            : frontToast.description}
-                        </p>
+                        <div className="mt-1 text-xs text-muted-foreground break-words max-h-[80px] overflow-y-auto">
+                          {frontToast.description}
+                        </div>
                       )}
                     </div>
                     <button

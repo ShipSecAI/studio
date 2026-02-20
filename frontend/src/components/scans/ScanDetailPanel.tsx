@@ -52,6 +52,7 @@ import {
   Package,
 } from 'lucide-react';
 import type { GitHubScanResult, GitHubRepo, TriggerRule } from '@/store/githubStore';
+import { useGitHubStore } from '@/store/githubStore';
 import {
   useTriggerScan,
   useGitHubScanResult,
@@ -132,28 +133,28 @@ function buildWorkflowCompatibility(runtimeInputs: unknown[]): WorkflowCompatibi
 const QUICK_SCANS = [
   {
     slug: 'secret-detection',
+    templateSlug: 'sys-secret-scan',
     name: 'Secret Detection',
     description: 'Scan for exposed secrets',
     icon: ShieldAlert,
-    matchPattern: /secret|trufflehog/i,
   },
   {
     slug: 'sast-opengrep',
+    templateSlug: 'sys-sast-scan',
     name: 'SAST (OpenGrep)',
     description: 'Static application security testing',
     icon: Search,
-    matchPattern: /sast|opengrep|semgrep/i,
   },
   {
     slug: 'dependency-audit',
+    templateSlug: 'sys-dependency-scan',
     name: 'Dependency Audit',
     description: 'Check for vulnerable dependencies',
     icon: Package,
-    matchPattern: /dependency|audit/i,
   },
 ];
 
-function resolveQuickScans(workflows: WorkflowOption[]): {
+function resolveQuickScans(systemWorkflows: { id: string; slug: string | null }[]): {
   slug: string;
   workflowId: string;
   name: string;
@@ -161,7 +162,7 @@ function resolveQuickScans(workflows: WorkflowOption[]): {
   icon: typeof ShieldAlert;
 }[] {
   return QUICK_SCANS.flatMap((scan) => {
-    const match = workflows.find((w) => scan.matchPattern.test(w.name));
+    const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
     if (!match) return [];
     return [
       {
@@ -192,6 +193,8 @@ function RerunScanModal({
 }) {
   const { mutateAsync: triggerScan } = useTriggerScan();
   const { toast } = useToast();
+  const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
+  const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([]);
   const [workflowCompatibility, setWorkflowCompatibility] = useState<
     Record<string, WorkflowCompatibility>
@@ -200,6 +203,10 @@ function RerunScanModal({
   const [selectedWorkflow, setSelectedWorkflow] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
   const [triggering, setTriggering] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) fetchSystemWorkflows();
+  }, [open, fetchSystemWorkflows]);
 
   useEffect(() => {
     if (open) {
@@ -264,10 +271,21 @@ function RerunScanModal({
     }
     setTriggering(workflowId);
     try {
-      await triggerScan({ repoId: repository.id, workflowId, branch: selectedBranch || undefined });
+      const result = await triggerScan({
+        repoId: repository.id,
+        workflowId,
+        branch: selectedBranch || undefined,
+      });
       toast({
         title: 'Scan started',
-        description: `Security scan started for ${repository.fullName}`,
+        description: (
+          <span>
+            Security scan started for {repository.fullName}.{' '}
+            <Link to={`/runs/${result.runId}`} className="font-medium text-primary hover:underline">
+              Open Run &rarr;
+            </Link>
+          </span>
+        ),
       });
       onClose();
       onSuccess();
@@ -313,7 +331,7 @@ function RerunScanModal({
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground">Quick Scans</h4>
             <div className="grid gap-2">
-              {resolveQuickScans(workflows).map((scan) => {
+              {resolveQuickScans(systemWorkflows).map((scan) => {
                 const Icon = scan.icon;
                 return (
                   <Button
@@ -561,11 +579,11 @@ export function ScanDetailPanel({
   const showErrorAlert =
     (scan.status === 'failure' || scan.status === 'error') && scan.errorMessage;
   const sourceMeta = getScanSourceMeta(scan);
-  const scheduleScanParams = new URLSearchParams({ tab: 'scans', source: 'schedule' });
+  const scheduleScanParams = new URLSearchParams({ source: 'schedule' });
   if (sourceMeta.scheduleId) {
     scheduleScanParams.set('scheduleId', sourceMeta.scheduleId);
   }
-  const scheduleScanLink = `/github?${scheduleScanParams.toString()}`;
+  const scheduleScanLink = `/github/scans?${scheduleScanParams.toString()}`;
   const failureGuidance = getScanFailureGuidance(scan);
   const exactCreatedAtLocal = new Date(scan.createdAt).toLocaleString(undefined, {
     year: 'numeric',

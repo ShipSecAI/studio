@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -26,6 +27,7 @@ export function FirstScanModal({
   scanCategory: 'code' | 'dependency' | 'container';
 }) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { data: repositories = [], isLoading: repositoriesLoading } = useGitHubRepositories();
   const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
   const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
@@ -64,16 +66,13 @@ export function FirstScanModal({
     if (!selectedRepo) return;
     setTriggering(workflowId);
     try {
-      await triggerScanMutation.mutateAsync({
+      const result = await triggerScanMutation.mutateAsync({
         repoId: selectedRepo.id,
         workflowId,
         branch: selectedRepo.defaultBranch ?? undefined,
       });
-      toast({
-        title: 'Scan started',
-        description: `Security scan started for ${selectedRepo.fullName}`,
-      });
       onClose();
+      navigate(`/runs/${result.runId}`);
     } catch (error) {
       toast({
         title: 'Error',

@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   Headers,
+  HttpCode,
   Post,
   Put,
   UnauthorizedException,
@@ -48,6 +49,7 @@ export class AnalyticsController {
   }
 
   @Post('query')
+  @HttpCode(200)
   @Throttle({ default: { limit: 100, ttl: 60000 } }) // 100 requests per minute per user
   @ApiOkResponse({
     description: 'Query analytics data for the authenticated organization',

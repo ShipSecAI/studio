@@ -26,11 +26,16 @@ export interface SecurityFinding {
   finding_types: string[] | null;
   remediationText: string | null;
   recommendationUrl: string | null;
+  rule_id: string | null;
+  file: string | null;
+  line: number | null;
+  snippet: string | null;
   shipsec: {
     workflow_id: string;
     workflow_name: string;
     run_id: string;
     component_id: string;
+    trigger_source?: string | null;
   };
   '@timestamp': string;
 }
@@ -212,11 +217,16 @@ export function parseFinding(hit: any): SecurityFinding {
     finding_types: hit._source.finding_types ?? null,
     remediationText: hit._source.remediationText ?? null,
     recommendationUrl: hit._source.recommendationUrl ?? null,
-    shipsec: hit._source.shipsec ?? {
-      workflow_id: hit._source.workflow_id ?? '',
-      workflow_name: hit._source.workflow_name ?? '',
-      run_id: hit._source.run_id ?? '',
-      component_id: hit._source.component_id ?? '',
+    rule_id: hit._source.rule_id ?? null,
+    file: hit._source.file ?? null,
+    line: hit._source.line ?? null,
+    snippet: hit._source.snippet ?? null,
+    shipsec: {
+      workflow_id: hit._source.shipsec?.workflow_id ?? hit._source.workflow_id ?? '',
+      workflow_name: hit._source.shipsec?.workflow_name ?? hit._source.workflow_name ?? '',
+      run_id: hit._source.shipsec?.run_id ?? hit._source.run_id ?? '',
+      component_id: hit._source.shipsec?.component_id ?? hit._source.component_id ?? '',
+      trigger_source: hit._source.shipsec?.trigger_source ?? null,
     },
     '@timestamp': hit._source['@timestamp'] ?? '',
   };

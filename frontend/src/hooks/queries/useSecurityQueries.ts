@@ -121,12 +121,46 @@ export function useSecurityTimeSeries(
 // ── Heatmap Time Series (90-day window) ─────────────────────────────
 
 export function useSecurityTimeSeriesForHeatmap(days = 90) {
-  const filters: SecurityDashboardFilters = {
-    ...INITIAL_FILTERS,
-    from: new Date(Date.now() - days * 86_400_000).toISOString(),
-    to: new Date().toISOString(),
-  };
-  return useSecurityTimeSeries(filters, {}, 'day');
+  return useQuery({
+    queryKey: queryKeys.security.timeSeriesHeatmap(days),
+    queryFn: async (): Promise<TimeSeriesBucket[]> => {
+      const to = new Date().toISOString();
+      const from = new Date(Date.now() - days * 86_400_000).toISOString();
+      const filters: SecurityDashboardFilters = { ...INITIAL_FILTERS, from, to };
+
+      const result = await api.analytics.query({
+        query: buildBaseFilter(filters, {}),
+        size: 0,
+        aggs: {
+          over_time: {
+            date_histogram: {
+              field: '@timestamp',
+              calendar_interval: 'day',
+              time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              min_doc_count: 0,
+            },
+            aggs: {
+              by_severity: { terms: { field: 'severity.keyword' } },
+            },
+          },
+        },
+      });
+
+      const buckets = result.aggregations?.over_time?.buckets ?? [];
+      return buckets.map((bucket: any) => {
+        const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
+        for (const sev of bucket.by_severity?.buckets ?? []) {
+          const key = sev.key?.toLowerCase();
+          if (key in counts) counts[key] = sev.doc_count;
+        }
+        return {
+          date: bucket.key_as_string ?? new Date(bucket.key).toISOString(),
+          ...counts,
+        };
+      }) as TimeSeriesBucket[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 }
 
 // ── Finding Detail ──────────────────────────────────────────────────

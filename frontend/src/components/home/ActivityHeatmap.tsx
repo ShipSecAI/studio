@@ -24,8 +24,10 @@ const MONTH_NAMES = [
   'Dec',
 ] as const;
 
+const EMPTY_CELL = 'bg-[#ebedf0] dark:bg-[#161b22]';
+
 const FINDINGS_COLORS = [
-  'bg-muted',
+  EMPTY_CELL,
   'bg-orange-200 dark:bg-orange-900/40',
   'bg-orange-400 dark:bg-orange-700/60',
   'bg-red-500 dark:bg-red-700/70',
@@ -33,7 +35,7 @@ const FINDINGS_COLORS = [
 ] as const;
 
 const SCANS_COLORS = [
-  'bg-muted',
+  EMPTY_CELL,
   'bg-green-200 dark:bg-green-900/40',
   'bg-green-400 dark:bg-green-700/60',
   'bg-green-600 dark:bg-green-600/70',
@@ -239,7 +241,7 @@ export function ActivityHeatmap() {
               <div
                 className="grid gap-[3px] mb-1"
                 style={{
-                  gridTemplateColumns: `24px repeat(${totalWeeks}, 1fr)`,
+                  gridTemplateColumns: `24px repeat(${totalWeeks}, 12px)`,
                 }}
               >
                 <div /> {/* Spacer for day labels */}
@@ -257,8 +259,8 @@ export function ActivityHeatmap() {
               <div
                 className="grid gap-[3px]"
                 style={{
-                  gridTemplateColumns: `24px repeat(${totalWeeks}, 1fr)`,
-                  gridTemplateRows: 'repeat(7, 1fr)',
+                  gridTemplateColumns: `24px repeat(${totalWeeks}, 12px)`,
+                  gridTemplateRows: 'repeat(7, 12px)',
                 }}
               >
                 {Array.from({ length: 7 }, (_, dayIndex) => (
@@ -278,9 +280,7 @@ export function ActivityHeatmap() {
                       );
 
                       if (!cell || cell.value === -1) {
-                        return (
-                          <div key={`${dayIndex}-${weekIdx}`} className="w-3 h-3 rounded-sm" />
-                        );
+                        return <div key={`${dayIndex}-${weekIdx}`} className="rounded-sm" />;
                       }
 
                       const colorIdx = getColorIndex(cell.value, thresholds);
@@ -289,7 +289,7 @@ export function ActivityHeatmap() {
                         <Tooltip key={`${dayIndex}-${weekIdx}`}>
                           <TooltipTrigger asChild>
                             <div
-                              className={`w-3 h-3 rounded-sm ${colors[colorIdx]} cursor-default transition-colors`}
+                              className={`rounded-sm ${colors[colorIdx]} cursor-default transition-colors`}
                             />
                           </TooltipTrigger>
                           <TooltipContent side="top" className="text-xs">

@@ -79,12 +79,15 @@ export const queryKeys = {
       ['security', getOrgScope(), 'findingLifecycle', hash] as const,
     batchLifecycles: (hashes: string[]) =>
       ['security', getOrgScope(), 'batchLifecycles', [...hashes].sort()] as const,
+    timeSeriesHeatmap: (days: number) =>
+      ['security', getOrgScope(), 'timeSeriesHeatmap', days] as const,
     categoryCounts: () => ['security', getOrgScope(), 'categoryCounts'] as const,
     summary: (viewFilter?: unknown) => ['security', getOrgScope(), 'summary', viewFilter] as const,
   },
   cloud: {
     scans: (filters?: { status?: string; offset?: number; limit?: number }) =>
       ['cloud', getOrgScope(), 'scans', filters] as const,
+    scanFindings: (runId: string) => ['cloud', getOrgScope(), 'scanFindings', runId] as const,
   },
   github: {
     status: () => ['github', getOrgScope(), 'status'] as const,

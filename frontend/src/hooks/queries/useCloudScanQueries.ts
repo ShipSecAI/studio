@@ -6,12 +6,19 @@ import { useGitHubStore } from '@/store/githubStore';
 import { normalizeRunSummary } from '@/features/workflow-builder/utils/executionRuns';
 import type { ExecutionRun } from '@/hooks/queries/useRunQueries';
 import type { ExecutionStatus } from '@/schemas/execution';
+import {
+  parseFinding,
+  parseSeverityCounts,
+  type SeverityCounts,
+  type SecurityFinding,
+} from '@/lib/securityQueryHelpers';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const CLOUD_TEMPLATE_SLUGS = new Set(['sys-cloud-security-scan', 'sys-container-image-scan']);
 
 const PAGE_LIMIT = 100;
+export const CLOUD_SCAN_FINDINGS_LIMIT = 200;
 
 const LIVE_STATUSES: ReadonlySet<string> = new Set(['QUEUED', 'RUNNING', 'AWAITING_INPUT']);
 
@@ -47,6 +54,31 @@ export interface CloudScansData {
   liveCount: number;
   successRate: number;
   totalFetched: number;
+}
+
+export interface CloudScanFindingsData {
+  findings: SecurityFinding[];
+  severityCounts: SeverityCounts;
+  total: number;
+  isTruncated: boolean;
+}
+
+export function transformCloudScanFindingsResponse(result: {
+  total: number;
+  hits: { _id: string; _source: Record<string, unknown>; _score?: number }[];
+  aggregations?: Record<string, any>;
+}): CloudScanFindingsData {
+  const findings = result.hits.map(parseFinding);
+  const severityCounts = parseSeverityCounts(result.aggregations?.severity_counts?.buckets ?? []);
+  const total = result.total ?? 0;
+  const isTruncated = total > findings.length;
+
+  return {
+    findings,
+    severityCounts,
+    total,
+    isTruncated,
+  };
 }
 
 export function useCloudScans(filters: CloudScansFilters = {}) {
@@ -97,6 +129,32 @@ export function useCloudScans(filters: CloudScansFilters = {}) {
           },
     staleTime: 30_000,
     refetchInterval: (query) => ((query.state.data?.liveCount ?? 0) > 0 ? 10_000 : false),
+  });
+}
+
+export function useCloudScanFindings(runId: string | null | undefined) {
+  return useQuery({
+    queryKey: queryKeys.cloud.scanFindings(runId ?? ''),
+    queryFn: runId
+      ? async (): Promise<CloudScanFindingsData> => {
+          const result = await api.analytics.query({
+            query: {
+              bool: {
+                filter: [{ term: { 'shipsec.run_id.keyword': runId } }],
+              },
+            },
+            size: CLOUD_SCAN_FINDINGS_LIMIT,
+            from: 0,
+            sort: [{ 'severity.keyword': 'asc' }, { '@timestamp': 'desc' }],
+            aggs: {
+              severity_counts: { terms: { field: 'severity.keyword' } },
+            },
+          });
+          return transformCloudScanFindingsResponse(result);
+        }
+      : skipToken,
+    staleTime: 30_000,
+    ...(!runId && { gcTime: 0 }),
   });
 }
 

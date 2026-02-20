@@ -129,6 +129,7 @@ export interface RunWorkflowActivityInput {
   workflowVersionId?: string | null;
   workflowVersion?: number | null;
   organizationId?: string | null;
+  triggerSource?: string | null;
   parentRunId?: string | null;
   parentNodeRef?: string | null;
   depth?: number;

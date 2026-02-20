@@ -15,6 +15,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { SecurityFinding, FindingLifecycle } from '@/lib/securityQueryHelpers';
 
+const SCANNER_LOGO: Record<string, { src: string; alt: string }> = {
+  opengrep: { src: '/icons/opengrep.svg', alt: 'OpenGrep' },
+  trufflehog: { src: '/icons/trufflehog.svg', alt: 'TruffleHog' },
+  prowler: { src: '/icons/prowler.svg', alt: 'Prowler' },
+  nuclei: { src: '/icons/nuclei.svg', alt: 'Nuclei' },
+  safedep: { src: '/icons/safedep.png', alt: 'SafeDep' },
+};
+
 interface FindingDetailSheetProps {
   finding: SecurityFinding | null;
   open: boolean;
@@ -93,6 +101,7 @@ export function FindingDetailSheet({
 
   const workflowId = finding.shipsec?.workflow_id;
   const runId = finding.shipsec?.run_id;
+  const isCodeFinding = finding.scanner === 'opengrep' || finding.scanner === 'trufflehog';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -113,25 +122,94 @@ export function FindingDetailSheet({
           <div className="mt-6 space-y-6">
             {/* Details Grid */}
             <div className="grid grid-cols-2 gap-4">
-              <DetailRow label="Account ID" value={finding.account_id} />
-              <DetailRow label="Region" value={finding.region} />
-              <DetailRow
-                label="Resource"
-                value={
-                  finding.asset_key ? (
-                    <span className="break-all text-xs font-mono">{finding.asset_key}</span>
-                  ) : null
-                }
-              />
-              <DetailRow label="Scanner" value={finding.scanner} />
-              <DetailRow label="Check" value={finding.check_name} />
-              <DetailRow
-                label="Timestamp"
-                value={
-                  finding['@timestamp'] ? new Date(finding['@timestamp']).toLocaleString() : null
-                }
-              />
+              {isCodeFinding ? (
+                <>
+                  <DetailRow
+                    label="File"
+                    value={
+                      finding.file ? (
+                        <span className="break-all text-xs font-mono">
+                          {finding.file}
+                          {finding.line ? `:${finding.line}` : ''}
+                        </span>
+                      ) : null
+                    }
+                  />
+                  <DetailRow
+                    label="Scanner"
+                    value={
+                      <span className="inline-flex items-center gap-1.5">
+                        {SCANNER_LOGO[finding.scanner] && (
+                          <img
+                            src={SCANNER_LOGO[finding.scanner].src}
+                            alt={SCANNER_LOGO[finding.scanner].alt}
+                            className="w-4 h-4 rounded object-contain"
+                          />
+                        )}
+                        {finding.scanner}
+                      </span>
+                    }
+                  />
+                  <DetailRow label="Rule ID" value={finding.rule_id} />
+                  <DetailRow
+                    label="Timestamp"
+                    value={
+                      finding['@timestamp']
+                        ? new Date(finding['@timestamp']).toLocaleString()
+                        : null
+                    }
+                  />
+                  <DetailRow label="Repository" value={finding.shipsec?.trigger_source} />
+                </>
+              ) : (
+                <>
+                  <DetailRow label="Account ID" value={finding.account_id} />
+                  <DetailRow label="Region" value={finding.region} />
+                  <DetailRow
+                    label="Resource"
+                    value={
+                      finding.asset_key ? (
+                        <span className="break-all text-xs font-mono">{finding.asset_key}</span>
+                      ) : null
+                    }
+                  />
+                  <DetailRow
+                    label="Scanner"
+                    value={
+                      <span className="inline-flex items-center gap-1.5">
+                        {SCANNER_LOGO[finding.scanner] && (
+                          <img
+                            src={SCANNER_LOGO[finding.scanner].src}
+                            alt={SCANNER_LOGO[finding.scanner].alt}
+                            className="w-4 h-4 rounded object-contain"
+                          />
+                        )}
+                        {finding.scanner}
+                      </span>
+                    }
+                  />
+                  <DetailRow label="Check" value={finding.check_name} />
+                  <DetailRow
+                    label="Timestamp"
+                    value={
+                      finding['@timestamp']
+                        ? new Date(finding['@timestamp']).toLocaleString()
+                        : null
+                    }
+                  />
+                </>
+              )}
             </div>
+
+            {/* Code Snippet */}
+            {isCodeFinding && finding.snippet && (
+              <div>
+                <h4 className="text-sm font-medium mb-2">Code Snippet</h4>
+                <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto max-h-40 font-mono">
+                  {finding.snippet}
+                </pre>
+              </div>
+            )}
 
             {/* Finding History */}
             {(lifecycleLoading || lifecycle) && (

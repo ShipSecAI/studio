@@ -48,6 +48,14 @@ import { CloudFirstScanModal } from '@/components/security/CloudFirstScanModal';
 import { SEVERITY_CONFIG, TIME_RANGES, PAGE_SIZE } from '@/components/security/constants';
 import { cn } from '@/lib/utils';
 
+const SCANNER_LOGO: Record<string, { src: string; alt: string }> = {
+  opengrep: { src: '/icons/opengrep.svg', alt: 'OpenGrep' },
+  trufflehog: { src: '/icons/trufflehog.svg', alt: 'TruffleHog' },
+  prowler: { src: '/icons/prowler.svg', alt: 'Prowler' },
+  nuclei: { src: '/icons/nuclei.svg', alt: 'Nuclei' },
+  safedep: { src: '/icons/safedep.png', alt: 'SafeDep' },
+};
+
 export function SecurityDashboardContent() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchInput, setSearchInput] = useState('');
@@ -323,6 +331,7 @@ export function SecurityDashboardContent() {
   // Active view for conditional rendering
   const activeViewId = useSecurityViewStore((s) => s.activeViewId);
   const showAccountTabs = activeViewId === 'cloud-security';
+  const isCodeSecurityView = activeViewId === 'code-security';
 
   // Account tab value
   const accountTab = filters.account ?? 'all';
@@ -646,18 +655,22 @@ export function SecurityDashboardContent() {
             selected={filters.status}
             onToggle={toggleStatusFilter}
           />
-          <FilterPopover
-            label="Region"
-            options={regionOptions}
-            selected={filters.region}
-            onToggle={toggleRegionFilter}
-          />
-          <FilterPopover
-            label="Service"
-            options={serviceOptions}
-            selected={filters.service}
-            onToggle={toggleServiceFilter}
-          />
+          {!isCodeSecurityView && (
+            <FilterPopover
+              label="Region"
+              options={regionOptions}
+              selected={filters.region}
+              onToggle={toggleRegionFilter}
+            />
+          )}
+          {!isCodeSecurityView && (
+            <FilterPopover
+              label="Service"
+              options={serviceOptions}
+              selected={filters.service}
+              onToggle={toggleServiceFilter}
+            />
+          )}
           {complianceOptions.length > 0 && (
             <FilterPopover
               label="Compliance"
@@ -708,9 +721,15 @@ export function SecurityDashboardContent() {
                   </button>
                 </TableHead>
                 <TableHead className="w-[80px]">Status</TableHead>
-                <TableHead className="hidden lg:table-cell w-[100px]">Service</TableHead>
-                <TableHead className="hidden md:table-cell w-[120px]">Region</TableHead>
-                <TableHead className="hidden md:table-cell w-[130px]">Account</TableHead>
+                {isCodeSecurityView ? (
+                  <TableHead className="hidden lg:table-cell w-[100px]">Scanner</TableHead>
+                ) : (
+                  <>
+                    <TableHead className="hidden lg:table-cell w-[100px]">Service</TableHead>
+                    <TableHead className="hidden md:table-cell w-[120px]">Region</TableHead>
+                    <TableHead className="hidden md:table-cell w-[130px]">Account</TableHead>
+                  </>
+                )}
                 <TableHead className="hidden xl:table-cell w-[100px]">First Seen</TableHead>
                 <TableHead className="w-[120px]">
                   <button
@@ -744,15 +763,23 @@ export function SecurityDashboardContent() {
                       <TableCell>
                         <Skeleton className="h-4 w-14" />
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        <Skeleton className="h-4 w-16" />
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <Skeleton className="h-4 w-20" />
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <Skeleton className="h-4 w-24" />
-                      </TableCell>
+                      {isCodeSecurityView ? (
+                        <TableCell className="hidden lg:table-cell">
+                          <Skeleton className="h-4 w-16" />
+                        </TableCell>
+                      ) : (
+                        <>
+                          <TableCell className="hidden lg:table-cell">
+                            <Skeleton className="h-4 w-16" />
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <Skeleton className="h-4 w-20" />
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <Skeleton className="h-4 w-24" />
+                          </TableCell>
+                        </>
+                      )}
                       <TableCell className="hidden xl:table-cell">
                         <Skeleton className="h-4 w-16" />
                       </TableCell>
@@ -764,7 +791,7 @@ export function SecurityDashboardContent() {
                 : null}
               {!findingsLoading && findings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
+                  <TableCell colSpan={isCodeSecurityView ? 6 : 8} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <ShieldCheck className="h-10 w-10" />
                       <p className="text-sm font-medium">No findings found</p>
@@ -789,7 +816,21 @@ export function SecurityDashboardContent() {
                       <span className="text-sm font-medium line-clamp-1">
                         {finding.title ?? 'Untitled'}
                       </span>
-                      {finding.asset_key && (
+                      {isCodeSecurityView && finding.shipsec?.trigger_source && (
+                        <span
+                          className="text-xs text-muted-foreground line-clamp-1"
+                          title={finding.shipsec.trigger_source}
+                        >
+                          {finding.shipsec.trigger_source}
+                        </span>
+                      )}
+                      {finding.file && (
+                        <span className="text-xs text-muted-foreground line-clamp-1 font-mono">
+                          {finding.file}
+                          {finding.line ? `:${finding.line}` : ''}
+                        </span>
+                      )}
+                      {!finding.file && finding.asset_key && (
                         <span className="text-xs text-muted-foreground line-clamp-1 font-mono">
                           {finding.asset_key}
                         </span>
@@ -819,15 +860,32 @@ export function SecurityDashboardContent() {
                   <TableCell>
                     <StatusBadge status={finding.status} />
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                    {finding.service_name ?? '--'}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                    {finding.region ?? '--'}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-sm text-muted-foreground font-mono">
-                    {finding.account_id ? formatAccountId(finding.account_id) : '--'}
-                  </TableCell>
+                  {isCodeSecurityView ? (
+                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1.5">
+                        {SCANNER_LOGO[finding.scanner] && (
+                          <img
+                            src={SCANNER_LOGO[finding.scanner].src}
+                            alt={SCANNER_LOGO[finding.scanner].alt}
+                            className="w-4 h-4 rounded object-contain"
+                          />
+                        )}
+                        {finding.scanner}
+                      </div>
+                    </TableCell>
+                  ) : (
+                    <>
+                      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                        {finding.service_name ?? '--'}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {finding.region ?? '--'}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground font-mono">
+                        {finding.account_id ? formatAccountId(finding.account_id) : '--'}
+                      </TableCell>
+                    </>
+                  )}
                   <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
                     {findingLifecycles[finding.finding_hash] ? (
                       formatTimestamp(findingLifecycles[finding.finding_hash].firstSeen)

@@ -292,10 +292,20 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
     triggerScan(
       { repoId: repository.id, workflowId, branch: selectedBranch || undefined },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
           toast({
             title: 'Scan started',
-            description: `Security scan started for ${repository.fullName}`,
+            description: (
+              <span>
+                Security scan started for {repository.fullName}.{' '}
+                <Link
+                  to={`/runs/${result.runId}`}
+                  className="font-medium text-primary hover:underline"
+                >
+                  Open Run &rarr;
+                </Link>
+              </span>
+            ),
           });
           onClose();
           onSuccess();

@@ -66,7 +66,9 @@ import type { WorkflowSummary } from '@/services/api';
 import { useCloudScans, type CloudScansFilters } from '@/hooks/queries/useCloudScanQueries';
 import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
 import { formatRelativeTime, formatExactTime, formatDuration } from '@/components/scans/scan-utils';
+import { CloudScanDetailPanel } from '@/components/scans/CloudScanDetailPanel';
 import type { ExecutionStatus } from '@/schemas/execution';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -678,12 +680,17 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 
 const LIVE_STATUSES: ReadonlySet<string> = new Set(['QUEUED', 'RUNNING', 'AWAITING_INPUT']);
 
-function ScansTab({ connections }: { connections: AwsConnection[] }) {
-  const navigate = useNavigate();
+export function ScansTab({ connections }: { connections: AwsConnection[] }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isMobile = useIsMobile();
   const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
   const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
   const systemWorkflowsLoading = useGitHubStore((s) => s.systemWorkflowsLoading);
   const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUSES_VALUE);
+  const selectedRunId = searchParams.get('scan');
+  const isPanelOpen = Boolean(selectedRunId);
+  const showList = !isPanelOpen || !isMobile;
+  const showPanel = isPanelOpen;
 
   // Fetch systemWorkflows on mount so cloud workflow IDs are available
   useEffect(() => {
@@ -713,10 +720,32 @@ function ScansTab({ connections }: { connections: AwsConnection[] }) {
     [systemWorkflows],
   );
 
+  const handleSelectRun = (runId: string) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('scan', runId);
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  const handleClosePanel = () => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('scan');
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
   // ── Empty state hierarchy ──────────────────────────────────────────────────
 
   // 1. No AWS connections
-  if (connections.length === 0) {
+  if (connections.length === 0 && !isPanelOpen) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <div className="rounded-full bg-muted p-4 mb-4">
@@ -731,7 +760,7 @@ function ScansTab({ connections }: { connections: AwsConnection[] }) {
   }
 
   // 2. Loading system workflows
-  if (systemWorkflowsLoading) {
+  if (systemWorkflowsLoading && !isPanelOpen) {
     return (
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
@@ -742,7 +771,7 @@ function ScansTab({ connections }: { connections: AwsConnection[] }) {
   }
 
   // 3. No cloud workflows found
-  if (!hasCloudWorkflows) {
+  if (!hasCloudWorkflows && !isPanelOpen) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <div className="rounded-full bg-muted p-4 mb-4">
@@ -760,7 +789,7 @@ function ScansTab({ connections }: { connections: AwsConnection[] }) {
   }
 
   // 4. First query loading
-  if (isLoading) {
+  if (isLoading && !isPanelOpen) {
     return (
       <div className="space-y-3">
         {[1, 2, 3, 4, 5].map((i) => (
@@ -771,7 +800,7 @@ function ScansTab({ connections }: { connections: AwsConnection[] }) {
   }
 
   // 5. Error state
-  if (isError) {
+  if (isError && !isPanelOpen) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <div className="rounded-full bg-red-100 dark:bg-red-900/30 p-4 mb-4">
@@ -795,201 +824,262 @@ function ScansTab({ connections }: { connections: AwsConnection[] }) {
     : null;
 
   return (
-    <div className="space-y-4">
-      {/* Summary chips */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {liveCount > 0 && (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-blue-500/10 text-blue-700 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-700/50">
-            <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-            {liveCount} live
-          </span>
-        )}
-        {runs.length > 0 && (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground border">
-            {successRate}% success rate
-          </span>
-        )}
-      </div>
-
-      {/* Filter bar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
-          <SelectTrigger className="w-[160px] h-9">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <div className="flex items-center gap-2 ml-auto">
-          {updatedAgo && (
-            <span className="text-xs text-muted-foreground">Updated {updatedAgo}</span>
+    <div
+      className={cn('flex', isPanelOpen && 'border rounded-lg overflow-hidden')}
+      style={{
+        height: isPanelOpen ? 'calc(100vh - 300px)' : 'auto',
+        minHeight: isPanelOpen ? '420px' : undefined,
+      }}
+    >
+      {showList && (
+        <div
+          className={cn(
+            'flex flex-col overflow-hidden',
+            isPanelOpen ? 'w-[460px] flex-shrink-0 border-r' : 'w-full',
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="h-8 w-8 p-0"
-          >
-            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-      </div>
+        >
+          <div className="p-4 space-y-4 flex-1 overflow-y-auto">
+            {/* Summary chips */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {liveCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-blue-500/10 text-blue-700 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-700/50">
+                  <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                  {liveCount} live
+                </span>
+              )}
+              {runs.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground border">
+                  {successRate}% success rate
+                </span>
+              )}
+            </div>
 
-      {/* Live runs section */}
-      {liveRuns.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">Live Scans</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {liveRuns.map((run) => {
-              const elapsed = run.startTime
-                ? formatDuration(run.startTime, new Date().toISOString())
-                : null;
-              return (
-                <div
-                  key={run.id}
-                  className="rounded-lg border border-blue-200 dark:border-blue-700/50 bg-blue-500/5 p-3 space-y-2"
+            {/* Filter bar */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
+                <SelectTrigger className="w-[160px] h-9">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center gap-2 ml-auto">
+                {updatedAgo && (
+                  <span className="text-xs text-muted-foreground">Updated {updatedAgo}</span>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => refetch()}
+                  disabled={isFetching}
+                  className="h-8 w-8 p-0"
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
-                    <span className="text-sm font-medium truncate">{run.workflowName}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">
-                      Started {formatRelativeTime(run.startTime)}
-                      {elapsed ? ` \u00b7 Elapsed ${elapsed}` : ''}
-                    </span>
-                    <Button size="sm" variant="outline" className="h-7 text-xs" asChild>
-                      <Link to={`/runs/${run.id}`}>Open Run</Link>
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+                  <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            </div>
 
-      {/* 6. No runs match filter */}
-      {runs.length === 0 && activeStatus && (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="rounded-full bg-muted p-4 mb-4">
-            <ScanSearch className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">No Runs Match Your Filter</h3>
-          <p className="text-muted-foreground max-w-md mb-4">
-            No cloud scan runs with status &ldquo;
-            {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? statusFilter}&rdquo;
-            were found.
-          </p>
-          <Button variant="outline" onClick={() => setStatusFilter(ALL_STATUSES_VALUE)}>
-            Reset Filter
-          </Button>
-        </div>
-      )}
-
-      {/* 7. No runs, no filter */}
-      {runs.length === 0 && !activeStatus && (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="rounded-full bg-muted p-4 mb-4">
-            <ScanSearch className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">No Cloud Scans Yet</h3>
-          <p className="text-muted-foreground max-w-md">
-            Run your first cloud scan from the Accounts tab to see scan history here.
-          </p>
-        </div>
-      )}
-
-      {/* 8. Runs table */}
-      {runs.length > 0 && (
-        <TooltipProvider>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Status</TableHead>
-                <TableHead>Scan Type</TableHead>
-                <TableHead>Started</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead>Trigger</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tableRuns.map((run) => {
-                const duration = LIVE_STATUSES.has(run.status)
-                  ? null
-                  : formatDuration(run.startTime, run.endTime ?? null);
-                return (
-                  <TableRow
-                    key={run.id}
-                    className="cursor-pointer"
-                    onClick={() => navigate(`/runs/${run.id}`)}
-                  >
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={getStatusBadgeClassFromStatus(run.status)}
+            {/* Live runs section */}
+            {liveRuns.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-muted-foreground">Live Scans</h4>
+                <div
+                  className={cn(
+                    'grid grid-cols-1 gap-3',
+                    !isPanelOpen && 'md:grid-cols-2 lg:grid-cols-3',
+                  )}
+                >
+                  {liveRuns.map((run) => {
+                    const elapsed = run.startTime
+                      ? formatDuration(run.startTime, new Date().toISOString())
+                      : null;
+                    return (
+                      <div
+                        key={run.id}
+                        className="rounded-lg border border-blue-200 dark:border-blue-700/50 bg-blue-500/5 p-3 space-y-2"
                       >
-                        {run.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{run.workflowName}</span>
-                        {run.workflowVersion != null && (
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                          <span className="text-sm font-medium truncate">{run.workflowName}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
                           <span className="text-xs text-muted-foreground">
-                            v{run.workflowVersion}
+                            Started {formatRelativeTime(run.startTime)}
+                            {elapsed ? ` \u00b7 Elapsed ${elapsed}` : ''}
                           </span>
-                        )}
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => handleSelectRun(run.id)}
+                            >
+                              View
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs" asChild>
+                              <Link to={`/runs/${run.id}`}>Open Run</Link>
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="text-sm">{formatRelativeTime(run.startTime)}</span>
-                        </TooltipTrigger>
-                        <TooltipContent>{formatExactTime(run.startTime)}</TooltipContent>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {duration ?? <span className="text-muted-foreground">&mdash;</span>}
-                    </TableCell>
-                    <TableCell className="text-sm">{run.triggerLabel ?? run.triggerType}</TableCell>
-                    <TableCell className="text-right">
-                      <Link
-                        to={`/runs/${run.id}`}
-                        className="text-sm text-primary hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Open Run
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TooltipProvider>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {isLoading && (
+              <div className="space-y-3">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Skeleton key={i} className="h-14 rounded-lg" />
+                ))}
+              </div>
+            )}
+
+            {isError && (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="rounded-full bg-red-100 dark:bg-red-900/30 p-4 mb-4">
+                  <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Failed to Load Scans</h3>
+                <p className="text-muted-foreground max-w-md mb-4">
+                  {error instanceof Error ? error.message : 'An unexpected error occurred.'}
+                </p>
+                <Button onClick={() => refetch()}>Retry</Button>
+              </div>
+            )}
+
+            {/* 6. No runs match filter */}
+            {!isLoading && !isError && runs.length === 0 && activeStatus && (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="rounded-full bg-muted p-4 mb-4">
+                  <ScanSearch className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No Runs Match Your Filter</h3>
+                <p className="text-muted-foreground max-w-md mb-4">
+                  No cloud scan runs with status &ldquo;
+                  {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? statusFilter}
+                  &rdquo; were found.
+                </p>
+                <Button variant="outline" onClick={() => setStatusFilter(ALL_STATUSES_VALUE)}>
+                  Reset Filter
+                </Button>
+              </div>
+            )}
+
+            {/* 7. No runs, no filter */}
+            {!isLoading && !isError && runs.length === 0 && !activeStatus && (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="rounded-full bg-muted p-4 mb-4">
+                  <ScanSearch className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No Cloud Scans Yet</h3>
+                <p className="text-muted-foreground max-w-md">
+                  Run your first cloud scan from the Accounts tab to see scan history here.
+                </p>
+              </div>
+            )}
+
+            {/* 8. Runs table */}
+            {!isLoading && !isError && runs.length > 0 && (
+              <TooltipProvider>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Scan Type</TableHead>
+                      <TableHead>Started</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Trigger</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableRuns.map((run) => {
+                      const duration = LIVE_STATUSES.has(run.status)
+                        ? null
+                        : formatDuration(run.startTime, run.endTime ?? null);
+                      return (
+                        <TableRow
+                          key={run.id}
+                          className={cn('cursor-pointer', selectedRunId === run.id && 'bg-accent')}
+                          onClick={() => handleSelectRun(run.id)}
+                        >
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={getStatusBadgeClassFromStatus(run.status)}
+                            >
+                              {run.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{run.workflowName}</span>
+                              {run.workflowVersion != null && (
+                                <span className="text-xs text-muted-foreground">
+                                  v{run.workflowVersion}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-sm">{formatRelativeTime(run.startTime)}</span>
+                              </TooltipTrigger>
+                              <TooltipContent>{formatExactTime(run.startTime)}</TooltipContent>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {duration ?? <span className="text-muted-foreground">&mdash;</span>}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {run.triggerLabel ?? run.triggerType}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Link
+                              to={`/runs/${run.id}`}
+                              className="text-sm text-primary hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Open Run
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TooltipProvider>
+            )}
+
+            {/* Pagination / count */}
+            {!isLoading && !isError && runs.length > 0 && (
+              <div className="flex items-center justify-between text-sm text-muted-foreground pt-2">
+                <span>
+                  Showing {runs.length} cloud scan run{runs.length !== 1 ? 's' : ''}
+                </span>
+                {totalFetched >= (filters.limit ?? 100) && (
+                  <Button variant="outline" size="sm" onClick={() => refetch()}>
+                    Load more
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
-      {/* Pagination / count */}
-      {runs.length > 0 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground pt-2">
-          <span>
-            Showing {runs.length} cloud scan run{runs.length !== 1 ? 's' : ''}
-          </span>
-          {totalFetched >= (filters.limit ?? 100) && (
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Load more
-            </Button>
-          )}
+      {showPanel && selectedRunId && (
+        <div className="flex-1 min-w-0 overflow-hidden bg-background">
+          <CloudScanDetailPanel runId={selectedRunId} onClose={handleClosePanel} />
         </div>
       )}
     </div>
@@ -1056,11 +1146,19 @@ export function CloudAccountsPage() {
   }, [scanConnectionId, awsConnections, scanTarget, setSearchParams]);
 
   const handleTabChange = (value: string) => {
-    if (value === 'accounts') {
-      setSearchParams({});
-    } else {
-      setSearchParams({ tab: value });
-    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value === 'accounts') {
+          next.delete('tab');
+          next.delete('scan');
+        } else {
+          next.set('tab', value);
+        }
+        return next;
+      },
+      { replace: true },
+    );
   };
 
   return (
