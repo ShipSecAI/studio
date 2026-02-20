@@ -782,8 +782,8 @@ export function TemplateLibraryPage() {
     setSelectedTemplate(template);
     setIsUseModalOpen(true);
     track(Events.TemplateUseClicked, {
-      templateId: template.id,
-      templateName: template.name,
+      template_id: template.id,
+      template_name: template.name,
       category: template.category,
     });
   };

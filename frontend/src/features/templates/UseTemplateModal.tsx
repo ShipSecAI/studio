@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertCircle, Eye, EyeOff, KeyRound } from 'lucide-react';
-import { useTemplateStore, type Template } from '@/store/templateStore';
+import { useUseTemplate, type Template } from '@/hooks/queries/useTemplateQueries';
 
 interface UseTemplateModalProps {
   template: Template;
@@ -27,12 +27,23 @@ export function UseTemplateModal({
   onOpenChange,
   onSuccess,
 }: UseTemplateModalProps) {
-  const { useTemplate, isLoading } = useTemplateStore();
+  const useTemplateMutation = useUseTemplate();
+  const isLoading = useTemplateMutation.isPending;
 
   const [workflowName, setWorkflowName] = useState(`${template.name} - Copy`);
   const [secretMappings, setSecretMappings] = useState<Record<string, string>>({});
   const [showSecrets, setShowSecrets] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reset state when template or open changes to avoid stale data (#3)
+  useEffect(() => {
+    if (open) {
+      setWorkflowName(`${template.name} - Copy`);
+      setSecretMappings({});
+      setShowSecrets(false);
+      setError(null);
+    }
+  }, [template.id, open]);
 
   // Initialize secret mappings with placeholder values
   const requiredSecrets = template.requiredSecrets || [];
@@ -57,8 +68,12 @@ export function UseTemplateModal({
     }
 
     try {
-      const result = await useTemplate(template.id, workflowName, secretMappings);
-      onSuccess(result.workflowId);
+      const result = await useTemplateMutation.mutateAsync({
+        templateId: template.id,
+        workflowName,
+        secretMappings: requiredSecrets.length > 0 ? secretMappings : undefined,
+      });
+      onSuccess(result.workflow?.id ?? result.workflowId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create workflow from template');
     }

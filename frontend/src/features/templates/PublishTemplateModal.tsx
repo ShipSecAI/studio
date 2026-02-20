@@ -40,9 +40,9 @@ interface PublishTemplateModalProps {
   onSuccess?: () => void;
 }
 
-// GitHub repository configuration for templates
-const GITHUB_TEMPLATE_REPO = 'krishna9358/workflow-templates'; // format: owner/repo
-const GITHUB_BRANCH = 'main';
+// Fallback GitHub repository configuration (overridden by backend /templates/repo-info)
+const DEFAULT_GITHUB_TEMPLATE_REPO = 'krishna9358/workflow-templates';
+const DEFAULT_GITHUB_BRANCH = 'main';
 
 const TEMPLATE_CATEGORIES = [
   'Security',
@@ -126,13 +126,15 @@ function sanitizeGraphForTemplate(graph: Record<string, unknown>): Record<string
           typeof value === 'string' &&
           (value.includes('${secrets.') ||
             value.includes('${secret.') ||
-            value.includes('{{secret.'))
+            value.includes('{{secret.') ||
+            value.includes('{{secret:'))
         ) {
           // Replace secret interpolation expressions with placeholder
           result[key] = value
             .replace(/\$\{secrets\.[^}]+\}/g, '{{SECRET_PLACEHOLDER}}')
             .replace(/\$\{secret\.[^}]+\}/g, '{{SECRET_PLACEHOLDER}}')
-            .replace(/\{\{secret\.[^}]+\}\}/g, '{{SECRET_PLACEHOLDER}}');
+            .replace(/\{\{secret\.[^}]+\}\}/g, '{{SECRET_PLACEHOLDER}}')
+            .replace(/\{\{secret:[a-f0-9-]+\}\}/gi, '{{SECRET_PLACEHOLDER}}');
         } else {
           result[key] = traverseAndSanitize(value);
         }
@@ -333,11 +335,28 @@ export function PublishTemplateModal({
         // Store the template JSON so user can re-copy from the success view
         setGeneratedTemplateJson(templateJson);
 
-        // Parse the GitHub repo config
-        const [owner, repo] = GITHUB_TEMPLATE_REPO.split('/');
+        // Fetch repo config from backend, fall back to defaults
+        let owner: string;
+        let repo: string;
+        let branch: string;
+        try {
+          const repoInfoRes = await fetch(`${API_BASE_URL}/api/v1/templates/repo-info`);
+          if (repoInfoRes.ok) {
+            const repoInfo = await repoInfoRes.json();
+            owner = repoInfo.owner;
+            repo = repoInfo.repo;
+            branch = repoInfo.branch;
+          } else {
+            [owner, repo] = DEFAULT_GITHUB_TEMPLATE_REPO.split('/');
+            branch = DEFAULT_GITHUB_BRANCH;
+          }
+        } catch {
+          [owner, repo] = DEFAULT_GITHUB_TEMPLATE_REPO.split('/');
+          branch = DEFAULT_GITHUB_BRANCH;
+        }
 
         // Generate GitHub URL without content (avoids long URL errors)
-        const githubUrl = generateGitHubUrl(owner, repo, GITHUB_BRANCH, filename, name.trim());
+        const githubUrl = generateGitHubUrl(owner, repo, branch, filename, name.trim());
 
         // Open the GitHub URL in a new tab
         window.open(githubUrl, '_blank', 'noopener,noreferrer');
@@ -473,7 +492,7 @@ export function PublishTemplateModal({
                   before it&apos;s added to the library.
                 </div>
                 <a
-                  href={`https://github.com/${GITHUB_TEMPLATE_REPO}`}
+                  href={`https://github.com/${DEFAULT_GITHUB_TEMPLATE_REPO}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline flex items-center gap-1"
