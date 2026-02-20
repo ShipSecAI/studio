@@ -145,9 +145,9 @@ export function buildBaseFilter(
 
   if (viewFilter?.scannerTerms && viewFilter.scannerTerms.length > 0) {
     if (viewFilter.scannerTerms.length === 1) {
-      must.push({ term: { 'scanner.keyword': viewFilter.scannerTerms[0] } });
+      must.push({ term: { scanner: viewFilter.scannerTerms[0] } });
     } else {
-      must.push({ terms: { 'scanner.keyword': viewFilter.scannerTerms } });
+      must.push({ terms: { scanner: viewFilter.scannerTerms } });
     }
   }
 
@@ -197,7 +197,7 @@ export function buildBaseFilter(
   }
 
   if (filters.scanner.length > 0) {
-    filter.push({ terms: { 'scanner.keyword': filters.scanner } });
+    filter.push({ terms: { scanner: filters.scanner } });
   }
 
   if (filters.repository.length > 0) {

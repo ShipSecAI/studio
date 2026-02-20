@@ -40,6 +40,10 @@ export function useSecurityFindings(
           compliance_frameworks: { terms: { field: 'compliance.keyword', size: 50 } },
           check_names: { terms: { field: 'check_name.keyword', size: 200 } },
           status_counts: { terms: { field: 'status.keyword' } },
+          scanners: { terms: { field: 'scanner', size: 50 } },
+          repositories: { terms: { field: 'shipsec.trigger_source.keyword', size: 100 } },
+          rule_ids: { terms: { field: 'rule_id.keyword', size: 200 } },
+          files: { terms: { field: 'file.keyword', size: 200 } },
         },
       });
 
@@ -59,6 +63,10 @@ export function useSecurityFindings(
           complianceFrameworks: result.aggregations?.compliance_frameworks?.buckets ?? [],
           checkNames: result.aggregations?.check_names?.buckets ?? [],
           statusCounts: result.aggregations?.status_counts?.buckets ?? [],
+          scanners: result.aggregations?.scanners?.buckets ?? [],
+          repositories: result.aggregations?.repositories?.buckets ?? [],
+          ruleIds: result.aggregations?.rule_ids?.buckets ?? [],
+          files: result.aggregations?.files?.buckets ?? [],
         },
       };
     },
@@ -284,7 +292,7 @@ export function useCategoryCounts(scannerToCategory: Record<string, string>, cat
         size: 0,
         aggs: {
           by_scanner: {
-            terms: { field: 'scanner.keyword', size: 20 },
+            terms: { field: 'scanner', size: 20 },
             aggs: {
               by_severity: { terms: { field: 'severity.keyword' } },
             },
