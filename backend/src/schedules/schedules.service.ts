@@ -13,7 +13,6 @@ import type { WorkflowScheduleRecord } from '../database/schema';
 import { TemporalService, type ScheduleTriggerWorkflowArgs } from '../temporal/temporal.service';
 import { CreateScheduleRequestDto, UpdateScheduleRequestDto } from './dto/schedule.dto';
 import type { ScheduleRepositoryFilters } from './repository/schedule.repository';
-import { AuditLogService } from '../audit/audit-log.service';
 
 @Injectable()
 export class SchedulesService {
@@ -23,7 +22,6 @@ export class SchedulesService {
     private readonly repository: ScheduleRepository,
     private readonly workflowsService: WorkflowsService,
     private readonly temporalService: TemporalService,
-    private readonly auditLogService: AuditLogService,
   ) {}
 
   async list(auth: AuthContext | null, filters: ScheduleRepositoryFilters = {}) {
@@ -107,7 +105,7 @@ export class SchedulesService {
       throw error;
     }
 
-    const updated = await this.repository.update(
+    let updated = await this.repository.update(
       record.id,
       {
         temporalScheduleId: record.id,
@@ -116,16 +114,7 @@ export class SchedulesService {
       { organizationId: context.organizationId },
     );
 
-    this.auditLogService.record(auth, {
-      action: 'schedule.create',
-      resourceType: 'schedule',
-      resourceId: (updated ?? record).id,
-      resourceName: (updated ?? record).name,
-      metadata: {
-        workflowId: (updated ?? record).workflowId,
-        cronExpression: (updated ?? record).cronExpression,
-      },
-    });
+    updated = await this.syncTimesFromTemporal(updated ?? record);
 
     return this.mapRecord(updated ?? record);
   }
@@ -178,7 +167,7 @@ export class SchedulesService {
       });
     }
 
-    const updated = await this.repository.update(
+    let updated = await this.repository.update(
       existing.id,
       {
         workflowId: context.workflow.id,
@@ -201,13 +190,7 @@ export class SchedulesService {
       throw new NotFoundException(`Schedule ${id} not found`);
     }
 
-    this.auditLogService.record(auth, {
-      action: 'schedule.update',
-      resourceType: 'schedule',
-      resourceId: updated.id,
-      resourceName: updated.name,
-      metadata: { workflowId: updated.workflowId, cronExpression: updated.cronExpression },
-    });
+    updated = await this.syncTimesFromTemporal(updated);
 
     return this.mapRecord(updated);
   }
@@ -226,14 +209,6 @@ export class SchedulesService {
       });
     }
     await this.repository.delete(existing.id, { organizationId: existing.organizationId });
-
-    this.auditLogService.record(auth, {
-      action: 'schedule.delete',
-      resourceType: 'schedule',
-      resourceId: existing.id,
-      resourceName: existing.name,
-      metadata: { workflowId: existing.workflowId },
-    });
   }
 
   async pause(auth: AuthContext | null, id: string): Promise<WorkflowSchedule> {
@@ -243,18 +218,12 @@ export class SchedulesService {
     if (temporalScheduleId) {
       await this.temporalService.pauseSchedule(temporalScheduleId);
     }
-    const updated = await this.repository.update(
+    let updated = await this.repository.update(
       existing.id,
       { status: 'paused' },
       { organizationId: existing.organizationId },
     );
-    this.auditLogService.record(auth, {
-      action: 'schedule.pause',
-      resourceType: 'schedule',
-      resourceId: existing.id,
-      resourceName: existing.name,
-    });
-
+    updated = await this.syncTimesFromTemporal(updated ?? existing);
     return this.mapRecord(updated ?? existing);
   }
 
@@ -265,19 +234,12 @@ export class SchedulesService {
     if (temporalScheduleId) {
       await this.temporalService.resumeSchedule(temporalScheduleId);
     }
-    const updated = await this.repository.update(
+    let updated = await this.repository.update(
       existing.id,
       { status: 'active' },
       { organizationId: existing.organizationId },
     );
-
-    this.auditLogService.record(auth, {
-      action: 'schedule.resume',
-      resourceType: 'schedule',
-      resourceId: existing.id,
-      resourceName: existing.name,
-    });
-
+    updated = await this.syncTimesFromTemporal(updated ?? existing);
     return this.mapRecord(updated ?? existing);
   }
 
@@ -308,14 +270,6 @@ export class SchedulesService {
     );
 
     await this.workflowsService.startPreparedRun(prepared);
-
-    this.auditLogService.record(auth, {
-      action: 'schedule.trigger',
-      resourceType: 'schedule',
-      resourceId: existing.id,
-      resourceName: existing.name,
-      metadata: { workflowId: existing.workflowId },
-    });
   }
 
   private async findOwnedScheduleOrThrow(id: string, auth: AuthContext | null) {
@@ -431,6 +385,40 @@ export class SchedulesService {
           );
         }
       }
+    }
+  }
+
+  private async syncTimesFromTemporal(
+    record: WorkflowScheduleRecord,
+  ): Promise<WorkflowScheduleRecord> {
+    const temporalScheduleId = record.temporalScheduleId ?? record.id;
+    if (!temporalScheduleId) return record;
+
+    try {
+      const description = await this.temporalService.describeSchedule(temporalScheduleId);
+
+      const nextRunAt = description.info.nextActionTimes?.[0] ?? null;
+      const recentActions = description.info.recentActions ?? [];
+      const lastRunAt =
+        recentActions.length > 0 ? recentActions[recentActions.length - 1].takenAt : null;
+
+      const updated = await this.repository.update(
+        record.id,
+        {
+          nextRunAt: nextRunAt ?? null,
+          lastRunAt: lastRunAt ?? null,
+        },
+        { organizationId: record.organizationId },
+      );
+
+      return updated ?? record;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to sync schedule times from Temporal for ${record.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return record;
     }
   }
 

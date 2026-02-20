@@ -509,14 +509,28 @@ export function SchedulesPage() {
                               </Tooltip>
                             </TableCell>
                             <TableCell className="text-sm hidden sm:table-cell">
-                              <span className="truncate block">
-                                {formatDateTime(schedule.nextRunAt)}
-                              </span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="truncate block">
+                                    {formatDateTime(schedule.nextRunAt)}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                  {formatDateTime(schedule.nextRunAt)}
+                                </TooltipContent>
+                              </Tooltip>
                             </TableCell>
                             <TableCell className="text-sm hidden lg:table-cell">
-                              <span className="truncate block">
-                                {formatDateTime(schedule.lastRunAt)}
-                              </span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="truncate block">
+                                    {formatDateTime(schedule.lastRunAt)}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                  {formatDateTime(schedule.lastRunAt)}
+                                </TooltipContent>
+                              </Tooltip>
                             </TableCell>
                             <TableCell>{renderStatusBadge(schedule.status)}</TableCell>
                             <TableCell className="text-right">
