@@ -6,6 +6,7 @@ import { PostHogProvider } from 'posthog-js/react';
 import posthog from 'posthog-js';
 import { initializeTheme } from '@/store/themeStore';
 import { isAnalyticsEnabled } from '@/features/analytics/config';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const hasPostHog = isAnalyticsEnabled();
 
@@ -44,12 +45,44 @@ setTimeout(() => {
   });
 }, 0);
 
+// Global error listeners
+function handleUnhandledRejection(event: PromiseRejectionEvent) {
+  const reason = event.reason;
+  if (reason?.name === 'AbortError' || reason?.name === 'CanceledError') return;
+  console.error('[UnhandledRejection]', {
+    name: reason?.name,
+    message: reason?.message ?? String(reason),
+  });
+}
+
+function handleGlobalError(event: ErrorEvent) {
+  console.error('[GlobalError]', {
+    message: event.message,
+    source: event.filename,
+    line: event.lineno,
+  });
+}
+
+window.addEventListener('unhandledrejection', handleUnhandledRejection);
+window.addEventListener('error', handleGlobalError);
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    window.removeEventListener('error', handleGlobalError);
+  });
+}
+
 const appContent = hasPostHog ? (
   <PostHogProvider client={posthog}>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </PostHogProvider>
 ) : (
-  <App />
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
 );
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
