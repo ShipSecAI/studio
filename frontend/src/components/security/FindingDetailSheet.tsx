@@ -15,9 +15,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { SecurityFinding, FindingLifecycle } from '@/lib/securityQueryHelpers';
 
-const SCANNER_LOGO: Record<string, { src: string; alt: string }> = {
-  opengrep: { src: '/icons/opengrep.svg', alt: 'OpenGrep' },
-  trufflehog: { src: '/icons/trufflehog.svg', alt: 'TruffleHog' },
+const SCANNER_LOGO: Record<string, { src?: string; emoji?: string; alt: string }> = {
+  opengrep: { src: '/icons/opengrep.ico', alt: 'OpenGrep' },
+  trufflehog: { emoji: '🔑', alt: 'TruffleHog' },
   prowler: { src: '/icons/prowler.svg', alt: 'Prowler' },
   nuclei: { src: '/icons/nuclei.svg', alt: 'Nuclei' },
   safedep: { src: '/icons/safedep.png', alt: 'SafeDep' },
@@ -29,6 +29,7 @@ interface FindingDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   lifecycle: FindingLifecycle | null;
   lifecycleLoading: boolean;
+  accountNameMap?: Map<string, string>;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -86,6 +87,7 @@ export function FindingDetailSheet({
   onOpenChange,
   lifecycle,
   lifecycleLoading,
+  accountNameMap,
 }: FindingDetailSheetProps) {
   const [rawExpanded, setRawExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -139,13 +141,21 @@ export function FindingDetailSheet({
                     label="Scanner"
                     value={
                       <span className="inline-flex items-center gap-1.5">
-                        {SCANNER_LOGO[finding.scanner] && (
+                        {SCANNER_LOGO[finding.scanner]?.emoji ? (
+                          <span
+                            className="w-4 h-4 flex items-center justify-center text-sm"
+                            role="img"
+                            aria-label={SCANNER_LOGO[finding.scanner].alt}
+                          >
+                            {SCANNER_LOGO[finding.scanner].emoji}
+                          </span>
+                        ) : SCANNER_LOGO[finding.scanner]?.src ? (
                           <img
                             src={SCANNER_LOGO[finding.scanner].src}
                             alt={SCANNER_LOGO[finding.scanner].alt}
                             className="w-4 h-4 rounded object-contain"
                           />
-                        )}
+                        ) : null}
                         {finding.scanner}
                       </span>
                     }
@@ -163,7 +173,21 @@ export function FindingDetailSheet({
                 </>
               ) : (
                 <>
-                  <DetailRow label="Account ID" value={finding.account_id} />
+                  <DetailRow
+                    label="Account"
+                    value={
+                      finding.account_id ? (
+                        <div>
+                          <div>{accountNameMap?.get(finding.account_id) ?? finding.account_id}</div>
+                          {accountNameMap?.has(finding.account_id) && (
+                            <div className="text-xs text-muted-foreground font-mono">
+                              {finding.account_id}
+                            </div>
+                          )}
+                        </div>
+                      ) : null
+                    }
+                  />
                   <DetailRow label="Region" value={finding.region} />
                   <DetailRow
                     label="Resource"
@@ -177,13 +201,21 @@ export function FindingDetailSheet({
                     label="Scanner"
                     value={
                       <span className="inline-flex items-center gap-1.5">
-                        {SCANNER_LOGO[finding.scanner] && (
+                        {SCANNER_LOGO[finding.scanner]?.emoji ? (
+                          <span
+                            className="w-4 h-4 flex items-center justify-center text-sm"
+                            role="img"
+                            aria-label={SCANNER_LOGO[finding.scanner].alt}
+                          >
+                            {SCANNER_LOGO[finding.scanner].emoji}
+                          </span>
+                        ) : SCANNER_LOGO[finding.scanner]?.src ? (
                           <img
                             src={SCANNER_LOGO[finding.scanner].src}
                             alt={SCANNER_LOGO[finding.scanner].alt}
                             className="w-4 h-4 rounded object-contain"
                           />
-                        )}
+                        ) : null}
                         {finding.scanner}
                       </span>
                     }

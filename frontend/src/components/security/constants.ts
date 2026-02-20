@@ -41,3 +41,14 @@ export const QUICK_SCANS = [
     icon: Shield,
   },
 ];
+
+export const CODE_SCHEDULE_SCANS = [
+  ...QUICK_SCANS,
+  {
+    id: 'full-code-security',
+    templateSlug: 'sys-full-code-security',
+    name: 'Full Code Security',
+    description: 'Secret Detection + SAST + Dependency Audit',
+    icon: ShieldCheck,
+  },
+];

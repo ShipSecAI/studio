@@ -11,6 +11,9 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 
 /**
@@ -103,6 +106,11 @@ const outputSchema = outputs({
     label: 'Findings',
     description: 'Array of vulnerable dependencies in standardized format.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
+  }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
   findingCount: port(z.number(), {
     label: 'Finding Count',
@@ -362,8 +370,23 @@ const definition = defineComponent({
       });
     }
 
+    // Build analytics-ready results
+    const results: AnalyticsResult[] = findings.map((finding) => ({
+      ...finding,
+      scanner: 'dependency',
+      title: `${finding.vulnerability_id} in ${finding.package}`,
+      asset_key: `${finding.package}@${finding.version}`,
+      finding_hash: generateFindingHash(
+        'dependency',
+        finding.package,
+        finding.version,
+        finding.vulnerability_id,
+      ),
+    }));
+
     const output: Output = {
       findings,
+      results,
       findingCount: findings.length,
       packageCount: vetOutput.packages || 0,
       rawOutput,

@@ -27,14 +27,20 @@ export function SecurityTabBar() {
   const setViewFilter = useSecurityDashboardStore((s) => s.setViewFilter);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Sync ?view= param to store whenever URL changes (no param = home)
+  // Sync ?view= param to store — only re-run when the view param itself changes,
+  // not when other params (page, sort, etc.) change, to avoid resetting the page.
+  const viewParam = searchParams.get('view');
   useEffect(() => {
-    const viewParam = searchParams.get('view');
     const targetViewId = viewParam ?? 'home';
     if (targetViewId !== activeViewId) {
       const view = getBuiltInView(targetViewId);
       if (view && !view.disabled) {
-        setActiveView(targetViewId);
+        // If the tab was closed, reopen it (which also sets it active)
+        if (!openViewIds.includes(targetViewId)) {
+          reopenBuiltInView(targetViewId);
+        } else {
+          setActiveView(targetViewId);
+        }
         setViewFilter(view.baseFilter);
       }
     } else {
@@ -43,7 +49,7 @@ export function SecurityTabBar() {
         setViewFilter(view.baseFilter);
       }
     }
-  }, [searchParams]);
+  }, [viewParam]);
 
   const updateUrlParam = (viewId: string) => {
     setSearchParams(

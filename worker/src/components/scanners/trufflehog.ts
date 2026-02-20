@@ -11,6 +11,9 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 
 /**
@@ -131,6 +134,11 @@ const outputSchema = outputs({
     label: 'Findings',
     description: 'Array of detected secrets in standardized format.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
+  }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
   findingCount: port(z.number(), {
     label: 'Finding Count',
@@ -470,8 +478,24 @@ const definition = defineComponent({
       });
     }
 
+    // Build analytics-ready results
+    const results: AnalyticsResult[] = findings.map((finding) => ({
+      ...finding,
+      scanner: 'trufflehog',
+      title: `${finding.secret_type} secret`,
+      asset_key: finding.file,
+      finding_hash: generateFindingHash(
+        'trufflehog',
+        finding.type,
+        finding.file,
+        String(finding.line),
+        finding.secret_type,
+      ),
+    }));
+
     const output: Output = {
       findings,
+      results,
       findingCount: findings.length,
       verifiedCount,
       rawOutput,

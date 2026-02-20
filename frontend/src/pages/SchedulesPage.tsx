@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,13 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -20,7 +27,18 @@ import {
 } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PauseCircle, PlayCircle, RefreshCw, Search, Edit3, Plus, Trash2 } from 'lucide-react';
+import {
+  Cloud,
+  Code,
+  PauseCircle,
+  PlayCircle,
+  RefreshCw,
+  Search,
+  Edit3,
+  Plus,
+  Settings,
+  Trash2,
+} from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import {
   useSchedules,
@@ -36,6 +54,25 @@ import {
   type WorkflowOption,
 } from '@/components/schedules/ScheduleEditorDrawer';
 import type { WorkflowSchedule } from '@shipsec/shared';
+import { useGitHubStore } from '@/store/githubStore';
+import { CloudScanScheduleDialog } from '@/components/security/CloudScanScheduleDialog';
+import { CodeScanScheduleDialog } from '@/components/security/CodeScanScheduleDialog';
+import { CODE_SCHEDULE_SCANS } from '@/components/security/constants';
+
+const CLOUD_SCAN_TYPES = [
+  {
+    slug: 'cloud-security-scan',
+    templateSlug: 'sys-cloud-security-scan',
+    name: 'Misconfiguration Scan',
+    description: 'Prowler — CIS, GDPR, HIPAA benchmarks',
+  },
+  {
+    slug: 'container-image-scan',
+    templateSlug: 'sys-container-image-scan',
+    name: 'Container Image Scan',
+    description: 'Trivy — ECR image vulnerability scan',
+  },
+];
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
@@ -75,6 +112,34 @@ export function SchedulesPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorMode, setEditorMode] = useState<'create' | 'edit'>('create');
   const [activeSchedule, setActiveSchedule] = useState<WorkflowSchedule | null>(null);
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const [cloudScheduleOpen, setCloudScheduleOpen] = useState(false);
+  const [cloudScanSlug, setCloudScanSlug] = useState<string | undefined>();
+  const [codeScheduleOpen, setCodeScheduleOpen] = useState(false);
+  const [codeScanId, setCodeScanId] = useState<string | undefined>();
+
+  const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
+  const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
+
+  useEffect(() => {
+    if (chooserOpen) fetchSystemWorkflows();
+  }, [chooserOpen, fetchSystemWorkflows]);
+
+  const resolvedCloudScans = useMemo(() => {
+    return CLOUD_SCAN_TYPES.flatMap((scan) => {
+      const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
+      if (!match) return [];
+      return [scan];
+    });
+  }, [systemWorkflows]);
+
+  const resolvedCodeScans = useMemo(() => {
+    return CODE_SCHEDULE_SCANS.flatMap((scan) => {
+      const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
+      if (!match) return [];
+      return [scan];
+    });
+  }, [systemWorkflows]);
 
   // Local filter state (search is client-side, workflowId & status go to the query)
   const initialWorkflowId = searchParams.get('workflowId') || null;
@@ -261,7 +326,7 @@ export function SchedulesPage() {
 
   const isActionBusy = (id: string) => Boolean(actionState[id]);
   const getScheduleScansHref = (scheduleId: string) =>
-    `/github?tab=scans&source=schedule&scheduleId=${encodeURIComponent(scheduleId)}`;
+    `/github/scans?source=schedule&scheduleId=${encodeURIComponent(scheduleId)}`;
 
   const renderStatusBadge = (status: string) => {
     const variant = STATUS_VARIANTS[status] || 'outline';
@@ -299,7 +364,7 @@ export function SchedulesPage() {
                 <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                 <span className="hidden sm:inline">Refresh</span>
               </Button>
-              <Button variant="default" className="gap-2" onClick={openCreateDrawer}>
+              <Button variant="default" className="gap-2" onClick={() => setChooserOpen(true)}>
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">New schedule</span>
               </Button>
@@ -532,7 +597,118 @@ export function SchedulesPage() {
         }
         workflowOptions={workflowOptions}
         onClose={() => setEditorOpen(false)}
+        onBack={
+          editorMode === 'create'
+            ? () => {
+                setEditorOpen(false);
+                setChooserOpen(true);
+              }
+            : undefined
+        }
         onSaved={handleScheduleSaved}
+      />
+      {/* Scan type chooser dialog */}
+      <Dialog open={chooserOpen} onOpenChange={(isOpen) => !isOpen && setChooserOpen(false)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>New Schedule</DialogTitle>
+            <DialogDescription>What would you like to schedule?</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            {resolvedCloudScans.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Cloud className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium uppercase text-muted-foreground tracking-wide">
+                    Cloud Security
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {resolvedCloudScans.map((scan) => (
+                    <button
+                      key={scan.slug}
+                      type="button"
+                      onClick={() => {
+                        setChooserOpen(false);
+                        setCloudScanSlug(scan.slug);
+                        setCloudScheduleOpen(true);
+                      }}
+                      className="rounded-lg border border-border p-3 text-left text-sm hover:border-primary/50 transition-colors"
+                    >
+                      <div className="font-medium">{scan.name}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{scan.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {resolvedCodeScans.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Code className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium uppercase text-muted-foreground tracking-wide">
+                    Code Security
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {resolvedCodeScans.map((scan) => (
+                    <button
+                      key={scan.id}
+                      type="button"
+                      onClick={() => {
+                        setChooserOpen(false);
+                        setCodeScanId(scan.id);
+                        setCodeScheduleOpen(true);
+                      }}
+                      className="rounded-lg border border-border p-3 text-left text-sm hover:border-primary/50 transition-colors"
+                    >
+                      <div className="font-medium">{scan.name}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{scan.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="border-t pt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setChooserOpen(false);
+                  openCreateDrawer();
+                }}
+                className="w-full flex items-start gap-3 rounded-lg border border-border p-3 text-left text-sm hover:border-primary/50 transition-colors"
+              >
+                <Settings className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div>
+                  <div className="font-medium">Custom Workflow</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Advanced: schedule any workflow with full control over inputs & overrides
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <CloudScanScheduleDialog
+        open={cloudScheduleOpen}
+        onClose={() => {
+          setCloudScheduleOpen(false);
+          setCloudScanSlug(undefined);
+        }}
+        connection={null}
+        preSelectedScanSlug={cloudScanSlug}
+      />
+      <CodeScanScheduleDialog
+        open={codeScheduleOpen}
+        onClose={() => {
+          setCodeScheduleOpen(false);
+          setCodeScanId(undefined);
+        }}
+        preSelectedScanId={codeScanId}
       />
     </TooltipProvider>
   );

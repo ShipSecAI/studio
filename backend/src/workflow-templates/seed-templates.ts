@@ -106,8 +106,8 @@ function secretScanTemplate(): SeedTemplate {
         makeEdge('e3', trufflehog, normalize, 'findings', 'rawFindings'),
         // normalize → markdown: pass normalized findings
         makeEdge('e4', normalize, markdown, 'findings', 'findings'),
-        // normalize → analytics: index findings for dashboards
-        makeEdge('e5', normalize, analytics, 'findings', 'input1'),
+        // trufflehog → analytics: index findings for dashboards (bypass normalize)
+        makeEdge('e5', trufflehog, analytics, 'results', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -156,8 +156,8 @@ function sastScanTemplate(): SeedTemplate {
         makeEdge('e2', cloneRepo, opengrep, 'volumeName', 'volumeName'),
         makeEdge('e3', opengrep, normalize, 'findings', 'rawFindings'),
         makeEdge('e4', normalize, markdown, 'findings', 'findings'),
-        // normalize → analytics: index findings for dashboards
-        makeEdge('e5', normalize, analytics, 'findings', 'input1'),
+        // opengrep → analytics: index findings for dashboards (bypass normalize)
+        makeEdge('e5', opengrep, analytics, 'results', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -205,8 +205,8 @@ function dependencyScanTemplate(): SeedTemplate {
         makeEdge('e2', cloneRepo, depScanner, 'volumeName', 'volumeName'),
         makeEdge('e3', depScanner, normalize, 'findings', 'rawFindings'),
         makeEdge('e4', normalize, markdown, 'findings', 'findings'),
-        // normalize → analytics: index findings for dashboards
-        makeEdge('e5', normalize, analytics, 'findings', 'input1'),
+        // depScanner → analytics: index findings for dashboards (bypass normalize)
+        makeEdge('e5', depScanner, analytics, 'results', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -296,10 +296,10 @@ function fullCodeSecurityTemplate(): SeedTemplate {
         makeEdge('e11', mdSecrets, joiner, 'markdown', 'items'),
         makeEdge('e12', mdSast, joiner, 'markdown', 'items'),
         makeEdge('e13', mdDeps, joiner, 'markdown', 'items'),
-        // Normalize → Analytics (index all findings for dashboards)
-        makeEdge('e14', normSecrets, analytics, 'findings', 'input1'),
-        makeEdge('e15', normSast, analytics, 'findings', 'input2'),
-        makeEdge('e16', normDeps, analytics, 'findings', 'input3'),
+        // Scanners → Analytics (bypass normalize, use results port directly)
+        makeEdge('e14', trufflehog, analytics, 'results', 'input1'),
+        makeEdge('e15', opengrep, analytics, 'results', 'input2'),
+        makeEdge('e16', depScanner, analytics, 'results', 'input3'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.5 },
     },
@@ -399,10 +399,10 @@ function prSecurityGateTemplate(): SeedTemplate {
         makeEdge('e15', joiner, prComment, 'text', 'body'),
         // PR Context → Check Run (pass SHA and repo info)
         makeEdge('e16', prContext, checkRun, 'headSha', 'headSha'),
-        // Normalize → Analytics (index all findings for dashboards)
-        makeEdge('e17', normSecrets, analytics, 'findings', 'input1'),
-        makeEdge('e18', normSast, analytics, 'findings', 'input2'),
-        makeEdge('e19', normDeps, analytics, 'findings', 'input3'),
+        // Scanners → Analytics (bypass normalize, use results port directly)
+        makeEdge('e17', trufflehog, analytics, 'results', 'input1'),
+        makeEdge('e18', opengrep, analytics, 'results', 'input2'),
+        makeEdge('e19', depScanner, analytics, 'results', 'input3'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.45 },
     },
@@ -499,10 +499,10 @@ function aiCodeReviewTemplate(): SeedTemplate {
         makeEdge('e14', joiner, aiAgent, 'text', 'userInput'),
         // AI Agent → PR Comment
         makeEdge('e15', aiAgent, prComment, 'responseText', 'body'),
-        // Normalize → Analytics (index all findings for dashboards)
-        makeEdge('e16', normSast, analytics, 'findings', 'input1'),
-        makeEdge('e17', normSecrets, analytics, 'findings', 'input2'),
-        makeEdge('e18', normDeps, analytics, 'findings', 'input3'),
+        // Scanners → Analytics (bypass normalize, use results port directly)
+        makeEdge('e16', opengrep, analytics, 'results', 'input1'),
+        makeEdge('e17', trufflehog, analytics, 'results', 'input2'),
+        makeEdge('e18', depScanner, analytics, 'results', 'input3'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.4 },
     },
@@ -518,7 +518,6 @@ function cloudSecurityScanTemplate(): SeedTemplate {
   const entryPoint = nid('node');
   const awsCreds = nid('node');
   const prowler = nid('node');
-  const normalize = nid('node');
   const analytics = nid('node');
 
   return {
@@ -546,8 +545,7 @@ function cloudSecurityScanTemplate(): SeedTemplate {
           { parameters: { provider: 'aws' } },
         ),
         makeNode(prowler, 'security.prowler.scan', 'Prowler', 600, 0),
-        makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 900, 0),
-        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1200, 0, {
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 900, 0, {
           dataInputs: [{ id: 'input1', label: 'Prowler Findings', sourceTag: 'prowler' }],
         }),
       ],
@@ -558,10 +556,8 @@ function cloudSecurityScanTemplate(): SeedTemplate {
         makeEdge('e2', awsCreds, prowler, 'data', 'credentials'),
         makeEdge('e2b', awsCreds, prowler, 'accountId', 'accountId'),
         makeEdge('e2c', awsCreds, prowler, 'regions', 'regions'),
-        // Prowler → Normalize (for normalized findings output)
-        makeEdge('e3', prowler, normalize, 'findings', 'rawFindings'),
-        // Normalize → Analytics (index normalized findings for dashboards)
-        makeEdge('e4', normalize, analytics, 'findings', 'input1'),
+        // Prowler → Analytics (use results port directly, bypass normalize)
+        makeEdge('e3', prowler, analytics, 'results', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -580,7 +576,6 @@ function attackSurfaceReconTemplate(): SeedTemplate {
   const httpx = nid('node');
   const naabu = nid('node');
   const nuclei = nid('node');
-  const normalize = nid('node');
   const analytics = nid('node');
 
   return {
@@ -604,8 +599,7 @@ function attackSurfaceReconTemplate(): SeedTemplate {
         makeNode(httpx, 'shipsec.httpx.scan', 'HTTPx', 900, -100),
         makeNode(naabu, 'shipsec.naabu.scan', 'Naabu', 900, 100),
         makeNode(nuclei, 'shipsec.nuclei.scan', 'Nuclei', 1200, 0),
-        makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 1500, 0),
-        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1800, 0),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1500, 0),
       ],
       edges: [
         // Entry Point → Subfinder (domains injected at trigger time)
@@ -617,10 +611,8 @@ function attackSurfaceReconTemplate(): SeedTemplate {
         makeEdge('e4', dnsx, naabu, 'resolvedHosts', 'targets'),
         // HTTPx → Nuclei (pass live hosts as targets)
         makeEdge('e5', httpx, nuclei, 'responses', 'targets'),
-        // Nuclei → Normalize
-        makeEdge('e6', nuclei, normalize, 'findings', 'rawFindings'),
-        // Normalize → Analytics
-        makeEdge('e7', normalize, analytics, 'findings', 'input1'),
+        // Nuclei → Analytics (use results port directly, bypass normalize)
+        makeEdge('e6', nuclei, analytics, 'results', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.6 },
     },
@@ -676,12 +668,11 @@ function containerImageScanTemplate(): SeedTemplate {
       edges: [
         // Entry Point → Trivy: pass image reference
         makeEdge('e1', entryPoint, trivy, 'imageRef', 'imageRef'),
-        // Trivy → Normalize: pass findings
+        // Trivy → Normalize → Markdown: pass findings for report
         makeEdge('e2', trivy, normalize, 'findings', 'rawFindings'),
-        // Normalize → Markdown: pass normalized findings
         makeEdge('e3', normalize, markdown, 'findings', 'findings'),
-        // Normalize → Analytics: index findings for dashboards
-        makeEdge('e4', normalize, analytics, 'findings', 'input1'),
+        // Trivy → Analytics: use results port directly (bypass normalize)
+        makeEdge('e4', trivy, analytics, 'results', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.7 },
     },

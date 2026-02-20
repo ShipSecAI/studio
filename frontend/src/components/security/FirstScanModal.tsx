@@ -10,12 +10,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, Loader2, FolderGit } from 'lucide-react';
+import { Search, Loader2, FolderGit, CalendarClock } from 'lucide-react';
 import { useGitHubRepositories, useTriggerScan } from '@/hooks/queries/useGithubQueries';
 import type { GitHubRepo } from '@/store/githubStore';
 import { useGitHubStore } from '@/store/githubStore';
 import { useToast } from '@/components/ui/use-toast';
 import { QUICK_SCANS } from './constants';
+import { CodeScanScheduleDialog } from './CodeScanScheduleDialog';
 
 export function FirstScanModal({
   open,
@@ -36,6 +37,7 @@ export function FirstScanModal({
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
   const [repoSearch, setRepoSearch] = useState('');
   const [triggering, setTriggering] = useState<string | null>(null);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
 
   const filteredRepos = useMemo(() => {
     if (!repoSearch.trim()) return repositories;
@@ -171,9 +173,30 @@ export function FirstScanModal({
                 );
               })}
             </div>
+            <div className="pt-2 border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-muted-foreground"
+                onClick={() => setShowScheduleDialog(true)}
+              >
+                <CalendarClock className="h-4 w-4 mr-2" />
+                Schedule this scan instead
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>
+
+      <CodeScanScheduleDialog
+        open={showScheduleDialog}
+        onClose={() => setShowScheduleDialog(false)}
+        repository={selectedRepo ?? undefined}
+        onScheduled={() => {
+          setShowScheduleDialog(false);
+          onClose();
+        }}
+      />
     </Dialog>
   );
 }

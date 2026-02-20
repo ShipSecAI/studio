@@ -251,7 +251,7 @@ export function RecentActivityFeed({
             <div
               className={
                 feedItems.length > 5
-                  ? 'max-h-[320px] overflow-y-auto space-y-1 pr-1 scrollbar-thin'
+                  ? 'max-h-[320px] overflow-y-auto space-y-1 pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [scrollbar-width:thin]'
                   : 'space-y-1'
               }
             >

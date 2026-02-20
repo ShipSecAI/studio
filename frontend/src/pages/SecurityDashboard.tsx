@@ -25,10 +25,12 @@ import {
   Scan,
   ArrowRight,
   PlayCircle,
+  GitBranch,
 } from 'lucide-react';
 import { useSecurityDashboardStore } from '@/store/securityDashboardStore';
 import { useSecurityViewStore } from '@/store/securityViewStore';
-import { useGitHubInstallations } from '@/hooks/queries/useGithubQueries';
+import { useGitHubInstallations, useGitHubScanResults } from '@/hooks/queries/useGithubQueries';
+import { useCloudScans } from '@/hooks/queries/useCloudScanQueries';
 import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries';
 import {
   useSecurityFindings,
@@ -48,9 +50,9 @@ import { CloudFirstScanModal } from '@/components/security/CloudFirstScanModal';
 import { SEVERITY_CONFIG, TIME_RANGES, PAGE_SIZE } from '@/components/security/constants';
 import { cn } from '@/lib/utils';
 
-const SCANNER_LOGO: Record<string, { src: string; alt: string }> = {
-  opengrep: { src: '/icons/opengrep.svg', alt: 'OpenGrep' },
-  trufflehog: { src: '/icons/trufflehog.svg', alt: 'TruffleHog' },
+const SCANNER_LOGO: Record<string, { src?: string; emoji?: string; alt: string }> = {
+  opengrep: { src: '/icons/opengrep.ico', alt: 'OpenGrep' },
+  trufflehog: { emoji: '🔑', alt: 'TruffleHog' },
   prowler: { src: '/icons/prowler.svg', alt: 'Prowler' },
   nuclei: { src: '/icons/nuclei.svg', alt: 'Nuclei' },
   safedep: { src: '/icons/safedep.png', alt: 'SafeDep' },
@@ -98,6 +100,10 @@ export function SecurityDashboardContent() {
   const complianceFrameworks = findingsData?.summary.complianceFrameworks ?? [];
   const checkNames = findingsData?.summary.checkNames ?? [];
   const statusCounts = findingsData?.summary.statusCounts ?? [];
+  const scanners = findingsData?.summary.scanners ?? [];
+  const repositories = findingsData?.summary.repositories ?? [];
+  const ruleIds = findingsData?.summary.ruleIds ?? [];
+  const files = findingsData?.summary.files ?? [];
   const timeSeries = timeSeriesData ?? [];
   const summaryLoading = findingsLoading;
 
@@ -149,6 +155,11 @@ export function SecurityDashboardContent() {
     const tags = searchParams.get('tags');
     const compliance = searchParams.get('compliance');
     const checkName = searchParams.get('checkName');
+    const scanner = searchParams.get('scanner');
+    const repository = searchParams.get('repository');
+    const ruleId = searchParams.get('ruleId');
+    const file = searchParams.get('file');
+    const language = searchParams.get('language');
     const q = searchParams.get('q');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
@@ -164,6 +175,11 @@ export function SecurityDashboardContent() {
     if (tags) initial.tags = tags.split(',');
     if (compliance) initial.compliance = compliance.split(',');
     if (checkName) initial.checkName = checkName.split(',');
+    if (scanner) initial.scanner = scanner.split(',');
+    if (repository) initial.repository = repository.split(',');
+    if (ruleId) initial.ruleId = ruleId.split(',');
+    if (file) initial.file = file.split(',');
+    if (language) initial.language = language.split(',');
     if (q) {
       initial.search = q;
       setSearchInput(q);
@@ -197,6 +213,11 @@ export function SecurityDashboardContent() {
         if (filters.tags.length) params.set('tags', filters.tags.join(','));
         if (filters.compliance.length) params.set('compliance', filters.compliance.join(','));
         if (filters.checkName.length) params.set('checkName', filters.checkName.join(','));
+        if (filters.scanner.length) params.set('scanner', filters.scanner.join(','));
+        if (filters.repository.length) params.set('repository', filters.repository.join(','));
+        if (filters.ruleId.length) params.set('ruleId', filters.ruleId.join(','));
+        if (filters.file.length) params.set('file', filters.file.join(','));
+        if (filters.language.length) params.set('language', filters.language.join(','));
         if (filters.search) params.set('q', filters.search);
         if (filters.from) params.set('from', filters.from);
         if (filters.to) params.set('to', filters.to);
@@ -311,6 +332,61 @@ export function SecurityDashboardContent() {
     [filters.checkName, setFilters],
   );
 
+  const toggleScannerFilter = useCallback(
+    (value: string) => {
+      const current = filters.scanner;
+      const next = current.includes(value)
+        ? current.filter((s) => s !== value)
+        : [...current, value];
+      setFilters({ scanner: next, page: 1 });
+    },
+    [filters.scanner, setFilters],
+  );
+
+  const toggleRepositoryFilter = useCallback(
+    (value: string) => {
+      const current = filters.repository;
+      const next = current.includes(value)
+        ? current.filter((s) => s !== value)
+        : [...current, value];
+      setFilters({ repository: next, page: 1 });
+    },
+    [filters.repository, setFilters],
+  );
+
+  const toggleRuleIdFilter = useCallback(
+    (value: string) => {
+      const current = filters.ruleId;
+      const next = current.includes(value)
+        ? current.filter((s) => s !== value)
+        : [...current, value];
+      setFilters({ ruleId: next, page: 1 });
+    },
+    [filters.ruleId, setFilters],
+  );
+
+  const toggleFileFilter = useCallback(
+    (value: string) => {
+      const current = filters.file;
+      const next = current.includes(value)
+        ? current.filter((s) => s !== value)
+        : [...current, value];
+      setFilters({ file: next, page: 1 });
+    },
+    [filters.file, setFilters],
+  );
+
+  const toggleLanguageFilter = useCallback(
+    (value: string) => {
+      const current = filters.language;
+      const next = current.includes(value)
+        ? current.filter((s) => s !== value)
+        : [...current, value];
+      setFilters({ language: next, page: 1 });
+    },
+    [filters.language, setFilters],
+  );
+
   // Sort
   const handleSort = useCallback(
     (column: string) => {
@@ -345,6 +421,32 @@ export function SecurityDashboardContent() {
     [complianceFrameworks],
   );
   const checkNameOptions = useMemo(() => checkNames.map((c) => c.key), [checkNames]);
+  const scannerOptions = useMemo(() => scanners.map((s) => s.key), [scanners]);
+  const repositoryOptions = useMemo(
+    () => repositories.map((r) => r.key).filter(Boolean),
+    [repositories],
+  );
+  // For code-security view, only show SAST-style rule IDs (dotted identifiers like "php.lang.security...")
+  // This excludes prowler check names ("prowler-cloudtrail_...") and trufflehog detector types ("GitHub", "AWS")
+  const ruleIdOptions = useMemo(() => {
+    const all = ruleIds.map((r) => r.key).filter(Boolean);
+    if (!isCodeSecurityView) return all;
+    return all.filter((id) => id.includes('.'));
+  }, [ruleIds, isCodeSecurityView]);
+  const fileOptions = useMemo(() => files.map((f) => f.key).filter(Boolean), [files]);
+
+  // Derive language options from rule ID prefixes (e.g. "php.lang.security..." → "php")
+  // Always include currently selected languages so they don't vanish when the filter narrows results
+  const languageOptions = useMemo(() => {
+    const langs = new Set<string>(filters.language);
+    for (const r of ruleIds) {
+      const firstDot = r.key.indexOf('.');
+      if (firstDot > 0) {
+        langs.add(r.key.slice(0, firstDot));
+      }
+    }
+    return Array.from(langs).sort();
+  }, [ruleIds, filters.language]);
 
   // Collect unique tag keys from current findings for tag filter options
   const tagKeyOptions = useMemo(() => {
@@ -394,6 +496,11 @@ export function SecurityDashboardContent() {
     filters.tags.length > 0 ||
     filters.compliance.length > 0 ||
     filters.checkName.length > 0 ||
+    filters.scanner.length > 0 ||
+    filters.repository.length > 0 ||
+    filters.ruleId.length > 0 ||
+    filters.file.length > 0 ||
+    filters.language.length > 0 ||
     !!filters.search ||
     !!filters.account;
 
@@ -412,15 +519,45 @@ export function SecurityDashboardContent() {
 
   const hasGitHub = githubInstallations.length > 0;
   const hasAws = orgConnections.some((c) => c.provider === 'aws');
+
+  // Build account_id → display name map from AWS connections
+  const accountNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const conn of orgConnections) {
+      if (conn.provider !== 'aws') continue;
+      const meta = conn.metadata as Record<string, string> | undefined;
+      const roleArn = meta?.roleArn;
+      if (roleArn) {
+        const match = roleArn.match(/:(\d{12}):/);
+        if (match?.[1] && conn.displayName) {
+          map.set(match[1], conn.displayName);
+        }
+      }
+    }
+    return map;
+  }, [orgConnections]);
   const isGitHubView =
     activeViewId === 'code-security' ||
     activeViewId === 'dependency-security' ||
     activeViewId === 'container-security';
 
+  // Check if scans have been previously run (to distinguish "never scanned" from "0 findings")
+  const { data: githubScans } = useGitHubScanResults({ limit: 1 });
+  const { data: cloudScans } = useCloudScans({ limit: 1 });
+  const hasGitHubScans = (githubScans?.data?.length ?? 0) > 0;
+  const hasCloudScans = (cloudScans?.runs?.length ?? 0) > 0;
+
   const errorMessage = error instanceof Error ? error.message : error ? String(error) : null;
 
   // --- Empty state: no findings and no active filters -> show CTA ---
-  if (totalFindings === 0 && !hasActiveFilters && (!summaryLoading || errorMessage)) {
+  // Skip entirely if scans have already been run (0 findings is a valid result, show normal dashboard)
+  const hasAnyScans = hasGitHubScans || hasCloudScans;
+  if (
+    totalFindings === 0 &&
+    !hasActiveFilters &&
+    !hasAnyScans &&
+    (!summaryLoading || errorMessage)
+  ) {
     // For cloud-security view when AWS is already connected, show "Run First Scan"
     if (activeViewId === 'cloud-security' && hasAws) {
       return (
@@ -576,8 +713,8 @@ export function SecurityDashboardContent() {
                   )}
                 </TabsTrigger>
                 {accounts.map((acct) => (
-                  <TabsTrigger key={acct.key} value={acct.key} className="text-xs font-mono">
-                    {formatAccountId(acct.key)}
+                  <TabsTrigger key={acct.key} value={acct.key} className="text-xs">
+                    {accountNameMap.get(acct.key) ?? formatAccountId(acct.key)}
                     <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">
                       {acct.doc_count}
                     </Badge>
@@ -649,12 +786,57 @@ export function SecurityDashboardContent() {
             selected={filters.severity}
             onToggle={(v) => toggleSeverityFilter(v)}
           />
-          <FilterPopover
-            label="Status"
-            options={statusOptions}
-            selected={filters.status}
-            onToggle={toggleStatusFilter}
-          />
+          {isCodeSecurityView && languageOptions.length > 0 && (
+            <FilterPopover
+              label="Language"
+              options={languageOptions}
+              selected={filters.language}
+              onToggle={toggleLanguageFilter}
+            />
+          )}
+          {isCodeSecurityView && scannerOptions.length > 0 && (
+            <FilterPopover
+              label="Scanner"
+              options={scannerOptions}
+              selected={filters.scanner}
+              onToggle={toggleScannerFilter}
+            />
+          )}
+          {isCodeSecurityView && repositoryOptions.length > 0 && (
+            <FilterPopover
+              label="Repository"
+              options={repositoryOptions}
+              selected={filters.repository}
+              onToggle={toggleRepositoryFilter}
+              wide
+            />
+          )}
+          {isCodeSecurityView && ruleIdOptions.length > 0 && (
+            <FilterPopover
+              label="Rule"
+              options={ruleIdOptions}
+              selected={filters.ruleId}
+              onToggle={toggleRuleIdFilter}
+              wide
+            />
+          )}
+          {isCodeSecurityView && fileOptions.length > 0 && (
+            <FilterPopover
+              label="File"
+              options={fileOptions}
+              selected={filters.file}
+              onToggle={toggleFileFilter}
+              wide
+            />
+          )}
+          {!isCodeSecurityView && (
+            <FilterPopover
+              label="Status"
+              options={statusOptions}
+              selected={filters.status}
+              onToggle={toggleStatusFilter}
+            />
+          )}
           {!isCodeSecurityView && (
             <FilterPopover
               label="Region"
@@ -720,9 +902,12 @@ export function SecurityDashboardContent() {
                     )}
                   </button>
                 </TableHead>
-                <TableHead className="w-[80px]">Status</TableHead>
+                {!isCodeSecurityView && <TableHead className="w-[80px]">Status</TableHead>}
                 {isCodeSecurityView ? (
-                  <TableHead className="hidden lg:table-cell w-[100px]">Scanner</TableHead>
+                  <>
+                    <TableHead className="hidden md:table-cell w-[150px]">Repository</TableHead>
+                    <TableHead className="hidden lg:table-cell w-[100px]">Scanner</TableHead>
+                  </>
                 ) : (
                   <>
                     <TableHead className="hidden lg:table-cell w-[100px]">Service</TableHead>
@@ -730,8 +915,8 @@ export function SecurityDashboardContent() {
                     <TableHead className="hidden md:table-cell w-[130px]">Account</TableHead>
                   </>
                 )}
-                <TableHead className="hidden xl:table-cell w-[100px]">First Seen</TableHead>
-                <TableHead className="w-[120px]">
+                <TableHead className="hidden xl:table-cell w-[140px]">First Seen</TableHead>
+                <TableHead className="w-[140px]">
                   <button
                     className="inline-flex items-center gap-1 hover:text-foreground"
                     onClick={() => handleSort('@timestamp')}
@@ -760,13 +945,20 @@ export function SecurityDashboardContent() {
                       <TableCell>
                         <Skeleton className="h-4 w-16" />
                       </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-14" />
-                      </TableCell>
-                      {isCodeSecurityView ? (
-                        <TableCell className="hidden lg:table-cell">
-                          <Skeleton className="h-4 w-16" />
+                      {!isCodeSecurityView && (
+                        <TableCell>
+                          <Skeleton className="h-4 w-14" />
                         </TableCell>
+                      )}
+                      {isCodeSecurityView ? (
+                        <>
+                          <TableCell className="hidden md:table-cell">
+                            <Skeleton className="h-4 w-24" />
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell">
+                            <Skeleton className="h-4 w-16" />
+                          </TableCell>
+                        </>
                       ) : (
                         <>
                           <TableCell className="hidden lg:table-cell">
@@ -816,26 +1008,26 @@ export function SecurityDashboardContent() {
                       <span className="text-sm font-medium line-clamp-1">
                         {finding.title ?? 'Untitled'}
                       </span>
-                      {isCodeSecurityView && finding.shipsec?.trigger_source && (
-                        <span
-                          className="text-xs text-muted-foreground line-clamp-1"
-                          title={finding.shipsec.trigger_source}
-                        >
-                          {finding.shipsec.trigger_source}
-                        </span>
-                      )}
                       {finding.file && (
                         <span className="text-xs text-muted-foreground line-clamp-1 font-mono">
                           {finding.file}
                           {finding.line ? `:${finding.line}` : ''}
                         </span>
                       )}
-                      {!finding.file && finding.asset_key && (
+                      {!finding.file && !isCodeSecurityView && finding.asset_key && (
                         <span className="text-xs text-muted-foreground line-clamp-1 font-mono">
                           {finding.asset_key}
                         </span>
                       )}
                       <div className="flex items-center gap-1.5 flex-wrap">
+                        {isCodeSecurityView && finding.rule_id && (
+                          <Badge
+                            variant="outline"
+                            className="h-4 px-1 text-[10px] font-mono font-normal"
+                          >
+                            {finding.rule_id}
+                          </Badge>
+                        )}
                         {finding.check_name && (
                           <span className="text-[11px] text-muted-foreground font-mono">
                             {finding.check_name}
@@ -857,22 +1049,49 @@ export function SecurityDashboardContent() {
                   <TableCell>
                     <SeverityBadge severity={finding.severity} />
                   </TableCell>
-                  <TableCell>
-                    <StatusBadge status={finding.status} />
-                  </TableCell>
-                  {isCodeSecurityView ? (
-                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1.5">
-                        {SCANNER_LOGO[finding.scanner] && (
-                          <img
-                            src={SCANNER_LOGO[finding.scanner].src}
-                            alt={SCANNER_LOGO[finding.scanner].alt}
-                            className="w-4 h-4 rounded object-contain"
-                          />
-                        )}
-                        {finding.scanner}
-                      </div>
+                  {!isCodeSecurityView && (
+                    <TableCell>
+                      <StatusBadge status={finding.status} />
                     </TableCell>
+                  )}
+                  {isCodeSecurityView ? (
+                    <>
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {finding.shipsec?.trigger_source ? (
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <GitBranch className="h-3.5 w-3.5 flex-shrink-0" />
+                            <span
+                              className="line-clamp-1 font-mono text-xs"
+                              title={finding.shipsec.trigger_source}
+                            >
+                              {finding.shipsec.trigger_source.replace(/#.*$|:.*$/, '')}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">--</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          {SCANNER_LOGO[finding.scanner]?.emoji ? (
+                            <span
+                              className="w-4 h-4 flex items-center justify-center text-sm"
+                              role="img"
+                              aria-label={SCANNER_LOGO[finding.scanner].alt}
+                            >
+                              {SCANNER_LOGO[finding.scanner].emoji}
+                            </span>
+                          ) : SCANNER_LOGO[finding.scanner]?.src ? (
+                            <img
+                              src={SCANNER_LOGO[finding.scanner].src}
+                              alt={SCANNER_LOGO[finding.scanner].alt}
+                              className="w-4 h-4 rounded object-contain"
+                            />
+                          ) : null}
+                          {finding.scanner}
+                        </div>
+                      </TableCell>
+                    </>
                   ) : (
                     <>
                       <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
@@ -881,12 +1100,26 @@ export function SecurityDashboardContent() {
                       <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                         {finding.region ?? '--'}
                       </TableCell>
-                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground font-mono">
-                        {finding.account_id ? formatAccountId(finding.account_id) : '--'}
+                      <TableCell className="hidden md:table-cell text-sm">
+                        {finding.account_id ? (
+                          <div>
+                            <div className="text-foreground truncate max-w-[120px]">
+                              {accountNameMap.get(finding.account_id) ??
+                                formatAccountId(finding.account_id)}
+                            </div>
+                            {accountNameMap.has(finding.account_id) && (
+                              <div className="text-xs text-muted-foreground font-mono">
+                                {formatAccountId(finding.account_id)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          '--'
+                        )}
                       </TableCell>
                     </>
                   )}
-                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground whitespace-nowrap">
                     {findingLifecycles[finding.finding_hash] ? (
                       formatTimestamp(findingLifecycles[finding.finding_hash].firstSeen)
                     ) : findingLifecyclesLoading ? (
@@ -895,7 +1128,7 @@ export function SecurityDashboardContent() {
                       '--'
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                     {formatTimestamp(finding['@timestamp'])}
                   </TableCell>
                 </TableRow>
@@ -964,6 +1197,7 @@ export function SecurityDashboardContent() {
         onOpenChange={handleSheetClose}
         lifecycle={selectedFindingLifecycle}
         lifecycleLoading={selectedFindingLifecycleLoading}
+        accountNameMap={accountNameMap}
       />
     </div>
   );
