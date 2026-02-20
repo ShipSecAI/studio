@@ -3,15 +3,19 @@
 ## Table of Contents
 
 1. [Getting Started](#getting-started)
-2. [Interface Overview](#interface-overview)
-3. [Workflows](#workflows)
-4. [Components](#components)
+2. [Home Page & Onboarding](#home-page--onboarding)
+3. [Security Dashboard](#security-dashboard)
+4. [Workflow Templates](#workflow-templates)
+5. [Integrations](#integrations)
+6. [Interface Overview](#interface-overview)
+7. [Workflows](#workflows)
+8. [Components](#components)
    - [Core Components](#core-components)
    - [AI Components](#ai-components)
    - [MCP Components](#mcp-components)
    - [Security Components](#security-components)
-5. [Advanced Features](#advanced-features)
-6. [Best Practices](#best-practices)
+9. [Advanced Features](#advanced-features)
+10. [Best Practices](#best-practices)
 
 ## Getting Started
 
@@ -35,11 +39,107 @@ Once complete, visit **http://localhost** to access ShipSec Studio.
 ### Quick Start
 
 1. **Login** to ShipSec Studio
-2. **Create New Workflow** from the dashboard
-3. **Add Components** from the left sidebar
-4. **Connect Components** by dragging between ports
-5. **Configure Components** by clicking on them
-6. **Run Workflow** using the Run button in the top bar
+2. **Complete the Getting Started checklist** on the Home page
+3. **Browse Workflow Templates** for pre-built security workflows, or create a new workflow from scratch
+4. **Add Components** from the left sidebar in the workflow builder
+5. **Connect Components** by dragging between ports
+6. **Configure Components** by clicking on them
+7. **Run Workflow** using the Run button in the top bar
+
+## Home Page & Onboarding
+
+After logging in, you land on the **Home page** — an adaptive dashboard that guides you through setup and shows your security posture at a glance.
+
+### Getting Started Checklist
+
+The Home page includes a 5-step onboarding checklist:
+
+1. **Connect GitHub** — Link your repositories for code scanning
+2. **Connect AWS** — Connect your AWS account for cloud security auditing
+3. **Run your first scan** — Trigger a scan to find vulnerabilities
+4. **Enable a PR gate** — Block risky pull requests automatically
+5. **Use a template** — Jump-start workflows with pre-built templates
+
+As you complete steps, the Home page progressively reveals more features:
+
+- **New users (0/5 complete):** Welcome banner + checklist + "What You'll Unlock" preview
+- **In progress (1–4/5):** Quick Stats Row, Findings Trend Chart, Activity Heatmap, Needs Attention Card, Recent Activity Feed, Coverage Detail Card, Upcoming Scans
+- **Fully onboarded (5/5):** All of the above + Security Score ring visualization
+
+### Home Page Components
+
+- **Quick Stats Row** — Total findings, repositories, scans, and integrations connected
+- **Activity Heatmap** — 90-day heatmap showing findings or scan activity (toggleable)
+- **Findings Trend Chart** — Time series visualization of finding trends
+- **Needs Attention Card** — Critical and high findings grouped by category (Cloud, Code, Dependencies)
+- **Recent Activity Feed** — Latest scan results, connected repos, and workflow runs
+- **Coverage Detail Card** — Repository protection stats and PR gate coverage
+- **Upcoming Scans** — Scheduled scan overview
+
+## Security Dashboard
+
+The Security Dashboard provides a unified view of all security findings across your infrastructure. Access it from the sidebar navigation.
+
+### Views
+
+The dashboard has multiple tabs for filtering findings by source:
+
+| Tab                     | Description                                                     |
+| ----------------------- | --------------------------------------------------------------- |
+| **All Findings**        | Combined view across all scanners                               |
+| **Cloud Security**      | AWS cloud posture findings from Prowler (with per-account tabs) |
+| **Code Security**       | SAST and secret findings from OpenGrep, TruffleHog, etc.        |
+| **Dependency Security** | Dependency vulnerability findings                               |
+| **Container Security**  | Container image vulnerability findings                          |
+
+### Features
+
+- **Severity Cards** — Clickable Critical/High/Medium/Low counts to toggle severity filters
+- **Time Series Chart** — Trend visualization with 7d, 14d, 30d, 90d range picker
+- **Filter Bar** — Search + filter popovers for severity, scanner, repository, region, compliance, and more (filters vary by tab)
+- **Sortable Data Table** — Paginated findings with columns for title, severity, status, first/last seen
+- **Finding Detail Sheet** — Side panel with full finding details and status history (deep-linkable via `?finding=<id>`)
+- **Empty State CTAs** — Context-specific prompts to connect integrations or run first scans
+
+## Workflow Templates
+
+Browse pre-built security workflows on the **Templates** page (`/templates`). Templates let you deploy common security automation patterns in one click.
+
+### Available Templates
+
+| Template                 | Description                                              |
+| ------------------------ | -------------------------------------------------------- |
+| **Secret Scan**          | Clone repo → TruffleHog → Normalize findings → Analytics |
+| **Full Code Security**   | Comprehensive SAST scanning pipeline                     |
+| **PR Security Gate**     | Block risky PRs with automated security checks           |
+| **AI Code Review**       | AI-powered code analysis                                 |
+| **Cloud Security Scan**  | AWS cloud posture assessment with Prowler                |
+| **Attack Surface Recon** | Subdomain discovery and enumeration                      |
+| **Container Image Scan** | Container vulnerability scanning with Trivy              |
+
+### Using Templates
+
+1. Browse templates on the `/templates` page — featured templates are highlighted
+2. Click **View Details** to see the workflow DAG preview and tool logos
+3. Click **Use Template** to create a new workflow from the template
+4. Customize the workflow in the builder as needed
+
+## Integrations
+
+The **Integrations** page (`/integrations`) lets you connect external services to ShipSec Studio. Currently supported:
+
+- **AWS** — Connect AWS accounts for cloud security scanning and credential resolution
+- **Slack** — Send notifications and alerts to Slack channels
+
+For detailed setup instructions, see [Integrations documentation](./integrations.md).
+
+### Cloud Accounts
+
+Manage connected AWS accounts at `/cloud/accounts`. From here you can:
+
+- View all connected cloud accounts
+- Trigger cloud security scans
+- See scan history and findings per account
 
 ## Interface Overview
 
@@ -72,8 +172,8 @@ Once complete, visit **http://localhost** to access ShipSec Studio.
 
 ### Creating a Workflow
 
-1. Click "Create New Workflow" on the dashboard
-2. Name your workflow and choose a template (optional)
+1. Click **New Workflow** from the Workflows page, or use a **Template** from the Templates page
+2. Name your workflow
 3. Drag components from the sidebar to the canvas
 4. Connect components by dragging from output ports to input ports
 5. Configure components by clicking on them
@@ -213,6 +313,21 @@ Once complete, visit **http://localhost** to access ShipSec Studio.
   - Multiple secret detection engines
   - false positive reduction
 - **Use**: CI/CD pipeline security, code review
+
+#### Trivy Scanner
+
+- **Purpose**: Container image and filesystem vulnerability scanning
+- **Features**:
+  - Container image scanning (public and private registries)
+  - Filesystem and IaC misconfiguration scanning
+  - ECR and private registry authentication support
+  - Severity filtering and multiple scanner types (vuln, misconfig, secret, license)
+- **Configuration**:
+  - Scan type: filesystem, config, or image
+  - Image reference (e.g., `nginx:latest`, ECR images)
+  - Registry credentials or AWS credentials for private registries
+  - Severity filter, scanner selection, timeout
+- **Use**: Container security, dependency scanning, IaC security
 
 ## Advanced Features
 

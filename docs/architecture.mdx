@@ -68,7 +68,7 @@ ShipSec Studio is an open-source, no-code security workflow orchestration platfo
 
 | Layer | Stack |
 |-------|-------|
-| **Frontend** | React 19, TypeScript, Vite, TailwindCSS, Radix UI, ReactFlow, xterm.js, Zustand |
+| **Frontend** | React 19, TypeScript, Vite, TailwindCSS, Radix UI, ReactFlow, xterm.js, TanStack Query (server state), Zustand (client UI state) |
 | **Backend** | NestJS, TypeScript, Bun, Drizzle ORM, Clerk Auth |
 | **Worker** | Node.js, TypeScript, Temporal SDK, Docker |
 | **Infrastructure** | PostgreSQL 16, Temporal, MinIO, Redis, Redpanda (Kafka), Loki |
@@ -98,6 +98,19 @@ Components are the building blocks of workflows:
 | **notification** | Alerts and messaging | Slack, Email |
 | **manual-action** | Human-in-the-loop | Approvals, Forms, Selection |
 | **github** | GitHub integrations | Remove Org Membership |
+| **scanners** | Vulnerability and dependency scanners | Trivy, Dependency Scanner |
+
+---
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Home & Onboarding** | Adaptive home page with Getting Started checklist, activity heatmap, and security posture overview |
+| **Security Dashboard** | Unified findings view with tabs for cloud, code, dependency, and container security |
+| **Workflow Templates** | Pre-built security workflows (Secret Scan, Cloud Security, Attack Surface Recon, etc.) with one-click deployment |
+| **Integrations** | Connect AWS, GitHub, and Slack for automated scanning and notifications |
+| **Shared Run Context** | Cross-component data sharing within a workflow run via an opt-in key-value store. See [Run Context](/architecture/run-context). |
 
 ---
 
@@ -142,5 +155,8 @@ All application services are accessible through nginx on port 80:
 
 ## Learn More
 
-- **Component Development**: `/development/component-development`
-- **Getting Started**: `/getting-started`
+- **[Run Context](/architecture/run-context)**: How components share data within a workflow run
+- **[Workflow Compilation](/architecture/workflow-compilation)**: How visual graphs become executable instructions
+- **[Streaming Pipelines](/architecture/streaming-pipelines)**: Real-time terminal, logs, and event delivery
+- **[Component Development](/development/component-development)**: Build custom components
+- **[Performance Patterns](/development/performance-patterns)**: Frontend and backend optimization guidelines

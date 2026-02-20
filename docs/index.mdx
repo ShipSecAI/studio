@@ -20,6 +20,15 @@ description: "Open source, no-code security automation platform for security tea
 ## Product Tour
 
 <CardGroup cols={2}>
+  <Card title="Home & Onboarding" icon="house">
+    Guided onboarding checklist, activity heatmap, and security posture at a glance
+  </Card>
+  <Card title="Security Dashboard" icon="shield-halved">
+    Unified findings view across cloud, code, dependency, and container scanners
+  </Card>
+  <Card title="Workflow Templates" icon="wand-magic-sparkles">
+    Pre-built security workflows — deploy common patterns in one click
+  </Card>
   <Card title="Workflow Builder" icon="diagram-project">
     Visual drag-and-drop editor for building security workflows
     <Frame>
@@ -38,10 +47,10 @@ description: "Open source, no-code security automation platform for security tea
       <img src="/media/secret-manager.png" alt="Secret Manager" />
     </Frame>
   </Card>
-  <Card title="Connections" icon="plug">
-    Integrate with external services and APIs
+  <Card title="Integrations" icon="plug">
+    Connect AWS, GitHub, and Slack for automated security workflows
     <Frame>
-      <img src="/media/connections-screen.png" alt="Connections Catalog" />
+      <img src="/media/connections-screen.png" alt="Integrations" />
     </Frame>
   </Card>
 </CardGroup>
@@ -67,7 +76,7 @@ description: "Open source, no-code security automation platform for security tea
 
 | Layer | Technologies |
 |-------|-------------|
-| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS, Radix UI, ReactFlow, xterm.js |
+| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS, Radix UI, ReactFlow, xterm.js, TanStack Query, Zustand |
 | **Backend** | NestJS, TypeScript, Bun runtime, PostgreSQL, Drizzle ORM, Clerk Auth |
 | **Worker** | Node.js, TypeScript, Temporal.io, Docker containers |
 | **Infrastructure** | PostgreSQL, Temporal, MinIO, Redis, Loki, Redpanda (Kafka) |

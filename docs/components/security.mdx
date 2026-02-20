@@ -222,6 +222,57 @@ Scans for leaked credentials across repositories, filesystems, and cloud storage
 
 ---
 
+## Container & Dependency Scanning
+
+### Trivy
+
+<Info>
+[GitHub](https://github.com/aquasecurity/trivy) · Docker: `aquasec/trivy:latest`
+</Info>
+
+Scans container images, filesystems, and IaC configurations for vulnerabilities, misconfigurations, and secrets.
+
+**Component ID:** `scanner.trivy`
+
+| Input | Type | Description |
+|-------|------|-------------|
+| `volumeName` | String (optional) | Docker volume from a clone step; required for filesystem/config scans |
+| `imageRef` | String (optional) | Container image reference (e.g., `nginx:latest`, ECR image); required for image scans |
+| `registryUsername` | String (optional) | Private registry username |
+| `registryPassword` | String (optional) | Private registry password |
+| `awsAccessKeyId` | String (optional) | AWS access key for ECR authentication |
+| `awsSecretAccessKey` | String (optional) | AWS secret key for ECR authentication |
+| `awsRegion` | String (optional) | AWS region for ECR (e.g., `us-east-1`) |
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `scanType` | Select | `filesystem` | `filesystem`, `config`, or `image` |
+| `severityFilter` | Multi-Select | — | CRITICAL, HIGH, MEDIUM, LOW, UNKNOWN |
+| `scanners` | Multi-Select | — | `vuln`, `misconfig`, `secret`, `license` |
+| `ignoreUnfixed` | Boolean | `false` | Skip vulnerabilities without a fix |
+| `timeout` | Number | `300` | Scan timeout in seconds (60–1800) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `findings` | Array | Standardized findings (type, target, vulnerability_id, severity, description) |
+| `results` | Array | Analytics-ready findings for the Analytics Sink |
+| `findingCount` | Number | Total findings count |
+| `rawOutput` | String | Raw Trivy JSON output |
+
+#### Scan Types
+
+- **filesystem** — Scan a cloned repository volume for dependency vulnerabilities and IaC misconfigurations
+- **config** — Scan IaC files (Terraform, Kubernetes manifests, Dockerfiles) for misconfigurations
+- **image** — Scan a container image from a public or private registry
+
+#### Private Registry Authentication
+
+For ECR images, provide `awsAccessKeyId`, `awsSecretAccessKey`, and `awsRegion`. For other private registries, use `registryUsername` and `registryPassword`.
+
+**Retry policy:** 2 attempts, 10s initial backoff.
+
+---
+
 ## Cloud Security
 
 ### Prowler Scan
