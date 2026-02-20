@@ -91,12 +91,6 @@ export class OpenSearchTenantService {
    * Returns true if all resources were created/verified successfully.
    */
   async ensureTenantExists(orgId: string): Promise<boolean> {
-    // No-op when security is disabled (dev mode)
-    if (!this.securityEnabled) {
-      this.logger.debug(`Tenant provisioning skipped (security disabled): ${orgId}`);
-      return true;
-    }
-
     // Normalize to lowercase for consistent tenant naming
     const normalizedOrgId = orgId.toLowerCase();
 
@@ -104,6 +98,27 @@ export class OpenSearchTenantService {
     if (!this.validateOrgId(normalizedOrgId)) {
       this.logger.warn(`Invalid org ID format: ${orgId}`);
       return false;
+    }
+
+    // IMPORTANT: Even when security is disabled (dev mode), we MUST create
+    // the index template so fields like severity/scanner are mapped as `keyword`.
+    // Without the template, OpenSearch dynamic mapping defaults these to `text`,
+    // which breaks all aggregation queries (terms aggs, sorting) with:
+    //   "Text fields are not optimised for operations that require per-document
+    //    field data like aggregations and sorting"
+    // Only security-specific resources (tenants, roles, role mappings, dashboards)
+    // are skipped in dev mode.
+    if (!this.securityEnabled) {
+      this.logger.debug(`Security disabled — ensuring index template only for: ${normalizedOrgId}`);
+      try {
+        await this.createIndexTemplate(normalizedOrgId);
+        return true;
+      } catch (error: any) {
+        this.logger.error(
+          `Failed to create index template for ${normalizedOrgId}: ${error?.message || error}`,
+        );
+        return false;
+      }
     }
 
     this.logger.log(`Provisioning tenant for org: ${normalizedOrgId}`);
