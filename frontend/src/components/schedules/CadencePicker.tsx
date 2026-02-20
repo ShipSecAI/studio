@@ -68,7 +68,11 @@ export function CadencePicker({ cronExpression, humanLabel, onChange }: CadenceP
             className="font-mono text-sm"
           />
           <p className="text-xs text-muted-foreground">
-            Enter a cron expression (minute hour day month weekday)
+            Enter a cron expression (minute hour day month weekday). <br />
+            Examples here :{' '}
+            <a href="https://crontab.guru/examples.html" target="_blank" rel="noreferrer">
+              https://crontab.guru/examples.html
+            </a>
           </p>
         </div>
       )}
