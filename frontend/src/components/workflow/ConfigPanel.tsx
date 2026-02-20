@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useComponentStore } from '@/store/componentStore';
 import { ParameterFieldWrapper } from './ParameterField';
@@ -1329,12 +1330,16 @@ export function ConfigPanel({
                           <div className="flex flex-col gap-2">
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 min-w-0">
-                                <span
-                                  className="text-sm font-semibold truncate min-w-0"
-                                  title={schedule.name}
-                                >
-                                  {schedule.name}
-                                </span>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="text-sm font-semibold truncate min-w-0">
+                                        {schedule.name}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">{schedule.name}</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                                 <Badge
                                   variant={scheduleStatusVariant[schedule.status]}
                                   className="text-[11px] capitalize flex-shrink-0"
