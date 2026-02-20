@@ -333,6 +333,47 @@ async function main() {
     process.exit(1);
   }
 
+  // Ensure index template exists so fields are mapped as keyword (not text)
+  // This must happen before any indices are created, otherwise OpenSearch
+  // uses dynamic mapping which defaults string fields to text type,
+  // breaking aggregation queries.
+  const templateName = `security-findings-${ORG_ID.toLowerCase()}`;
+  try {
+    await client.indices.putIndexTemplate({
+      name: templateName,
+      body: {
+        index_patterns: [`security-findings-${ORG_ID.toLowerCase()}-*`],
+        template: {
+          mappings: {
+            properties: {
+              '@timestamp': { type: 'date' },
+              workflow_id: { type: 'keyword' },
+              workflow_name: { type: 'keyword' },
+              run_id: { type: 'keyword' },
+              node_ref: { type: 'keyword' },
+              component_id: { type: 'keyword' },
+              asset_key: { type: 'keyword' },
+              scanner: { type: 'keyword' },
+              severity: { type: 'keyword' },
+              status: { type: 'keyword' },
+              finding_hash: { type: 'keyword' },
+              check_name: { type: 'keyword' },
+              region: { type: 'keyword' },
+              service_name: { type: 'keyword' },
+              account_id: { type: 'keyword' },
+              rule_id: { type: 'keyword' },
+              file: { type: 'keyword' },
+            },
+          },
+        },
+        priority: 100,
+      },
+    });
+    console.log(`✓ Index template "${templateName}" created/verified\n`);
+  } catch (err) {
+    console.error('⚠ Failed to create index template (aggregations may fail):', err);
+  }
+
   // Clear existing indices if requested
   if (CLEAR) {
     console.log('🗑  Clearing existing security-findings indices...');
