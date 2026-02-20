@@ -34,6 +34,23 @@ import type {
 } from './interfaces';
 import { createHttpClient } from './http/instrumented-fetch';
 
+// --- Run context constants (shared with workflow merge logic) ---
+export const RUN_CONTEXT_ALLOWED_KEYS = new Set([
+  'repository', 'branch', 'commitSha',
+  'provider', 'accountId', 'connectionName',
+]);
+export const RUN_CONTEXT_MAX_VALUE_LENGTH = 256;
+export const RUN_CONTEXT_MAX_ENTRIES = 16;
+
+// WeakMap to hold contributions per context instance (not on the frozen object)
+const contextContributions = new WeakMap<ExecutionContext, Map<string, string>>();
+
+/** Retrieve contributions collected by a context instance */
+export function getRunContextContributions(ctx: ExecutionContext): Record<string, string> {
+  const map = contextContributions.get(ctx);
+  return map ? Object.fromEntries(map) : {};
+}
+
 export interface CreateContextOptions {
   runId: string;
   componentRef: string;
@@ -49,10 +66,12 @@ export interface CreateContextOptions {
   workflowName?: string;
   organizationId?: string | null;
   triggerSource?: string | null;
+  triggerType?: string | null;
+  runContext?: Record<string, string>;
 }
 
 export function createExecutionContext(options: CreateContextOptions): ExecutionContext {
-  const { runId, componentRef, metadata: metadataInput, storage, secrets, artifacts, trace, logCollector, terminalCollector, agentTracePublisher, workflowId, workflowName, organizationId, triggerSource } =
+  const { runId, componentRef, metadata: metadataInput, storage, secrets, artifacts, trace, logCollector, terminalCollector, agentTracePublisher, workflowId, workflowName, organizationId, triggerSource, triggerType, runContext: runContextInput } =
     options;
   const metadata = createMetadata(runId, componentRef, metadataInput);
   const scopedTrace = trace ? createScopedTrace(trace, metadata) : undefined;
@@ -136,6 +155,8 @@ export function createExecutionContext(options: CreateContextOptions): Execution
     }
   };
 
+  const contributions = new Map<string, string>();
+
   const context: ExecutionContext = {
     runId,
     componentRef,
@@ -153,8 +174,25 @@ export function createExecutionContext(options: CreateContextOptions): Execution
     workflowName,
     organizationId,
     triggerSource,
+    triggerType,
+    runContext: runContextInput ? Object.freeze({ ...runContextInput }) : undefined,
+    contributeRunContext: (key: string, value: string) => {
+      if (!RUN_CONTEXT_ALLOWED_KEYS.has(key)) {
+        logger.warn(`[RunContext] Ignored unknown key "${key}" — not in allowlist`);
+        return;
+      }
+      if (!value || value.length === 0) return;
+      const trimmed = value.slice(0, RUN_CONTEXT_MAX_VALUE_LENGTH);
+      if (contributions.size >= RUN_CONTEXT_MAX_ENTRIES) {
+        logger.warn(`[RunContext] Max entries (${RUN_CONTEXT_MAX_ENTRIES}) reached, ignoring key "${key}"`);
+        return;
+      }
+      contributions.set(key, trimmed);
+    },
     http: undefined as unknown as ExecutionContext['http'],
   };
+
+  contextContributions.set(context, contributions);
 
   (context as ExecutionContext).http = createHttpClient(context);
 

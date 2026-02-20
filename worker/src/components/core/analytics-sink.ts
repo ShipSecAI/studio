@@ -338,6 +338,8 @@ const definition = defineComponent({
         indexSuffix: fallbackIndexSuffix,
         trace: context.trace,
         triggerSource: context.triggerSource,
+        triggerType: context.triggerType,
+        scanContext: context.runContext ? { ...context.runContext } : undefined,
       };
 
       context.logger.info(

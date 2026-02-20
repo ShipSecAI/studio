@@ -98,11 +98,15 @@ export interface RunComponentActivityInput {
   };
   inputOverrides?: Record<string, unknown>;
   rawParams?: Record<string, unknown>;
+  triggerType?: string | null;
+  triggerSource?: string | null;
+  runContext?: Record<string, string>;
 }
 
 export interface RunComponentActivityOutput {
   output: unknown;
   activeOutputPorts?: string[];
+  runContextContributions?: Record<string, string>;
 }
 
 export interface WorkflowRunRequest {
@@ -129,6 +133,7 @@ export interface RunWorkflowActivityInput {
   workflowVersionId?: string | null;
   workflowVersion?: number | null;
   organizationId?: string | null;
+  triggerType?: string | null;
   triggerSource?: string | null;
   parentRunId?: string | null;
   parentNodeRef?: string | null;

@@ -409,6 +409,11 @@ export interface ExecutionContext {
   workflowName?: string;
   organizationId?: string | null;
   triggerSource?: string | null;
+  triggerType?: string | null;
+
+  // Run-level shared context (populated by components via contributeRunContext)
+  runContext?: Readonly<Record<string, string>>;
+  contributeRunContext?: (key: string, value: string) => void;
 
   // Service interfaces - implemented by adapters
   storage?: IFileStorageService;

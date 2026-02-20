@@ -1,0 +1,160 @@
+---
+title: "Run Context"
+description: "Workflow-owned shared context with explicit component opt-in"
+---
+
+# Run Context
+
+Run context is a workflow-level shared key-value store that allows components to
+contribute metadata during execution. Downstream components and the analytics
+indexer can read these values, enabling automatic enrichment of indexed documents
+without manual wiring.
+
+## Design Principles
+
+1. **Explicit opt-in** — Components call `context.contributeRunContext(key, value)`.
+   Nothing is contributed automatically.
+2. **Bounded** — Fixed allowlist of keys, max value length (256 chars), max entries (16).
+3. **Workflow is the single writer** — Contributions return as sideband in
+   `RunComponentActivityOutput`, merged by the workflow function.
+4. **First-writer-wins** — Deterministic per Temporal replay. If two components
+   contribute the same key, the first to complete wins.
+5. **All components can read** — `context.runContext` is available to every component
+   in the run (normal, tool-mode, tool-call paths).
+
+## Allowed Keys
+
+| Key | Source Component | Description |
+|-----|-----------------|-------------|
+| `repository` | `github.repo.clone` | Repository in `owner/repo` format |
+| `branch` | `github.repo.clone` | Branch that was cloned |
+| `commitSha` | `github.repo.clone` | Commit SHA checked out |
+| `provider` | `integration-credential-resolver` | Cloud provider (e.g. `aws`, `gcp`) |
+| `accountId` | `integration-credential-resolver` | Cloud account identifier |
+| `connectionName` | `integration-credential-resolver` | Human-readable connection name |
+
+## Data Flow
+
+```
+┌─────────────┐     contributeRunContext()     ┌──────────────────┐
+│  clone-repo │ ─────────────────────────────> │                  │
+│  (node-2)   │  repository, branch, commitSha │                  │
+└─────────────┘                                │   Workflow       │
+                                               │   runContext     │
+┌─────────────┐     contributeRunContext()      │   (merged by    │
+│  credential │ ─────────────────────────────> │    workflow fn)  │
+│  resolver   │  provider, accountId,          │                  │
+└─────────────┘  connectionName                └────────┬─────────┘
+                                                        │
+                                          context.runContext (read-only)
+                                                        │
+                                               ┌────────▼─────────┐
+                                               │  analytics-sink  │
+                                               │  (indexes to     │
+                                               │   OpenSearch)    │
+                                               └──────────────────┘
+```
+
+## OpenSearch Namespace
+
+The analytics sink maps run context keys to the `shipsec` namespace in indexed
+documents:
+
+| Run Context Key | OpenSearch Field |
+|----------------|-----------------|
+| `repository` | `shipsec.repository` |
+| `branch` | `shipsec.branch` |
+| `commitSha` | `shipsec.commit_sha` |
+| `provider` | `shipsec.provider` |
+| `accountId` | `shipsec.account_id` |
+| `connectionName` | `shipsec.connection_name` |
+
+Additionally, trigger metadata is indexed:
+
+| Source | OpenSearch Field |
+|--------|-----------------|
+| `triggerType` (from backend) | `shipsec.trigger_type` |
+| `triggerSource` (from backend) | `shipsec.trigger_source` |
+
+## Component SDK API
+
+### Contributing Context
+
+```typescript
+// In a component's execute function:
+context.contributeRunContext?.('repository', repository);
+context.contributeRunContext?.('branch', actualBranch);
+context.contributeRunContext?.('commitSha', commitSha);
+```
+
+The `?.` optional chaining is used because the method may not exist in
+standalone/test contexts.
+
+### Reading Context
+
+```typescript
+// Available to all components in the run:
+const repo = context.runContext?.repository;
+const branch = context.runContext?.branch;
+```
+
+`runContext` is frozen (read-only). Each component receives a snapshot of the
+context at the time the activity starts.
+
+### Safety Guards
+
+The SDK enforces three levels of protection:
+
+1. **SDK level** (`contributeRunContext`): Allowlist check, value truncation,
+   entry limit, empty value rejection.
+2. **Workflow level** (merge logic): Defense-in-depth re-check of allowlist,
+   type, length, and entry limits.
+3. **Indexer level** (`SCAN_CONTEXT_TO_SHIPSEC`): Only allowlisted keys are
+   mapped to OpenSearch fields.
+
+## Design Decisions
+
+### Why first-writer-wins?
+
+First-writer-wins is replay-deterministic: the same Temporal replay always
+produces the same result. Different executions of the same workflow may vary if
+parallel nodes race, but current templates don't have parallel context producers.
+
+### Why not merge tool-mode/tool-call contributions?
+
+Tool-mode (MCP server) and tool-call (agent) components receive `runContext`
+(read-only) but their contributions are **not merged back**. This prevents
+ephemeral agent actions from polluting the stable workflow context.
+
+### Why inline constants in the workflow file?
+
+The Temporal workflow sandbox bundles all imported modules. Importing runtime
+values from `@shipsec/component-sdk` would pull the entire SDK (including HTTP
+client, Node.js APIs) into the sandbox, causing failures. The run context
+constants are mirrored inline instead.
+
+### Why not pass parent trigger type to child workflows?
+
+Child workflows get their own trigger metadata (`type: 'api'`) via
+`prepareRunPayloadActivity`. This accurately reflects that the child was
+API-triggered by the parent, not manually triggered by a user.
+
+## Known Limitations
+
+1. **Parallel nondeterminism** — If two parallel components contribute the same
+   key, which one wins depends on activity completion order. Deterministic per
+   replay but not across separate runs.
+2. **Child workflow isolation** — Child workflows do not inherit the parent's
+   `runContext` or `triggerType`. Each starts fresh.
+
+## Adding New Context Keys
+
+To add a new allowed key:
+
+1. Add the key to `RUN_CONTEXT_ALLOWED_KEYS` in
+   `packages/component-sdk/src/context.ts`.
+2. Mirror the key in the inline `RUN_CONTEXT_ALLOWED_KEYS` in
+   `worker/src/temporal/workflows/index.ts` (Temporal sandbox constraint).
+3. Add the mapping in `SCAN_CONTEXT_TO_SHIPSEC` in
+   `worker/src/utils/opensearch-indexer.ts` if it should be indexed.
+4. Call `context.contributeRunContext(key, value)` in the contributing component.

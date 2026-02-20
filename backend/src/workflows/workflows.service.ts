@@ -926,6 +926,8 @@ export class WorkflowsService {
             workflowVersionId: prepared.workflowVersionId,
             workflowVersion: prepared.workflowVersion,
             organizationId: prepared.organizationId,
+            triggerType: prepared.triggerMetadata?.type ?? null,
+            triggerSource: prepared.triggerMetadata?.sourceId ?? null,
           },
         ],
       });

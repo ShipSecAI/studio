@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 import {
   componentRegistry,
   createExecutionContext,
+  getRunContextContributions,
+  RUN_CONTEXT_ALLOWED_KEYS,
+  RUN_CONTEXT_MAX_VALUE_LENGTH,
+  RUN_CONTEXT_MAX_ENTRIES,
   NotFoundError,
   ValidationError,
   isSpilledDataMarker,
@@ -40,6 +44,7 @@ export interface ExecuteWorkflowOptions {
   workflowId?: string;
   workflowVersionId?: string | null;
   triggerSource?: string | null;
+  triggerType?: string | null;
 }
 
 /**
@@ -60,6 +65,9 @@ export async function executeWorkflow(
   const actionsByRef = new Map<string, (typeof definition.actions)[number]>(
     definition.actions.map((action) => [action.ref, action]),
   );
+
+  // Run-level shared context (inline runner mirrors Temporal workflow merge logic)
+  const runContext: Record<string, string> = {};
 
   const forwardLog: ((entry: LogEventInput) => void) | undefined = options.logs
     ? (entry) => {
@@ -309,6 +317,8 @@ export async function executeWorkflow(
         workflowName: definition.title,
         organizationId: options.organizationId,
         triggerSource: options.triggerSource,
+        triggerType: options.triggerType,
+        runContext: { ...runContext },
       });
 
       try {
@@ -352,6 +362,19 @@ export async function executeWorkflow(
           }
         }
         results.set(action.ref, output);
+
+        // Merge run context contributions (first-writer-wins)
+        const contributions = getRunContextContributions(context);
+        for (const [key, value] of Object.entries(contributions)) {
+          if (!RUN_CONTEXT_ALLOWED_KEYS.has(key)) continue;
+          if (!value || typeof value !== 'string') continue;
+          if (value.length > RUN_CONTEXT_MAX_VALUE_LENGTH) continue;
+          if (Object.keys(runContext).length >= RUN_CONTEXT_MAX_ENTRIES) break;
+          if (!(key in runContext)) {
+            runContext[key] = value;
+          }
+        }
+
         console.log(`💾 [WORKFLOW RUNNER] Result stored for: ${actionRef}`);
         // Record node I/O completion
         await options.nodeIO?.recordCompletion({

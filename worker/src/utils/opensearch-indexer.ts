@@ -11,7 +11,18 @@ interface IndexOptions {
   indexSuffix?: string;
   trace?: IScopedTraceService;
   triggerSource?: string | null;
+  triggerType?: string | null;
+  scanContext?: Record<string, string>;
 }
+
+const SCAN_CONTEXT_TO_SHIPSEC: Record<string, string> = {
+  repository: 'repository',
+  branch: 'branch',
+  commitSha: 'commit_sha',
+  accountId: 'account_id',
+  connectionName: 'connection_name',
+  provider: 'provider',
+};
 
 /**
  * Retry helper with exponential backoff
@@ -193,6 +204,15 @@ export class OpenSearchIndexer {
     // Serialize nested objects in the document to prevent field explosion
     const serializedDocument = this.serializeNestedFields(document);
 
+    // Map scan context keys to shipsec namespace fields (allowlisted)
+    const scanContextFields: Record<string, string> = {};
+    if (options.scanContext) {
+      for (const [key, value] of Object.entries(options.scanContext)) {
+        const shipsecKey = SCAN_CONTEXT_TO_SHIPSEC[key];
+        if (shipsecKey && value) scanContextFields[shipsecKey] = value;
+      }
+    }
+
     return {
       // Component data at root level (serialized)
       ...serializedDocument,
@@ -207,6 +227,8 @@ export class OpenSearchIndexer {
         node_ref: options.nodeRef,
         ...(assetKey && { asset_key: assetKey }),
         ...(options.triggerSource && { trigger_source: options.triggerSource }),
+        ...(options.triggerType && { trigger_type: options.triggerType }),
+        ...scanContextFields,
       },
 
       // Standard timestamp
