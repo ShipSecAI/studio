@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import * as LucideIcons from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
@@ -103,6 +103,15 @@ export function WorkflowIconPicker({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
+  const wasOpenRef = useRef(false);
+
+  // Fire onClose only on a genuine open → closed transition, after render settles
+  useEffect(() => {
+    if (wasOpenRef.current && !open) {
+      onClose?.();
+    }
+    wasOpenRef.current = open;
+  }, [open, onClose]);
 
   const currentIconName = icon && icon in LucideIcons ? icon : 'Workflow';
   const CurrentIcon = LucideIcons[
@@ -123,10 +132,7 @@ export function WorkflowIconPicker({
       open={open}
       onOpenChange={(v) => {
         setOpen(v);
-        if (!v) {
-          setSearch('');
-          onClose?.();
-        }
+        if (!v) setSearch('');
         if (v) setTimeout(() => searchRef.current?.focus(), 0);
       }}
     >
@@ -155,10 +161,7 @@ export function WorkflowIconPicker({
                 variant="ghost"
                 size="sm"
                 className="h-6 px-2 text-xs text-muted-foreground"
-                onClick={() => {
-                  onChange(null, null);
-                  setOpen(false);
-                }}
+                onClick={() => onChange(null, null)}
               >
                 Remove
               </Button>
@@ -215,10 +218,7 @@ export function WorkflowIconPicker({
                         'flex items-center justify-center h-8 w-8 rounded-md transition-colors',
                         isSelected ? 'bg-accent ring-1 ring-foreground/20' : 'hover:bg-accent/60',
                       )}
-                      onClick={() => {
-                        onChange(name, iconColor ?? '#3b82f6');
-                        setOpen(false);
-                      }}
+                      onClick={() => onChange(name, iconColor ?? '#3b82f6')}
                       title={name}
                     >
                       <IconComp

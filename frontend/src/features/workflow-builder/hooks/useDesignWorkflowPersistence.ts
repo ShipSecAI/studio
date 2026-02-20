@@ -413,6 +413,8 @@ export function useDesignWorkflowPersistence({
       markClean,
       markDirty,
       metadata.description,
+      metadata.icon,
+      metadata.iconColor,
       metadata.id,
       metadata.name,
       navigate,
