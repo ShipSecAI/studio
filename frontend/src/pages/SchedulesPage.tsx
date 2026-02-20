@@ -30,6 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Cloud,
   Code,
+  History,
   PauseCircle,
   PlayCircle,
   RefreshCw,
@@ -325,9 +326,6 @@ export function SchedulesPage() {
   };
 
   const isActionBusy = (id: string) => Boolean(actionState[id]);
-  const getScheduleScansHref = (scheduleId: string) =>
-    `/github/scans?source=schedule&scheduleId=${encodeURIComponent(scheduleId)}`;
-
   const renderStatusBadge = (status: string) => {
     const variant = STATUS_VARIANTS[status] || 'outline';
     const label = status.charAt(0).toUpperCase() + status.slice(1);
@@ -419,17 +417,17 @@ export function SchedulesPage() {
           </div>
 
           <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="overflow-hidden">
+              <Table className="table-fixed w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[120px]">Name</TableHead>
-                    <TableHead className="min-w-[120px] hidden md:table-cell">Workflow</TableHead>
-                    <TableHead className="min-w-[100px] hidden lg:table-cell">Cadence</TableHead>
-                    <TableHead className="min-w-[100px] hidden sm:table-cell">Next run</TableHead>
-                    <TableHead className="min-w-[100px] hidden lg:table-cell">Last run</TableHead>
-                    <TableHead className="min-w-[80px]">Status</TableHead>
-                    <TableHead className="text-right min-w-[150px]">Actions</TableHead>
+                    <TableHead className="w-[30%]">Name</TableHead>
+                    <TableHead className="w-[15%] hidden md:table-cell">Workflow</TableHead>
+                    <TableHead className="w-[14%] hidden lg:table-cell">Cadence</TableHead>
+                    <TableHead className="w-[11%] hidden sm:table-cell">Next run</TableHead>
+                    <TableHead className="w-[11%] hidden lg:table-cell">Last run</TableHead>
+                    <TableHead className="w-[7%]">Status</TableHead>
+                    <TableHead className="text-right w-[12%]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -456,112 +454,151 @@ export function SchedulesPage() {
                         return (
                           <TableRow key={schedule.id}>
                             <TableCell className="font-medium">
-                              <div className="flex flex-col">
-                                <span className="truncate max-w-[120px] md:max-w-none">
-                                  {schedule.name}
-                                </span>
-                                {schedule.description && (
-                                  <span className="text-xs text-muted-foreground truncate max-w-[120px] md:max-w-none">
-                                    {schedule.description}
-                                  </span>
-                                )}
-                              </div>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="truncate">{schedule.name}</span>
+                                    {schedule.description && (
+                                      <span className="text-xs text-muted-foreground truncate">
+                                        {schedule.description}
+                                      </span>
+                                    )}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-xs">
+                                  <p className="font-medium">{schedule.name}</p>
+                                  {schedule.description && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {schedule.description}
+                                    </p>
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
-                              <div className="flex flex-col">
-                                <span className="font-medium truncate max-w-[120px]">
-                                  {workflowName}
-                                </span>
-                                <span className="text-xs text-muted-foreground truncate max-w-[120px]">
-                                  {schedule.workflowId}
-                                </span>
-                              </div>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-medium truncate">{workflowName}</span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-xs">
+                                  <p className="font-medium">{workflowName}</p>
+                                  <p className="text-xs text-muted-foreground font-mono">
+                                    {schedule.workflowId}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
                             </TableCell>
                             <TableCell className="hidden lg:table-cell">
-                              <div className="flex flex-col">
-                                <span className="text-sm">{cadenceLabel}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {schedule.timezone}
-                                </span>
-                              </div>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-sm truncate">{cadenceLabel}</span>
+                                    <span className="text-xs text-muted-foreground truncate">
+                                      {schedule.timezone}
+                                    </span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                  <p>{cadenceLabel}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {schedule.timezone}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
                             </TableCell>
                             <TableCell className="text-sm hidden sm:table-cell">
-                              {formatDateTime(schedule.nextRunAt)}
+                              <span className="truncate block">
+                                {formatDateTime(schedule.nextRunAt)}
+                              </span>
                             </TableCell>
                             <TableCell className="text-sm hidden lg:table-cell">
-                              {formatDateTime(schedule.lastRunAt)}
+                              <span className="truncate block">
+                                {formatDateTime(schedule.lastRunAt)}
+                              </span>
                             </TableCell>
                             <TableCell>{renderStatusBadge(schedule.status)}</TableCell>
                             <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-1 md:gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="gap-1 h-8 px-2 md:px-3"
-                                  onClick={() => handleRunNow(schedule)}
-                                  disabled={isActionBusy(schedule.id)}
-                                >
-                                  <PlayCircle className="h-4 w-4" />
-                                  <span className="hidden md:inline">Run</span>
-                                </Button>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  className="gap-1 h-8 px-2 md:px-3"
-                                  onClick={() => handlePauseResume(schedule)}
-                                  disabled={isActionBusy(schedule.id)}
-                                >
-                                  {isPaused ? (
-                                    <>
-                                      <PlayCircle className="h-4 w-4" />
-                                      <span className="hidden md:inline">Resume</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <PauseCircle className="h-4 w-4" />
-                                      <span className="hidden md:inline">Pause</span>
-                                    </>
-                                  )}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 px-2 md:px-3"
-                                  asChild
-                                >
-                                  <Link to={getScheduleScansHref(schedule.id)}>
-                                    <span className="hidden md:inline">View scans</span>
-                                    <span className="md:hidden">Scans</span>
-                                  </Link>
-                                </Button>
+                              <div className="flex items-center justify-end gap-1">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button
-                                      variant="ghost"
+                                      variant="outline"
                                       size="icon"
-                                      aria-label="Edit schedule"
-                                      onClick={() => handleEdit(schedule)}
-                                      className="h-8 w-8"
+                                      className="h-7 w-7"
+                                      onClick={() => handleRunNow(schedule)}
+                                      disabled={isActionBusy(schedule.id)}
                                     >
-                                      <Edit3 className="h-4 w-4" />
+                                      <PlayCircle className="h-3.5 w-3.5" />
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>Edit schedule configuration</TooltipContent>
+                                  <TooltipContent>Run now</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="secondary"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => handlePauseResume(schedule)}
+                                      disabled={isActionBusy(schedule.id)}
+                                    >
+                                      {isPaused ? (
+                                        <PlayCircle className="h-3.5 w-3.5" />
+                                      ) : (
+                                        <PauseCircle className="h-3.5 w-3.5" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>{isPaused ? 'Resume' : 'Pause'}</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button
                                       variant="ghost"
                                       size="icon"
+                                      className="h-7 w-7"
+                                      aria-label="View runs"
+                                      asChild
+                                    >
+                                      <Link
+                                        to={`/activity?trigger=schedule&search=${encodeURIComponent(schedule.name)}`}
+                                      >
+                                        <History className="h-3.5 w-3.5" />
+                                      </Link>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>View runs</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      aria-label="Edit schedule"
+                                      onClick={() => handleEdit(schedule)}
+                                    >
+                                      <Edit3 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Edit</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
                                       aria-label="Delete schedule"
                                       onClick={() => handleDelete(schedule)}
                                       disabled={isActionBusy(schedule.id)}
-                                      className="h-8 w-8"
                                     >
-                                      <Trash2 className="h-4 w-4" />
+                                      <Trash2 className="h-3.5 w-3.5" />
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>Delete schedule</TooltipContent>
+                                  <TooltipContent>Delete</TooltipContent>
                                 </Tooltip>
                               </div>
                             </TableCell>
