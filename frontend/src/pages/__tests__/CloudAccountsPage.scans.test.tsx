@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 
 const mockRefetch = mock(() => Promise.resolve());
@@ -47,6 +47,7 @@ const githubStoreState = {
 
 mock.module('@/hooks/queries/useCloudScanQueries', () => ({
   useCloudScans: () => mockCloudScansState,
+  useCloudScansSummaries: () => ({ data: undefined }),
 }));
 
 mock.module('@/store/githubStore', () => ({
@@ -67,23 +68,42 @@ mock.module('@/components/scans/CloudScanDetailPanel', () => ({
 }));
 
 import { ScansTab } from '@/pages/CloudAccountsPage';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 function LocationProbe() {
   const location = useLocation();
   return <div data-testid="location-search">{location.search}</div>;
 }
 
+function Wrapper({
+  children,
+  initialEntries,
+}: {
+  children: React.ReactNode;
+  initialEntries: string[];
+}) {
+  return (
+    <TooltipProvider>
+      <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
+    </TooltipProvider>
+  );
+}
+
 describe('CloudAccountsPage ScansTab URL state', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     mockRefetch.mockClear();
   });
 
   it('opens the detail panel when scan is provided in URL and removes it on close', () => {
     render(
-      <MemoryRouter initialEntries={['/cloud/scans?scan=run-1']}>
+      <Wrapper initialEntries={['/cloud/scans?scan=run-1']}>
         <LocationProbe />
         <ScansTab connections={[{ id: 'conn-1', provider: 'aws' }]} />
-      </MemoryRouter>,
+      </Wrapper>,
     );
 
     expect(screen.getByTestId('cloud-scan-detail-panel')).toBeInTheDocument();
@@ -97,10 +117,10 @@ describe('CloudAccountsPage ScansTab URL state', () => {
 
   it('sets scan param when clicking a run row', () => {
     render(
-      <MemoryRouter initialEntries={['/cloud/scans']}>
+      <Wrapper initialEntries={['/cloud/scans']}>
         <LocationProbe />
         <ScansTab connections={[{ id: 'conn-1', provider: 'aws' }]} />
-      </MemoryRouter>,
+      </Wrapper>,
     );
 
     const row = screen.getByText('Cloud Scan Workflow').closest('tr');

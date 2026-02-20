@@ -69,7 +69,9 @@ mock.module('@/hooks/queries/useSecretQueries', () => ({
 
 const mockInvalidateQueries = mock().mockResolvedValue(undefined);
 
+const actualReactQuery = await import('@tanstack/react-query');
 mock.module('@tanstack/react-query', () => ({
+  ...actualReactQuery,
   useQueryClient: () => ({
     invalidateQueries: mockInvalidateQueries,
   }),
