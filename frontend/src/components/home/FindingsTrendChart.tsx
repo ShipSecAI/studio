@@ -20,7 +20,7 @@ export function FindingsTrendChart() {
   const last7Days = timeSeries.slice(-7);
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Findings Trend (7d)</CardTitle>
       </CardHeader>

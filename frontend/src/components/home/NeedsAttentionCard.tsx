@@ -20,7 +20,7 @@ export function NeedsAttentionCard({ categories, mode }: NeedsAttentionCardProps
 
   if (mode === 'prominent') {
     return (
-      <Card className={hasIssues ? 'border-2 border-red-500/30 shadow-lg' : ''}>
+      <Card className={`h-full ${hasIssues ? 'border-2 border-red-500/30 shadow-lg' : ''}`}>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldAlert className={`h-5 w-5 ${hasIssues ? 'text-red-500' : 'text-green-500'}`} />
@@ -70,7 +70,7 @@ export function NeedsAttentionCard({ categories, mode }: NeedsAttentionCardProps
 
   // Normal mode (State 2)
   return (
-    <Card className={hasIssues ? 'border-orange-500/20' : ''}>
+    <Card className={`h-full ${hasIssues ? 'border-orange-500/20' : ''}`}>
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
         <CardTitle className="text-base">Needs Attention</CardTitle>
         {hasIssues && (

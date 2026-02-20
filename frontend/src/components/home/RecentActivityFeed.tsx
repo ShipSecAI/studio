@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
+import { type ElementType, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Container, Workflow } from 'lucide-react';
+import { Container, FileCode2, KeyRound, Package, Workflow } from 'lucide-react';
 import { formatRelativeTime } from '@/components/scans/scan-utils';
 import type { GitHubScanResult, GitHubRepo } from '@/store/githubStore';
 import type { ExecutionRun } from '@/hooks/queries/useRunQueries';
@@ -15,6 +15,36 @@ interface RecentActivityFeedProps {
   connections?: IntegrationConnection[];
 }
 
+type ScanType = 'sast' | 'dependency' | 'secret' | 'generic';
+
+function detectScanType(name: string): ScanType {
+  const lower = name.toLowerCase();
+  if (lower.includes('sast') || lower.includes('code scan')) return 'sast';
+  if (lower.includes('dependency') || lower.includes('sca') || lower.includes('supply chain'))
+    return 'dependency';
+  if (lower.includes('secret')) return 'secret';
+  return 'generic';
+}
+
+const SCAN_TYPE_ICON: Record<ScanType, { icon: ElementType; bg: string; color: string }> = {
+  sast: {
+    icon: FileCode2,
+    bg: 'bg-blue-100 dark:bg-blue-900/40',
+    color: 'text-blue-600 dark:text-blue-400',
+  },
+  dependency: {
+    icon: Package,
+    bg: 'bg-purple-100 dark:bg-purple-900/40',
+    color: 'text-purple-600 dark:text-purple-400',
+  },
+  secret: {
+    icon: KeyRound,
+    bg: 'bg-amber-100 dark:bg-amber-900/40',
+    color: 'text-amber-600 dark:text-amber-400',
+  },
+  generic: { icon: Workflow, bg: 'bg-muted', color: 'text-muted-foreground' },
+};
+
 /** Unified item rendered in the feed */
 interface FeedItem {
   id: string;
@@ -25,6 +55,7 @@ interface FeedItem {
   href: string;
   provider: 'github' | 'aws' | 'workflow';
   containerRegistry?: ContainerRegistry;
+  scanType?: ScanType;
 }
 
 const STATUS_DOT_COLOR: Record<string, string> = {
@@ -81,9 +112,11 @@ function formatFullTimestamp(dateString: string): string {
 function ProviderIcon({
   provider,
   containerRegistry,
+  scanType = 'generic',
 }: {
   provider: FeedItem['provider'];
   containerRegistry?: ContainerRegistry;
+  scanType?: ScanType;
 }) {
   if (containerRegistry) {
     const logo = REGISTRY_LOGO[containerRegistry];
@@ -97,9 +130,10 @@ function ProviderIcon({
     );
   }
   if (provider === 'workflow') {
+    const { icon: Icon, bg, color } = SCAN_TYPE_ICON[scanType];
     return (
-      <div className="w-6 h-6 rounded bg-muted flex items-center justify-center">
-        <Workflow className="h-3.5 w-3.5 text-muted-foreground" />
+      <div className={`w-6 h-6 rounded ${bg} flex items-center justify-center`}>
+        <Icon className={`h-3.5 w-3.5 ${color}`} />
       </div>
     );
   }
@@ -187,6 +221,7 @@ export function RecentActivityFeed({
           containerRegistry: runtimeInputs.imageRef
             ? detectContainerRegistry(String(runtimeInputs.imageRef))
             : undefined,
+          scanType: isCloud ? undefined : detectScanType(run.workflowName),
         };
       });
 
@@ -198,7 +233,7 @@ export function RecentActivityFeed({
 
   return (
     <TooltipProvider>
-      <Card>
+      <Card className="h-full">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <CardTitle className="text-base">Recent Scans</CardTitle>
@@ -234,6 +269,7 @@ export function RecentActivityFeed({
                       <ProviderIcon
                         provider={item.provider}
                         containerRegistry={item.containerRegistry}
+                        scanType={item.scanType}
                       />
                       <span
                         className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background ${dotColor}`}

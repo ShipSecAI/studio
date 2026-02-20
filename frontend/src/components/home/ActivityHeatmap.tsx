@@ -194,13 +194,36 @@ export function ActivityHeatmap() {
     [cells],
   );
 
+  // Aggregate severity totals across the 90-day window
+  const severityTotals = useMemo(() => {
+    let critical = 0,
+      high = 0,
+      medium = 0,
+      low = 0;
+    for (const entry of findingsMap.values()) {
+      critical += entry.critical;
+      high += entry.high;
+      medium += entry.medium;
+      low += entry.low;
+    }
+    return { critical, high, medium, low };
+  }, [findingsMap]);
+
+  // Scans stats
+  const scansStats = useMemo(() => {
+    const values = [...scansMap.values()];
+    const peak = values.length > 0 ? Math.max(...values) : 0;
+    const activeDays = values.filter((v) => v > 0).length;
+    return { peak, activeDays, total: scanData?.totalRuns ?? 0 };
+  }, [scansMap, scanData]);
+
   const headerText =
     mode === 'findings'
       ? `${totalValue} finding${totalValue !== 1 ? 's' : ''} in the last 90 days`
-      : `${totalValue} scan${totalValue !== 1 ? 's' : ''} in the last 90 days`;
+      : `${scansStats.total} scan${scansStats.total !== 1 ? 's' : ''} in the last 90 days`;
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
@@ -231,9 +254,9 @@ export function ActivityHeatmap() {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-4">
         {isLoading ? (
-          <Skeleton className="h-[100px] w-full rounded-md" />
+          <Skeleton className="h-[120px] w-full rounded-md" />
         ) : (
           <TooltipProvider delayDuration={100}>
             <div className="overflow-x-auto">
@@ -241,7 +264,7 @@ export function ActivityHeatmap() {
               <div
                 className="grid gap-[3px] mb-1"
                 style={{
-                  gridTemplateColumns: `24px repeat(${totalWeeks}, 12px)`,
+                  gridTemplateColumns: `28px repeat(${totalWeeks}, 14px)`,
                 }}
               >
                 <div /> {/* Spacer for day labels */}
@@ -259,8 +282,8 @@ export function ActivityHeatmap() {
               <div
                 className="grid gap-[3px]"
                 style={{
-                  gridTemplateColumns: `24px repeat(${totalWeeks}, 12px)`,
-                  gridTemplateRows: 'repeat(7, 12px)',
+                  gridTemplateColumns: `28px repeat(${totalWeeks}, 14px)`,
+                  gridTemplateRows: 'repeat(7, 14px)',
                 }}
               >
                 {Array.from({ length: 7 }, (_, dayIndex) => (
@@ -312,6 +335,48 @@ export function ActivityHeatmap() {
               </div>
             </div>
           </TooltipProvider>
+        )}
+
+        {/* Stats summary */}
+        {!isLoading && (
+          <div className="border-t pt-4">
+            {mode === 'findings' ? (
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  {
+                    label: 'Critical',
+                    value: severityTotals.critical,
+                    color: 'text-red-600 dark:text-red-400',
+                  },
+                  { label: 'High', value: severityTotals.high, color: 'text-orange-500' },
+                  { label: 'Medium', value: severityTotals.medium, color: 'text-yellow-500' },
+                  { label: 'Low', value: severityTotals.low, color: 'text-blue-500' },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="flex flex-col gap-0.5">
+                    <span className={`text-xl font-semibold ${color}`}>{value}</span>
+                    <span className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                      {label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: 'Total Scans', value: scansStats.total },
+                  { label: 'Active Days', value: scansStats.activeDays },
+                  { label: 'Peak Day', value: scansStats.peak },
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex flex-col gap-0.5">
+                    <span className="text-xl font-semibold text-foreground">{value}</span>
+                    <span className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                      {label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

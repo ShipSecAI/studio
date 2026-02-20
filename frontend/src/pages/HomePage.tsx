@@ -282,14 +282,14 @@ export function HomePage() {
 
           <QueryErrorBoundary>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-2">
+              <div className="lg:col-span-2 h-full">
                 <FindingsTrendChart />
               </div>
               <NeedsAttentionCard categories={attentionCategories} mode="normal" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-2">
+              <div className="lg:col-span-2 h-full">
                 <ActivityHeatmap />
               </div>
               <RecentActivityFeed
@@ -346,14 +346,14 @@ export function HomePage() {
 
         <QueryErrorBoundary>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 h-full">
               <FindingsTrendChart />
             </div>
             <NeedsAttentionCard categories={attentionCategories} mode="prominent" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 h-full">
               <ActivityHeatmap />
             </div>
             <RecentActivityFeed
@@ -366,7 +366,7 @@ export function HomePage() {
         </QueryErrorBoundary>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 h-full">
             <CoverageDetailCard repositories={repositories} triggerRules={triggerRules} />
           </div>
           <Card>
