@@ -33,6 +33,7 @@ function getLocalTimezone(): string {
 interface CodeScanScheduleDialogProps {
   open: boolean;
   onClose: () => void;
+  onBack?: () => void;
   repository?: GitHubRepo;
   preSelectedScanId?: string;
   onScheduled?: () => void;
@@ -41,6 +42,7 @@ interface CodeScanScheduleDialogProps {
 export function CodeScanScheduleDialog({
   open,
   onClose,
+  onBack,
   repository: preSelectedRepo,
   preSelectedScanId,
   onScheduled,
@@ -215,7 +217,18 @@ export function CodeScanScheduleDialog({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Schedule Code Scan</DialogTitle>
+          <DialogTitle>
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex items-center mr-2 text-muted-foreground hover:text-foreground transition-colors align-middle"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            )}
+            Schedule Code Scan
+          </DialogTitle>
           <DialogDescription>
             {selectedRepo ? selectedRepo.fullName : 'Select a repository'}
           </DialogDescription>
@@ -266,18 +279,6 @@ export function CodeScanScheduleDialog({
         ) : (
           /* Step 2: Configure */
           <div className="space-y-4 py-2">
-            {!preSelectedRepo && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={() => setSelectedRepo(null)}
-              >
-                <ArrowLeft className="h-3 w-3 mr-1" />
-                Back to repos
-              </Button>
-            )}
-
             {/* Scan type */}
             {!preSelectedScanId && (
               <div className="space-y-2">
@@ -372,12 +373,6 @@ export function CodeScanScheduleDialog({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              {!preSelectedRepo && (
-                <Button type="button" variant="outline" onClick={() => setSelectedRepo(null)}>
-                  <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-                  Back
-                </Button>
-              )}
               <Button
                 type="button"
                 disabled={!isValid || createSchedule.isPending || hasCloneNodeError}

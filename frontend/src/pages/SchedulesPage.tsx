@@ -699,6 +699,11 @@ export function SchedulesPage() {
           setCloudScheduleOpen(false);
           setCloudScanSlug(undefined);
         }}
+        onBack={() => {
+          setCloudScheduleOpen(false);
+          setCloudScanSlug(undefined);
+          setChooserOpen(true);
+        }}
         connection={null}
         preSelectedScanSlug={cloudScanSlug}
       />
@@ -707,6 +712,11 @@ export function SchedulesPage() {
         onClose={() => {
           setCodeScheduleOpen(false);
           setCodeScanId(undefined);
+        }}
+        onBack={() => {
+          setCodeScheduleOpen(false);
+          setCodeScanId(undefined);
+          setChooserOpen(true);
         }}
         preSelectedScanId={codeScanId}
       />

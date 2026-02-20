@@ -732,14 +732,18 @@ export function ScheduleEditorDrawer({
       <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto">
         <TooltipProvider>
           <DialogHeader>
-            <div className="flex items-center gap-2">
+            <DialogTitle>
               {onBack && mode === 'create' && (
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onBack}>
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="inline-flex items-center mr-2 text-muted-foreground hover:text-foreground transition-colors align-middle"
+                >
                   <ArrowLeft className="h-4 w-4" />
-                </Button>
+                </button>
               )}
-              <DialogTitle>{mode === 'create' ? 'Create schedule' : 'Edit schedule'}</DialogTitle>
-            </div>
+              {mode === 'create' ? 'Create schedule' : 'Edit schedule'}
+            </DialogTitle>
             <DialogDescription>{ENTRY_SECTION_COPY}</DialogDescription>
           </DialogHeader>
 

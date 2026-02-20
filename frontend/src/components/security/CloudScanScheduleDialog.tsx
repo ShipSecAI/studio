@@ -52,6 +52,7 @@ function getLocalTimezone(): string {
 interface CloudScanScheduleDialogProps {
   open: boolean;
   onClose: () => void;
+  onBack?: () => void;
   connection: AwsConnection | null;
   preSelectedScanSlug?: string;
   onScheduled?: () => void;
@@ -60,6 +61,7 @@ interface CloudScanScheduleDialogProps {
 export function CloudScanScheduleDialog({
   open,
   onClose,
+  onBack,
   connection: preSelectedConnection,
   preSelectedScanSlug,
   onScheduled,
@@ -212,7 +214,18 @@ export function CloudScanScheduleDialog({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Schedule Cloud Scan</DialogTitle>
+          <DialogTitle>
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex items-center mr-2 text-muted-foreground hover:text-foreground transition-colors align-middle"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            )}
+            Schedule Cloud Scan
+          </DialogTitle>
           <DialogDescription>
             {selectedConnection
               ? selectedConnection.displayName || 'Cloud Account'
@@ -271,18 +284,6 @@ export function CloudScanScheduleDialog({
         ) : (
           /* Step 2: Configure */
           <div className="space-y-4 py-2">
-            {!preSelectedConnection && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={() => setSelectedConnection(null)}
-              >
-                <ArrowLeft className="h-3 w-3 mr-1" />
-                Back to accounts
-              </Button>
-            )}
-
             {/* Scan type */}
             {!preSelectedScanSlug && (
               <div className="space-y-2">
@@ -366,12 +367,6 @@ export function CloudScanScheduleDialog({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              {!preSelectedConnection && (
-                <Button type="button" variant="outline" onClick={() => setSelectedConnection(null)}>
-                  <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-                  Back
-                </Button>
-              )}
               <Button
                 type="button"
                 disabled={!isValid || createSchedule.isPending}
