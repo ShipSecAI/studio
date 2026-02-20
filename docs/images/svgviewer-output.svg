@@ -1,0 +1,241 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 1100" width="860" height="1100" style="font-family: 'SF Mono', 'Fira Code', monospace; background: #080812;">
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d0d1f"/>
+      <stop offset="100%" stop-color="#080812"/>
+    </linearGradient>
+    <linearGradient id="boxG" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1c1c38"/>
+      <stop offset="100%" stop-color="#13132a"/>
+    </linearGradient>
+    <linearGradient id="temporalG" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#2d2a7a"/>
+    </linearGradient>
+    <linearGradient id="accentLine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#6366f1" stop-opacity="0"/>
+      <stop offset="50%"  stop-color="#818cf8" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="chipG" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#111128"/>
+      <stop offset="100%" stop-color="#0c0c1e"/>
+    </linearGradient>
+
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="layerShadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#6366f1" flood-opacity="0.08"/>
+    </filter>
+
+    <style>
+      .box     { fill:url(#boxG); stroke:#2a2a52; stroke-width:1.5; }
+      .chip    { fill:url(#chipG); stroke:#1e1e40; stroke-width:1; }
+      .h-label { fill:#a5b4fc; font-size:10px; font-weight:700; letter-spacing:3px; text-anchor:middle; }
+      .b-title { fill:#e0e7ff; font-size:12px; font-weight:600; text-anchor:middle; }
+      .b-sub   { fill:#6b7280; font-size:9.5px; text-anchor:middle; }
+      .c-label { fill:#818cf8; font-size:9px; font-weight:700; letter-spacing:2px; text-anchor:middle; }
+      .chip-t  { fill:#64748b; font-size:10px; letter-spacing:1.5px; text-anchor:middle; }
+      .dash    { stroke:#1e1e40; stroke-width:1; stroke-dasharray:3 4; }
+
+      @keyframes pulse { 0%,100%{stroke:#4f46e5;stroke-width:2} 50%{stroke:#818cf8;stroke-width:2.5} }
+      @keyframes dashMove { from{stroke-dashoffset:20} to{stroke-dashoffset:0} }
+      @keyframes blink { 0%,100%{opacity:0.2} 50%{opacity:1} }
+
+      .t-border  { animation: pulse 3s ease-in-out infinite; }
+      .connector { stroke:#6366f1; stroke-width:2; stroke-dasharray:6 4; stroke-linecap:round; fill:none; animation:dashMove 1.6s linear infinite; }
+      .dot1 { fill:#818cf8; animation:blink 1.6s ease-in-out infinite; animation-delay:0s; }
+      .dot2 { fill:#818cf8; animation:blink 1.6s ease-in-out infinite; animation-delay:0.4s; }
+      .dot3 { fill:#818cf8; animation:blink 1.6s ease-in-out infinite; animation-delay:0.8s; }
+      .dot4 { fill:#818cf8; animation:blink 1.6s ease-in-out infinite; animation-delay:1.2s; }
+    </style>
+
+    <marker id="arr" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+      <polygon points="0 0 7 2.5 0 5" fill="#818cf8"/>
+    </marker>
+  </defs>
+
+  <!-- BG -->
+  <rect width="860" height="1100" fill="url(#bg)"/>
+  <circle cx="800" cy="60"   r="160" fill="#6366f1" fill-opacity="0.04"/>
+  <circle cx="60"  cy="1060" r="180" fill="#818cf8" fill-opacity="0.03"/>
+
+  <!-- ── LAYER 1: FRONTEND ── -->
+  <g filter="url(#layerShadow)">
+    <rect x="30" y="30" width="800" height="148" rx="12" fill="#0f0f1e" stroke="#252548" stroke-width="1.5"/>
+    <rect x="30" y="66"  width="800" height="1"   fill="url(#accentLine)"/>
+    <text class="h-label" x="430" y="54">Frontend · Visual Workspace</text>
+
+    <rect class="box" x="50"  y="76" width="178" height="62" rx="8"/>
+    <text class="b-title" x="139" y="101">Visual Builder</text>
+    <text class="b-sub"   x="139" y="118">ReactFlow · Canvas</text>
+
+    <rect class="box" x="244" y="76" width="178" height="62" rx="8"/>
+    <text class="b-title" x="333" y="101">Terminal Viewer</text>
+    <text class="b-sub"   x="333" y="118">xterm.js · Real-time</text>
+
+    <rect class="box" x="438" y="76" width="178" height="62" rx="8"/>
+    <text class="b-title" x="527" y="101">Timeline Replay</text>
+    <text class="b-sub"   x="527" y="118">Zustand · State</text>
+
+    <rect class="box" x="632" y="76" width="178" height="62" rx="8"/>
+    <text class="b-title" x="721" y="101">Config Panel</text>
+    <text class="b-sub"   x="721" y="118">Radix UI · Forms</text>
+  </g>
+
+  <!-- Connector 1 -->
+  <line class="connector" x1="430" y1="178" x2="430" y2="228" marker-end="url(#arr)"/>
+  <circle class="dot1" cx="430" cy="203" r="3.5" filter="url(#glow)"/>
+  <text class="c-label" x="498" y="210">REST API + SSE</text>
+
+  <!-- ── LAYER 2: BACKEND ── -->
+  <g filter="url(#layerShadow)">
+    <rect x="30" y="232" width="800" height="218" rx="12" fill="#0f0f1e" stroke="#252548" stroke-width="1.5"/>
+    <rect x="30" y="268" width="800" height="1"   fill="url(#accentLine)"/>
+    <text class="h-label" x="430" y="256">Service Core · NestJS</text>
+
+    <rect class="box" x="50"  y="278" width="142" height="54" rx="7"/>
+    <text class="b-title" x="121" y="300">Workflows</text>
+    <text class="b-sub"   x="121" y="318">DSL Engine</text>
+
+    <rect class="box" x="204" y="278" width="142" height="54" rx="7"/>
+    <text class="b-title" x="275" y="300">Secrets</text>
+    <text class="b-sub"   x="275" y="318">AES-256-GCM</text>
+
+    <rect class="box" x="358" y="278" width="142" height="54" rx="7"/>
+    <text class="b-title" x="429" y="300">Storage</text>
+    <text class="b-sub"   x="429" y="318">MinIO</text>
+
+    <rect class="box" x="512" y="278" width="142" height="54" rx="7"/>
+    <text class="b-title" x="583" y="300">Trace Events</text>
+    <text class="b-sub"   x="583" y="318">SSE Stream</text>
+
+    <rect class="box" x="666" y="278" width="142" height="54" rx="7"/>
+    <text class="b-title" x="737" y="300">Auth</text>
+    <text class="b-sub"   x="737" y="318">Clerk</text>
+
+    <line class="dash" x1="50" y1="344" x2="808" y2="344"/>
+
+    <rect class="box" x="50"  y="354" width="142" height="54" rx="7"/>
+    <text class="b-title" x="121" y="376">Webhooks</text>
+    <text class="b-sub"   x="121" y="394">Inbound HTTP</text>
+
+    <rect class="box" x="204" y="354" width="142" height="54" rx="7"/>
+    <text class="b-title" x="275" y="376">Schedules</text>
+    <text class="b-sub"   x="275" y="394">CRON</text>
+
+    <rect class="box" x="358" y="354" width="142" height="54" rx="7"/>
+    <text class="b-title" x="429" y="376">AI Agents</text>
+    <text class="b-sub"   x="429" y="394">LLM · MCP</text>
+
+    <rect class="box" x="512" y="354" width="142" height="54" rx="7"/>
+    <text class="b-title" x="583" y="376">Human Input</text>
+    <text class="b-sub"   x="583" y="394">Approvals · Forms</text>
+
+    <rect class="box" x="666" y="354" width="142" height="54" rx="7"/>
+    <text class="b-title" x="737" y="376">Integrations</text>
+    <text class="b-sub"   x="737" y="394">GitHub · Slack</text>
+  </g>
+
+  <!-- Connector 2 -->
+  <line class="connector" x1="430" y1="450" x2="430" y2="500" marker-end="url(#arr)"/>
+  <circle class="dot2" cx="430" cy="475" r="3.5" filter="url(#glow)"/>
+  <text class="c-label" x="500" y="481">TEMPORAL gRPC</text>
+
+  <!-- ── LAYER 3: TEMPORAL ── -->
+  <rect x="30" y="504" width="800" height="84" rx="12" fill="url(#temporalG)" stroke="#4f46e5" stroke-width="2" class="t-border" filter="url(#layerShadow)"/>
+  <rect x="32" y="506" width="796" height="80" rx="11" fill="none" stroke="#6366f1" stroke-width="0.5" opacity="0.35"/>
+  <text class="h-label" x="430" y="537" style="fill:#c7d2fe; letter-spacing:4px; font-size:11px;">Temporal Orchestration</text>
+  <text class="c-label" x="430" y="562" style="fill:#818cf8; letter-spacing:3px;">DURABILITY · RETRIES · STATE PERSISTENCE</text>
+
+  <!-- Connector 3 -->
+  <line class="connector" x1="430" y1="588" x2="430" y2="638" marker-end="url(#arr)"/>
+  <circle class="dot3" cx="430" cy="613" r="3.5" filter="url(#glow)"/>
+  <text class="c-label" x="506" y="619">ACTIVITY DISPATCH</text>
+
+  <!-- ── LAYER 4: WORKER ── -->
+  <g filter="url(#layerShadow)">
+    <rect x="30" y="642" width="800" height="242" rx="12" fill="#0f0f1e" stroke="#252548" stroke-width="1.5"/>
+    <rect x="30" y="678" width="800" height="1"   fill="url(#accentLine)"/>
+    <text class="h-label" x="430" y="666">Execution Worker · Node / Bun</text>
+
+    <text x="430" y="700" text-anchor="middle" fill="#2e2e52" font-size="9px" letter-spacing="3px" font-family="SF Mono, Fira Code, monospace">COMPONENT REGISTRY</text>
+
+    <rect class="box" x="50"  y="710" width="182" height="64" rx="8"/>
+    <text class="b-title" x="141" y="734">Security Tools</text>
+    <text class="b-sub"   x="141" y="750">Nuclei · Subfinder</text>
+    <text class="b-sub"   x="141" y="764">DNSX · HTTPx</text>
+
+    <rect class="box" x="244" y="710" width="182" height="64" rx="8"/>
+    <text class="b-title" x="335" y="734">AI Agents</text>
+    <text class="b-sub"   x="335" y="750">LLM Generate</text>
+    <text class="b-sub"   x="335" y="764">MCP Providers</text>
+
+    <rect class="box" x="438" y="710" width="182" height="64" rx="8"/>
+    <text class="b-title" x="529" y="734">Human-in-Loop</text>
+    <text class="b-sub"   x="529" y="750">Approvals · Forms</text>
+    <text class="b-sub"   x="529" y="764">Selection</text>
+
+    <rect class="box" x="632" y="710" width="178" height="64" rx="8"/>
+    <text class="b-title" x="721" y="734">Core Utilities</text>
+    <text class="b-sub"   x="721" y="750">HTTP · JSON</text>
+    <text class="b-sub"   x="721" y="764">Logic · Files</text>
+
+    <line class="dash" x1="50" y1="790" x2="808" y2="790"/>
+
+    <text x="430" y="810" text-anchor="middle" fill="#2e2e52" font-size="9px" letter-spacing="3px" font-family="SF Mono, Fira Code, monospace">SERVICE ADAPTERS</text>
+
+    <rect class="chip" x="52"  y="820" width="108" height="28" rx="6"/>
+    <text class="chip-t" x="106" y="839">SECRETS</text>
+
+    <rect class="chip" x="172" y="820" width="108" height="28" rx="6"/>
+    <text class="chip-t" x="226" y="839">STORAGE</text>
+
+    <rect class="chip" x="292" y="820" width="108" height="28" rx="6"/>
+    <text class="chip-t" x="346" y="839">ARTIFACTS</text>
+
+    <rect class="chip" x="412" y="820" width="108" height="28" rx="6"/>
+    <text class="chip-t" x="466" y="839">TRACE</text>
+
+    <rect class="chip" x="532" y="820" width="108" height="28" rx="6"/>
+    <text class="chip-t" x="586" y="839">TERMINAL</text>
+
+    <rect class="chip" x="652" y="820" width="108" height="28" rx="6"/>
+    <text class="chip-t" x="706" y="839">LOGS</text>
+  </g>
+
+  <!-- Connector 4 -->
+  <line class="connector" x1="430" y1="884" x2="430" y2="934" marker-end="url(#arr)"/>
+  <circle class="dot4" cx="430" cy="909" r="3.5" filter="url(#glow)"/>
+
+  <!-- ── LAYER 5: INFRASTRUCTURE ── -->
+  <g filter="url(#layerShadow)">
+    <rect x="30" y="938" width="800" height="132" rx="12" fill="#0f0f1e" stroke="#252548" stroke-width="1.5"/>
+    <rect x="30" y="974" width="800" height="1"   fill="url(#accentLine)"/>
+    <text class="h-label" x="430" y="962">Infrastructure Layer</text>
+
+    <rect class="box" x="50"  y="984" width="144" height="64" rx="8"/>
+    <text class="b-title" x="122" y="1007">PostgreSQL</text>
+    <text class="b-sub"   x="122" y="1024">v16 · Primary Data</text>
+
+    <rect class="box" x="206" y="984" width="144" height="64" rx="8"/>
+    <text class="b-title" x="278" y="1007">MinIO</text>
+    <text class="b-sub"   x="278" y="1024">Object Store</text>
+
+    <rect class="box" x="362" y="984" width="144" height="64" rx="8"/>
+    <text class="b-title" x="434" y="1007">Redis</text>
+    <text class="b-sub"   x="434" y="1024">Pub/Sub · Cache</text>
+
+    <rect class="box" x="518" y="984" width="144" height="64" rx="8"/>
+    <text class="b-title" x="590" y="1007">Redpanda</text>
+    <text class="b-sub"   x="590" y="1024">Event Stream</text>
+
+    <rect class="box" x="674" y="984" width="144" height="64" rx="8"/>
+    <text class="b-title" x="746" y="1007">Loki</text>
+    <text class="b-sub"   x="746" y="1024">Log Aggregation</text>
+  </g>
+
+</svg>

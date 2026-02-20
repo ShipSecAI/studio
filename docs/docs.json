@@ -9,6 +9,20 @@
   },
   "favicon": "/favicon.ico",
   "navigation": {
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Website",
+          "icon": "globe",
+          "href": "https://studio.shipsec.ai"
+        },
+        {
+          "anchor": "GitHub",
+          "icon": "github",
+          "href": "https://github.com/shipsecai/studio"
+        }
+      ]
+    },
     "tabs": [
       {
         "tab": "Documentation",
@@ -16,7 +30,7 @@
           {
             "group": "Getting Started",
             "pages": [
-              "index",
+              "Introduction",
               "quickstart",
               "installation",
               "command-reference"
@@ -49,21 +63,7 @@
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Website",
-          "href": "https://studio.shipsec.ai",
-          "icon": "globe"
-        },
-        {
-          "anchor": "GitHub",
-          "href": "https://github.com/shipsecai/studio",
-          "icon": "github"
-        }
-      ]
-    }
+    ]
   },
   "logo": {
     "light": "/logo/logo-dark.svg",
@@ -88,5 +88,8 @@
       "github": "https://github.com/shipsecai",
       "linkedin": "https://linkedin.com/company/shipsecai"
     }
+  },
+  "seo": {
+    "indexing": "all"
   }
 }

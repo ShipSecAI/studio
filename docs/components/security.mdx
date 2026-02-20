@@ -1,99 +1,107 @@
 ---
 title: "Security Components"
-description: "Open source security tools for security automation workflows"
+description: "Production-ready wrappers around the most trusted open-source security tools — drag, connect, and run."
 ---
 
-Security components wrap popular open-source tools for subdomain discovery, DNS resolution, port scanning, and secret detection.
+Security components wrap the **industry's most trusted open-source tools** into drag-and-drop workflow blocks. No CLI knowledge required — configure everything from the sidebar and connect tools together in seconds.
 
 ---
 
 ## Subdomain Discovery
 
+Find every subdomain attached to a target domain before you start scanning. More subdomains = more attack surface coverage.
+
 ### Subfinder
 
 <Info>
-[GitHub](https://github.com/projectdiscovery/subfinder) · Docker: `ghcr.io/shipsecai/subfinder`
+  Passive subdomain enumeration using 40+ data sources — no direct interaction with the target.
+  [GitHub](https://github.com/projectdiscovery/subfinder) · Docker: `ghcr.io/shipsecai/subfinder`
 </Info>
 
-Discovers subdomains using passive sources.
-
 | Input | Type | Description |
-|-------|------|-------------|
-| `domains` | Array | Target domains to enumerate |
-| `providerConfig` | Secret | Optional provider-config.yaml for authenticated sources |
+|---|---|---|
+| `domains` | Array | The target domains you want to enumerate |
+| `providerConfig` | Secret | Optional `provider-config.yaml` to unlock authenticated sources (Shodan, Censys, etc.) |
 
 | Output | Type | Description |
-|--------|------|-------------|
-| `subdomains` | Array | Discovered subdomain hostnames |
-| `rawOutput` | String | Raw tool output |
-| `subdomainCount` | Number | Total subdomains found |
-
-**Example command:** `subfinder -d example.com -silent`
+|---|---|---|
+| `subdomains` | Array | All discovered subdomain hostnames |
+| `subdomainCount` | Number | Total count |
+| `rawOutput` | String | Raw tool output for debugging |
+```bash
+# What runs under the hood
+subfinder -d example.com -silent
+```
 
 ---
 
 ### Amass
 
 <Info>
-[GitHub](https://github.com/owasp-amass/amass) · Docker: `ghcr.io/shipsecai/amass`
+  Deep subdomain enumeration using both passive sources and active DNS techniques.
+  [GitHub](https://github.com/owasp-amass/amass) · Docker: `ghcr.io/shipsecai/amass`
 </Info>
 
-Active and passive subdomain enumeration.
-
 | Input | Type | Description |
-|-------|------|-------------|
+|---|---|---|
 | `domains` | Array | Target domains |
-| `mode` | Select | `passive` or `active` |
+| `mode` | Select | `passive` — no direct contact · `active` — DNS brute-force and zone transfers |
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `timeout` | Number | Timeout in minutes |
-| `maxDns` | Number | Max DNS queries per second |
+|---|---|---|
+| `timeout` | Number | Max run time in minutes |
+| `maxDns` | Number | DNS queries per second (throttle to avoid rate limits) |
+
+<Tip>
+  Use `passive` mode for stealth. Use `active` mode when you have explicit authorization and want maximum coverage.
+</Tip>
 
 ---
 
 ### ShuffleDNS + MassDNS
 
 <Info>
-[GitHub (ShuffleDNS)](https://github.com/projectdiscovery/shuffledns) · [GitHub (MassDNS)](https://github.com/blechschmidt/massdns) · Docker: `ghcr.io/shipsecai/shuffledns-massdns`
+  High-speed DNS bruteforcing using a wordlist — resolves millions of potential subdomains in seconds.
+  [ShuffleDNS](https://github.com/projectdiscovery/shuffledns) · [MassDNS](https://github.com/blechschmidt/massdns) · Docker: `ghcr.io/shipsecai/shuffledns-massdns`
 </Info>
 
-High-performance DNS bruteforcing and resolution. This is a combined image that has both ShuffleDNS with MassDNS pre-installed. 
+This is a combined image with both tools pre-installed. ShuffleDNS manages the wordlist bruteforce; MassDNS handles the high-throughput resolution.
 
 | Input | Type | Description |
-|-------|------|-------------|
-| `domains` | Array | Target domains |
-| `wordlist` | File | Wordlist for bruteforcing |
-| `resolvers` | Array | Custom DNS resolvers |
+|---|---|---|
+| `domains` | Array | Target domains to bruteforce against |
+| `wordlist` | File | Subdomain wordlist (e.g. `subdomains-top1million.txt`) |
+| `resolvers` | Array | Custom DNS resolver IPs to use |
 
 ---
 
 ## DNS Resolution
 
+Once you have a list of subdomains, resolve them — find out which ones are real, what IPs they point to, and who's hosting them.
+
 ### DNSX
 
 <Info>
-[GitHub](https://github.com/projectdiscovery/dnsx) · Docker: `ghcr.io/shipsecai/dnsx`
+  Fast, multi-threaded DNS resolution with support for every record type.
+  [GitHub](https://github.com/projectdiscovery/dnsx) · Docker: `ghcr.io/shipsecai/dnsx`
 </Info>
 
-Resolves DNS records with support for multiple record types and custom resolvers.
-
 | Input | Type | Description |
-|-------|------|-------------|
-| `domains` | Array | Domains to resolve |
-| `recordTypes` | Array | DNS types: A, AAAA, CNAME, MX, NS, TXT, etc. |
-| `resolvers` | Array | Custom resolver IPs (e.g., 1.1.1.1:53) |
+|---|---|---|
+| `domains` | Array | Subdomains or hostnames to resolve |
+| `recordTypes` | Array | Which DNS records to fetch: `A`, `AAAA`, `CNAME`, `MX`, `NS`, `TXT`, etc. |
+| `resolvers` | Array | Custom resolver IPs (e.g. `1.1.1.1:53`) |
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `threads` | Number | Concurrent workers (default: 100) |
-| `retryCount` | Number | Retry attempts (default: 2) |
-| `rateLimit` | Number | Requests per second |
-| `showCdn` | Boolean | Annotate CDN providers |
-| `showAsn` | Boolean | Include ASN info |
+|---|---|---|
+| `threads` | Number | How many lookups to run simultaneously (default: `100`) |
+| `retryCount` | Number | Retries per failed lookup (default: `2`) |
+| `rateLimit` | Number | Max requests per second |
+| `showCdn` | Boolean | Tag results with their CDN provider (Cloudflare, Akamai, etc.) |
+| `showAsn` | Boolean | Include ASN / ISP information in results |
 
 | Output | Type | Description |
-|--------|------|-------------|
+|---|---|---|
 | `results` | Array | DNS responses grouped by record type |
 | `resolvedHosts` | Array | Unique resolved hostnames |
 | `rawOutput` | String | Raw JSONL output |
@@ -102,64 +110,70 @@ Resolves DNS records with support for multiple record types and custom resolvers
 
 ## HTTP Probing
 
-### httpx
+Figure out which discovered hosts actually have a web server running — and capture key metadata about each one.
+
+### HTTPx
 
 <Info>
-[GitHub](https://github.com/projectdiscovery/httpx) · Docker: `ghcr.io/shipsecai/httpx`
+  Bulk HTTP probing — status codes, titles, tech stack, TLS info, and more.
+  [GitHub](https://github.com/projectdiscovery/httpx) · Docker: `ghcr.io/shipsecai/httpx`
 </Info>
 
-Probes hosts for live HTTP services and captures response metadata.
-
 | Input | Type | Description |
-|-------|------|-------------|
+|---|---|---|
 | `targets` | Array | Hostnames or URLs to probe |
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `ports` | String | Comma-separated ports (e.g., "80,443,8080") |
-| `statusCodes` | String | Filter by HTTP status codes |
-| `threads` | Number | Concurrency level |
-| `followRedirects` | Boolean | Follow HTTP redirects |
-| `tlsProbe` | Boolean | Probe TLS endpoints |
-| `path` | String | Specific path to probe |
+|---|---|---|
+| `ports` | String | Ports to check (e.g. `"80,443,8080,8443"`) |
+| `statusCodes` | String | Only return results with these status codes |
+| `threads` | Number | Concurrent probe workers |
+| `followRedirects` | Boolean | Follow HTTP redirects automatically |
+| `tlsProbe` | Boolean | Include TLS certificate details |
+| `path` | String | Append a specific path to every probe (e.g. `/admin`) |
 
 | Output | Type | Description |
-|--------|------|-------------|
-| `results` | Array | HTTP response metadata |
+|---|---|---|
+| `results` | Array | Per-host HTTP metadata (status, title, tech, headers) |
 | `rawOutput` | String | Raw httpx JSON lines |
-
-**Example command:** `httpx -l targets.txt -json -status-code 200,301`
+```bash
+# What runs under the hood
+httpx -l targets.txt -json -status-code 200,301
+```
 
 ---
 
 ## Port Scanning
 
+Discover which ports are open on a target — the first step to understanding what services are exposed.
+
 ### Naabu
 
 <Info>
-[GitHub](https://github.com/projectdiscovery/naabu) · Docker: `ghcr.io/shipsecai/naabu`
+  Fast, reliable port scanner using SYN and CONNECT probes.
+  [GitHub](https://github.com/projectdiscovery/naabu) · Docker: `ghcr.io/shipsecai/naabu`
 </Info>
 
-Fast active port scanning using SYN/CONNECT probes.
-
 | Input | Type | Description |
-|-------|------|-------------|
-| `targets` | Array | Hostnames or IPs to scan |
+|---|---|---|
+| `targets` | Array | Hostnames or IP addresses to scan |
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `ports` | String | Custom ports (e.g., "80,443,1000-2000") |
-| `topPorts` | Number | Scan top N common ports |
-| `rate` | Number | Packets per second |
+|---|---|---|
+| `ports` | String | Specific ports or ranges (e.g. `"22,80,443,1000-2000"`) |
+| `topPorts` | Number | Scan the top N most common ports |
+| `rate` | Number | Packets per second — lower this on rate-limited networks |
 | `retries` | Number | Retry attempts per port |
-| `enablePing` | Boolean | Ping probe before scanning |
+| `enablePing` | Boolean | Ping the host first to check if it's up |
 
 | Output | Type | Description |
-|--------|------|-------------|
+|---|---|---|
 | `findings` | Array | Open ports per target |
-| `openPortCount` | Number | Total open ports found |
-
-**Example command:** `naabu -host scanme.sh -top-ports 100`
+| `openPortCount` | Number | Total open ports found across all targets |
+```bash
+# What runs under the hood
+naabu -host scanme.sh -top-ports 100
+```
 
 ---
 
@@ -168,26 +182,31 @@ Fast active port scanning using SYN/CONNECT probes.
 ### Nuclei
 
 <Info>
-[GitHub](https://github.com/shipsecai/tools/pkgs/container/nuclei) · Docker: `ghcr.io/shipsecai/nuclei`
+  Template-based vulnerability scanning — thousands of community-maintained detection rules built in.
+  [GitHub](https://github.com/projectdiscovery/nuclei) · Docker: `ghcr.io/shipsecai/nuclei`
 </Info>
 
-Template-based vulnerability scanning. This is nuclei custom image with nuclei-templates baked in.
+This is a custom Nuclei image with the full **nuclei-templates** library baked in — no separate download needed.
 
 | Input | Type | Description |
-|-------|------|-------------|
+|---|---|---|
 | `targets` | Array | URLs or hosts to scan |
-| `templates` | Array | Template IDs or paths |
+| `templates` | Array | Specific template IDs or paths to run (leave empty to run all) |
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `severity` | Array | Filter by severity (critical, high, medium, low) |
-| `rate` | Number | Requests per second |
-| `concurrency` | Number | Parallel template executions |
+|---|---|---|
+| `severity` | Array | Only run templates matching these severities: `critical`, `high`, `medium`, `low` |
+| `rate` | Number | HTTP requests per second |
+| `concurrency` | Number | Number of templates running in parallel |
 
 | Output | Type | Description |
-|--------|------|-------------|
-| `findings` | Array | Detected vulnerabilities |
-| `criticalCount` | Number | Critical findings count |
+|---|---|---|
+| `findings` | Array | All detected vulnerabilities with full detail |
+| `criticalCount` | Number | Number of critical-severity findings |
+
+<Warning>
+  Only run Nuclei against systems you own or have explicit written authorization to test. Active scanning without permission is illegal in most jurisdictions.
+</Warning>
 
 ---
 
@@ -196,64 +215,65 @@ Template-based vulnerability scanning. This is nuclei custom image with nuclei-t
 ### TruffleHog
 
 <Info>
-[GitHub](https://github.com/trufflesecurity/trufflehog) · Docker: `ghcr.io/shipsecai/trufflehog`
+  Scans Git history, cloud storage, filesystems, and container images for leaked credentials.
+  [GitHub](https://github.com/trufflesecurity/trufflehog) · Docker: `ghcr.io/shipsecai/trufflehog`
 </Info>
 
-Scans for leaked credentials across repositories, filesystems, and cloud storage.
-
 | Input | Type | Description |
-|-------|------|-------------|
-| `scanTarget` | String | Repository URL, path, bucket, or image |
-| `scanType` | Select | git, github, gitlab, s3, filesystem, docker |
+|---|---|---|
+| `scanTarget` | String | A repo URL, file path, S3 bucket, or Docker image to scan |
+| `scanType` | Select | `git` · `github` · `gitlab` · `s3` · `filesystem` · `docker` |
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `onlyVerified` | Boolean | Show only verified secrets (default: true) |
-| `branch` | String | Specific branch to scan |
-| `sinceCommit` | String | Scan commits since reference (for PR scanning) |
+|---|---|---|
+| `onlyVerified` | Boolean | Only surface secrets that TruffleHog can actively verify as live (default: `true`) |
+| `branch` | String | Limit scan to a specific Git branch |
+| `sinceCommit` | String | Only scan commits after this reference — great for PR-level scanning |
 
 | Output | Type | Description |
-|--------|------|-------------|
-| `secrets` | Array | Detected secrets with verification status |
-| `verifiedCount` | Number | Number of verified secrets |
-| `hasVerifiedSecrets` | Boolean | Alert flag |
-
-**Example command:** `trufflehog git https://github.com/org/repo --results=verified --json`
+|---|---|---|
+| `secrets` | Array | All detected secrets with type, location, and verification status |
+| `verifiedCount` | Number | How many secrets are confirmed active |
+| `hasVerifiedSecrets` | Boolean | `true` if any live secrets were found — use this to trigger alerts |
+```bash
+# What runs under the hood
+trufflehog git https://github.com/org/repo --results=verified --json
+```
 
 ---
 
 ## Cloud Security
 
-### Prowler Scan
+### Prowler
 
 <Info>
-[GitHub](https://github.com/prowler-cloud/prowler) · Docker: `ghcr.io/shipsecai/prowler`
+  AWS, Azure, and GCP security posture auditing against CIS benchmarks and best practices.
+  [GitHub](https://github.com/prowler-cloud/prowler) · Docker: `ghcr.io/shipsecai/prowler`
 </Info>
 
-Cloud (AWS, Azure, GCP) security posture management. Best practices auditing.
-
 | Input | Type | Description |
-|-------|------|-------------|
-| `credentials` | Object | AWS credentials |
-| `checks` | Array | Specific checks to run |
+|---|---|---|
+| `credentials` | Object | AWS credentials (use the **AWS Credentials** core component) |
+| `checks` | Array | Specific check IDs to run (leave empty to run all) |
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `severity` | Array | Filter by severity |
-| `services` | Array | AWS services to audit |
+|---|---|---|
+| `severity` | Array | Filter findings by severity |
+| `services` | Array | Limit the audit to specific AWS services (e.g. `s3`, `iam`, `ec2`) |
+
+---
 
 ### Supabase Scanner
 
 <Info>
-[GitHub](https://ghcr.io/shipsecai/supabase-scanner) · Docker: `ghcr.io/shipsecai/supabase-scanner`
+  Checks Supabase projects for common misconfigurations and exposed data.
+  Docker: `ghcr.io/shipsecai/supabase-scanner`
 </Info>
 
-Scans Supabase instances for misconfigurations.
-
 | Input | Type | Description |
-|-------|------|-------------|
-| `projectUrl` | String | Supabase project URL |
-| `apiKey` | Secret | Supabase API key |
+|---|---|---|
+| `projectUrl` | String | Your Supabase project URL |
+| `apiKey` | Secret | Supabase API key (use **Secret Loader**) |
 
 ---
 
@@ -262,33 +282,46 @@ Scans Supabase instances for misconfigurations.
 ### Notify
 
 <Info>
-[GitHub](https://github.com/projectdiscovery/notify) · Docker: `ghcr.io/shipsecai/notify`
+  Send alerts to Slack, Discord, Telegram, or email at any point in your workflow.
+  [GitHub](https://github.com/projectdiscovery/notify) · Docker: `ghcr.io/shipsecai/notify`
 </Info>
 
-Sends alerts to Slack, Discord, Telegram, or email.
-
 | Input | Type | Description |
-|-------|------|-------------|
-| `message` | String | Alert message |
-| `provider` | Select | slack, discord, telegram, email |
-| `config` | Secret | Provider configuration |
+|---|---|---|
+| `message` | String | The alert message to send |
+| `provider` | Select | `slack` · `discord` · `telegram` · `email` |
+| `config` | Secret | Provider configuration (webhook URL, API key, etc.) |
+
+<Tip>
+  Put **Notify** at the end of every workflow so your team gets a summary the moment a run completes — whether it found something or not.
+</Tip>
 
 ---
 
-## Example Workflow
+## Full Example Pipeline
 
-A complete attack surface discovery pipeline:
+Here's a complete **attack surface discovery** workflow using security components end-to-end:
+```
+Manual Trigger       ← operator provides target domains
+      ↓
+  Subfinder          ← discovers all subdomains
+      ↓
+    DNSx             ← resolves subdomains to IPs
+      ↓
+    HTTPx            ← finds live web services
+      ↓
+   Nuclei            ← scans for vulnerabilities
+      ↓
+   Notify            ← alerts the team with findings
+```
 
-```
-Manual Trigger (domains input)
-    ↓
-Subfinder (subdomain discovery)
-    ↓
-DNSx (DNS resolution)
-    ↓
-httpx (HTTP probing)
-    ↓
-Nuclei (vulnerability scanning)
-    ↓
-Notify (notify team)
-```
+---
+
+<CardGroup cols={2}>
+  <Card title="Core Components" icon="arrow-left" href="/components/core">
+    ← Previous
+  </Card>
+  <Card title="AI Components" icon="arrow-right" href="/components/ai">
+    Next →
+  </Card>
+</CardGroup>

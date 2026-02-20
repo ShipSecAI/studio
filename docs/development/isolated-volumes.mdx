@@ -1,83 +1,94 @@
 ---
 title: "Isolated Volumes"
-description: "Docker-in-Docker file mounting solution for multi-tenant security"
+description: "How ShipSec Studio keeps every workflow run's files completely separate — even when running Docker inside Docker."
 ---
 
-## Problem Summary
+## The Problem This Solves
 
-In a Docker-in-Docker (DinD) setup where the worker container runs inside Docker and creates containers:
+ShipSec Studio runs security tools inside Docker containers. But there's a catch — the worker itself also runs inside Docker. This "Docker-in-Docker" (DinD) setup breaks the normal way of sharing files with containers, and creates a serious security risk in multi-tenant environments.
 
-1. **Volume Path Mismatch**: Volume mount paths are relative to the Docker daemon's filesystem, not the worker container
-2. **Security Risk**: Shared volumes in multi-tenant SaaS allow cross-tenant data access
-3. **Limited stdin Approach**: Using stdin for data transfer doesn't support file-based tools
+Three problems needed solving:
+
+- **Volume path mismatch** — file paths are relative to the host Docker daemon, not the worker container. Normal file mounts simply don't work.
+- **Cross-tenant data leakage** — shared volumes mean one tenant's files could be visible to another's.
+- **No stdin fallback** — many security tools only accept file-based input, so piping data in via stdin isn't an option.
 
 ---
 
-## Solution: Isolated Named Volumes
+## The Solution: One Volume Per Run
 
-Use unique Docker named volumes created per `tenantId + runId + timestamp`:
-
+Every workflow execution gets its own **unique, isolated Docker named volume** — tied to the tenant ID, run ID, and a timestamp:
 ```
-tenant-${tenantId}-run-${runId}-${timestamp}
+tenant-{tenantId}-run-{runId}-{timestamp}
+
+# Example
+tenant-acme-run-wf-abc123-1732150000
 ```
 
-### Architecture
+It's created before the tool runs, mounted into the container, read after execution, then **immediately destroyed**. No shared state. No leftovers.
 
+---
+
+## How It Works — Step by Step
 ```
-┌─────────────────────────────────────────────────────────┐
-│ Docker Host                                              │
-│                                                          │
-│  ┌─────────────────────────────────────────────┐        │
-│  │ Worker Container (DinD)                     │        │
-│  │                                              │        │
-│  │  1. Creates volume via Docker CLI           │        │
-│  │     docker volume create tenant-A-run-1-... │        │
-│  │                                              │        │
-│  │  2. Populates files using temp container    │        │
-│  │     docker run -v vol:/data alpine sh -c .. │        │
-│  │                                              │        │
-│  │  3. Runs actual tool with volume mounted    │        │
-│  │     docker run -v vol:/inputs dnsx ...      │        │
-│  │                                              │        │
-│  │  4. Reads output files using temp container │        │
-│  │     docker run -v vol:/data alpine cat ...  │        │
-│  │                                              │        │
-│  │  5. Cleans up volume                        │        │
-│  │     docker volume rm tenant-A-run-1-...     │        │
-│  └─────────────────────────────────────────────┘        │
-│                                                          │
-│  ┌──────────────────────────────────────────┐           │
-│  │ Docker Volumes (on Docker Host)          │           │
-│  │                                           │           │
-│  │  • tenant-A-run-123-1732090000           │           │
-│  │  • tenant-B-run-456-1732090001           │           │
-│  │  • tenant-A-run-789-1732090002           │           │
-│  │                                           │           │
-│  │  Each volume isolated per tenant + run   │           │
-│  └──────────────────────────────────────────┘           │
-└─────────────────────────────────────────────────────────┘
+Docker Host
+└── Worker Container (DinD)
+    │
+    ├── 1. CREATE volume
+    │      docker volume create tenant-A-run-1-...
+    │
+    ├── 2. POPULATE files via temp Alpine container
+    │      docker run -v vol:/data alpine sh -c "echo ... > /data/domains.txt"
+    │
+    ├── 3. RUN the security tool with volume mounted
+    │      docker run -v vol:/inputs dnsx ...
+    │
+    ├── 4. READ output files via temp Alpine container
+    │      docker run -v vol:/data alpine cat /data/results.json
+    │
+    └── 5. DESTROY the volume
+           docker volume rm tenant-A-run-1-...
+
+Docker Host — Named Volumes (completely separate per tenant + run)
+├── tenant-A-run-123-1732090000
+├── tenant-B-run-456-1732090001
+└── tenant-A-run-789-1732090002
 ```
 
 ---
 
-## Security Benefits
+## Security Improvements
 
 | Aspect | Old Approach | Isolated Volumes |
-|--------|-------------|------------------|
-| **Tenant Isolation** | ❌ Shared volume or stdin | ✅ Unique volume per tenant+run |
-| **Path Traversal** | ⚠️ Possible with file mounts | ✅ Validated filenames |
-| **Data Leakage** | ❌ Files persist in shared space | ✅ Immediate cleanup |
-| **Audit Trail** | ❌ None | ✅ Volume labels track tenant/run |
-| **DinD Compatible** | ❌ File mounts don't work | ✅ Named volumes work perfectly |
+|---|---|---|
+| **Tenant Isolation** | ❌ Shared volume or stdin | ✅ Unique volume per tenant + run |
+| **Path Traversal** | ⚠️ Possible with file mounts | ✅ Filenames validated — no `..` or `/` |
+| **Data Leakage** | ❌ Files persist in shared space | ✅ Destroyed immediately after use |
+| **Audit Trail** | ❌ None | ✅ Every volume labeled `studio.managed=true` |
+| **DinD Compatible** | ❌ File mounts break | ✅ Named volumes work perfectly |
 
 ---
 
-## Implementation
+## Approach Comparison
 
-### Before: File Mounting (Broken in DinD)
+Not sure which approach fits your use case? Here's the full breakdown:
 
+| Feature | File Mounts | stdin | Isolated Volumes |
+|---|---|---|---|
+| **DinD Compatible** | ❌ | ✅ | ✅ |
+| **File-based tools** | ✅ | ❌ | ✅ |
+| **Config files** | ✅ | ❌ | ✅ |
+| **Output files** | ❌ Hard | ❌ | ✅ |
+| **Binary / large files** | ✅ | ⚠️ Memory limits | ✅ |
+| **Tenant isolation** | ❌ | ⚠️ Process-level only | ✅ Volume-level |
+
+---
+
+## Code Examples
+
+### Before — File Mounts (Broken in DinD)
 ```typescript
-// ❌ WRONG - Breaks in DinD, no tenant isolation
+// ❌ WRONG — breaks in DinD, no tenant isolation
 const hostInputDir = await mkdtemp(path.join(tmpdir(), 'dnsx-input-'));
 await writeFile(path.join(hostInputDir, 'file.txt'), data);
 
@@ -88,10 +99,9 @@ const runnerConfig: DockerRunnerConfig = {
 };
 ```
 
-### After: Isolated Volumes (DinD Compatible)
-
+### After — Isolated Volumes (DinD Compatible)
 ```typescript
-// ✅ CORRECT - DinD compatible, tenant isolated
+// ✅ CORRECT — DinD compatible, fully tenant isolated
 const tenantId = context.tenantId ?? 'default-tenant';
 const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
@@ -102,7 +112,7 @@ try {
   });
 
   const runnerConfig: DockerRunnerConfig = {
-    volumes: [volume.getVolumeConfig('/inputs', true)]
+    volumes: [volume.getVolumeConfig('/inputs', true)] // read-only
   };
 
   await runComponentWithRunner(runnerConfig, ...);
@@ -110,50 +120,15 @@ try {
   const outputs = await volume.readFiles(['results.json']);
 
 } finally {
-  await volume.cleanup();
+  await volume.cleanup(); // Always runs — even if an error is thrown
 }
 ```
 
 ---
-
-## Comparison: All Approaches
-
-| Feature | File Mounts | stdin Approach | Isolated Volumes |
-|---------|-------------|----------------|------------------|
-| **DinD Compatible** | ❌ No | ✅ Yes | ✅ Yes |
-| **File-based tools** | ✅ Yes | ❌ No | ✅ Yes |
-| **Config files** | ✅ Yes | ❌ No | ✅ Yes |
-| **Output files** | ❌ Hard to read | ❌ No | ✅ Yes |
-| **Binary files** | ✅ Yes | ❌ No | ✅ Yes |
-| **Large files** | ✅ Yes | ⚠️ Memory limits | ✅ Yes |
-| **Tenant isolation** | ❌ No | ⚠️ Process-level | ✅ Volume-level |
-
----
-
-## Usage Examples
-
-### Simple Input Files
-
-```typescript
-const volume = new IsolatedContainerVolume(tenantId, runId);
-
-try {
-  await volume.initialize({
-    'targets.txt': targets.join('\n')
-  });
-
-  const config = {
-    volumes: [volume.getVolumeConfig('/inputs', true)]
-  };
-
-  await runTool(config);
-} finally {
-  await volume.cleanup();
-}
-```
 
 ### Input + Output Files
 
+When the tool needs to both read inputs *and* write outputs to the same volume:
 ```typescript
 const volume = new IsolatedContainerVolume(tenantId, runId);
 
@@ -164,7 +139,7 @@ try {
 
   const config = {
     command: ['--input', '/data/config.yaml', '--output', '/data/results.json'],
-    volumes: [volume.getVolumeConfig('/data', false)] // Read-write
+    volumes: [volume.getVolumeConfig('/data', false)] // read-write
   };
 
   await runTool(config);
@@ -177,20 +152,23 @@ try {
 }
 ```
 
-### Multiple Volumes
+---
 
+### Separate Input and Output Volumes
+
+For maximum isolation, use two volumes — one read-only for inputs, one write-only for outputs:
 ```typescript
-const inputVol = new IsolatedContainerVolume(tenantId, `${runId}-in`);
+const inputVol  = new IsolatedContainerVolume(tenantId, `${runId}-in`);
 const outputVol = new IsolatedContainerVolume(tenantId, `${runId}-out`);
 
 try {
   await inputVol.initialize({ 'data.csv': csvData });
-  await outputVol.initialize({}); // Empty volume for outputs
+  await outputVol.initialize({}); // empty — just here to receive output
 
   const config = {
     volumes: [
-      inputVol.getVolumeConfig('/inputs', true),
-      outputVol.getVolumeConfig('/outputs', false)
+      inputVol.getVolumeConfig('/inputs', true),   // read-only
+      outputVol.getVolumeConfig('/outputs', false)  // read-write
     ]
   };
 
@@ -199,176 +177,135 @@ try {
   const results = await outputVol.readFiles(['output.json']);
 
 } finally {
-  await Promise.all([
-    inputVol.cleanup(),
-    outputVol.cleanup()
-  ]);
+  await Promise.all([inputVol.cleanup(), outputVol.cleanup()]);
 }
 ```
 
 ---
 
-## Volume Lifecycle
+## Security Details
 
-1. **Create**: `docker volume create tenant-A-run-123-...`
-2. **Populate**: Use temporary Alpine container to write files
-3. **Mount**: Container uses the volume via `-v volumeName:/path`
-4. **Read**: Use temporary Alpine container to read files
-5. **Cleanup**: `docker volume rm tenant-A-run-123-...`
+### Path Validation
 
-### Automatic Cleanup
+Filenames passed to `initialize()` are automatically validated. Anything that looks like a path traversal attempt is rejected before it ever reaches Docker.
+```typescript
+// ✅ These are fine
+await volume.initialize({
+  'file.txt': data,
+  'subdir/file.txt': data
+});
 
-Volumes are always cleaned up via `finally` blocks:
+// ❌ These are blocked automatically
+await volume.initialize({
+  '../file.txt': data,  // path traversal — rejected
+  '/etc/passwd': data   // absolute path — rejected
+});
+```
 
+### Read-Only vs Read-Write Mounts
+```typescript
+volume.getVolumeConfig('/inputs', true)   // ✅ read-only  — use for input files
+volume.getVolumeConfig('/outputs', false) // ⚠️ read-write — only when tool must write output
+```
+
+<Tip>
+  Default to read-only. Only grant write access when the tool explicitly needs to produce output files.
+</Tip>
+
+### Nonroot Container Support
+
+Some tools (like distroless images) run as a nonroot user (`uid 65532`). Files written to volumes via Alpine (which runs as root) would be unreadable by these containers.
+
+`volume.initialize()` automatically runs `chmod -R 777` on the volume after writing files. This is safe because:
+- Each volume is scoped to a single tenant + run
+- Volumes are destroyed immediately after execution
+- No cross-tenant access is ever possible
+
+---
+
+## Cleanup
+
+### Automatic Cleanup (Normal Flow)
+
+Volumes are always destroyed via `finally` blocks — even if the tool crashes or throws an error:
 ```typescript
 try {
   await volume.initialize(...);
   await runTool(...);
 } finally {
-  await volume.cleanup(); // Always runs, even on error
+  await volume.cleanup(); // guaranteed to run
 }
 ```
 
-### Orphan Cleanup
+### Orphan Cleanup (After a Worker Crash)
 
-For volumes that weren't cleaned up (e.g., worker crash):
-
+If the worker process itself crashes mid-execution, volumes may be left behind. Clean them up with:
 ```bash
-# List studio-managed volumes
+# List all volumes managed by ShipSec Studio
 docker volume ls --filter "label=studio.managed=true"
 
-# Remove old volumes
+# Remove all orphaned managed volumes
 docker volume prune --filter "label=studio.managed=true"
 ```
 
 ---
 
-## Security Requirements
-
-### Tenant Isolation
-
-Every execution gets a unique volume:
-```
-tenant-{tenantId}-run-{runId}-{timestamp}
-```
-
-Example: `tenant-acme-run-wf-abc123-1732150000`
-
-### Read-Only Mounts
-
-```typescript
-// Input files should be read-only
-volume.getVolumeConfig('/inputs', true)  // ✅ read-only
-
-// Only make writable if tool needs to write
-volume.getVolumeConfig('/outputs', false)  // ⚠️ read-write
-```
-
-### Nonroot Container Support
-
-Volumes automatically support containers running as nonroot users (e.g., distroless images with uid 65532).
-
-After files are written to the volume, permissions are set to `777` to allow any container user to read/write:
-
-```typescript
-// This happens automatically in volume.initialize()
-// chmod -R 777 /data
-```
-
-**Why this is needed:**
-- Files are written to volumes using Alpine containers (running as root)
-- Distroless nonroot images run as uid 65532
-- Without permission changes, nonroot containers can't write output files
-
-**This is safe because:**
-- Each volume is isolated per tenant + run
-- Volumes are cleaned up after execution
-- No cross-tenant access is possible
-
-### Path Validation
-
-Filenames are automatically validated:
-
-```typescript
-// ✅ OK
-await volume.initialize({
-  'file.txt': data,
-  'subdir/file.txt': data  // Subdirs OK
-});
-
-// ❌ Rejected (security)
-await volume.initialize({
-  '../file.txt': data,     // Path traversal blocked
-  '/etc/passwd': data      // Absolute paths blocked
-});
-```
-
----
-
-## Security Guarantees
-
-| Security Feature | How It Works |
-|-----------------|--------------|
-| **Tenant Isolation** | Volume name includes tenant ID |
-| **No Collisions** | Timestamp prevents conflicts |
-| **Path Safety** | Filenames validated (no `..` or `/`) |
-| **Automatic Cleanup** | Finally blocks guarantee removal |
-| **Audit Trail** | Volumes labeled `studio.managed=true` |
-| **DinD Compatible** | Named volumes work in nested Docker |
-
----
-
 ## Performance
 
-### Volume Creation Overhead
+Volume creation adds a small, predictable overhead:
 
-- **Creation**: ~50-100ms per volume
-- **File writes**: ~10-50ms per file (depends on size)
-- **Cleanup**: ~50-100ms per volume
+| Operation | Typical Duration |
+|---|---|
+| Volume creation | ~50–100ms |
+| File writes | ~10–50ms per file |
+| Volume cleanup | ~50–100ms |
+| **Total overhead** | **~100–250ms** |
 
-**Total overhead**: ~100-250ms per execution
+This is negligible for security tools that typically run for seconds or minutes.
 
-This is acceptable for security tools that typically run for seconds/minutes.
-
-### Optimization Tips
-
-1. **Batch file writes**: Write all files in one `initialize()` call
-2. **Reuse volumes**: For sequential operations in same run, reuse the volume
-3. **Lazy cleanup**: Clean up volumes in background job if latency-sensitive
+**Tips to minimize overhead:**
+- Write all files in a single `initialize()` call — don't call it multiple times
+- Reuse the same volume for sequential steps within the same run
+- Run `cleanup()` in the background if you're latency-sensitive and don't need to await it
 
 ---
 
 ## When to Use Each Approach
 
-### Use Isolated Volumes When:
-- ✅ Running in DinD environment
-- ✅ Need multi-tenant isolation
-- ✅ Tool requires file-based config
-- ✅ Tool writes output files
-- ✅ Handling binary/large files
-
-### Use stdin/stdout When:
-- ✅ Tool supports stdin input
-- ✅ Single-tenant or dev environment
-- ✅ Small text-only inputs
-- ✅ Don't need output files
-
-### Use File Mounts When:
-- ✅ NOT running in DinD (direct Docker)
-- ✅ Development/testing only
-- ✅ Quick prototyping
+<CardGroup cols={3}>
+  <Card title="Use Isolated Volumes" icon="shield-check">
+    Running in DinD · Multi-tenant environment · Tool needs config files · Tool writes output files · Binary or large file handling
+  </Card>
+  <Card title="Use stdin / stdout" icon="terminal">
+    Tool supports stdin input · Single-tenant or local dev · Small text-only data · No output files needed
+  </Card>
+  <Card title="Use File Mounts" icon="folder">
+    NOT running in DinD · Local development only · Quick prototyping · Not going to production
+  </Card>
+</CardGroup>
 
 ---
 
 ## Migration Checklist
 
-To migrate a component to use isolated volumes:
+Migrating an existing component to use isolated volumes:
 
 - [ ] Import `IsolatedContainerVolume`
-- [ ] Get `tenantId` from context (use fallback for now)
-- [ ] Create volume instance: `new IsolatedContainerVolume(tenantId, runId)`
-- [ ] Replace file writes with `volume.initialize({ files })`
-- [ ] Replace volume mount with `volume.getVolumeConfig()`
-- [ ] Add `finally` block with `volume.cleanup()`
-- [ ] If tool writes outputs, use `volume.readFiles()` to retrieve them
-- [ ] Test in DinD environment
+- [ ] Get `tenantId` from `context.tenantId` (with a fallback for local dev)
+- [ ] Create an instance: `new IsolatedContainerVolume(tenantId, runId)`
+- [ ] Replace manual file writes with `volume.initialize({ files })`
+- [ ] Replace volume mount config with `volume.getVolumeConfig()`
+- [ ] Wrap execution in a `try/finally` block with `volume.cleanup()` in `finally`
+- [ ] If the tool writes outputs, use `volume.readFiles([...])` to retrieve them
+- [ ] Test end-to-end in a DinD environment before shipping
+
+---
+
+<CardGroup cols={2}>
+  <Card title="Component Development" icon="arrow-left" href="/development/component-development">
+    ← Previous
+  </Card>
+  <Card title="Workflow Analytics" icon="arrow-right" href="/development/workflow-analytics">
+    Next →
+  </Card>
+</CardGroup>

@@ -1,0 +1,92 @@
+---
+title: "Introduction"
+description: "The open-source, no-code security automation platform for modern security teams."
+---
+
+import { Card, CardGroup, Frame } from 'mintlify'
+
+# Welcome to ShipSec Studio
+
+**ShipSec Studio** is the open-source, no-code security automation platform. Design reusable security workflows, watch every run unfold live, and maintain full control with opinionated guardrails.
+
+<Frame caption="Design complex security logic visually with the ShipSec Workflow Builder">
+  <img src="/media/workflow-sample.png" alt="ShipSec Workflow Builder" />
+</Frame>
+
+## Why ShipSec?
+
+<CardGroup cols={3}>
+  <Card title="No-Code Engine" icon="wand-magic-sparkles">
+    Connect security tools visually. No scripting or glue code required.
+  </Card>
+  <Card title="Live Observability" icon="terminal">
+    See every step unfold with real-time log streaming and status.
+  </Card>
+  <Card title="Secure by Design" icon="shield-check">
+    Self-hosted, encrypted secrets, and isolated container execution.
+  </Card>
+</CardGroup>
+
+---
+
+## Product Tour
+
+<CardGroup cols={2}>
+  <Card title="Workflow Builder" icon="diagram-project">
+    Visual drag-and-drop editor for building security pipelines.
+    <img src="/media/workflow-sample.png" alt="Workflow Builder" />
+  </Card>
+  <Card title="Live Execution" icon="play">
+    Watch execution unfold in real-time with streaming logs.
+    <img src="/media/workflow-execution.png" alt="Execution Timeline" />
+  </Card>
+  <Card title="Vault" icon="key">
+    Enterprise-grade storage for your API keys and credentials.
+    <img src="/media/secret-manager.png" alt="Secret Manager" />
+  </Card>
+  <Card title="Integrations" icon="plug">
+    Native connectors for your favorite security tools and APIs.
+    <img src="/media/connections-screen.png" alt="Connections Catalog" />
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="server" href="/installation">
+    Self-host on your own infrastructure (Docker/Kubernetes).
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build your first security workflow in under 5 minutes.
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture">
+    Understand how we use Temporal.io for durable execution.
+  </Card>
+  <Card title="Components" icon="cube" href="/components/overview">
+    Explore the library of pre-built security components.
+  </Card>
+</CardGroup>
+
+## Technology Stack
+
+Built for scale, reliability, and security across the entire platform:
+
+| Layer | Technologies |
+|:--- |:--- |
+| **Frontend** | React 19, TypeScript, Tailwind, ReactFlow, xterm.js |
+| **Backend** | NestJS, Bun, PostgreSQL, Drizzle ORM, Clerk Auth |
+| **Orchestration** | **Temporal.io**, Docker containers |
+| **Infrastructure** | Redis, MinIO, Loki, Redpanda (Kafka) |
+
+---
+
+## Join the Community
+
+Building an open-source security platform is a massive undertaking, and we'd love for you to be a part of it. Whether you want to contribute code, request new integrations, or just hang out with other security engineers, here is where you can find us:
+
+* **GitHub** – Star the repository, open issues, or submit PRs at [github.com/shipsecai/studio](https://github.com/shipsecai/studio).
+* **Discord** – Join the conversation, get help, and share your workflows at [discord.gg/N2vyUuP9](https://discord.gg/N2vyUuP9).
+* **Support** – For enterprise inquiries or direct help, email us at [support@shipsec.ai](mailto:support@shipsec.ai).
+
+{/* This invisible spacer adds bottom padding so the sidebar links can scroll properly */}
+<div style={{ height: '400px' }}></div>
