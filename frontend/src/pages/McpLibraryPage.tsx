@@ -1973,9 +1973,16 @@ export function McpLibraryPage() {
                                     <div>
                                       <div className="font-medium">{server.serverName}</div>
                                       {server.description && (
-                                        <div className="text-xs text-muted-foreground truncate max-w-[180px]">
-                                          {server.description}
-                                        </div>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <div className="text-xs text-muted-foreground truncate max-w-[180px]">
+                                              {server.description}
+                                            </div>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="bottom" className="max-w-xs">
+                                            {server.description}
+                                          </TooltipContent>
+                                        </Tooltip>
                                       )}
                                     </div>
                                   </TableCell>

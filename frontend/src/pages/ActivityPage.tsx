@@ -341,7 +341,12 @@ function UpcomingSchedules() {
             <span className="text-muted-foreground">
               {formatFutureRelative(schedule.nextRunAt)}
             </span>
-            <span className="font-medium truncate max-w-[200px]">{schedule.name}</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="font-medium truncate max-w-[200px]">{schedule.name}</span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{schedule.name}</TooltipContent>
+            </Tooltip>
           </div>
         ))}
       </div>
@@ -562,9 +567,14 @@ export default function ActivityPage() {
                           <div className="flex items-start gap-2.5">
                             <ScanContextIcon context={scanContext} />
                             <div className="flex flex-col gap-0.5 min-w-0">
-                              <span className="font-medium text-sm truncate max-w-[280px]">
-                                {item.workflowName}
-                              </span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="font-medium text-sm truncate max-w-[280px]">
+                                    {item.workflowName}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">{item.workflowName}</TooltipContent>
+                              </Tooltip>
                               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
                                 <RunId runId={item.id} detailHref={item.detailHref} />
                                 {item.nodeCount > 0 && (

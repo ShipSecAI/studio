@@ -1134,7 +1134,14 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
                       >
                         <div className="flex items-center gap-2">
                           <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
-                          <span className="text-sm font-medium truncate">{run.workflowName}</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-sm font-medium truncate">
+                                {run.workflowName}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">{run.workflowName}</TooltipContent>
+                          </Tooltip>
                         </div>
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs text-muted-foreground">
@@ -1234,7 +1241,14 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
                         <div className="min-w-0 space-y-1">
                           <div className="flex items-center gap-2">
                             <span className={statusDisplay.color}>{statusDisplay.icon}</span>
-                            <span className="text-sm font-medium truncate">{run.workflowName}</span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-sm font-medium truncate">
+                                  {run.workflowName}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">{run.workflowName}</TooltipContent>
+                            </Tooltip>
                           </div>
                           <div className="text-xs text-muted-foreground flex items-center gap-2">
                             <span>{formatRelativeTime(run.startTime)}</span>

@@ -978,9 +978,16 @@ function RepositoriesTab({ onRunScan, onSchedule }: RepositoriesTabProps) {
                     </a>
                   </div>
                   {repo.description && (
-                    <p className="text-sm text-muted-foreground truncate max-w-md">
-                      {repo.description}
-                    </p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <p className="text-sm text-muted-foreground truncate max-w-md">
+                          {repo.description}
+                        </p>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-sm">
+                        {repo.description}
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                 </TableCell>
                 <TableCell>
@@ -1394,12 +1401,22 @@ function TriggerRulesTab() {
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{rule.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {rule.description || 'No description'}
-                      </p>
-                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{rule.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {rule.description || 'No description'}
+                          </p>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        <p className="font-medium">{rule.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {rule.description || 'No description'}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
                     <div className="flex gap-1">
                       <Button
                         variant="ghost"
@@ -2312,9 +2329,16 @@ function ScansTab() {
                           >
                             <div className="flex items-center gap-2">
                               <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
-                              <span className="text-sm font-medium truncate">
-                                {getRepoName(scan.repositoryId)}
-                              </span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-sm font-medium truncate">
+                                    {getRepoName(scan.repositoryId)}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                  {getRepoName(scan.repositoryId)}
+                                </TooltipContent>
+                              </Tooltip>
                             </div>
                             <div className="text-xs text-muted-foreground">
                               Started {formatRelativeTime(startTime)}
@@ -2395,15 +2419,26 @@ function ScansTab() {
                             >
                               {STATUS_ICONS[scan.status]}
                             </div>
-                            <span className="text-sm font-medium truncate">
-                              {getRepoName(scan.repositoryId)}
-                            </span>
-                            <span
-                              className="text-xs text-muted-foreground ml-auto flex-shrink-0"
-                              title={formatExactTime(scan.createdAt)}
-                            >
-                              {formatRelativeTime(scan.createdAt)}
-                            </span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-sm font-medium truncate">
+                                  {getRepoName(scan.repositoryId)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                {getRepoName(scan.repositoryId)}
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-xs text-muted-foreground ml-auto flex-shrink-0">
+                                  {formatRelativeTime(scan.createdAt)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                {formatExactTime(scan.createdAt)}
+                              </TooltipContent>
+                            </Tooltip>
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <div className="flex items-center gap-1">
@@ -2417,16 +2452,30 @@ function ScansTab() {
                               ) : source.kind === 'push' ? (
                                 <>
                                   <GitBranch className="h-3 w-3" />
-                                  <span className="truncate max-w-[100px]">
-                                    {source.detail ?? source.label}
-                                  </span>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="truncate max-w-[100px]">
+                                        {source.detail ?? source.label}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">
+                                      {source.detail ?? source.label}
+                                    </TooltipContent>
+                                  </Tooltip>
                                 </>
                               ) : source.kind === 'schedule' ? (
                                 <>
                                   <CalendarClock className="h-3 w-3" />
-                                  <span className="truncate max-w-[120px]">
-                                    {source.detail ?? source.label}
-                                  </span>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="truncate max-w-[120px]">
+                                        {source.detail ?? source.label}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">
+                                      {source.detail ?? source.label}
+                                    </TooltipContent>
+                                  </Tooltip>
                                 </>
                               ) : (
                                 <>

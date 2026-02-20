@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Copy, Trash2, ShieldOff, AlertTriangle } from 'lucide-react';
@@ -225,12 +226,28 @@ export function ApiKeysManager() {
                   apiKeys.map((key) => (
                     <TableRow key={key.id}>
                       <TableCell className="font-medium">
-                        <div className="truncate max-w-[150px] md:max-w-none">{key.name}</div>
-                        {key.description && (
-                          <div className="text-xs text-muted-foreground truncate max-w-[150px] md:max-w-none">
-                            {key.description}
-                          </div>
-                        )}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <div className="truncate max-w-[150px] md:max-w-none">
+                                  {key.name}
+                                </div>
+                                {key.description && (
+                                  <div className="text-xs text-muted-foreground truncate max-w-[150px] md:max-w-none">
+                                    {key.description}
+                                  </div>
+                                )}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-xs">
+                              <p className="font-medium">{key.name}</p>
+                              {key.description && (
+                                <p className="text-xs text-muted-foreground">{key.description}</p>
+                              )}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {truncateKey(key.keyHint)}
