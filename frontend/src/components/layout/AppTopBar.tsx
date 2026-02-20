@@ -45,6 +45,14 @@ export function AppTopBar({
       };
     }
 
+    if (location.pathname === '/templates') {
+      return {
+        title: 'Template Library',
+        shortTitle: 'Templates',
+        subtitle: 'Browse and use pre-built workflow templates',
+      };
+    }
+
     if (location.pathname.startsWith('/schedules')) {
       return {
         title: 'Workflow Schedules',
