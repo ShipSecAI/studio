@@ -49,6 +49,11 @@ export interface SecurityDashboardFilters {
   tags: string[];
   compliance: string[];
   checkName: string[];
+  scanner: string[];
+  repository: string[];
+  ruleId: string[];
+  file: string[];
+  language: string[];
   search: string;
   from: string | null;
   to: string | null;
@@ -85,6 +90,10 @@ export interface SecuritySummary {
   complianceFrameworks: AggBucket[];
   checkNames: AggBucket[];
   statusCounts: AggBucket[];
+  scanners: AggBucket[];
+  repositories: AggBucket[];
+  ruleIds: AggBucket[];
+  files: AggBucket[];
 }
 
 export interface SecurityFindingsResult {
@@ -106,6 +115,11 @@ export const INITIAL_FILTERS: SecurityDashboardFilters = {
   tags: [],
   compliance: [],
   checkName: [],
+  scanner: [],
+  repository: [],
+  ruleId: [],
+  file: [],
+  language: [],
   search: '',
   from: null,
   to: null,
@@ -182,6 +196,34 @@ export function buildBaseFilter(
     filter.push({ terms: { 'check_name.keyword': filters.checkName } });
   }
 
+  if (filters.scanner.length > 0) {
+    filter.push({ terms: { 'scanner.keyword': filters.scanner } });
+  }
+
+  if (filters.repository.length > 0) {
+    filter.push({ terms: { 'shipsec.trigger_source.keyword': filters.repository } });
+  }
+
+  if (filters.ruleId.length > 0) {
+    filter.push({ terms: { 'rule_id.keyword': filters.ruleId } });
+  }
+
+  if (filters.file.length > 0) {
+    filter.push({ terms: { 'file.keyword': filters.file } });
+  }
+
+  if (filters.language.length > 0) {
+    // Language is derived from rule_id prefix (e.g. "php" matches "php.*")
+    filter.push({
+      bool: {
+        should: filters.language.map((lang) => ({
+          prefix: { 'rule_id.keyword': `${lang}.` },
+        })),
+        minimum_should_match: 1,
+      },
+    });
+  }
+
   if (filters.from || filters.to) {
     const range: Record<string, any> = {};
     if (filters.from) range.gte = filters.from;
@@ -197,11 +239,23 @@ export function buildSort(filters: SecurityDashboardFilters): Record<string, any
   return [{ [field]: filters.order }];
 }
 
+/** Infer scanner from document fields when not explicitly set */
+function inferScanner(source: Record<string, any>): string {
+  if (source.scanner) return source.scanner;
+  // Cloud findings (prowler) have account_id + service_name
+  if (source.account_id && source.service_name) return 'prowler';
+  // Code findings from opengrep have rule_id + file
+  if (source.rule_id && source.file) return 'opengrep';
+  // Secret findings from trufflehog have detector_type or source_type
+  if (source.detector_type || source.source_type) return 'trufflehog';
+  return 'unknown';
+}
+
 /** Parse a hit from the analytics API into a SecurityFinding */
 export function parseFinding(hit: any): SecurityFinding {
   return {
     _id: hit._id,
-    scanner: hit._source.scanner ?? 'unknown',
+    scanner: inferScanner(hit._source),
     finding_hash: hit._source.finding_hash ?? '',
     severity: hit._source.severity ?? 'unknown',
     status: hit._source.status ?? 'UNKNOWN',

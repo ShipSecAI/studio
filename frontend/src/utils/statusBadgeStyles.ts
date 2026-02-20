@@ -18,6 +18,14 @@ export const STATUS_COLOR_MAP: Record<string, StatusColor> = {
   TIMED_OUT: 'amber',
   AWAITING_INPUT: 'purple',
   STALE: 'amber', // Orphaned record - data inconsistency warning
+  // Cloud finding statuses (Prowler, etc.)
+  PASS: 'green',
+  PASSED: 'green',
+  FAIL: 'red',
+  WARNING: 'amber',
+  NOT_APPLICABLE: 'gray',
+  NOT_AVAILABLE: 'gray',
+  UNKNOWN: 'gray',
 };
 
 /**

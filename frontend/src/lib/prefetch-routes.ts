@@ -18,6 +18,7 @@ const routePrefetchMap: Record<string, PrefetchFn> = {
   '/github/triggers': () => void import('@/pages/GitHubPage'),
   '/dashboards/security': () => void import('@/pages/SecurityDashboard'),
   '/cloud/accounts': () => void import('@/pages/CloudAccountsPage'),
+  '/cloud/scans': () => void import('@/pages/CloudAccountsPage'),
   '/recon': () => void import('@/pages/ReconPage'),
   '/schedules': () => void import('@/pages/SchedulesPage'),
   '/webhooks': () => void import('@/pages/WebhooksPage'),

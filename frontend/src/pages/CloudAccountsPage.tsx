@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   useIntegrationCatalog,
@@ -1429,8 +1429,20 @@ function ConnectAccountDialog({
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export function CloudAccountsPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get('tab') || 'accounts';
+
+  const activeTab = location.pathname.startsWith('/cloud/scans') ? 'scans' : 'accounts';
+
+  const setActiveTab = (tab: string) => {
+    const pathMap: Record<string, string> = {
+      accounts: '/cloud/accounts',
+      scans: '/cloud/scans',
+    };
+    navigate(pathMap[tab] ?? '/cloud/accounts');
+  };
+
   const { data: orgConnections = [], isLoading } = useIntegrationConnections();
   const awsConnections = useMemo(
     () =>
@@ -1462,29 +1474,13 @@ export function CloudAccountsPage() {
     }
   }, [scanConnectionId, awsConnections, scanTarget, setSearchParams]);
 
-  const handleTabChange = (value: string) => {
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        if (value === 'accounts') {
-          next.delete('tab');
-          next.delete('scan');
-        } else {
-          next.set('tab', value);
-        }
-        return next;
-      },
-      { replace: true },
-    );
-  };
-
   return (
     <div className="flex-1 overflow-auto">
       <div className="container py-6 space-y-6">
         {isLoading ? (
           <CloudLoadingSkeleton />
         ) : (
-          <Tabs value={tab} onValueChange={handleTabChange}>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
               <TabsTrigger value="accounts">
                 <Shield className="h-4 w-4 mr-2" />

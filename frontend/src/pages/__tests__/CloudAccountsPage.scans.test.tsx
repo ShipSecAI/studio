@@ -80,7 +80,7 @@ describe('CloudAccountsPage ScansTab URL state', () => {
 
   it('opens the detail panel when scan is provided in URL and removes it on close', () => {
     render(
-      <MemoryRouter initialEntries={['/cloud/accounts?tab=scans&scan=run-1']}>
+      <MemoryRouter initialEntries={['/cloud/scans?scan=run-1']}>
         <LocationProbe />
         <ScansTab connections={[{ id: 'conn-1', provider: 'aws' }]} />
       </MemoryRouter>,
@@ -92,13 +92,12 @@ describe('CloudAccountsPage ScansTab URL state', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
 
     const nextSearch = screen.getByTestId('location-search').textContent ?? '';
-    expect(nextSearch).toContain('tab=scans');
     expect(nextSearch).not.toContain('scan=');
   });
 
   it('sets scan param when clicking a run row', () => {
     render(
-      <MemoryRouter initialEntries={['/cloud/accounts?tab=scans']}>
+      <MemoryRouter initialEntries={['/cloud/scans']}>
         <LocationProbe />
         <ScansTab connections={[{ id: 'conn-1', provider: 'aws' }]} />
       </MemoryRouter>,
@@ -111,7 +110,6 @@ describe('CloudAccountsPage ScansTab URL state', () => {
     fireEvent.click(row);
 
     const nextSearch = screen.getByTestId('location-search').textContent ?? '';
-    expect(nextSearch).toContain('tab=scans');
     expect(nextSearch).toContain('scan=run-1');
     expect(screen.getByTestId('cloud-scan-detail-panel')).toBeInTheDocument();
   });
