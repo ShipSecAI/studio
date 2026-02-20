@@ -88,9 +88,11 @@ import {
   SummaryBadges,
   formatRelativeTime,
   formatExactTime,
+  formatDuration,
   getScanSourceMeta,
 } from '@/components/scans/scan-utils';
 import { cn } from '@/lib/utils';
+import { CodeScanScheduleDialog } from '@/components/security/CodeScanScheduleDialog';
 
 interface WorkflowOption {
   id: string;
@@ -555,9 +557,10 @@ function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
 
 interface RepositoriesTabProps {
   onRunScan: (repo: GitHubRepo) => void;
+  onSchedule: (repo: GitHubRepo) => void;
 }
 
-function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
+function RepositoriesTab({ onRunScan, onSchedule }: RepositoriesTabProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     data: repositories = [],
@@ -1010,19 +1013,34 @@ function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
                   </Button>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRunScan(repo);
-                    }}
-                    disabled={!repo.scansEnabled}
-                    title={!repo.scansEnabled ? 'Enable scans first to run a scan' : undefined}
-                  >
-                    <PlayCircle className="h-4 w-4 mr-1" />
-                    Run Scan
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSchedule(repo);
+                      }}
+                      disabled={!repo.scansEnabled}
+                      title={!repo.scansEnabled ? 'Enable scans first' : 'Schedule scan'}
+                    >
+                      <CalendarClock className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRunScan(repo);
+                      }}
+                      disabled={!repo.scansEnabled}
+                      title={!repo.scansEnabled ? 'Enable scans first to run a scan' : undefined}
+                    >
+                      <PlayCircle className="h-4 w-4 mr-1" />
+                      Run Scan
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))
@@ -2272,39 +2290,45 @@ function ScansTab() {
             ) : (
               <>
                 {liveScans.length > 0 && (
-                  <div className="border-b bg-muted/20">
-                    <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <div className="p-3 border-b">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
                       Live scans ({liveScans.length})
                     </div>
-                    <div className="divide-y">
+                    <div
+                      className={cn(
+                        'grid gap-3',
+                        isPanelOpen ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
+                      )}
+                    >
                       {liveScans.map((scan) => {
-                        const source = getScanSourceMeta(scan);
+                        const startTime = scan.startedAt ?? scan.createdAt;
+                        const elapsed = startTime
+                          ? formatDuration(startTime, new Date().toISOString())
+                          : null;
                         return (
-                          <div key={`live-${scan.id}`} className="px-3 py-3">
-                            <div className="flex items-center gap-2 mb-1">
-                              <div
-                                className={`p-0.5 rounded-full ${STATUS_COLORS[scan.status]} text-white`}
-                              >
-                                {STATUS_ICONS[scan.status]}
-                              </div>
+                          <div
+                            key={`live-${scan.id}`}
+                            className="rounded-lg border border-blue-200 dark:border-blue-700/50 bg-blue-500/5 p-3 space-y-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
                               <span className="text-sm font-medium truncate">
                                 {getRepoName(scan.repositoryId)}
                               </span>
-                              <Badge variant="outline" className="h-5 text-[10px] capitalize">
-                                {source.label}
-                                {source.detail ? ` ${source.detail}` : ''}
-                              </Badge>
-                              <span
-                                className="text-xs text-muted-foreground ml-auto flex-shrink-0"
-                                title={formatExactTime(scan.createdAt)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Started {formatRelativeTime(startTime)}
+                              {elapsed ? ` \u00b7 Elapsed ${elapsed}` : ''}
+                            </div>
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => handleSelectScan(scan.id)}
                               >
-                                {formatRelativeTime(scan.createdAt)}
-                              </span>
-                            </div>
-                            <div className="text-xs text-muted-foreground truncate">
-                              {scan.workflowName ?? 'Workflow run'}
-                            </div>
-                            <div className="mt-2 flex gap-2">
+                                View
+                              </Button>
                               <Button asChild variant="outline" size="sm" className="h-7 text-xs">
                                 <Link to={`/runs/${scan.workflowRunId}`}>Open Run</Link>
                               </Button>
@@ -2845,6 +2869,7 @@ export function GitHubPage() {
 
   // Modal state for workflow picker
   const [selectedRepoForScan, setSelectedRepoForScan] = useState<GitHubRepo | null>(null);
+  const [selectedRepoForSchedule, setSelectedRepoForSchedule] = useState<GitHubRepo | null>(null);
   const location = useLocation();
   const activeTab = location.pathname.startsWith('/github/scans')
     ? 'scans'
@@ -2996,7 +3021,10 @@ export function GitHubPage() {
               installUrl={installUrl}
               onSync={() => qc.invalidateQueries({ queryKey: queryKeys.github.repositories() })}
             />
-            <RepositoriesTab onRunScan={handleRunScan} />
+            <RepositoriesTab
+              onRunScan={handleRunScan}
+              onSchedule={(repo) => setSelectedRepoForSchedule(repo)}
+            />
           </div>
         </TabsContent>
 
@@ -3015,6 +3043,11 @@ export function GitHubPage() {
         onClose={() => setSelectedRepoForScan(null)}
         repository={selectedRepoForScan}
         onSuccess={handleScanSuccess}
+      />
+      <CodeScanScheduleDialog
+        open={selectedRepoForSchedule !== null}
+        onClose={() => setSelectedRepoForSchedule(null)}
+        repository={selectedRepoForSchedule ?? undefined}
       />
     </div>
   );

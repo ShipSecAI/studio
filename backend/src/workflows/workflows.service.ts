@@ -714,6 +714,7 @@ export class WorkflowsService {
     auth?: AuthContext | null,
     options: {
       workflowId?: string;
+      workflowIds?: string[];
       status?: ExecutionStatus;
       triggerType?: ExecutionTriggerType;
       search?: string;
@@ -727,6 +728,7 @@ export class WorkflowsService {
 
     const repoFilters = {
       workflowId: options.workflowId,
+      workflowIds: options.workflowIds,
       triggerType: options.triggerType,
       search: options.search,
       organizationId,

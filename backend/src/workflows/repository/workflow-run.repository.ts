@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, ilike, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, sql, type SQL } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { DRIZZLE_TOKEN } from '../../database/database.module';
@@ -113,6 +113,7 @@ export class WorkflowRunRepository {
   async list(
     options: {
       workflowId?: string;
+      workflowIds?: string[];
       status?: string;
       triggerType?: string;
       search?: string;
@@ -123,7 +124,9 @@ export class WorkflowRunRepository {
   ): Promise<WorkflowRunRecord[]> {
     const conditions: SQL[] = [];
 
-    if (options.workflowId) {
+    if (options.workflowIds && options.workflowIds.length > 0) {
+      conditions.push(inArray(workflowRunsTable.workflowId, options.workflowIds));
+    } else if (options.workflowId) {
       conditions.push(eq(workflowRunsTable.workflowId, options.workflowId));
     }
 

@@ -148,6 +148,25 @@ export class PrepareRunRequestDto extends createZodDto(PrepareRunRequestSchema) 
 
 export const ListRunsQuerySchema = z.object({
   workflowId: z.string().trim().min(1).optional(),
+  workflowIds: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .transform((val) => {
+      if (!val) return undefined;
+      return [
+        ...new Set(
+          val
+            .split(',')
+            .map((id) => id.trim())
+            .filter(Boolean),
+        ),
+      ];
+    })
+    .refine((ids) => !ids || ids.length <= 50, {
+      message: 'workflowIds: max 50 IDs allowed',
+    }),
   status: z
     .string()
     .trim()

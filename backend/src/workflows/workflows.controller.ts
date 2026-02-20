@@ -410,6 +410,7 @@ export class WorkflowsController {
   ) {
     return this.workflowsService.listRuns(auth, {
       workflowId: query.workflowId,
+      workflowIds: query.workflowIds,
       status: query.status,
       triggerType: query.triggerType,
       search: query.search,

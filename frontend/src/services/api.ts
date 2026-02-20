@@ -870,6 +870,7 @@ export const api = {
 
     listRuns: async (options?: {
       workflowId?: string;
+      workflowIds?: string;
       status?: string;
       triggerType?: string;
       search?: string;
@@ -1134,6 +1135,22 @@ export const api = {
         total: number;
         hits: { _id: string; _source: Record<string, any>; _score?: number }[];
         aggregations?: Record<string, any>;
+      }>;
+    },
+
+    batchRunSummaries: async (runIds: string[]) => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/analytics/batch-run-summaries`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runIds }),
+      });
+      if (!response.ok) throw new Error(`Batch run summaries failed: ${response.status}`);
+      return response.json() as Promise<{
+        summaries: Record<
+          string,
+          { critical: number; high: number; medium: number; low: number; info: number }
+        >;
       }>;
     },
   },

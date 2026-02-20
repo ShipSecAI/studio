@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import type { GitHubScanResult, ScanFinding } from '@/store/githubStore';
-import { Check, X, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import { Check, X, Clock, AlertCircle, Loader2, HelpCircle, RefreshCw } from 'lucide-react';
 import React from 'react';
 
 // ── Status rendering ──────────────────────────────────────────────
@@ -20,6 +20,79 @@ export const STATUS_ICONS: Record<string, React.ReactNode> = {
   failure: React.createElement(X, { className: 'h-4 w-4' }),
   error: React.createElement(AlertCircle, { className: 'h-4 w-4' }),
 };
+
+// ── Execution status display ──────────────────────────────────────
+
+export interface ExecutionStatusDisplay {
+  color: string;
+  icon: React.ReactNode;
+  label: string;
+}
+
+const iconCls = 'h-3.5 w-3.5';
+
+const EXECUTION_STATUS_MAP: Record<string, ExecutionStatusDisplay> = {
+  QUEUED: {
+    color: 'text-yellow-500',
+    icon: React.createElement(Clock, { className: iconCls }),
+    label: 'Queued',
+  },
+  RUNNING: {
+    color: 'text-blue-500',
+    icon: React.createElement(Loader2, { className: `${iconCls} animate-spin` }),
+    label: 'Running',
+  },
+  AWAITING_INPUT: {
+    color: 'text-blue-500',
+    icon: React.createElement(Clock, { className: iconCls }),
+    label: 'Awaiting Input',
+  },
+  COMPLETED: {
+    color: 'text-green-500',
+    icon: React.createElement(Check, { className: iconCls }),
+    label: 'Completed',
+  },
+  FAILED: {
+    color: 'text-red-500',
+    icon: React.createElement(X, { className: iconCls }),
+    label: 'Failed',
+  },
+  CANCELLED: {
+    color: 'text-gray-500',
+    icon: React.createElement(X, { className: iconCls }),
+    label: 'Cancelled',
+  },
+  TIMED_OUT: {
+    color: 'text-red-500',
+    icon: React.createElement(AlertCircle, { className: iconCls }),
+    label: 'Timed Out',
+  },
+  TERMINATED: {
+    color: 'text-gray-500',
+    icon: React.createElement(AlertCircle, { className: iconCls }),
+    label: 'Terminated',
+  },
+  STALE: {
+    color: 'text-gray-500',
+    icon: React.createElement(AlertCircle, { className: iconCls }),
+    label: 'Stale',
+  },
+  CONTINUED_AS_NEW: {
+    color: 'text-blue-500',
+    icon: React.createElement(RefreshCw, { className: iconCls }),
+    label: 'Continued',
+  },
+};
+
+const UNKNOWN_STATUS: ExecutionStatusDisplay = {
+  color: 'text-gray-400',
+  icon: React.createElement(HelpCircle, { className: iconCls }),
+  label: 'Unknown',
+};
+
+export function getExecutionStatusDisplay(status: string): ExecutionStatusDisplay {
+  return EXECUTION_STATUS_MAP[status] ?? UNKNOWN_STATUS;
+}
 
 // ── Severity rendering ────────────────────────────────────────────
 

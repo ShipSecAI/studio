@@ -89,13 +89,20 @@ export function useCloudScans(filters: CloudScansFilters = {}) {
 
   const queryKeyFilters = { status, offset, limit };
 
+  // Pass workflowIds as CSV to the server for pre-filtered pagination
+  const workflowIdsCSV = useMemo(() => {
+    if (cloudWorkflowIds.size === 0) return '';
+    return [...cloudWorkflowIds].join(',');
+  }, [cloudWorkflowIds]);
+
   return useQuery({
-    queryKey: queryKeys.cloud.scans(queryKeyFilters),
+    queryKey: queryKeys.cloud.scans({ ...queryKeyFilters, workflowIds: workflowIdsCSV }),
     queryFn:
       cloudWorkflowIds.size === 0
         ? skipToken
         : async (): Promise<CloudScansData> => {
             const response = await api.executions.listRuns({
+              workflowIds: workflowIdsCSV,
               limit,
               offset,
               status,
@@ -103,12 +110,9 @@ export function useCloudScans(filters: CloudScansFilters = {}) {
             const rawRuns = response.runs ?? [];
             const allNormalized = rawRuns.map(normalizeRunSummary);
 
-            // Client-side filter: only cloud workflow runs
-            const cloudRuns = allNormalized.filter((r) => cloudWorkflowIds.has(r.workflowId));
+            const liveCount = allNormalized.filter((r) => LIVE_STATUSES.has(r.status)).length;
 
-            const liveCount = cloudRuns.filter((r) => LIVE_STATUSES.has(r.status)).length;
-
-            const completedRuns = cloudRuns.filter(
+            const completedRuns = allNormalized.filter(
               (r) => r.status === 'COMPLETED' || r.status === 'FAILED',
             );
             const successRate =
@@ -121,7 +125,7 @@ export function useCloudScans(filters: CloudScansFilters = {}) {
                 : 0;
 
             return {
-              runs: cloudRuns,
+              runs: allNormalized,
               liveCount,
               successRate,
               totalFetched: rawRuns.length,
@@ -129,6 +133,30 @@ export function useCloudScans(filters: CloudScansFilters = {}) {
           },
     staleTime: 30_000,
     refetchInterval: (query) => ((query.state.data?.liveCount ?? 0) > 0 ? 10_000 : false),
+  });
+}
+
+export interface SeveritySummary {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  info: number;
+}
+
+export function useCloudScansSummaries(runIds: string[]) {
+  const stableKey = useMemo(() => [...runIds].sort(), [runIds]);
+
+  return useQuery({
+    queryKey: queryKeys.cloud.scanSummaries(stableKey),
+    queryFn:
+      runIds.length === 0
+        ? skipToken
+        : async () => {
+            const result = await api.analytics.batchRunSummaries(runIds);
+            return result.summaries;
+          },
+    staleTime: 30_000,
   });
 }
 

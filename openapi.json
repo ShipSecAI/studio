@@ -413,6 +413,15 @@
             }
           },
           {
+            "name": "workflowIds",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
             "name": "status",
             "required": false,
             "in": "query",
@@ -2737,6 +2746,81 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AnalyticsSettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/batch-run-summaries": {
+      "post": {
+        "operationId": "AnalyticsController_batchRunSummaries",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Get severity counts for multiple run IDs"
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/storage-usage": {
+      "get": {
+        "operationId": "AnalyticsController_getStorageUsage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Get OpenSearch storage usage for the authenticated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "usedBytes": {
+                      "type": "number"
+                    },
+                    "documentCount": {
+                      "type": "number"
+                    },
+                    "indexCount": {
+                      "type": "number"
+                    },
+                    "opensearchEnabled": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/data": {
+      "delete": {
+        "operationId": "AnalyticsController_purgeData",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Purge all analytics data for the authenticated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deletedIndices": {
+                      "type": "number"
+                    }
+                  }
                 }
               }
             }

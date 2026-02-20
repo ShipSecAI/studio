@@ -190,6 +190,7 @@ export class ShipSecApiClient {
 
   async listWorkflowRuns(options?: {
     workflowId?: string;
+    workflowIds?: string;
     status?: string;
     triggerType?: string;
     search?: string;
@@ -200,6 +201,7 @@ export class ShipSecApiClient {
       params: {
         query: {
           workflowId: options?.workflowId,
+          workflowIds: options?.workflowIds,
           status: options?.status,
           triggerType: options?.triggerType,
           search: options?.search,

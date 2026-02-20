@@ -85,9 +85,11 @@ export const queryKeys = {
     summary: (viewFilter?: unknown) => ['security', getOrgScope(), 'summary', viewFilter] as const,
   },
   cloud: {
-    scans: (filters?: { status?: string; offset?: number; limit?: number }) =>
+    scans: (filters?: { status?: string; offset?: number; limit?: number; workflowIds?: string }) =>
       ['cloud', getOrgScope(), 'scans', filters] as const,
     scanFindings: (runId: string) => ['cloud', getOrgScope(), 'scanFindings', runId] as const,
+    scanSummaries: (runIds: string[]) =>
+      ['cloud', getOrgScope(), 'scanSummaries', [...runIds].sort()] as const,
   },
   github: {
     status: () => ['github', getOrgScope(), 'status'] as const,

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -24,6 +24,16 @@ import {
   Unlink,
   Workflow,
   AlertCircle,
+  Filter,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  CalendarClock,
+  Zap,
+  Webhook,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,12 +73,22 @@ import { AwsSetupForm } from '@/components/integrations/AwsSetupForm';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
 import type { WorkflowSummary } from '@/services/api';
-import { useCloudScans, type CloudScansFilters } from '@/hooks/queries/useCloudScanQueries';
-import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
-import { formatRelativeTime, formatExactTime, formatDuration } from '@/components/scans/scan-utils';
+import {
+  useCloudScans,
+  useCloudScansSummaries,
+  type CloudScansFilters,
+  type SeveritySummary,
+} from '@/hooks/queries/useCloudScanQueries';
+import {
+  formatRelativeTime,
+  formatExactTime,
+  formatDuration,
+  getExecutionStatusDisplay,
+} from '@/components/scans/scan-utils';
 import { CloudScanDetailPanel } from '@/components/scans/CloudScanDetailPanel';
 import type { ExecutionStatus } from '@/schemas/execution';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { CloudScanScheduleDialog } from '@/components/security/CloudScanScheduleDialog';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -356,11 +376,13 @@ function CloudScanPickerModal({ open, onClose, connection }: CloudScanPickerModa
 function AccountCard({
   connection,
   onScan,
+  onSchedule,
   onValidate,
   onDisconnect,
 }: {
   connection: AwsConnection;
   onScan: () => void;
+  onSchedule: () => void;
   onValidate: () => void;
   onDisconnect: () => void;
 }) {
@@ -446,10 +468,36 @@ function AccountCard({
           </div>
         </div>
         <div className="flex gap-2 pt-1">
-          <Button variant="outline" size="sm" className="flex-1" onClick={onScan}>
-            <PlayCircle className="h-3.5 w-3.5 mr-1.5" />
-            Scan
-          </Button>
+          <div className="flex flex-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 rounded-r-none border-r-0"
+              onClick={onScan}
+              aria-label="Scan"
+            >
+              <PlayCircle className="h-3.5 w-3.5 mr-1.5" />
+              Scan
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="px-1.5 rounded-l-none"
+                  aria-label="More scan options"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={onSchedule}>
+                  <CalendarClock className="mr-2 h-4 w-4" />
+                  Schedule scan
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <Button variant="outline" size="sm" className="flex-1" asChild>
             <Link
               to={`/dashboards/security?view=cloud-security&account=${encodeURIComponent(connection.displayName || '')}`}
@@ -470,10 +518,12 @@ function AccountsTab({
   connections,
   onConnect,
   onScan,
+  onSchedule,
 }: {
   connections: AwsConnection[];
   onConnect: () => void;
   onScan: (conn: AwsConnection) => void;
+  onSchedule: (conn: AwsConnection) => void;
 }) {
   const { toast } = useToast();
   const validateMutation = useValidateAwsConnection();
@@ -539,6 +589,7 @@ function AccountsTab({
               key={conn.id}
               connection={conn}
               onScan={() => onScan(conn)}
+              onSchedule={() => onSchedule(conn)}
               onValidate={() => handleValidate(conn)}
               onDisconnect={() => handleDisconnect(conn)}
             />
@@ -679,6 +730,102 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 ];
 
 const LIVE_STATUSES: ReadonlySet<string> = new Set(['QUEUED', 'RUNNING', 'AWAITING_INPUT']);
+const SCAN_PAGE_SIZE = 25;
+
+type CloudSortColumn = 'time' | 'status' | 'scanType' | 'source' | 'duration' | 'findings';
+type SortDirection = 'asc' | 'desc';
+
+function getTriggerIcon(triggerType: string | undefined) {
+  switch (triggerType) {
+    case 'manual':
+      return React.createElement(PlayCircle, { className: 'h-3.5 w-3.5' });
+    case 'schedule':
+      return React.createElement(CalendarClock, { className: 'h-3.5 w-3.5' });
+    case 'api':
+      return React.createElement(Zap, { className: 'h-3.5 w-3.5' });
+    case 'webhook':
+      return React.createElement(Webhook, { className: 'h-3.5 w-3.5' });
+    default:
+      return React.createElement(PlayCircle, { className: 'h-3.5 w-3.5' });
+  }
+}
+
+function getTriggerLabel(triggerType: string | undefined) {
+  switch (triggerType) {
+    case 'manual':
+      return 'Manual';
+    case 'schedule':
+      return 'Schedule';
+    case 'api':
+      return 'API';
+    case 'webhook':
+      return 'Webhook';
+    default:
+      return triggerType ?? 'Manual';
+  }
+}
+
+function CloudSortableHeader({
+  column,
+  label,
+  currentSort,
+  currentDir,
+  onSort,
+  className,
+}: {
+  column: CloudSortColumn;
+  label: string;
+  currentSort: CloudSortColumn;
+  currentDir: SortDirection;
+  onSort: (col: CloudSortColumn) => void;
+  className?: string;
+}) {
+  const isActive = currentSort === column;
+  const Icon = isActive ? (currentDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead
+      className={cn('cursor-pointer select-none hover:bg-muted/50', className)}
+      onClick={() => onSort(column)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        <Icon
+          className={cn('h-3.5 w-3.5', isActive ? 'text-foreground' : 'text-muted-foreground/50')}
+        />
+      </div>
+    </TableHead>
+  );
+}
+
+function FindingsBadges({ summary }: { summary?: SeveritySummary }) {
+  if (!summary) {
+    return <span className="text-muted-foreground text-xs">&mdash;</span>;
+  }
+  const items = [
+    { label: 'C', count: summary.critical, color: 'bg-red-600' },
+    { label: 'H', count: summary.high, color: 'bg-orange-500' },
+    { label: 'M', count: summary.medium, color: 'bg-yellow-500' },
+    { label: 'L', count: summary.low, color: 'bg-blue-500' },
+  ].filter((item) => item.count > 0);
+
+  if (items.length === 0) {
+    return <span className="text-muted-foreground text-xs">No findings</span>;
+  }
+
+  return (
+    <div className="flex gap-1">
+      {items.map((item) => (
+        <Badge
+          key={item.label}
+          variant="outline"
+          className={`${item.color} text-white border-none text-xs px-1.5`}
+        >
+          {item.label}:{item.count}
+        </Badge>
+      ))}
+    </div>
+  );
+}
 
 export function ScansTab({ connections }: { connections: AwsConnection[] }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -686,11 +833,16 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
   const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
   const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
   const systemWorkflowsLoading = useGitHubStore((s) => s.systemWorkflowsLoading);
-  const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUSES_VALUE);
   const selectedRunId = searchParams.get('scan');
   const isPanelOpen = Boolean(selectedRunId);
   const showList = !isPanelOpen || !isMobile;
   const showPanel = isPanelOpen;
+
+  // URL-driven state
+  const statusFilter = searchParams.get('status') || ALL_STATUSES_VALUE;
+  const sortColumn = (searchParams.get('scansSort') as CloudSortColumn) || 'time';
+  const sortDirection = (searchParams.get('scansDir') as SortDirection) || 'desc';
+  const currentPage = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
 
   // Fetch systemWorkflows on mount so cloud workflow IDs are available
   useEffect(() => {
@@ -702,13 +854,59 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
 
   const filters: CloudScansFilters = useMemo(() => ({ status: activeStatus }), [activeStatus]);
 
-  const { data, isLoading, isError, error, isFetching, dataUpdatedAt, refetch } =
-    useCloudScans(filters);
+  const { data, isLoading, isError, error, isFetching, refetch } = useCloudScans(filters);
 
-  const runs = data?.runs ?? [];
-  const liveCount = data?.liveCount ?? 0;
-  const successRate = data?.successRate ?? 0;
-  const totalFetched = data?.totalFetched ?? 0;
+  const allRuns = data?.runs ?? [];
+
+  // Fetch findings summaries for visible runs
+  const allRunIds = useMemo(() => allRuns.map((r) => r.id), [allRuns]);
+  const { data: summariesData } = useCloudScansSummaries(allRunIds);
+
+  // Sorting
+  const sortedRuns = useMemo(() => {
+    const sorted = [...allRuns];
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      switch (sortColumn) {
+        case 'time':
+          cmp = new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+          break;
+        case 'status':
+          cmp = a.status.localeCompare(b.status);
+          break;
+        case 'scanType':
+          cmp = (a.workflowName ?? '').localeCompare(b.workflowName ?? '');
+          break;
+        case 'source':
+          cmp = (a.triggerType ?? '').localeCompare(b.triggerType ?? '');
+          break;
+        case 'duration':
+          cmp = (a.duration ?? 0) - (b.duration ?? 0);
+          break;
+        case 'findings': {
+          const sumA = summariesData
+            ? Object.values(summariesData[a.id] ?? {}).reduce((s, n) => s + n, 0)
+            : 0;
+          const sumB = summariesData
+            ? Object.values(summariesData[b.id] ?? {}).reduce((s, n) => s + n, 0)
+            : 0;
+          cmp = sumA - sumB;
+          if (cmp === 0) {
+            cmp = new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+          }
+          break;
+        }
+      }
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }, [allRuns, sortColumn, sortDirection, summariesData]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(sortedRuns.length / SCAN_PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageRuns = sortedRuns.slice((safePage - 1) * SCAN_PAGE_SIZE, safePage * SCAN_PAGE_SIZE);
+  const liveRuns = allRuns.filter((r) => LIVE_STATUSES.has(r.status));
 
   // Determine which cloud workflow IDs we have
   const hasCloudWorkflows = useMemo(
@@ -720,26 +918,60 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
     [systemWorkflows],
   );
 
-  const handleSelectRun = (runId: string) => {
+  const setParam = useCallback(
+    (key: string, value: string | null) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (value === null) next.delete(key);
+          else next.set(key, value);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const handleStatusChange = (v: string) => {
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        next.set('scan', runId);
+        if (v === ALL_STATUSES_VALUE) next.delete('status');
+        else next.set('status', v);
+        next.delete('page');
         return next;
       },
       { replace: true },
     );
   };
 
-  const handleClosePanel = () => {
+  const handleSort = (col: CloudSortColumn) => {
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        next.delete('scan');
+        if (sortColumn === col) {
+          next.set('scansDir', sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+          next.set('scansSort', col);
+          next.set('scansDir', 'desc');
+        }
         return next;
       },
       { replace: true },
     );
+  };
+
+  const handleSelectRun = (runId: string) => {
+    setParam('scan', runId);
+  };
+
+  const handleClosePanel = () => {
+    setParam('scan', null);
+  };
+
+  const handlePageChange = (page: number) => {
+    setParam('page', page > 1 ? String(page) : null);
   };
 
   // ── Empty state hierarchy ──────────────────────────────────────────────────
@@ -815,14 +1047,6 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
     );
   }
 
-  // Separate live runs from completed
-  const liveRuns = runs.filter((r) => LIVE_STATUSES.has(r.status));
-  const tableRuns = runs;
-
-  const updatedAgo = dataUpdatedAt
-    ? formatRelativeTime(new Date(dataUpdatedAt).toISOString())
-    : null;
-
   return (
     <div
       className={cn('flex', isPanelOpen && 'border rounded-lg overflow-hidden')}
@@ -838,25 +1062,14 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
             isPanelOpen ? 'w-[460px] flex-shrink-0 border-r' : 'w-full',
           )}
         >
-          <div className="p-4 space-y-4 flex-1 overflow-y-auto">
-            {/* Summary chips */}
-            <div className="flex items-center gap-3 flex-wrap">
-              {liveCount > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-blue-500/10 text-blue-700 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-700/50">
-                  <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-                  {liveCount} live
-                </span>
-              )}
-              {runs.length > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground border">
-                  {successRate}% success rate
-                </span>
-              )}
-            </div>
-
+          <div className={cn('space-y-4 flex-1', isPanelOpen ? 'p-4 overflow-y-auto' : '')}>
             {/* Filter bar */}
             <div className="flex items-center gap-3 flex-wrap">
-              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Filters:</span>
+              </div>
+              <Select value={statusFilter} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-[160px] h-9">
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
@@ -868,11 +1081,17 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
                   ))}
                 </SelectContent>
               </Select>
-
-              <div className="flex items-center gap-2 ml-auto">
-                {updatedAgo && (
-                  <span className="text-xs text-muted-foreground">Updated {updatedAgo}</span>
-                )}
+              {activeStatus && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => handleStatusChange(ALL_STATUSES_VALUE)}
+                >
+                  Clear
+                </Button>
+              )}
+              <div className="ml-auto">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -880,15 +1099,24 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
                   disabled={isFetching}
                   className="h-8 w-8 p-0"
                 >
-                  <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
                 </Button>
               </div>
             </div>
 
+            {/* Results count */}
+            {!isLoading && !isError && allRuns.length > 0 && (
+              <div className="text-sm text-muted-foreground">
+                {sortedRuns.length} cloud scan{sortedRuns.length !== 1 ? 's' : ''}
+              </div>
+            )}
+
             {/* Live runs section */}
             {liveRuns.length > 0 && (
               <div className="space-y-2">
-                <h4 className="text-sm font-medium text-muted-foreground">Live Scans</h4>
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  Live Scans ({liveRuns.length})
+                </h4>
                 <div
                   className={cn(
                     'grid grid-cols-1 gap-3',
@@ -956,7 +1184,7 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
             )}
 
             {/* 6. No runs match filter */}
-            {!isLoading && !isError && runs.length === 0 && activeStatus && (
+            {!isLoading && !isError && allRuns.length === 0 && activeStatus && (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="rounded-full bg-muted p-4 mb-4">
                   <ScanSearch className="h-8 w-8 text-muted-foreground" />
@@ -967,14 +1195,14 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
                   {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? statusFilter}
                   &rdquo; were found.
                 </p>
-                <Button variant="outline" onClick={() => setStatusFilter(ALL_STATUSES_VALUE)}>
+                <Button variant="outline" onClick={() => handleStatusChange(ALL_STATUSES_VALUE)}>
                   Reset Filter
                 </Button>
               </div>
             )}
 
             {/* 7. No runs, no filter */}
-            {!isLoading && !isError && runs.length === 0 && !activeStatus && (
+            {!isLoading && !isError && allRuns.length === 0 && !activeStatus && (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="rounded-full bg-muted p-4 mb-4">
                   <ScanSearch className="h-8 w-8 text-muted-foreground" />
@@ -986,49 +1214,109 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
               </div>
             )}
 
-            {/* 8. Runs table */}
-            {!isLoading && !isError && runs.length > 0 && (
+            {/* 8. Compact list (panel open) */}
+            {!isLoading && !isError && allRuns.length > 0 && isPanelOpen && (
+              <div className="space-y-1">
+                {pageRuns.map((run) => {
+                  const statusDisplay = getExecutionStatusDisplay(run.status);
+                  const runSummary = summariesData?.[run.id];
+                  return (
+                    <button
+                      key={run.id}
+                      type="button"
+                      onClick={() => handleSelectRun(run.id)}
+                      className={cn(
+                        'w-full rounded-lg border p-3 text-left hover:bg-muted/40 transition-colors',
+                        selectedRunId === run.id && 'bg-accent border-primary/30',
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className={statusDisplay.color}>{statusDisplay.icon}</span>
+                            <span className="text-sm font-medium truncate">{run.workflowName}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-2">
+                            <span>{formatRelativeTime(run.startTime)}</span>
+                            {!LIVE_STATUSES.has(run.status) && run.endTime && (
+                              <>
+                                <span className="text-muted-foreground/50">&middot;</span>
+                                <span>{formatDuration(run.startTime, run.endTime)}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <FindingsBadges summary={runSummary} />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 8. Full table (no panel) */}
+            {!isLoading && !isError && allRuns.length > 0 && !isPanelOpen && (
               <TooltipProvider>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Scan Type</TableHead>
-                      <TableHead>Started</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Trigger</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
+                      <CloudSortableHeader
+                        column="time"
+                        label="Time"
+                        currentSort={sortColumn}
+                        currentDir={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <CloudSortableHeader
+                        column="status"
+                        label="Status"
+                        currentSort={sortColumn}
+                        currentDir={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <CloudSortableHeader
+                        column="scanType"
+                        label="Scan Type"
+                        currentSort={sortColumn}
+                        currentDir={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <CloudSortableHeader
+                        column="source"
+                        label="Source"
+                        currentSort={sortColumn}
+                        currentDir={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <CloudSortableHeader
+                        column="duration"
+                        label="Duration"
+                        currentSort={sortColumn}
+                        currentDir={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <CloudSortableHeader
+                        column="findings"
+                        label="Findings"
+                        currentSort={sortColumn}
+                        currentDir={sortDirection}
+                        onSort={handleSort}
+                      />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tableRuns.map((run) => {
+                    {pageRuns.map((run) => {
                       const duration = LIVE_STATUSES.has(run.status)
                         ? null
                         : formatDuration(run.startTime, run.endTime ?? null);
+                      const statusDisplay = getExecutionStatusDisplay(run.status);
+                      const runSummary = summariesData?.[run.id];
                       return (
                         <TableRow
                           key={run.id}
-                          className={cn('cursor-pointer', selectedRunId === run.id && 'bg-accent')}
+                          className="cursor-pointer"
                           onClick={() => handleSelectRun(run.id)}
                         >
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={getStatusBadgeClassFromStatus(run.status)}
-                            >
-                              {run.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{run.workflowName}</span>
-                              {run.workflowVersion != null && (
-                                <span className="text-xs text-muted-foreground">
-                                  v{run.workflowVersion}
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
                           <TableCell>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -1037,20 +1325,33 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
                               <TooltipContent>{formatExactTime(run.startTime)}</TooltipContent>
                             </Tooltip>
                           </TableCell>
+                          <TableCell>
+                            <div className={cn('flex items-center gap-1.5', statusDisplay.color)}>
+                              {statusDisplay.icon}
+                              <span className="text-sm">{statusDisplay.label}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{run.workflowName}</span>
+                              {run.workflowVersion != null && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  v{run.workflowVersion}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                              {getTriggerIcon(run.triggerType)}
+                              <span>{getTriggerLabel(run.triggerType)}</span>
+                            </div>
+                          </TableCell>
                           <TableCell className="text-sm">
                             {duration ?? <span className="text-muted-foreground">&mdash;</span>}
                           </TableCell>
-                          <TableCell className="text-sm">
-                            {run.triggerLabel ?? run.triggerType}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Link
-                              to={`/runs/${run.id}`}
-                              className="text-sm text-primary hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Open Run
-                            </Link>
+                          <TableCell>
+                            <FindingsBadges summary={runSummary} />
                           </TableCell>
                         </TableRow>
                       );
@@ -1060,17 +1361,32 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
               </TooltipProvider>
             )}
 
-            {/* Pagination / count */}
-            {!isLoading && !isError && runs.length > 0 && (
+            {/* Pagination */}
+            {!isLoading && !isError && sortedRuns.length > SCAN_PAGE_SIZE && (
               <div className="flex items-center justify-between text-sm text-muted-foreground pt-2">
                 <span>
-                  Showing {runs.length} cloud scan run{runs.length !== 1 ? 's' : ''}
+                  Page {safePage} of {totalPages}
                 </span>
-                {totalFetched >= (filters.limit ?? 100) && (
-                  <Button variant="outline" size="sm" onClick={() => refetch()}>
-                    Load more
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={safePage <= 1}
+                    onClick={() => handlePageChange(safePage - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Previous
                   </Button>
-                )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={safePage >= totalPages}
+                    onClick={() => handlePageChange(safePage + 1)}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -1124,6 +1440,7 @@ export function CloudAccountsPage() {
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [scanTarget, setScanTarget] = useState<AwsConnection | null>(null);
+  const [scheduleTarget, setScheduleTarget] = useState<AwsConnection | null>(null);
 
   // Auto-open scan picker when navigated with scanConnectionId param
   const scanConnectionId = searchParams.get('scanConnectionId');
@@ -1183,6 +1500,7 @@ export function CloudAccountsPage() {
                 connections={awsConnections}
                 onConnect={() => setShowConnectDialog(true)}
                 onScan={(conn) => setScanTarget(conn)}
+                onSchedule={(conn) => setScheduleTarget(conn)}
               />
             </TabsContent>
             <TabsContent value="scans" className="mt-6">
@@ -1197,6 +1515,11 @@ export function CloudAccountsPage() {
         open={!!scanTarget}
         onClose={() => setScanTarget(null)}
         connection={scanTarget}
+      />
+      <CloudScanScheduleDialog
+        open={!!scheduleTarget}
+        onClose={() => setScheduleTarget(null)}
+        connection={scheduleTarget}
       />
     </div>
   );
