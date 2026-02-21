@@ -30,6 +30,14 @@ export function usePrefetchOnIdle() {
         queryFn: () => api.workflows.listSummary(),
         staleTime: 60_000,
       });
+
+      // Templates – static reference data for template library
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.templates.all(),
+        queryFn: () => api.templates.list(),
+        staleTime: Infinity,
+        gcTime: Infinity,
+      });
     };
 
     if (typeof window.requestIdleCallback === 'function') {

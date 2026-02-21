@@ -13,15 +13,18 @@ import {
   CheckCircle2,
   Loader2,
   Pencil,
-  MoreHorizontal,
+  MoreVertical,
   Undo2,
   Redo2,
   ExternalLink,
+  Package,
+  ChevronDown,
 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -36,16 +39,17 @@ interface TopBarProps {
   selectedRunId?: string | null;
   selectedRunStatus?: string | null;
   selectedRunOrgId?: string | null;
-  isNew?: boolean;
   onRun?: () => void;
   onSave: () => Promise<void> | void;
   onImport?: (file: File) => Promise<void> | void;
   onExport?: () => void;
+  onPublishTemplate?: () => void;
   canManageWorkflows?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  isInWorkflowBuilder?: boolean;
   hasAnalyticsSink?: boolean;
 }
 
@@ -56,10 +60,12 @@ export function TopBar({
   selectedRunId,
   selectedRunStatus,
   selectedRunOrgId,
+  isInWorkflowBuilder,
   onRun,
   onSave,
   onImport,
   onExport,
+  onPublishTemplate,
   canManageWorkflows = true,
   onUndo,
   onRedo,
@@ -347,99 +353,6 @@ export function TopBar({
             <div className="flex items-center gap-1 md:gap-2">
               {mode === 'design' && (
                 <>
-                  <div className="hidden md:flex items-center gap-0.5 border-r border-border/50 pr-2 mr-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={onUndo}
-                      disabled={!canEdit || !canUndo}
-                      title="Undo (⌘Z)"
-                    >
-                      <Undo2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={onRedo}
-                      disabled={!canEdit || !canRedo}
-                      title="Redo (⌘⇧Z)"
-                    >
-                      <Redo2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {(onImport || onExport) && (
-                    <div className="hidden md:flex items-center gap-1.5 sm:gap-2">
-                      {onImport && (
-                        <>
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="application/json"
-                            className="hidden"
-                            onChange={handleFileChange}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 xl:px-3 gap-2"
-                            onClick={handleImportClick}
-                            disabled={!canEdit || isImporting}
-                            aria-label="Import workflow"
-                          >
-                            <Upload className="h-4 w-4" />
-                            <span className="text-xs font-medium hidden lg:inline">Import</span>
-                          </Button>
-                        </>
-                      )}
-                      {onExport && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 xl:px-3 gap-2"
-                          onClick={handleExport}
-                          disabled={!canEdit}
-                          aria-label="Export workflow"
-                        >
-                          <Download className="h-4 w-4" />
-                          <span className="text-xs font-medium hidden lg:inline">Export</span>
-                        </Button>
-                      )}
-                    </div>
-                  )}
-
-                  {(onImport || onExport) && (
-                    <div className="flex md:hidden">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {onImport && (
-                            <DropdownMenuItem
-                              onClick={handleImportClick}
-                              disabled={!canEdit || isImporting}
-                            >
-                              <Upload className="mr-2 h-4 w-4" />
-                              <span>Import</span>
-                            </DropdownMenuItem>
-                          )}
-                          {onExport && (
-                            <DropdownMenuItem onClick={handleExport}>
-                              <Download className="mr-2 h-4 w-4" />
-                              <span>Export</span>
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  )}
-
                   <Button
                     onClick={handleSave}
                     disabled={!canEdit || isSaving || saveState === 'clean'}
@@ -531,15 +444,88 @@ export function TopBar({
                   </TooltipProvider>
                 )}
 
-              <Button
-                onClick={handleRun}
-                disabled={!canEdit}
-                size="sm"
-                className="gap-1.5 md:gap-2 min-w-0"
-              >
-                <Play className="h-4 w-4" />
-                <span className="hidden sm:inline">Run</span>
-              </Button>
+              {/* Run button with dropdown for Publish */}
+              <div className="flex items-center">
+                <Button
+                  onClick={handleRun}
+                  disabled={!canEdit}
+                  size="sm"
+                  className="gap-1.5 md:gap-2 min-w-0 rounded-r-none"
+                >
+                  <Play className="h-4 w-4" />
+                  <span className="hidden sm:inline">Run</span>
+                </Button>
+                {onPublishTemplate && isInWorkflowBuilder && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="sm"
+                        className="px-1.5 rounded-l-none border-l border-primary-foreground/20"
+                        disabled={!canEdit}
+                        aria-label="More actions"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[180px]">
+                      <DropdownMenuItem onClick={onPublishTemplate} disabled={!canEdit}>
+                        <Package className="mr-2 h-4 w-4" />
+                        <span>Publish as Template</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+
+              {/* Vertical three-dots menu: Undo, Redo, Import, Export */}
+              {mode === 'design' && (
+                <>
+                  {onImport && (
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="application/json"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={onUndo} disabled={!canEdit || !canUndo}>
+                        <Undo2 className="mr-2 h-4 w-4" />
+                        <span>Undo</span>
+                        <span className="ml-auto pl-4 text-xs text-muted-foreground">⌘Z</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={onRedo} disabled={!canEdit || !canRedo}>
+                        <Redo2 className="mr-2 h-4 w-4" />
+                        <span>Redo</span>
+                        <span className="ml-auto pl-4 text-xs text-muted-foreground">⌘⇧Z</span>
+                      </DropdownMenuItem>
+                      {(onImport || onExport) && <DropdownMenuSeparator />}
+                      {onImport && (
+                        <DropdownMenuItem
+                          onClick={handleImportClick}
+                          disabled={!canEdit || isImporting}
+                        >
+                          <Upload className="mr-2 h-4 w-4" />
+                          <span>Import</span>
+                        </DropdownMenuItem>
+                      )}
+                      {onExport && (
+                        <DropdownMenuItem onClick={handleExport} disabled={!canEdit}>
+                          <Download className="mr-2 h-4 w-4" />
+                          <span>Export</span>
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              )}
             </div>
           </div>
         </div>
