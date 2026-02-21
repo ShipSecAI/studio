@@ -51,6 +51,55 @@ function getJobNamespace(): string {
   return process.env.K8S_JOB_NAMESPACE || 'shipsec-workloads';
 }
 
+function parseJsonEnv<T>(envName: string, context: ExecutionContext): T | undefined {
+  const raw = process.env[envName];
+  if (!raw || raw.trim().length === 0) return undefined;
+  try {
+    return JSON.parse(raw) as T;
+  } catch (error) {
+    context.logger.warn(
+      `[K8sRunner] Invalid JSON in ${envName}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return undefined;
+  }
+}
+
+function getJobNodeSelector(context: ExecutionContext): Record<string, string> | undefined {
+  const parsed = parseJsonEnv<Record<string, unknown>>('K8S_JOB_NODE_SELECTOR_JSON', context);
+  if (!parsed || Array.isArray(parsed)) return undefined;
+
+  const selector: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (key.trim().length === 0) continue;
+    if (typeof value !== 'string' || value.trim().length === 0) continue;
+    selector[key] = value;
+  }
+
+  return Object.keys(selector).length > 0 ? selector : undefined;
+}
+
+function getJobTolerations(context: ExecutionContext): k8s.V1Toleration[] | undefined {
+  const parsed = parseJsonEnv<unknown[]>('K8S_JOB_TOLERATIONS_JSON', context);
+  if (!parsed || !Array.isArray(parsed) || parsed.length === 0) return undefined;
+  return parsed as k8s.V1Toleration[];
+}
+
+function getJobPodSecurityContext(context: ExecutionContext): k8s.V1PodSecurityContext {
+  const parsed = parseJsonEnv<k8s.V1PodSecurityContext>(
+    'K8S_JOB_POD_SECURITY_CONTEXT_JSON',
+    context,
+  );
+  return parsed ?? { seccompProfile: { type: 'RuntimeDefault' } };
+}
+
+function getJobContainerSecurityContext(context: ExecutionContext): k8s.V1SecurityContext {
+  const parsed = parseJsonEnv<k8s.V1SecurityContext>(
+    'K8S_JOB_CONTAINER_SECURITY_CONTEXT_JSON',
+    context,
+  );
+  return parsed ?? { allowPrivilegeEscalation: false, readOnlyRootFilesystem: false };
+}
+
 function sanitizeName(raw: string): string {
   // K8s names: lowercase, alphanumeric + hyphens, max 63 chars
   return raw
@@ -187,6 +236,10 @@ function buildJobSpec(
 ): BuildJobResult {
   const { command, args } = wrapCommandForOutput(runner);
   const timeoutSeconds = runner.timeoutSeconds || 300;
+  const nodeSelector = getJobNodeSelector(context);
+  const tolerations = getJobTolerations(context);
+  const podSecurityContext = getJobPodSecurityContext(context);
+  const containerSecurityContext = getJobContainerSecurityContext(context);
 
   // Track writable ConfigMap volumes for post-execution data capture
   const writableVolumeMappings = new Map<string, string>();
@@ -315,6 +368,9 @@ function buildJobSpec(
         },
         spec: {
           restartPolicy: 'Never',
+          securityContext: podSecurityContext,
+          ...(nodeSelector ? { nodeSelector } : {}),
+          ...(tolerations ? { tolerations } : {}),
           ...(process.env.K8S_JOB_SERVICE_ACCOUNT
             ? { serviceAccountName: process.env.K8S_JOB_SERVICE_ACCOUNT }
             : {}),
@@ -333,6 +389,7 @@ function buildJobSpec(
               args: args.length > 0 ? args : undefined,
               env: envVars,
               tty: true,
+              securityContext: containerSecurityContext,
               volumeMounts,
               resources: {
                 requests: { cpu: '100m', memory: '128Mi' },
