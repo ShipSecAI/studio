@@ -7617,6 +7617,210 @@
         ]
       }
     },
+    "/api/v1/asset-discovery/assets": {
+      "get": {
+        "operationId": "AssetDiscoveryController_listAssets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AssetDiscovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/assets/summary": {
+      "get": {
+        "operationId": "AssetDiscoveryController_getAssetSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AssetDiscovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/assets/{id}": {
+      "get": {
+        "operationId": "AssetDiscoveryController_getAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AssetDiscovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/assets/sync": {
+      "post": {
+        "operationId": "AssetDiscoveryController_triggerSync",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerSyncDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AssetDiscovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/sync-runs": {
+      "get": {
+        "operationId": "AssetDiscoveryController_listSyncRuns",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AssetDiscovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/sync-runs/{id}": {
+      "get": {
+        "operationId": "AssetDiscoveryController_getSyncRun",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AssetDiscovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/internal/sync-runs": {
+      "post": {
+        "operationId": "AssetDiscoveryController_createSyncRun",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AssetDiscovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/internal/assets/reconcile": {
+      "post": {
+        "operationId": "AssetDiscoveryController_reconcileAssets",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AssetDiscovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/internal/assets/mark-stale": {
+      "post": {
+        "operationId": "AssetDiscoveryController_markStaleAssets",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AssetDiscovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/internal/sync-runs/{id}/status": {
+      "post": {
+        "operationId": "AssetDiscoveryController_updateSyncRunStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AssetDiscovery"
+        ]
+      }
+    },
     "/api/v1/testing/webhooks": {
       "post": {
         "operationId": "TestingWebhookController_acceptWebhook",
@@ -12555,6 +12759,10 @@
             "type": "string"
           }
         }
+      },
+      "TriggerSyncDto": {
+        "type": "object",
+        "properties": {}
       }
     }
   }

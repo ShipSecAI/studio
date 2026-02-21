@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { join } from 'node:path';
 import { ThrottlerModule, ThrottlerGuard, seconds } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
 
 import { AppController } from './app.controller';
@@ -36,6 +37,7 @@ import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
 import { GitHubAppModule } from './github-app/github-app.module';
 import { WorkflowTemplatesModule } from './workflow-templates/workflow-templates.module';
 import { AsmModule } from './asm/asm.module';
+import { AssetDiscoveryModule } from './asset-discovery/asset-discovery.module';
 
 const coreModules = [
   AgentsModule,
@@ -59,6 +61,7 @@ const coreModules = [
   GitHubAppModule,
   WorkflowTemplatesModule,
   AsmModule,
+  AssetDiscoveryModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
@@ -102,6 +105,7 @@ function getEnvFilePaths(): string[] {
         };
       },
     }),
+    EventEmitterModule.forRoot(),
     OpenSearchModule,
     ...coreModules,
     ...testingModules,

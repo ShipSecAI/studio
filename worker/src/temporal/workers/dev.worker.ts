@@ -40,11 +40,14 @@ import {
 } from '../activities/mcp-discovery.activity';
 import { executeWebhookParsingScriptActivity } from '../activities/webhook-parsing.activity';
 import {
-  runChatAgentStepActivity,
-  saveChatMessagesActivity,
-  loadChatMessagesActivity,
-  initializeChatAgentActivities,
-} from '../activities/chat-agent.activities';
+  createSyncRunActivity,
+  discoverAndReconcilePageActivity,
+  persistSyncRunScopesActivity,
+  markStaleAssetsActivity,
+  emitStaleAndRemovedEventsActivity,
+  updateSyncRunStatusActivity,
+  initializeAssetSyncActivities,
+} from '../activities/asset-sync.activities';
 
 // ... (existing imports)
 
@@ -224,12 +227,7 @@ async function main() {
   });
 
   // Initialize human input activity with database, trace and backend URL
-  // STUDIO_API_BASE_URL includes /api/v1 suffix; BACKEND_URL is the bare origin.
-  // Derive the origin from whichever is available.
-  const studioApiBase = process.env.STUDIO_API_BASE_URL; // e.g. http://localhost:3611/api/v1
-  const backendUrl = studioApiBase
-    ? studioApiBase.replace(/\/api\/v1\/?$/, '')
-    : (process.env.BACKEND_URL ?? 'http://localhost:3211');
+  const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:3211';
   initializeHumanInputActivity({
     database: db,
     trace: traceAdapter,
@@ -241,11 +239,10 @@ async function main() {
     trace: traceAdapter,
   });
 
-  // Initialize chat agent activities
-  initializeChatAgentActivities({
-    database: db,
-    redis: terminalStream ? new Redis(terminalRedisUrl!) : undefined,
-    backendUrl: backendUrl,
+  // Initialize asset sync activities
+  initializeAssetSyncActivities({
+    backendUrl,
+    internalToken: process.env.INTERNAL_SERVICE_TOKEN ?? '',
   });
 
   console.log(`✅ Service adapters initialized`);
@@ -310,9 +307,13 @@ async function main() {
       discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
       executeWebhookParsingScriptActivity,
-      runChatAgentStepActivity,
-      saveChatMessagesActivity,
-      loadChatMessagesActivity,
+      // Asset sync activities
+      createSyncRunActivity,
+      discoverAndReconcilePageActivity,
+      persistSyncRunScopesActivity,
+      markStaleAssetsActivity,
+      emitStaleAndRemovedEventsActivity,
+      updateSyncRunStatusActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],

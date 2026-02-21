@@ -1,13 +1,17 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SecretEncryptionMaterial } from '@shipsec/shared';
 import { randomBytes, createHash } from 'crypto';
+import { eq } from 'drizzle-orm';
+import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import {
   IntegrationProviderConfig,
@@ -26,6 +30,8 @@ import { generateExternalId, formatExternalIdForDisplay } from './external-id-ge
 import type { CreateAwsConnectionDto } from './integrations.dto';
 import type { IntegrationTokenRecord } from '../database/schema';
 import type { AuthContext } from '../auth/types';
+import { DRIZZLE_TOKEN } from '../database/database.module';
+import { organizationSettingsTable } from '../database/schema/organization-settings';
 
 export interface OAuthStartResponse {
   provider: string;
@@ -101,6 +107,9 @@ export class IntegrationsService implements OnModuleInit {
     private readonly awsService: AwsService,
     private readonly slackService: SlackService,
     private readonly setupTokenService: SetupTokenService,
+    @Inject(DRIZZLE_TOKEN)
+    private readonly db: NodePgDatabase,
+    private readonly eventEmitter: EventEmitter2,
   ) {
     this.providers = loadIntegrationProviders();
   }
@@ -391,7 +400,27 @@ export class IntegrationsService implements OnModuleInit {
       throw new ForbiddenException('Only admins can disconnect integrations');
     }
 
+    // Capture connection info BEFORE delete for event emission
+    const record = await this.repository.findById(id);
+    const metadata = record?.metadata as Record<string, unknown> | undefined;
+    const accountIdentifier =
+      (metadata?.accountId as string) ??
+      (metadata?.roleArn
+        ? String(metadata.roleArn).match(/arn:aws:iam::(\d+):/)?.[1]
+        : undefined) ??
+      '';
+
     await this.repository.deleteConnection(id);
+
+    // Emit event AFTER successful DB commit — triggers asset cleanup
+    if (record) {
+      this.eventEmitter.emit('integration.deleted', {
+        integrationId: id,
+        organizationId: record.organizationId,
+        accountIdentifier,
+        provider: record.provider,
+      });
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -448,13 +477,13 @@ export class IntegrationsService implements OnModuleInit {
   /*  AWS connection                                                    */
   /* ------------------------------------------------------------------ */
 
-  getAwsSetupInfo(orgId: string): {
+  async getAwsSetupInfo(orgId: string): Promise<{
     platformRoleArn: string;
     externalId: string;
     setupToken: string;
     trustPolicyTemplate: string;
     externalIdDisplay: string;
-  } {
+  }> {
     let platformRoleArn: string;
     try {
       platformRoleArn = this.awsService.getPlatformRoleArn();
@@ -463,7 +492,9 @@ export class IntegrationsService implements OnModuleInit {
         'AWS integration is not configured. Set the SHIPSEC_PLATFORM_ROLE_ARN environment variable and restart the backend.',
       );
     }
-    const externalId = generateExternalId();
+
+    // Use a stable ExternalId per org so it can be shared before onboarding
+    const externalId = await this.getOrCreateAwsExternalId(orgId);
     const setupToken = this.setupTokenService.generate(orgId, externalId);
     const trustPolicyTemplate = JSON.stringify(
       {
@@ -487,6 +518,35 @@ export class IntegrationsService implements OnModuleInit {
       trustPolicyTemplate,
       externalIdDisplay: formatExternalIdForDisplay(externalId),
     };
+  }
+
+  /**
+   * Get or create a stable AWS External ID for the given org.
+   * Persisted in organization_settings so it survives across sessions
+   * and can be shared before onboarding.
+   */
+  private async getOrCreateAwsExternalId(orgId: string): Promise<string> {
+    const [row] = await this.db
+      .select({ awsExternalId: organizationSettingsTable.awsExternalId })
+      .from(organizationSettingsTable)
+      .where(eq(organizationSettingsTable.organizationId, orgId));
+
+    if (row?.awsExternalId) {
+      return row.awsExternalId;
+    }
+
+    const newExternalId = generateExternalId();
+
+    // Upsert: the org row may or may not exist yet
+    await this.db
+      .insert(organizationSettingsTable)
+      .values({ organizationId: orgId, awsExternalId: newExternalId })
+      .onConflictDoUpdate({
+        target: organizationSettingsTable.organizationId,
+        set: { awsExternalId: newExternalId, updatedAt: new Date() },
+      });
+
+    return newExternalId;
   }
 
   async createAwsConnection(
@@ -543,6 +603,19 @@ export class IntegrationsService implements OnModuleInit {
         region: input.region ?? null,
       },
     });
+
+    // Rotate: clear the stored ExternalId so the next setup gets a fresh one
+    await this.db
+      .update(organizationSettingsTable)
+      .set({ awsExternalId: null, updatedAt: new Date() })
+      .where(eq(organizationSettingsTable.organizationId, orgId));
+
+    // Emit event AFTER successful DB commit — triggers asset discovery schedule
+    this.eventEmitter.emit('integration.aws.created', {
+      integrationId: record.id,
+      organizationId: orgId,
+    });
+
     return this.toConnection(record);
   }
 

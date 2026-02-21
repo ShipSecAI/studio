@@ -124,3 +124,30 @@ export const assetSyncRuns = pgTable(
 
 export type AssetSyncRun = typeof assetSyncRuns.$inferSelect;
 export type NewAssetSyncRun = typeof assetSyncRuns.$inferInsert;
+
+/**
+ * Normalized scopes per sync run — tracks which (assetType, region) pairs
+ * were actually scanned. Used for exact-pair stale scoping.
+ */
+export const assetSyncRunScopes = pgTable(
+  'asset_sync_run_scopes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    syncRunId: uuid('sync_run_id')
+      .notNull()
+      .references(() => assetSyncRuns.id, { onDelete: 'cascade' }),
+    assetType: varchar('asset_type', { length: 64 }).notNull(),
+    region: varchar('region', { length: 64 }).notNull(),
+  },
+  (table) => ({
+    syncRunScopeUnique: uniqueIndex('asset_sync_run_scopes_run_type_region_uidx').on(
+      table.syncRunId,
+      table.assetType,
+      table.region,
+    ),
+    syncRunIdx: index('asset_sync_run_scopes_sync_run_idx').on(table.syncRunId),
+  }),
+);
+
+export type AssetSyncRunScope = typeof assetSyncRunScopes.$inferSelect;
+export type NewAssetSyncRunScope = typeof assetSyncRunScopes.$inferInsert;
