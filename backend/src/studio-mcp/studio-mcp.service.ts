@@ -16,6 +16,10 @@ import { categorizeComponent } from '../components/utils/categorization';
 import { WorkflowsService, type WorkflowRunSummary } from '../workflows/workflows.service';
 import type { ServiceWorkflowResponse } from '../workflows/dto/workflow-graph.dto';
 import type { AuthContext, ApiKeyPermissions } from '../auth/types';
+import {
+  InMemoryTaskStore,
+  InMemoryTaskMessageQueue,
+} from '@modelcontextprotocol/sdk/experimental/index.js';
 
 type PermissionPath =
   | 'workflows.list'
@@ -27,6 +31,8 @@ type PermissionPath =
 @Injectable()
 export class StudioMcpService {
   private readonly logger = new Logger(StudioMcpService.name);
+  private readonly taskStore = new InMemoryTaskStore();
+  private readonly taskMessageQueue = new InMemoryTaskMessageQueue();
 
   constructor(private readonly workflowsService: WorkflowsService) {}
 
@@ -67,10 +73,20 @@ export class StudioMcpService {
    * Uses Streamable HTTP transport only (no legacy SSE).
    */
   createServer(auth: AuthContext): McpServer {
-    const server = new McpServer({
-      name: 'shipsec-studio',
-      version: '1.0.0',
-    });
+    const server = new McpServer(
+      {
+        name: 'shipsec-studio',
+        version: '1.0.0',
+      },
+      {
+        capabilities: {
+          logging: {},
+          tasks: { requests: { tools: { call: {} } } },
+        },
+        taskStore: this.taskStore,
+        taskMessageQueue: this.taskMessageQueue,
+      },
+    );
 
     this.registerTools(server, auth);
 
@@ -450,9 +466,10 @@ export class StudioMcpService {
         );
         const taskState = mapStatus(runStatusPayload.status);
 
-        await taskStore.updateTaskStatus(taskId, taskState, runStatusPayload.status);
-
         if (isTerminal(runStatusPayload.status)) {
+          // For terminal states, storeTaskResult sets the status itself.
+          // Do NOT call updateTaskStatus first — it would move the task into a terminal
+          // state and then storeTaskResult would refuse to update it again.
           let resultData: any;
           if (taskState === 'completed') {
             try {
@@ -473,17 +490,19 @@ export class StudioMcpService {
           break;
         }
 
+        // Non-terminal: just update status and keep polling
+        await taskStore.updateTaskStatus(taskId, taskState, runStatusPayload.status);
         await new Promise((res) => setTimeout(res, 2000));
       } catch (err) {
         this.logger.error(`Error monitoring task ${taskId} (run: ${runId}): ${err}`);
         try {
-          await taskStore.updateTaskStatus(taskId, 'failed', String(err));
+          // storeTaskResult sets the terminal status; don't call updateTaskStatus first
           await taskStore.storeTaskResult(taskId, 'failed', {
             content: [{ type: 'text', text: `Failed to monitor workflow run: ${String(err)}` }],
             isError: true,
           });
-        } catch (_updateErr) {
-          // Ignore
+        } catch (_storeErr) {
+          // Ignore — task may already be in a terminal state
         }
         break;
       }
