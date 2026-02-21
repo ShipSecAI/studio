@@ -147,4 +147,38 @@ describe('LogStreamService', () => {
     expect(calledUrl).toContain(`start=${firstNs}`);
     expect(calledUrl).toContain(`end=${lastNs}`);
   });
+
+  it('redacts sensitive values returned from Loki', async () => {
+    const nanoTs = (BigInt(record.firstTimestamp.getTime()) * 1000000n).toString();
+
+    // @ts-expect-error override global fetch for test
+    global.fetch = async () =>
+      ({
+        ok: true,
+        json: async () => ({
+          data: {
+            result: [
+              {
+                values: [[nanoTs, 'token=abc123 authorization=Bearer super-secret-value']],
+              },
+            ],
+          },
+        }),
+      }) as Response;
+
+    const repository = {
+      listByRunId: async () => [record],
+    } as unknown as LogStreamRepository;
+    const service = new LogStreamService(repository);
+    const result = await service.fetch('run-123', authContext, {
+      nodeRef: 'node-1',
+      stream: 'stdout',
+    });
+
+    expect(result.logs).toHaveLength(1);
+    expect(result.logs[0]?.message).toContain('token=[REDACTED]');
+    expect(result.logs[0]?.message).toContain('authorization=[REDACTED]');
+    expect(result.logs[0]?.message).not.toContain('abc123');
+    expect(result.logs[0]?.message).not.toContain('super-secret-value');
+  });
 });
