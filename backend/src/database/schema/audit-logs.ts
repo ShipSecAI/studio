@@ -8,7 +8,11 @@ export type AuditResourceType =
   | 'api_key'
   | 'webhook'
   | 'artifact'
-  | 'analytics';
+  | 'analytics'
+  | 'schedule'
+  | 'mcp_server'
+  | 'mcp_group'
+  | 'human_input';
 
 export const auditLogsTable = pgTable(
   'audit_logs',
