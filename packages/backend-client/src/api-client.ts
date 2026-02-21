@@ -17,6 +17,8 @@ type UpdateSecretPayload = components['schemas']['UpdateSecretDto'];
 type UpsertProviderConfigPayload = components['schemas']['UpsertProviderConfigDto'];
 type StartOAuthPayload = components['schemas']['StartOAuthDto'];
 type CompleteOAuthPayload = components['schemas']['CompleteOAuthDto'];
+type RefreshConnectionPayload = Record<string, never>;
+type DisconnectConnectionPayload = Record<string, never>;
 type ArtifactDestination = 'run' | 'library';
 type CreateSchedulePayload = components['schemas']['CreateScheduleRequestDto'];
 type UpdateSchedulePayload = components['schemas']['UpdateScheduleRequestDto'];
@@ -34,7 +36,7 @@ export class ShipSecApiClient {
   private baseUrl: string;
 
   constructor(config: ClientConfig = {}) {
-    this.baseUrl = config.baseUrl || '';
+    this.baseUrl = config.baseUrl ?? 'http://localhost:3211';
     
     this.client = createClient<paths>({
       baseUrl: this.baseUrl,
@@ -60,6 +62,7 @@ export class ShipSecApiClient {
 
   buildUrl(path: string): string {
     const normalized = path.startsWith('/') ? path : `/${path}`;
+    if (!this.baseUrl) return normalized;
     return new URL(normalized, this.baseUrl).toString();
   }
 
@@ -181,9 +184,17 @@ export class ShipSecApiClient {
     });
   }
 
+  async getRunActivity(options?: { days?: number }) {
+    const queryStr = options?.days ? `?days=${options.days}` : '';
+    return this.client.GET(`/api/v1/workflows/runs/activity${queryStr}` as '/api/v1/workflows/runs/activity');
+  }
+
   async listWorkflowRuns(options?: {
     workflowId?: string;
+    workflowIds?: string;
     status?: string;
+    triggerType?: string;
+    search?: string;
     limit?: number;
     offset?: number;
   }) {
@@ -191,7 +202,10 @@ export class ShipSecApiClient {
       params: {
         query: {
           workflowId: options?.workflowId,
+          workflowIds: options?.workflowIds,
           status: options?.status,
+          triggerType: options?.triggerType,
+          search: options?.search,
           limit: options?.limit,
           offset: options?.offset,
         },
@@ -559,13 +573,13 @@ export class ShipSecApiClient {
     });
   }
 
-  async refreshIntegrationConnection(id: string) {
+  async refreshIntegrationConnection(id: string, _payload?: RefreshConnectionPayload) {
     return this.client.POST('/api/v1/integrations/connections/{id}/refresh', {
       params: { path: { id } },
     });
   }
 
-  async disconnectIntegrationConnection(id: string) {
+  async disconnectIntegrationConnection(id: string, _payload?: DisconnectConnectionPayload) {
     return this.client.DELETE('/api/v1/integrations/connections/{id}', {
       params: { path: { id } },
     });
