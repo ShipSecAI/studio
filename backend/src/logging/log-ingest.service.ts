@@ -5,6 +5,7 @@ import { getTopicResolver } from '../common/kafka-topic-resolver';
 import { LogStreamRepository } from '../trace/log-stream.repository';
 import type { KafkaLogEntry } from './log-entry.types';
 import { LokiLogClient } from './loki.client';
+import { redactSensitiveData } from './redact-sensitive';
 
 @Injectable()
 export class LogIngestService implements OnModuleInit, OnModuleDestroy {
@@ -108,13 +109,14 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async processEntry(entry: KafkaLogEntry): Promise<void> {
-    if (!entry.message || entry.message.trim().length === 0) {
+    const sanitizedMessage = redactSensitiveData(entry.message ?? '');
+    if (!sanitizedMessage || sanitizedMessage.trim().length === 0) {
       return;
     }
 
     const timestamp = entry.timestamp ? new Date(entry.timestamp) : new Date();
     const labels = this.buildLabels(entry);
-    const lines = this.buildLines(entry.message, timestamp);
+    const lines = this.buildLines(sanitizedMessage, timestamp);
     if (!lines.length) {
       return;
     }
