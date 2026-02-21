@@ -68,7 +68,7 @@ export function RunInfoDisplay({
               variant={triggerDisplay.variant}
               className="text-[10px] gap-1 max-w-[160px] truncate"
             >
-              <triggerDisplay.icon className="h-3 w-3" aria-hidden="true" />
+              <span aria-hidden="true">{triggerDisplay.icon}</span>
               <span className="truncate">{triggerDisplay.label}</span>
             </Badge>
             {isRunLive(run) && (

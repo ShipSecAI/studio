@@ -148,38 +148,6 @@ export interface paths {
         patch: operations["WorkflowsController_updateMetadata"];
         trace?: never;
     };
-    "/api/v1/workflows/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["WorkflowsController_listSummary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workflows/runs/activity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["WorkflowsController_getRunActivity"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/workflows/runs": {
         parameters: {
             query?: never;
@@ -708,54 +676,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/analytics/batch-run-summaries": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AnalyticsController_batchRunSummaries"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/analytics/storage-usage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AnalyticsController_getStorageUsage"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/analytics/data": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["AnalyticsController_purgeData"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/analytics/ensure-tenant": {
         parameters: {
             query?: never;
@@ -932,22 +852,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/integrations/catalog": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["IntegrationsController_getCatalog"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/integrations/providers": {
         parameters: {
             query?: never;
@@ -988,22 +892,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["IntegrationsController_listConnections"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/integrations/org/connections": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["IntegrationsController_listOrgConnections"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1086,118 +974,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["IntegrationsController_issueConnectionToken"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/integrations/connections/{id}/credentials": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["IntegrationsController_resolveCredentials"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/integrations/aws/setup-info": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["IntegrationsController_getAwsSetupInfo"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/integrations/aws/connections": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["IntegrationsController_createAwsConnection"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/integrations/aws/connections/{id}/validate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["IntegrationsController_validateAwsConnection"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/integrations/aws/connections/{id}/discover-org": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["IntegrationsController_discoverOrgAccounts"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/integrations/slack/connections": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["IntegrationsController_createSlackWebhookConnection"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/integrations/slack/connections/{id}/test": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["IntegrationsController_testSlackConnection"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2231,22 +2007,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/github/quick-scan-workflows": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["GitHubAppController_getQuickScanWorkflows"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/github/repos/{id}/scan": {
         parameters: {
             query?: never;
@@ -2353,365 +2113,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["GitHubAppController_handleWebhook"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/studio-mcp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Studio MCP endpoint (Streamable HTTP) for external agents */
-        get: operations["StudioMcpController_handleMcp_get"];
-        /** Studio MCP endpoint (Streamable HTTP) for external agents */
-        put: operations["StudioMcpController_handleMcp_put"];
-        /** Studio MCP endpoint (Streamable HTTP) for external agents */
-        post: operations["StudioMcpController_handleMcp_post"];
-        /** Studio MCP endpoint (Streamable HTTP) for external agents */
-        delete: operations["StudioMcpController_handleMcp_delete"];
-        /** Studio MCP endpoint (Streamable HTTP) for external agents */
-        options: operations["StudioMcpController_handleMcp_options"];
-        /** Studio MCP endpoint (Streamable HTTP) for external agents */
-        head: operations["StudioMcpController_handleMcp_head"];
-        /** Studio MCP endpoint (Streamable HTTP) for external agents */
-        patch: operations["StudioMcpController_handleMcp_patch"];
-        trace?: never;
-    };
-    "/api/v1/workflow-templates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["WorkflowTemplatesController_list"];
-        put?: never;
-        post: operations["WorkflowTemplatesController_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workflow-templates/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["WorkflowTemplatesController_getById"];
-        put?: never;
-        post?: never;
-        delete: operations["WorkflowTemplatesController_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workflow-templates/{id}/instantiate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["WorkflowTemplatesController_instantiate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asm/domains": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AsmController_listDomains"];
-        put?: never;
-        post: operations["AsmController_createDomain"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asm/domains/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AsmController_getDomain"];
-        put?: never;
-        post?: never;
-        delete: operations["AsmController_deleteDomain"];
-        options?: never;
-        head?: never;
-        patch: operations["AsmController_updateDomain"];
-        trace?: never;
-    };
-    "/api/v1/asm/domains/{id}/scan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AsmController_triggerScan"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asm/assets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AsmController_listAssets"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asm/assets/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AsmController_getAsset"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asm/assets/{id}/scan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AsmController_triggerAssetScan"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asm/scans": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AsmController_listScans"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asm/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AsmController_getDashboardStats"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/assets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AssetDiscoveryController_listAssets"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/assets/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AssetDiscoveryController_getAssetSummary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/assets/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AssetDiscoveryController_getAsset"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/assets/sync": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_triggerSync"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/sync-runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AssetDiscoveryController_listSyncRuns"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/sync-runs/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AssetDiscoveryController_getSyncRun"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/internal/sync-runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_createSyncRun"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/internal/assets/reconcile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_reconcileAssets"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/internal/assets/mark-stale": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_markStaleAssets"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/internal/sync-runs/{id}/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_updateSyncRunStatus"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2921,11 +2322,6 @@ export interface components {
                 };
             };
             compiledDefinition: unknown;
-            icon: string | null;
-            iconColor: string | null;
-            isSystem: boolean;
-            /** Format: uuid */
-            templateId: string | null;
             lastRun: string | null;
             runCount: number;
             createdAt: string;
@@ -3010,8 +2406,6 @@ export interface components {
         UpdateWorkflowMetadataDto: {
             name: string;
             description?: string | null;
-            icon?: string | null;
-            iconColor?: string | null;
         };
         WorkflowRuntimeInputsResponseDto: {
             workflowId: string;
@@ -3294,8 +2688,6 @@ export interface components {
              *     }
              */
             aggs?: Record<string, never>;
-            /** @description Sort specification */
-            sort?: string[];
         };
         AnalyticsQueryResponseDto: {
             /**
@@ -3534,15 +2926,15 @@ export interface components {
             provider: string;
             providerName: string;
             userId: string;
-            credentialType: string;
-            displayName: string;
+            credentialType?: string;
+            displayName?: string;
             organizationId?: string;
             scopes: string[];
             tokenType: string;
-            expiresAt?: string;
-            lastValidatedAt?: string;
-            lastValidationStatus?: string;
-            lastUsedAt?: string;
+            expiresAt?: string | null;
+            lastValidatedAt?: string | null;
+            lastValidationStatus?: string | null;
+            lastUsedAt?: string | null;
             createdAt: string;
             updatedAt: string;
             /** @enum {string} */
@@ -3550,9 +2942,11 @@ export interface components {
             supportsRefresh: boolean;
             hasRefreshToken: boolean;
             /** @description Provider-specific metadata saved alongside the connection */
-            metadata?: Record<string, never>;
+            metadata?: Record<string, unknown>;
         };
         StartOAuthDto: {
+            /** @description Application user identifier to associate the connection with */
+            userId: string;
             /** @description Frontend callback URL that receives the OAuth code */
             redirectUri: string;
             /** @description Optional override of scopes to request */
@@ -3569,6 +2963,8 @@ export interface components {
             expiresIn: number;
         };
         CompleteOAuthDto: {
+            /** @description Application user identifier to associate the connection with */
+            userId: string;
             /** @description Frontend callback URL that receives the OAuth code */
             redirectUri: string;
             /** @description Optional override of scopes to request */
@@ -3578,6 +2974,14 @@ export interface components {
             /** @description Authorization code issued by the provider */
             code: string;
         };
+        RefreshConnectionDto: {
+            /** @description Application user identifier that owns the connection */
+            userId: string;
+        };
+        DisconnectConnectionDto: {
+            /** @description Application user identifier that owns the connection */
+            userId: string;
+        };
         ConnectionTokenResponseDto: {
             provider: string;
             userId: string;
@@ -3585,59 +2989,6 @@ export interface components {
             tokenType: string;
             scopes: string[];
             expiresAt?: string;
-        };
-        ConnectionCredentialsResponseDto: {
-            /** @description Credential type discriminator */
-            credentialType: string;
-            provider: string;
-            /** @description Type-specific credential data */
-            data: Record<string, never>;
-            /** @description Provider account identifier (e.g. AWS 12-digit account ID) */
-            accountId?: string;
-            /** @description Default region from the connection */
-            region?: string;
-            /** @description Display name of the connection */
-            displayName?: string;
-        };
-        AwsSetupInfoResponseDto: {
-            platformRoleArn: string;
-            externalId: string;
-            setupToken: string;
-            trustPolicyTemplate: string;
-            externalIdDisplay?: string;
-        };
-        CreateAwsConnectionDto: {
-            /** @description Display name for this connection */
-            displayName: string;
-            /** @description IAM role ARN for ShipSec to assume */
-            roleArn: string;
-            /** @description Default AWS region */
-            region?: string;
-            /** @description External ID from setup-info endpoint */
-            externalId: string;
-            /** @description Signed setup token from setup-info endpoint */
-            setupToken: string;
-        };
-        ValidateAwsResponseDto: {
-            valid: boolean;
-            accountId?: string;
-            arn?: string;
-            error?: string;
-        };
-        OrgAccountDto: {
-            id: string;
-            name: string;
-            status: string;
-            email?: string;
-        };
-        DiscoverOrgAccountsResponseDto: {
-            accounts: components["schemas"]["OrgAccountDto"][];
-        };
-        CreateSlackWebhookConnectionDto: {
-            /** @description Display name for this webhook connection */
-            displayName: string;
-            /** @description Slack incoming webhook URL */
-            webhookUrl: string;
         };
         CreateScheduleRequestDto: {
             /** Format: uuid */
@@ -4278,22 +3629,6 @@ export interface components {
             error?: string;
             errorCode?: string;
         };
-        CreateDomainDto: {
-            domain: string;
-            scopeInclude?: string[];
-            scopeExclude?: string[];
-            /** @default false */
-            scanNow: boolean;
-        };
-        UpdateDomainDto: {
-            scopeInclude?: string[];
-            scopeExclude?: string[];
-        };
-        TriggerScanDto: {
-            /** @default sys-attack-surface-recon */
-            templateSlug: string;
-        };
-        TriggerSyncDto: Record<string, never>;
     };
     responses: never;
     parameters: never;
@@ -4545,81 +3880,12 @@ export interface operations {
             };
         };
     };
-    WorkflowsController_listSummary: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Lightweight workflow list without graph data */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id?: string;
-                        name?: string;
-                        description?: string | null;
-                        icon?: string | null;
-                        iconColor?: string | null;
-                        isSystem?: boolean;
-                        /** Format: uuid */
-                        templateId?: string | null;
-                        /** Format: date-time */
-                        lastRun?: string | null;
-                        runCount?: number;
-                        nodeCount?: number;
-                        /** Format: date-time */
-                        createdAt?: string;
-                        /** Format: date-time */
-                        updatedAt?: string;
-                    }[];
-                };
-            };
-        };
-    };
-    WorkflowsController_getRunActivity: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Aggregated run counts per day */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        totalRuns?: number;
-                        activity?: {
-                            /** Format: date */
-                            date?: string;
-                            count?: number;
-                        }[];
-                    };
-                };
-            };
-        };
-    };
     WorkflowsController_listRuns: {
         parameters: {
             query?: {
                 workflowId?: string;
-                workflowIds?: string;
                 status?: string;
-                triggerType?: string;
-                search?: string;
                 limit?: number;
-                offset?: number;
             };
             header?: never;
             path?: never;
@@ -5770,71 +5036,6 @@ export interface operations {
             };
         };
     };
-    AnalyticsController_batchRunSummaries: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Get severity counts for multiple run IDs */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AnalyticsController_getStorageUsage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Get OpenSearch storage usage for the authenticated organization */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        usedBytes?: number;
-                        documentCount?: number;
-                        indexCount?: number;
-                        opensearchEnabled?: boolean;
-                    };
-                };
-            };
-        };
-    };
-    AnalyticsController_purgeData: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Purge all analytics data for the authenticated organization */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        deletedIndices?: number;
-                    };
-                };
-            };
-        };
-    };
     AnalyticsController_ensureTenant: {
         parameters: {
             query?: never;
@@ -6388,24 +5589,6 @@ export interface operations {
             };
         };
     };
-    IntegrationsController_getCatalog: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Returns the integration provider catalog (AWS + Slack) */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     IntegrationsController_listProviders: {
         parameters: {
             query?: never;
@@ -6511,27 +5694,6 @@ export interface operations {
             };
         };
     };
-    IntegrationsController_listOrgConnections: {
-        parameters: {
-            query: {
-                provider: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["IntegrationConnectionResponse"][];
-                };
-            };
-        };
-    };
     IntegrationsController_startOAuth: {
         parameters: {
             query?: never;
@@ -6591,7 +5753,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshConnectionDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -6612,7 +5778,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisconnectConnectionDto"];
+            };
+        };
         responses: {
             /** @description Connection removed */
             200: {
@@ -6627,7 +5797,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                "x-organization-id": string;
+                "x-internal-token": string;
             };
             path: {
                 id: string;
@@ -6643,156 +5813,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ConnectionTokenResponseDto"];
                 };
-            };
-        };
-    };
-    IntegrationsController_resolveCredentials: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-organization-id": string;
-            };
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConnectionCredentialsResponseDto"];
-                };
-            };
-        };
-    };
-    IntegrationsController_getAwsSetupInfo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AwsSetupInfoResponseDto"];
-                };
-            };
-        };
-    };
-    IntegrationsController_createAwsConnection: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateAwsConnectionDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["IntegrationConnectionResponse"];
-                };
-            };
-        };
-    };
-    IntegrationsController_validateAwsConnection: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ValidateAwsResponseDto"];
-                };
-            };
-        };
-    };
-    IntegrationsController_discoverOrgAccounts: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DiscoverOrgAccountsResponseDto"];
-                };
-            };
-        };
-    };
-    IntegrationsController_createSlackWebhookConnection: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateSlackWebhookConnectionDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["IntegrationConnectionResponse"];
-                };
-            };
-        };
-    };
-    IntegrationsController_testSlackConnection: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Test result for Slack connection */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -7697,7 +6717,6 @@ export interface operations {
         parameters: {
             query?: {
                 enabled?: boolean;
-                includeServers?: boolean;
             };
             header?: never;
             path?: never;
@@ -8458,23 +7477,6 @@ export interface operations {
             };
         };
     };
-    GitHubAppController_getQuickScanWorkflows: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     GitHubAppController_triggerScan: {
         parameters: {
             query?: never;
@@ -8655,634 +7657,6 @@ export interface operations {
                 "x-github-delivery": string;
             };
             path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    StudioMcpController_handleMcp_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    StudioMcpController_handleMcp_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    StudioMcpController_handleMcp_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    StudioMcpController_handleMcp_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    StudioMcpController_handleMcp_options: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    StudioMcpController_handleMcp_head: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    StudioMcpController_handleMcp_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WorkflowTemplatesController_list: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WorkflowTemplatesController_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WorkflowTemplatesController_getById: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WorkflowTemplatesController_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WorkflowTemplatesController_instantiate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Creates a new workflow from the template */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AsmController_listDomains: {
-        parameters: {
-            query?: {
-                limit?: string;
-                offset?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AsmController_createDomain: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateDomainDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AsmController_getDomain: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AsmController_deleteDomain: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AsmController_updateDomain: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateDomainDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AsmController_triggerScan: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TriggerScanDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AsmController_listAssets: {
-        parameters: {
-            query?: {
-                limit?: string;
-                offset?: string;
-                domainId?: string;
-                type?: string;
-                search?: string;
-                sortBy?: "hostname" | "type" | "riskScore" | "firstSeen" | "lastSeen";
-                sortOrder?: "asc" | "desc";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AsmController_getAsset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AsmController_triggerAssetScan: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TriggerScanDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AsmController_listScans: {
-        parameters: {
-            query?: {
-                limit?: string;
-                offset?: string;
-                status?: "running" | "completed" | "failed" | "timed_out";
-                domainId?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AsmController_getDashboardStats: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AssetDiscoveryController_listAssets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AssetDiscoveryController_getAssetSummary: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AssetDiscoveryController_getAsset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AssetDiscoveryController_triggerSync: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TriggerSyncDto"];
-            };
-        };
-        responses: {
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AssetDiscoveryController_listSyncRuns: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AssetDiscoveryController_getSyncRun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AssetDiscoveryController_createSyncRun: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-organization-id": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AssetDiscoveryController_reconcileAssets: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-organization-id": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AssetDiscoveryController_markStaleAssets: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-organization-id": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AssetDiscoveryController_updateSyncRunStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
             cookie?: never;
         };
         requestBody?: never;

@@ -12,7 +12,7 @@ Components are the building blocks of ShipSec Studio workflows. Each component p
     Triggers, file handling, data transformation, cloud integrations, and outputs
   </Card>
   <Card title="Security" icon="shield" href="/components/security">
-    Subdomain discovery, port scanning, DNS resolution, secret detection, container scanning, CSPM
+    Subdomain discovery, port scanning, DNS resolution, secret detection, CSPM
   </Card>
   <Card title="AI" icon="brain" href="/components/ai">
     Provider configurations and autonomous agents
@@ -42,10 +42,6 @@ interface ComponentDefinition<Input, Output> {
   execute: (input: Input, context: ExecutionContext) => Promise<Output>;
 }
 ```
-
-## Workflow Templates
-
-These pipelines are available as **pre-built Workflow Templates** on the [Templates page](/user-guide#workflow-templates). Use a template to deploy any of these patterns in one click, or customize them in the workflow builder.
 
 ## Example Pipelines
 

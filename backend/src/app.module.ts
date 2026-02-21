@@ -4,7 +4,6 @@ import { ConfigModule } from '@nestjs/config';
 import { join } from 'node:path';
 import { ThrottlerModule, ThrottlerGuard, seconds } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
-import { EventEmitterModule } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
 
 import { AppController } from './app.controller';
@@ -28,6 +27,7 @@ import { SchedulesModule } from './schedules/schedules.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { McpModule } from './mcp/mcp.module';
 import { StudioMcpModule } from './studio-mcp/studio-mcp.module';
+import { ChatModule } from './chat/chat.module';
 
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
@@ -35,9 +35,6 @@ import { HumanInputsModule } from './human-inputs/human-inputs.module';
 import { McpServersModule } from './mcp-servers/mcp-servers.module';
 import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
 import { GitHubAppModule } from './github-app/github-app.module';
-import { WorkflowTemplatesModule } from './workflow-templates/workflow-templates.module';
-import { AsmModule } from './asm/asm.module';
-import { AssetDiscoveryModule } from './asset-discovery/asset-discovery.module';
 
 const coreModules = [
   AgentsModule,
@@ -58,10 +55,7 @@ const coreModules = [
   McpModule,
   GitHubAppModule,
   StudioMcpModule,
-  GitHubAppModule,
-  WorkflowTemplatesModule,
-  AsmModule,
-  AssetDiscoveryModule,
+  ChatModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
@@ -105,7 +99,6 @@ function getEnvFilePaths(): string[] {
         };
       },
     }),
-    EventEmitterModule.forRoot(),
     OpenSearchModule,
     ...coreModules,
     ...testingModules,

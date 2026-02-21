@@ -4,7 +4,6 @@ import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline';
 import { EventInspector } from '@/components/timeline/EventInspector';
 import { Button } from '@/components/ui/button';
 import { MessageModal } from '@/components/ui/MessageModal';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StopCircle, RefreshCw, Link2, Globe } from 'lucide-react';
 
 // Custom hook to detect mobile viewport
@@ -267,31 +266,17 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                   {runStatus.progress.completedActions}/{runStatus.progress.totalActions}
                 </span>
               )}
-            {selectedRunId === liveRunId &&
-              (status === 'running' || status === 'queued') &&
-              (selectedRun?.triggerType && selectedRun.triggerType !== 'manual' ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span tabIndex={0}>
-                      <Button variant="destructive" size="sm" className="h-7 px-2 gap-1" disabled>
-                        <StopCircle className="h-3.5 w-3.5 md:h-3 md:w-3" />
-                        {!isMobile && <span className="text-xs">Stop</span>}
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>System-triggered runs cannot be stopped</TooltipContent>
-                </Tooltip>
-              ) : (
-                <Button
-                  onClick={() => stopExecution()}
-                  variant="destructive"
-                  size="sm"
-                  className="h-7 px-2 gap-1"
-                >
-                  <StopCircle className="h-3.5 w-3.5 md:h-3 md:w-3" />
-                  {!isMobile && <span className="text-xs">Stop</span>}
-                </Button>
-              ))}
+            {selectedRunId === liveRunId && (status === 'running' || status === 'queued') && (
+              <Button
+                onClick={() => stopExecution()}
+                variant="destructive"
+                size="sm"
+                className="h-7 px-2 gap-1"
+              >
+                <StopCircle className="h-3.5 w-3.5 md:h-3 md:w-3" />
+                {!isMobile && <span className="text-xs">Stop</span>}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -452,7 +437,7 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                   <span>{`${filteredLogs.length} log entries`}</span>
                   {triggerDisplay && (
                     <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/80">
-                      <triggerDisplay.icon className="h-3 w-3" aria-hidden="true" />
+                      <span aria-hidden="true">{triggerDisplay.icon}</span>
                       Triggered by {triggerDisplay.label}
                     </span>
                   )}

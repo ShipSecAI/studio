@@ -15,7 +15,7 @@ import type { HttpInstrumentationOptions, HttpRequestInput } from './http/types'
 
 export type { ExecutionContextMetadata } from './interfaces';
 
-export type RunnerKind = 'inline' | 'docker' | 'remote';
+export type RunnerKind = 'inline' | 'docker' | 'remote' | 'k8s';
 
 export interface InlineRunnerConfig {
   kind: 'inline';
@@ -408,12 +408,6 @@ export interface ExecutionContext {
   workflowId?: string;
   workflowName?: string;
   organizationId?: string | null;
-  triggerSource?: string | null;
-  triggerType?: string | null;
-
-  // Run-level shared context (populated by components via contributeRunContext)
-  runContext?: Readonly<Record<string, string>>;
-  contributeRunContext?: (key: string, value: string) => void;
 
   // Service interfaces - implemented by adapters
   storage?: IFileStorageService;

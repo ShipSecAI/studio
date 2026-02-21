@@ -11,9 +11,6 @@ import {
   parameters,
   port,
   param,
-  generateFindingHash,
-  analyticsResultSchema,
-  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 
 /**
@@ -34,58 +31,20 @@ const findingSchema = z.object({
 
 type Finding = z.infer<typeof findingSchema>;
 
-// Input schema - receives volumeName from clone component or imageRef for image scans
+// Input schema - receives volumeName from clone component
 const inputSchema = inputs({
   volumeName: port(
-    z.string().optional().describe('Docker volume name containing the cloned repository'),
+    z
+      .string()
+      .min(1, 'Volume name is required')
+      .describe('Docker volume name containing the cloned repository'),
     {
       label: 'Volume Name',
       description:
-        'Docker volume name from github.repo.clone. Required for filesystem/config scans. The repository is at /repo inside the volume.',
+        'Docker volume name from github.repo.clone. The repository is at /repo inside the volume.',
       connectionType: { kind: 'primitive', name: 'text' },
     },
   ),
-  imageRef: port(z.string().optional().describe('Container image reference to scan'), {
-    label: 'Image Reference',
-    description:
-      'Container image to scan (e.g., nginx:latest, 123456.dkr.ecr.us-east-1.amazonaws.com/app:v1)',
-    connectionType: { kind: 'primitive', name: 'text' },
-  }),
-  registryUsername: port(
-    z.string().optional().describe('Username for private registry authentication'),
-    {
-      label: 'Registry Username',
-      description: 'Username for private registry auth. Wire from Integration Credential Resolver.',
-      connectionType: { kind: 'primitive', name: 'text' },
-    },
-  ),
-  registryPassword: port(
-    z.string().optional().describe('Password/token for private registry authentication'),
-    {
-      label: 'Registry Password',
-      description:
-        'Password/token for private registry auth. Wire from Integration Credential Resolver.',
-      connectionType: { kind: 'primitive', name: 'text' },
-    },
-  ),
-  awsAccessKeyId: port(z.string().optional().describe('AWS Access Key ID for ECR registries'), {
-    label: 'AWS Access Key ID',
-    description: 'For ECR registries. Wire from Integration Credential Resolver (AWS).',
-    connectionType: { kind: 'primitive', name: 'text' },
-  }),
-  awsSecretAccessKey: port(
-    z.string().optional().describe('AWS Secret Access Key for ECR registries'),
-    {
-      label: 'AWS Secret Access Key',
-      description: 'For ECR registries. Wire from Integration Credential Resolver (AWS).',
-      connectionType: { kind: 'primitive', name: 'text' },
-    },
-  ),
-  awsRegion: port(z.string().optional().describe('AWS region for ECR'), {
-    label: 'AWS Region',
-    description: 'AWS region for ECR (e.g., us-east-1).',
-    connectionType: { kind: 'primitive', name: 'text' },
-  }),
 });
 
 // Configuration parameters
@@ -112,48 +71,9 @@ const parameterSchema = parameters({
       label: 'Image Reference',
       editor: 'text',
       placeholder: 'nginx:latest',
-      description:
-        'Container image to scan (only for image scan type). Overridden when wired from an upstream node.',
+      description: 'Container image to scan (only for image scan type).',
     },
   ),
-  registryUsername: param(
-    z.string().optional().describe('Username for private registry authentication'),
-    {
-      label: 'Registry Username',
-      editor: 'text',
-      description:
-        'Username for private registry auth. Overridden when wired from an upstream node.',
-    },
-  ),
-  registryPassword: param(
-    z.string().optional().describe('Password/token for private registry authentication'),
-    {
-      label: 'Registry Password',
-      editor: 'secret',
-      description:
-        'Password/token for private registry auth. Overridden when wired from an upstream node.',
-    },
-  ),
-  awsAccessKeyId: param(z.string().optional().describe('AWS Access Key ID for ECR registries'), {
-    label: 'AWS Access Key ID',
-    editor: 'text',
-    description: 'For ECR registries. Overridden when wired from an upstream node.',
-  }),
-  awsSecretAccessKey: param(
-    z.string().optional().describe('AWS Secret Access Key for ECR registries'),
-    {
-      label: 'AWS Secret Access Key',
-      editor: 'secret',
-      description: 'For ECR registries. Overridden when wired from an upstream node.',
-    },
-  ),
-  awsRegion: param(z.string().optional().describe('AWS region for ECR'), {
-    label: 'AWS Region',
-    editor: 'text',
-    placeholder: 'us-east-1',
-    description:
-      'AWS region for ECR (e.g., us-east-1). Overridden when wired from an upstream node.',
-  }),
   severityFilter: param(
     z
       .array(z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN']))
@@ -215,11 +135,6 @@ const outputSchema = outputs({
     label: 'Findings',
     description: 'Array of detected issues in standardized format.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
-  }),
-  results: port(z.array(analyticsResultSchema()), {
-    label: 'Results',
-    description:
-      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
   findingCount: port(z.number(), {
     label: 'Finding Count',
@@ -404,45 +319,26 @@ const definition = defineComponent({
     isLatest: true,
     deprecated: false,
     example:
-      'Scan a container image (nginx:latest) or clone a repository with github.repo.clone and connect volumeName for filesystem scanning.',
+      'Clone a repository with github.repo.clone, then connect volumeName to this component for comprehensive security scanning.',
     examples: [
-      'Scan a public container image for vulnerabilities.',
-      'Scan a private ECR image with AWS credentials.',
-      'Scan filesystem for vulnerable packages via cloned repo.',
+      'Scan filesystem for vulnerable packages.',
       'Check Terraform files for IaC misconfigurations.',
       'Detect hardcoded secrets in configuration files.',
+      'Scan container images for vulnerabilities.',
     ],
   },
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);
     const parsedParams = parameterSchema.parse(params);
 
-    // Resolve imageRef: input port takes priority over parameter
-    const imageRef = parsedInputs.imageRef ?? parsedParams.imageRef;
-
-    // Validate based on scan type
-    if (parsedParams.scanType === 'image') {
-      if (!imageRef) {
-        throw new ContainerError('Image reference is required for image scan type', {
-          details: { scanType: parsedParams.scanType },
-        });
-      }
-    } else {
-      // filesystem or config scan requires volumeName
-      if (!parsedInputs.volumeName) {
-        throw new ContainerError('Volume name is required for filesystem/config scan type', {
-          details: { scanType: parsedParams.scanType },
-        });
-      }
-    }
-
-    const scanTarget = parsedParams.scanType === 'image' ? imageRef : parsedInputs.volumeName;
-    context.logger.info(`[Trivy Scanner] Starting ${parsedParams.scanType} scan on: ${scanTarget}`);
+    context.logger.info(
+      `[Trivy Scanner] Starting ${parsedParams.scanType} scan on volume: ${parsedInputs.volumeName}`,
+    );
 
     context.emitProgress({
       message: `Launching Trivy ${parsedParams.scanType} scan...`,
       level: 'info',
-      data: { scanTarget, scanType: parsedParams.scanType },
+      data: { volumeName: parsedInputs.volumeName, scanType: parsedParams.scanType },
     });
 
     // Build Trivy command arguments
@@ -473,7 +369,12 @@ const definition = defineComponent({
 
     // Add target based on scan type
     if (parsedParams.scanType === 'image') {
-      args.push(imageRef!);
+      if (!parsedParams.imageRef) {
+        throw new ContainerError('Image reference is required for image scan type', {
+          details: { scanType: parsedParams.scanType },
+        });
+      }
+      args.push(parsedParams.imageRef);
     } else {
       args.push('/scan');
     }
@@ -487,25 +388,11 @@ const definition = defineComponent({
       });
     }
 
-    // Build env vars with optional registry credentials
-    const env: Record<string, string> = { HOME: '/tmp', TRIVY_NO_PROGRESS: 'true' };
-    const username = parsedInputs.registryUsername ?? parsedParams.registryUsername;
-    const password = parsedInputs.registryPassword ?? parsedParams.registryPassword;
-    const accessKey = parsedInputs.awsAccessKeyId ?? parsedParams.awsAccessKeyId;
-    const secretKey = parsedInputs.awsSecretAccessKey ?? parsedParams.awsSecretAccessKey;
-    const region = parsedInputs.awsRegion ?? parsedParams.awsRegion;
-
-    if (username) env.TRIVY_USERNAME = username;
-    if (password) env.TRIVY_PASSWORD = password;
-    if (accessKey) env.AWS_ACCESS_KEY_ID = accessKey;
-    if (secretKey) env.AWS_SECRET_ACCESS_KEY = secretKey;
-    if (region) env.AWS_REGION = region;
-
     // Configure runner with volume mount
     const volumes: { source: string; target: string; readOnly: boolean }[] = [];
 
     // Only mount volume for filesystem/config scans
-    if (parsedParams.scanType !== 'image' && parsedInputs.volumeName) {
+    if (parsedParams.scanType !== 'image') {
       volumes.push({
         source: parsedInputs.volumeName,
         target: '/scan',
@@ -513,7 +400,7 @@ const definition = defineComponent({
       });
     }
 
-    // For image scans, mount docker socket for local images
+    // For image scans, mount docker socket if available
     if (parsedParams.scanType === 'image') {
       volumes.push({
         source: '/var/run/docker.sock',
@@ -525,7 +412,6 @@ const definition = defineComponent({
     const runnerConfig: DockerRunnerConfig = {
       ...baseRunner,
       command: args,
-      env,
       timeoutSeconds: parsedParams.timeout + 60, // Add buffer for startup
       volumes: volumes.length > 0 ? volumes : undefined,
     };
@@ -581,18 +467,8 @@ const definition = defineComponent({
       });
     }
 
-    // Build analytics-ready results (follows core.analytics.result.v1 contract)
-    const scannerName = parsedParams.scanType === 'image' ? 'trivy-container' : 'trivy';
-    const results: AnalyticsResult[] = findings.map((finding) => ({
-      ...finding,
-      scanner: scannerName,
-      asset_key: finding.target,
-      finding_hash: generateFindingHash(finding.vulnerability_id, finding.target, finding.severity),
-    }));
-
     const output: Output = {
       findings,
-      results,
       findingCount: findings.length,
       rawOutput,
     };

@@ -130,22 +130,11 @@ export interface CreateTriggerRuleInput {
   priority?: number;
 }
 
-export interface SystemWorkflow {
-  id: string;
-  name: string;
-  slug: string | null;
-  templateId: string;
-}
-
 // State & Actions
 interface GitHubStoreState {
   // Status
   isConfigured: boolean | null;
   installUrl: string | null;
-
-  // System workflows (for Quick Scan)
-  systemWorkflows: SystemWorkflow[];
-  systemWorkflowsLoading: boolean;
 
   // Installations
   installations: GitHubInstallation[];
@@ -183,9 +172,6 @@ interface GitHubStoreActions {
   // Status
   fetchStatus: () => Promise<void>;
 
-  // System workflows
-  fetchSystemWorkflows: (options?: { force?: boolean }) => Promise<SystemWorkflow[]>;
-
   // Installations
   fetchInstallations: (options?: { force?: boolean }) => Promise<GitHubInstallation[]>;
   setupInstallation: (installationId: number) => Promise<GitHubInstallation>;
@@ -213,11 +199,7 @@ interface GitHubStoreActions {
     offset?: number;
   }) => Promise<GitHubScanResult[]>;
   getScanResult: (id: string) => Promise<GitHubScanResult>;
-  triggerScan: (
-    repoId: string,
-    workflowId: string,
-    branch?: string,
-  ) => Promise<{ scanId: string; runId: string }>;
+  triggerScan: (repoId: string, workflowId: string, branch?: string) => Promise<string>;
 
   // Branches
   fetchBranches: (
@@ -256,8 +238,6 @@ function getScanFirstPageCacheKey(options: {
 const createInitialState = (): GitHubStoreState => ({
   isConfigured: null,
   installUrl: null,
-  systemWorkflows: [],
-  systemWorkflowsLoading: false,
   installations: [],
   installationsLoading: false,
   repositories: [],
@@ -306,34 +286,6 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to fetch status';
       set({ error: message, isConfigured: false });
-    }
-  },
-
-  fetchSystemWorkflows: async (options) => {
-    const { lastFetched, systemWorkflowsLoading } = get();
-    const force = options?.force ?? false;
-    const isFresh =
-      lastFetched.systemWorkflows && Date.now() - lastFetched.systemWorkflows < STALE_MS;
-
-    if (!force && !systemWorkflowsLoading && isFresh) {
-      return get().systemWorkflows;
-    }
-
-    set({ systemWorkflowsLoading: true });
-
-    try {
-      const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/quick-scan-workflows`);
-      if (!response.ok) throw new Error('Failed to fetch system workflows');
-      const systemWorkflows = await response.json();
-      set({
-        systemWorkflows,
-        systemWorkflowsLoading: false,
-        lastFetched: { ...get().lastFetched, systemWorkflows: Date.now() },
-      });
-      return systemWorkflows;
-    } catch (_error) {
-      set({ systemWorkflowsLoading: false });
-      return [];
     }
   },
 
@@ -673,7 +625,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
     }
 
     const data = await response.json();
-    return { scanId: data.scanId, runId: data.runId };
+    return data.scanId;
   },
 
   fetchBranches: async (repoId, options) => {

@@ -274,7 +274,7 @@ export function useTriggerScan() {
       }
 
       const data = await response.json();
-      return data as { scanId: string; runId: string };
+      return (data as { scanId: string }).scanId;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.github.scans() });

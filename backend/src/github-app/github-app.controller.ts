@@ -123,11 +123,6 @@ export class GitHubAppController {
     return { token };
   }
 
-  @Get('quick-scan-workflows')
-  async getQuickScanWorkflows(@CurrentAuth() auth: AuthContext) {
-    return this.githubAppService.getQuickScanWorkflows(auth);
-  }
-
   @Post('repos/:id/scan')
   async triggerScan(
     @Param('id') id: string,
@@ -142,7 +137,8 @@ export class GitHubAppController {
     const repository = await this.githubAppService.getRepository(id, auth);
     const branch = body.branch || repository.defaultBranch || undefined;
 
-    return this.githubAppService.triggerScan(id, body.workflowId, branch, auth);
+    const scanId = await this.githubAppService.triggerScan(id, body.workflowId, branch, auth);
+    return { scanId };
   }
 
   @Post('repos/sync')

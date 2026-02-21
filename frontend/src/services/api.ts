@@ -51,8 +51,6 @@ export interface WorkflowSummary {
   id: string;
   name: string;
   description: string | null;
-  icon: string | null;
-  iconColor: string | null;
   organizationId: string | null;
   isSystem: boolean;
   templateId: string | null;
@@ -128,9 +126,9 @@ function resolveApiBaseUrl() {
     }
   }
 
-  // Default to empty string (relative URLs) so API calls go through the same
-  // origin that served the page. This avoids CORS/mixed-content issues when
-  // accessed via ngrok or custom domains (nginx proxies /api/ to the backend).
+  // No explicit API URL — use same-origin relative paths.
+  // Works with path-based routing (/api/v1/* routed to backend via Ingress).
+  // For local dev, set VITE_API_URL=http://localhost:3211 in frontend/.env
   return '';
 }
 
@@ -287,12 +285,7 @@ export const api = {
 
     updateMetadata: async (
       id: string,
-      metadata: {
-        name: string;
-        description?: string | null;
-        icon?: string | null;
-        iconColor?: string | null;
-      },
+      metadata: { name: string; description?: string | null },
     ): Promise<WorkflowResponseDto> => {
       const response = await apiClient.updateWorkflowMetadata(id, metadata);
       if (response.error) throw new Error('Failed to update workflow metadata');
@@ -779,7 +772,8 @@ export const api = {
       },
     ): Promise<TerminalChunkResponse> => {
       const headers = await getAuthHeaders();
-      const url = new URL(`${API_V1_URL}/workflows/runs/${executionId}/terminal`);
+      const path = `${API_V1_URL}/workflows/runs/${executionId}/terminal`;
+      const url = new URL(path, window.location.origin);
       if (params?.nodeRef) url.searchParams.set('nodeRef', params.nodeRef);
       if (params?.stream) url.searchParams.set('stream', params.stream);
       if (params?.cursor) url.searchParams.set('cursor', params.cursor);
@@ -877,22 +871,13 @@ export const api = {
 
     listRuns: async (options?: {
       workflowId?: string;
-      workflowIds?: string;
       status?: string;
-      triggerType?: string;
-      search?: string;
       limit?: number;
       offset?: number;
     }) => {
       const response = await apiClient.listWorkflowRuns(options);
       if (response.error) throw new Error('Failed to fetch runs');
       return response.data || { runs: [] };
-    },
-
-    getRunActivity: async (options?: { days?: number }) => {
-      const response = await apiClient.getRunActivity(options);
-      if (response.error) throw new Error('Failed to fetch run activity');
-      return response.data || { totalRuns: 0, activity: [] };
     },
 
     getRun: async (runId: string) => {
@@ -1142,22 +1127,6 @@ export const api = {
         total: number;
         hits: { _id: string; _source: Record<string, any>; _score?: number }[];
         aggregations?: Record<string, any>;
-      }>;
-    },
-
-    batchRunSummaries: async (runIds: string[]) => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/analytics/batch-run-summaries`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runIds }),
-      });
-      if (!response.ok) throw new Error(`Batch run summaries failed: ${response.status}`);
-      return response.json() as Promise<{
-        summaries: Record<
-          string,
-          { critical: number; high: number; medium: number; low: number; info: number }
-        >;
       }>;
     },
   },

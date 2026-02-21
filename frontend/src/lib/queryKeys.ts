@@ -15,8 +15,6 @@ export const queryKeys = {
     byWorkflow: (workflowId: string) => ['runs', getOrgScope(), workflowId] as const,
     global: () => ['runs', getOrgScope(), '__global__'] as const,
     detail: (runId: string) => ['runs', getOrgScope(), 'detail', runId] as const,
-    activity: (filters?: Record<string, unknown>) =>
-      ['runs', getOrgScope(), 'activity', filters] as const,
   },
   schedules: {
     all: (filters?: Record<string, unknown>) => ['schedules', getOrgScope(), filters] as const,
@@ -69,28 +67,6 @@ export const queryKeys = {
     runtimeInputs: (workflowId: string) =>
       ['workflowRuntimeInputs', getOrgScope(), workflowId] as const,
   },
-  security: {
-    findings: (filters?: unknown, viewFilter?: unknown) =>
-      ['security', getOrgScope(), 'findings', filters, viewFilter] as const,
-    timeSeries: (filters?: unknown, viewFilter?: unknown, interval?: string) =>
-      ['security', getOrgScope(), 'timeSeries', filters, viewFilter, interval] as const,
-    findingDetail: (docId: string) => ['security', getOrgScope(), 'findingDetail', docId] as const,
-    findingLifecycle: (hash: string) =>
-      ['security', getOrgScope(), 'findingLifecycle', hash] as const,
-    batchLifecycles: (hashes: string[]) =>
-      ['security', getOrgScope(), 'batchLifecycles', [...hashes].sort()] as const,
-    timeSeriesHeatmap: (days: number) =>
-      ['security', getOrgScope(), 'timeSeriesHeatmap', days] as const,
-    categoryCounts: () => ['security', getOrgScope(), 'categoryCounts'] as const,
-    summary: (viewFilter?: unknown) => ['security', getOrgScope(), 'summary', viewFilter] as const,
-  },
-  cloud: {
-    scans: (filters?: { status?: string; offset?: number; limit?: number; workflowIds?: string }) =>
-      ['cloud', getOrgScope(), 'scans', filters] as const,
-    scanFindings: (runId: string) => ['cloud', getOrgScope(), 'scanFindings', runId] as const,
-    scanSummaries: (runIds: string[]) =>
-      ['cloud', getOrgScope(), 'scanSummaries', [...runIds].sort()] as const,
-  },
   github: {
     status: () => ['github', getOrgScope(), 'status'] as const,
     installations: () => ['github', getOrgScope(), 'installations'] as const,
@@ -100,15 +76,5 @@ export const queryKeys = {
     scans: (filters?: Record<string, unknown>) =>
       ['github', getOrgScope(), 'scans', filters] as const,
     scan: (id: string) => ['github', getOrgScope(), 'scan', id] as const,
-  },
-  asm: {
-    domains: (filters?: Record<string, unknown>) =>
-      ['asm', getOrgScope(), 'domains', filters] as const,
-    domain: (id: string) => ['asm', getOrgScope(), 'domain', id] as const,
-    assets: (filters?: Record<string, unknown>) =>
-      ['asm', getOrgScope(), 'assets', filters] as const,
-    asset: (id: string) => ['asm', getOrgScope(), 'asset', id] as const,
-    scans: (filters?: Record<string, unknown>) => ['asm', getOrgScope(), 'scans', filters] as const,
-    stats: () => ['asm', getOrgScope(), 'stats'] as const,
   },
 } as const;

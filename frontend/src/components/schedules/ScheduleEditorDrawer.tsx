@@ -20,19 +20,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-  ArrowLeft,
-  ChevronDown,
-  ChevronRight,
-  HelpCircle,
-  Loader2,
-  Plus,
-  Trash2,
-} from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/services/api';
 import { useWorkflow } from '@/hooks/queries/useWorkflowQueries';
-import { CadencePicker } from '@/components/schedules/CadencePicker';
 import { cn } from '@/lib/utils';
 
 const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint';
@@ -63,7 +53,6 @@ interface ScheduleEditorDrawerProps {
   defaultWorkflowId?: string | null;
   workflowOptions: WorkflowOption[];
   onClose: () => void;
-  onBack?: () => void;
   onSaved?: (schedule: WorkflowSchedule, mode: ScheduleEditorMode) => void;
 }
 
@@ -144,22 +133,6 @@ const toOverrideDrafts = (
 const ENTRY_SECTION_COPY =
   'Configure how this workflow should run on a cadence. Provide runtime inputs for the Entry Point and optional node overrides before saving the schedule.';
 
-function FieldLabel({ label, tooltip }: { label: string; tooltip: string }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <Label className="text-sm font-medium">{label}</Label>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-[240px]">
-          <p className="text-xs">{tooltip}</p>
-        </TooltipContent>
-      </Tooltip>
-    </div>
-  );
-}
-
 export function ScheduleEditorDrawer({
   open,
   mode,
@@ -167,7 +140,6 @@ export function ScheduleEditorDrawer({
   defaultWorkflowId,
   workflowOptions,
   onClose,
-  onBack,
   onSaved,
 }: ScheduleEditorDrawerProps) {
   const [form, setForm] = useState<ScheduleFormState>(() => ({
@@ -213,7 +185,6 @@ export function ScheduleEditorDrawer({
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formSeed, setFormSeed] = useState(0);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const resetForm = () => {
     const baseWorkflowId =
@@ -238,12 +209,6 @@ export function ScheduleEditorDrawer({
     setPendingOverrideNode('');
     setFormError(null);
     setFormSeed((seed) => seed + 1);
-    // Auto-expand advanced section if non-default values exist (e.g. edit mode)
-    const hasAdvancedValues =
-      (schedule?.overlapPolicy ?? 'skip') !== 'skip' ||
-      (schedule?.catchupWindowSeconds ?? 0) > 0 ||
-      Object.keys(schedule?.inputPayload?.nodeOverrides ?? {}).length > 0;
-    setShowAdvanced(hasAdvancedValues);
   };
 
   useEffect(() => {
@@ -251,6 +216,11 @@ export function ScheduleEditorDrawer({
       resetForm();
     }
   }, [open, mode, schedule, defaultWorkflowId]);
+
+  const selectedWorkflow = useMemo(
+    () => workflowOptions.find((workflow) => workflow.id === form.workflowId) ?? null,
+    [workflowOptions, form.workflowId],
+  );
 
   const workflowNodes = useMemo(() => {
     if (!workflowDetail) return [];
@@ -609,6 +579,13 @@ export function ScheduleEditorDrawer({
   };
 
   const runtimeSection = (() => {
+    if (!form.workflowId) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          Select a workflow above to load its Entry Point inputs.
+        </p>
+      );
+    }
     if (workflowLoading) {
       return (
         <p className="text-sm text-muted-foreground flex items-center gap-2">
@@ -729,235 +706,208 @@ export function ScheduleEditorDrawer({
         }
       }}
     >
-      <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto">
-        <TooltipProvider>
-          <DialogHeader>
-            <DialogTitle>
-              {onBack && mode === 'create' && (
-                <button
-                  type="button"
-                  onClick={onBack}
-                  className="inline-flex items-center mr-2 text-muted-foreground hover:text-foreground transition-colors align-middle"
+      <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{mode === 'create' ? 'Create schedule' : 'Edit schedule'}</DialogTitle>
+          <DialogDescription>{ENTRY_SECTION_COPY}</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-8 py-2">
+          <section className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Workflow</Label>
+                <Select
+                  value={form.workflowId || 'none'}
+                  disabled={workflowDisabled || workflowOptions.length === 0}
+                  onValueChange={(value) => {
+                    if (value === 'none') {
+                      handleFieldChange('workflowId', '');
+                      return;
+                    }
+                    handleFieldChange('workflowId', value);
+                    setRuntimeValues({});
+                    setNodeOverridesDraft({});
+                    setNodeOverrideErrors({});
+                    setRuntimeErrors({});
+                  }}
                 >
-                  <ArrowLeft className="h-4 w-4" />
-                </button>
-              )}
-              {mode === 'create' ? 'Create schedule' : 'Edit schedule'}
-            </DialogTitle>
-            <DialogDescription>{ENTRY_SECTION_COPY}</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6 py-2">
-            {/* Essential fields */}
-            <section className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <FieldLabel
-                    label="Workflow"
-                    tooltip="The workflow this schedule will run on each trigger"
-                  />
-                  <Select
-                    value={form.workflowId || 'none'}
-                    disabled={workflowDisabled || workflowOptions.length === 0}
-                    onValueChange={(value) => {
-                      if (value === 'none') {
-                        handleFieldChange('workflowId', '');
-                        return;
-                      }
-                      handleFieldChange('workflowId', value);
-                      setRuntimeValues({});
-                      setNodeOverridesDraft({});
-                      setNodeOverrideErrors({});
-                      setRuntimeErrors({});
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select workflow" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none" disabled>
-                        Select workflow
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select workflow" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none" disabled>
+                      Select workflow
+                    </SelectItem>
+                    {workflowOptions.map((workflow) => (
+                      <SelectItem key={workflow.id} value={workflow.id}>
+                        {workflow.name}
                       </SelectItem>
-                      {workflowOptions.map((workflow) => (
-                        <SelectItem key={workflow.id} value={workflow.id}>
-                          {workflow.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <FieldLabel
-                    label="Schedule name"
-                    tooltip="A human-readable name shown in the schedule list and run metadata"
-                  />
-                  <Input
-                    value={form.name}
-                    onChange={(event) => handleFieldChange('name', event.target.value)}
-                    placeholder="Daily quick scan"
-                  />
-                </div>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedWorkflow ? (
+                  <p className="text-xs text-muted-foreground">{selectedWorkflow.name}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Choose which workflow this cadence should invoke.
+                  </p>
+                )}
               </div>
-
               <div className="space-y-2">
-                <FieldLabel
-                  label="Description"
-                  tooltip="Optional notes visible to other operators"
+                <Label className="text-sm font-medium">Schedule name</Label>
+                <Input
+                  value={form.name}
+                  onChange={(event) => handleFieldChange('name', event.target.value)}
+                  placeholder="Daily quick scan"
                 />
-                <Textarea
-                  value={form.description}
-                  onChange={(event) => handleFieldChange('description', event.target.value)}
-                  rows={2}
-                  placeholder="Optional context for other operators."
-                />
+                <p className="text-xs text-muted-foreground">
+                  Appears in run metadata and chips inside the workflow.
+                </p>
               </div>
-
-              <CadencePicker
-                cronExpression={form.cronExpression}
-                humanLabel={form.humanLabel}
-                onChange={(cron, label) => {
-                  handleFieldChange('cronExpression', cron);
-                  handleFieldChange('humanLabel', label);
-                }}
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Description</Label>
+              <Textarea
+                value={form.description}
+                onChange={(event) => handleFieldChange('description', event.target.value)}
+                rows={3}
+                placeholder="Optional context for other operators."
               />
+            </div>
+          </section>
 
+          <section className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <FieldLabel
-                  label="Timezone"
-                  tooltip="The IANA timezone for the cron expression (e.g. America/New_York)"
+                <Label className="text-sm font-medium">Cron expression</Label>
+                <Input
+                  value={form.cronExpression}
+                  onChange={(event) => handleFieldChange('cronExpression', event.target.value)}
+                  placeholder="0 9 * * MON-FRI"
+                  className="font-mono text-sm"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Use standard cron syntax. Temporal handles catch-up windows.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Timezone</Label>
                 <Input
                   value={form.timezone}
                   onChange={(event) => handleFieldChange('timezone', event.target.value)}
                   placeholder="UTC or America/New_York"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Provide an IANA timezone identifier.
+                </p>
               </div>
-            </section>
-
-            {/* Advanced options (collapsible) */}
-            <section>
-              <button
-                type="button"
-                onClick={() => setShowAdvanced((prev) => !prev)}
-                className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showAdvanced ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-                Advanced options
-              </button>
-              {showAdvanced && (
-                <div className="space-y-4 pt-3 overflow-hidden">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2 min-w-0">
-                      <FieldLabel
-                        label="Overlap policy"
-                        tooltip="Controls what happens when a scheduled run triggers while the previous one is still executing. Default: skip (safest)."
-                      />
-                      <Select
-                        value={form.overlapPolicy}
-                        onValueChange={(value) =>
-                          handleFieldChange('overlapPolicy', value as ScheduleOverlapPolicy)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {OVERLAP_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <div className="flex flex-col gap-1">
-                                <span className="font-medium">{option.label}</span>
-                                <span className="text-xs text-muted-foreground whitespace-normal break-words">
-                                  {option.description}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2 min-w-0">
-                      <FieldLabel
-                        label="Catch-up window (seconds)"
-                        tooltip="How many seconds of missed runs Temporal will replay when the schedule resumes after downtime. 0 = no catch-up."
-                      />
-                      <Input
-                        type="number"
-                        min={0}
-                        value={form.catchupWindowSeconds}
-                        onChange={(event) =>
-                          handleFieldChange('catchupWindowSeconds', event.target.value)
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  {/* Entry Point inputs (only when workflow selected) */}
-                  {form.workflowId && (
-                    <section className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-sm font-semibold">Entry Point inputs</h3>
-                          <p className="text-xs text-muted-foreground">
-                            Provide the payload this schedule should reuse each time it runs.
-                          </p>
-                        </div>
-                        {runtimeInputs.length > 0 ? (
-                          <Badge variant="outline">{runtimeInputs.length} inputs</Badge>
-                        ) : null}
-                      </div>
-                      {runtimeSection}
-                    </section>
-                  )}
-
-                  {/* Node overrides (only when workflow selected) */}
-                  {form.workflowId && (
-                    <section className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-sm font-semibold">Node overrides</h3>
-                          <p className="text-xs text-muted-foreground">
-                            Override component parameters for this schedule without touching the
-                            workflow graph.
-                          </p>
-                        </div>
-                        <Badge variant="outline">
-                          {Object.keys(nodeOverridesDraft).length} overrides
-                        </Badge>
-                      </div>
-                      {nodeOverrideSection}
-                    </section>
-                  )}
-                </div>
-              )}
-            </section>
-
-            {formError ? (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {formError}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Friendly label</Label>
+                <Input
+                  value={form.humanLabel}
+                  onChange={(event) => handleFieldChange('humanLabel', event.target.value)}
+                  placeholder="Weekday mornings"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optional alias shown beside the cron string.
+                </p>
               </div>
-            ) : null}
-          </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Overlap policy</Label>
+                <Select
+                  value={form.overlapPolicy}
+                  onValueChange={(value) =>
+                    handleFieldChange('overlapPolicy', value as ScheduleOverlapPolicy)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OVERLAP_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex flex-col gap-1">
+                          <span className="font-medium">{option.label}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {option.description}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Catch-up window (seconds)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.catchupWindowSeconds}
+                  onChange={(event) =>
+                    handleFieldChange('catchupWindowSeconds', event.target.value)
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  How long Temporal should keep missed runs queued.
+                </p>
+              </div>
+            </div>
+          </section>
 
-          <DialogFooter className="gap-3">
-            <Button variant="outline" onClick={onClose} disabled={submitting}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit} disabled={submitting || !form.workflowId}>
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving
-                </>
-              ) : (
-                'Save schedule'
-              )}
-            </Button>
-          </DialogFooter>
-        </TooltipProvider>
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold">Entry Point inputs</h3>
+                <p className="text-xs text-muted-foreground">
+                  Provide the payload this schedule should reuse each time it runs.
+                </p>
+              </div>
+              {runtimeInputs.length > 0 ? (
+                <Badge variant="outline">{runtimeInputs.length} inputs</Badge>
+              ) : null}
+            </div>
+            {runtimeSection}
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold">Node overrides</h3>
+                <p className="text-xs text-muted-foreground">
+                  Override component parameters for this schedule without touching the workflow
+                  graph.
+                </p>
+              </div>
+              <Badge variant="outline">{Object.keys(nodeOverridesDraft).length} overrides</Badge>
+            </div>
+            {nodeOverrideSection}
+          </section>
+
+          {formError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {formError}
+            </div>
+          ) : null}
+        </div>
+
+        <DialogFooter className="gap-3">
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={submitting || !form.workflowId}>
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving
+              </>
+            ) : (
+              'Save schedule'
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -36,7 +36,6 @@ import { WorkflowRunRepository } from './repository/workflow-run.repository';
 import { WorkflowVersionRepository } from './repository/workflow-version.repository';
 import { TraceRepository } from '../trace/trace.repository';
 import { AnalyticsService } from '../analytics/analytics.service';
-import { SystemWorkflowsService } from './system-workflows.service';
 import {
   ExecutionStatus,
   FailureSummary,
@@ -55,11 +54,7 @@ export interface WorkflowSummaryResponse {
   id: string;
   name: string;
   description: string | null;
-  icon: string | null;
-  iconColor: string | null;
   organizationId: string | null;
-  isSystem: boolean;
-  templateId: string | null;
   lastRun: string | null;
   latestRunStatus: string | null;
   runCount: number;
@@ -161,7 +156,6 @@ export class WorkflowsService {
     private readonly traceRepository: TraceRepository,
     private readonly temporalService: TemporalService,
     private readonly analyticsService: AnalyticsService,
-    private readonly systemWorkflowsService: SystemWorkflowsService,
     @Optional()
     @Inject('GitHubAppService')
     private readonly githubAppService?: {
@@ -376,12 +370,7 @@ export class WorkflowsService {
     const organizationId = await this.requireWorkflowAdmin(id, auth);
     const record = await this.repository.updateMetadata(
       id,
-      {
-        name: dto.name,
-        description: dto.description ?? null,
-        ...(dto.icon !== undefined && { icon: dto.icon }),
-        ...(dto.iconColor !== undefined && { iconColor: dto.iconColor }),
-      },
+      { name: dto.name, description: dto.description ?? null },
       { organizationId },
     );
     const version = await this.versionRepository.findLatestByWorkflowId(id, { organizationId });
@@ -576,14 +565,6 @@ export class WorkflowsService {
 
   async listSummary(auth?: AuthContext | null): Promise<WorkflowSummaryResponse[]> {
     const organizationId = this.requireOrganizationId(auth);
-
-    // Ensure system workflows exist for this org (idempotent, fast if already created)
-    try {
-      await this.systemWorkflowsService.ensureSystemWorkflows(organizationId);
-    } catch (err) {
-      this.logger.warn('Failed to ensure system workflows', err);
-    }
-
     const records = await this.repository.listSummary({ organizationId });
     return records.map((record) => ({
       ...record,
@@ -710,72 +691,19 @@ export class WorkflowsService {
     };
   }
 
-  async getRunActivity(auth: AuthContext | null, days: number) {
-    const organizationId = this.requireOrganizationId(auth);
-    const activity = await this.runRepository.getActivityByDay(organizationId, days);
-    const totalRuns = activity.reduce((sum, d) => sum + d.count, 0);
-    return { totalRuns, activity };
-  }
-
   async listRuns(
     auth?: AuthContext | null,
     options: {
       workflowId?: string;
-      workflowIds?: string[];
       status?: ExecutionStatus;
-      triggerType?: ExecutionTriggerType;
-      search?: string;
       limit?: number;
       offset?: number;
     } = {},
   ) {
     const organizationId = this.requireOrganizationId(auth);
-    const limit = options.limit ?? 50;
-    const offset = options.offset ?? 0;
-
-    const repoFilters = {
-      workflowId: options.workflowId,
-      workflowIds: options.workflowIds,
-      triggerType: options.triggerType,
-      search: options.search,
-      organizationId,
-    };
-
-    // When status filter is set, use chunked fetching because status is resolved
-    // dynamically via buildRunSummary (Temporal lookup), not stored reliably in DB.
-    if (options.status) {
-      const target = offset + limit;
-      const CHUNK = 200;
-      let dbOffset = 0;
-      const matches: WorkflowRunSummary[] = [];
-
-      while (matches.length < target) {
-        const chunk = await this.runRepository.list({
-          ...repoFilters,
-          limit: CHUNK,
-          offset: dbOffset,
-        });
-        if (chunk.length === 0) break;
-        const summaries = await Promise.all(
-          chunk.map((r) => this.buildRunSummary(r, organizationId)),
-        );
-        matches.push(...summaries.filter((s) => s.status === options.status));
-        dbOffset += CHUNK;
-      }
-
-      const runs = matches.slice(offset, offset + limit);
-      runs.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-      this.logger.log(
-        `Loaded ${runs.length} workflow run(s) for timeline (status-filtered from ${dbOffset} DB rows)`,
-      );
-      return { runs };
-    }
-
-    // No status filter — pass through to repo unchanged
     const runs = await this.runRepository.list({
-      ...repoFilters,
-      limit,
-      offset,
+      ...options,
+      organizationId,
     });
     const summaries = await Promise.all(
       runs.map((run) => this.buildRunSummary(run, organizationId)),
@@ -933,8 +861,6 @@ export class WorkflowsService {
             workflowVersionId: prepared.workflowVersionId,
             workflowVersion: prepared.workflowVersion,
             organizationId: prepared.organizationId,
-            triggerType: prepared.triggerMetadata?.type ?? null,
-            triggerSource: prepared.triggerMetadata?.sourceId ?? null,
           },
         ],
       });
@@ -1400,10 +1326,7 @@ export class WorkflowsService {
     this.logger.warn(
       `Cancelling workflow run ${runId} (temporalRunId=${temporalRunId ?? 'latest'})`,
     );
-    const { run } = await this.requireRunAccess(runId, auth);
-    if (run.triggerType && run.triggerType !== 'manual') {
-      throw new ForbiddenException(`Cannot cancel a ${run.triggerType}-triggered run.`);
-    }
+    await this.requireRunAccess(runId, auth);
     await this.temporalService.cancelWorkflow({ workflowId: runId, runId: temporalRunId });
   }
 

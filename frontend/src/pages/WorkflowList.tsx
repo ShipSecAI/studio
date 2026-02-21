@@ -21,8 +21,6 @@ import {
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
 import {
   Workflow,
   AlertCircle,
@@ -32,10 +30,7 @@ import {
   Github,
   Webhook,
   Clock,
-  Search,
-  Shield,
 } from 'lucide-react';
-import * as LucideIcons from 'lucide-react';
 import { api, type WorkflowSummary } from '@/services/api';
 import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
 import { useAuthStore } from '@/store/authStore';
@@ -64,25 +59,6 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-
-function WorkflowIcon({
-  icon,
-  iconColor,
-  className,
-}: {
-  icon: string | null;
-  iconColor: string | null;
-  className?: string;
-}) {
-  const iconName = icon && icon in LucideIcons ? icon : 'Workflow';
-  const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as React.ComponentType<{
-    className?: string;
-    style?: React.CSSProperties;
-  }>;
-  return (
-    <IconComponent className={className} style={iconColor ? { color: iconColor } : undefined} />
-  );
-}
 
 const WORKFLOW_ORDER_KEY = 'workflow-list-order';
 
@@ -125,9 +101,6 @@ export function WorkflowList() {
   const { data: triggerRules = [] } = useTriggerRules();
   const { data: webhooks = [] } = useWebhooks();
   const { data: schedules = [] } = useSchedules();
-
-  const [activeTab, setActiveTab] = useState<'all' | 'my' | 'system'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
 
   const roles = useAuthStore((state) => state.roles);
   const canManageWorkflows = hasAdminRole(roles);
@@ -187,23 +160,6 @@ export function WorkflowList() {
     }
     return map;
   }, [triggerRules, webhooks, schedules]);
-
-  // Tab counts
-  const myWorkflows = useMemo(() => workflows.filter((w) => !w.isSystem), [workflows]);
-  const systemWorkflows = useMemo(() => workflows.filter((w) => w.isSystem), [workflows]);
-
-  // Filter workflows by tab and search
-  const filteredWorkflows = useMemo(() => {
-    let filtered = workflows;
-    if (activeTab === 'my') filtered = myWorkflows;
-    else if (activeTab === 'system') filtered = systemWorkflows;
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((w) => w.name.toLowerCase().includes(query));
-    }
-    return filtered;
-  }, [workflows, myWorkflows, systemWorkflows, activeTab, searchQuery]);
 
   const handleDeleteClick = (event: MouseEvent, workflow: WorkflowSummary) => {
     event.stopPropagation();
@@ -271,36 +227,24 @@ export function WorkflowList() {
           </div>
         )}
 
-        <div className="mb-4 md:mb-6">
+        <div className="mb-4 md:mb-8">
           <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">Your Workflows</h2>
           <p className="text-sm md:text-base text-muted-foreground">
             Create and manage security automation workflows with powerful visual tools
           </p>
         </div>
 
-        {!isLoading && !error && workflows.length > 0 && (
-          <div className="mb-4 md:mb-6 flex flex-col sm:flex-row sm:items-center gap-3">
-            <Tabs
-              value={activeTab}
-              onValueChange={(v) => setActiveTab(v as 'all' | 'my' | 'system')}
-            >
-              <TabsList>
-                <TabsTrigger value="all">All ({workflows.length})</TabsTrigger>
-                <TabsTrigger value="my">My Workflows ({myWorkflows.length})</TabsTrigger>
-                <TabsTrigger value="system">System ({systemWorkflows.length})</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <div className="relative sm:ml-auto sm:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search workflows..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-          </div>
-        )}
+        {/* <div className="mb-6 flex flex-wrap gap-3">
+          <Button
+            onClick={() => navigate('/workflows/new')}
+            size="lg"
+            className="gap-2"
+            disabled={isLoading}
+          >
+            <Plus className="h-5 w-5" />
+            New Workflow
+          </Button>
+        </div> */}
 
         {isLoading ? (
           <div className="border rounded-lg bg-card overflow-hidden">
@@ -397,23 +341,6 @@ export function WorkflowList() {
               Create Workflow
             </Button>
           </div>
-        ) : filteredWorkflows.length === 0 ? (
-          <div className="text-center py-8 md:py-12 border rounded-lg bg-card">
-            <Search className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 text-muted-foreground" />
-            <h3 className="text-base md:text-lg font-semibold mb-2">No matching workflows</h3>
-            <p className="text-sm md:text-base text-muted-foreground mb-4 px-4">
-              Try adjusting your search or filter
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearchQuery('');
-                setActiveTab('all');
-              }}
-            >
-              Clear filters
-            </Button>
-          </div>
         ) : (
           <div className="border rounded-lg bg-card overflow-hidden">
             <div className="overflow-x-auto">
@@ -466,10 +393,10 @@ export function WorkflowList() {
                   </TableHeader>
                   <TableBody>
                     <SortableContext
-                      items={filteredWorkflows.map((w) => w.id)}
+                      items={workflows.map((w) => w.id)}
                       strategy={verticalListSortingStrategy}
                     >
-                      {filteredWorkflows.map((workflow) => (
+                      {workflows.map((workflow) => (
                         <WorkflowRowItem
                           key={workflow.id}
                           workflow={workflow}
@@ -597,29 +524,9 @@ function WorkflowRowItem({
       </TableCell>
       <TableCell className="font-medium">
         <div className="flex items-center gap-2">
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-md shrink-0"
-            style={{ backgroundColor: workflow.iconColor ? `${workflow.iconColor}20` : undefined }}
-          >
-            <WorkflowIcon icon={workflow.icon} iconColor={workflow.iconColor} className="h-4 w-4" />
+          <div className="max-w-[200px] truncate" title={workflow.name}>
+            {workflow.name}
           </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="max-w-[200px] truncate">{workflow.name}</div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{workflow.name}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          {workflow.isSystem && (
-            <Badge
-              variant="outline"
-              className="text-[10px] px-1.5 py-0 gap-1 shrink-0 text-muted-foreground border-muted-foreground/30"
-            >
-              <Shield className="h-2.5 w-2.5" />
-              System
-            </Badge>
-          )}
           {triggerTypes &&
             (triggerTypes.hasGitHub || triggerTypes.hasWebhook || triggerTypes.hasSchedule) && (
               <div className="flex items-center gap-1 shrink-0">

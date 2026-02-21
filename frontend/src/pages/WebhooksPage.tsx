@@ -351,62 +351,30 @@ export function WebhooksPage() {
                             onClick={() => navigate(`/webhooks/${webhook.id}`)}
                           >
                             <TableCell className="font-medium">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex flex-col">
-                                    <span className="truncate max-w-[140px]">{webhook.name}</span>
-                                    {webhook.description && (
-                                      <span className="text-xs text-muted-foreground truncate max-w-[140px]">
-                                        {webhook.description}
-                                      </span>
-                                    )}
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-xs">
-                                  <p className="font-medium">{webhook.name}</p>
-                                  {webhook.description && (
-                                    <p className="text-xs text-muted-foreground">
-                                      {webhook.description}
-                                    </p>
-                                  )}
-                                </TooltipContent>
-                              </Tooltip>
+                              <div className="flex flex-col">
+                                <span className="truncate max-w-[140px]">{webhook.name}</span>
+                                {webhook.description && (
+                                  <span className="text-xs text-muted-foreground truncate max-w-[140px]">
+                                    {webhook.description}
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex flex-col">
-                                    <span className="font-medium truncate max-w-[120px]">
-                                      {workflowName}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground truncate max-w-[120px]">
-                                      {webhook.workflowId.slice(0, 8)}...
-                                    </span>
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-xs">
-                                  <p className="font-medium">{workflowName}</p>
-                                  <p className="text-xs text-muted-foreground font-mono">
-                                    {webhook.workflowId}
-                                  </p>
-                                </TooltipContent>
-                              </Tooltip>
+                              <div className="flex flex-col">
+                                <span className="font-medium truncate max-w-[120px]">
+                                  {workflowName}
+                                </span>
+                                <span className="text-xs text-muted-foreground truncate max-w-[120px]">
+                                  {webhook.workflowId.slice(0, 8)}...
+                                </span>
+                              </div>
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-1 max-w-[200px]">
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded truncate flex-1">
-                                      /{webhook.webhookPath.slice(0, 20)}...
-                                    </code>
-                                  </TooltipTrigger>
-                                  <TooltipContent
-                                    side="bottom"
-                                    className="max-w-sm break-all font-mono text-xs"
-                                  >
-                                    /{webhook.webhookPath}
-                                  </TooltipContent>
-                                </Tooltip>
+                                <code className="text-xs bg-muted px-1.5 py-0.5 rounded truncate flex-1">
+                                  /{webhook.webhookPath.slice(0, 20)}...
+                                </code>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button

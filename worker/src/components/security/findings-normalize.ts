@@ -102,16 +102,7 @@ export type FindingsNormalizeOutput = typeof outputSchema;
 const parameterSchema = parameters({
   scannerType: param(
     z
-      .enum([
-        'trufflehog',
-        'opengrep',
-        'dependency',
-        'trivy',
-        'trivy-container',
-        'nuclei',
-        'prowler',
-        'auto',
-      ])
+      .enum(['trufflehog', 'opengrep', 'dependency', 'trivy', 'nuclei', 'prowler', 'auto'])
       .default('auto'),
     {
       label: 'Scanner Type',
@@ -121,8 +112,7 @@ const parameterSchema = parameters({
         { label: 'TruffleHog (Secrets)', value: 'trufflehog' },
         { label: 'OpenGrep (SAST)', value: 'opengrep' },
         { label: 'Dependency Scanner', value: 'dependency' },
-        { label: 'Trivy (Filesystem/Deps)', value: 'trivy' },
-        { label: 'Trivy (Container Image)', value: 'trivy-container' },
+        { label: 'Trivy (Container/IaC)', value: 'trivy' },
         { label: 'Nuclei', value: 'nuclei' },
         { label: 'Prowler', value: 'prowler' },
       ],
@@ -176,25 +166,20 @@ function detectScannerType(finding: Record<string, unknown>): string {
   if ('rule_id' in finding && 'message' in finding) {
     return 'opengrep';
   }
-  // Trivy: has VulnerabilityID or PkgName (camelCase — checked BEFORE dependency
-  // to avoid misclassifying Trivy container findings as dependency findings)
-  if ('VulnerabilityID' in finding || ('PkgName' in finding && 'Target' in finding)) {
-    return 'trivy';
-  }
-  // Dependency: has package, vulnerability_id (lowercase keys)
+  // Dependency: has package, vulnerability_id
   if ('package' in finding && ('vulnerability_id' in finding || 'vuln_id' in finding)) {
     return 'dependency';
+  }
+  // Trivy: has VulnerabilityID, PkgName
+  if ('VulnerabilityID' in finding || 'Target' in finding) {
+    return 'trivy';
   }
   // Nuclei: has template-id, matched-at
   if ('template-id' in finding || 'templateID' in finding) {
     return 'nuclei';
   }
-  // Prowler: has check_id, status (raw ASFF format)
+  // Prowler: has check_id, status
   if ('check_id' in finding && 'status' in finding) {
-    return 'prowler';
-  }
-  // Prowler: NormalisedFinding format (accountId, serviceName, severity)
-  if ('accountId' in finding && 'serviceName' in finding && 'severity' in finding) {
     return 'prowler';
   }
   return 'unknown';
@@ -346,10 +331,7 @@ function normalizeDependency(finding: Record<string, unknown>): NormalizedFindin
 /**
  * Normalize Trivy finding
  */
-function normalizeTrivy(
-  finding: Record<string, unknown>,
-  forceContainer?: boolean,
-): NormalizedFinding {
+function normalizeTrivy(finding: Record<string, unknown>): NormalizedFinding {
   const vulnId = String(finding.VulnerabilityID || finding.vulnerability_id || '');
   const pkgName = String(finding.PkgName || finding.package || '');
   const target = String(finding.Target || finding.target || '');
@@ -357,22 +339,9 @@ function normalizeTrivy(
   const title = String(finding.Title || finding.title || vulnId);
   const description = String(finding.Description || finding.description || '');
 
-  // Detect container image scans: trivy targets look like "nginx:1.21 (debian 11.2)"
-  // while filesystem scans target file paths like "package-lock.json" or "Gemfile.lock"
-  const trivyClass = String(finding.Class || finding.class || '');
-  const isContainer =
-    forceContainer ||
-    trivyClass === 'os-pkgs' ||
-    (target && target.includes('(') && target.includes(')'));
-
   return {
-    scanner: isContainer ? 'trivy-container' : 'trivy',
-    finding_hash: generateFindingHash(
-      isContainer ? 'trivy-container' : 'trivy',
-      target,
-      pkgName,
-      vulnId,
-    ),
+    scanner: 'trivy',
+    finding_hash: generateFindingHash('trivy', target, pkgName, vulnId),
     severity,
     asset_key: target || pkgName,
     rule_id: vulnId,
@@ -419,11 +388,10 @@ function normalizeNuclei(finding: Record<string, unknown>): NormalizedFinding {
  * Normalize Prowler finding
  */
 function normalizeProwler(finding: Record<string, unknown>): NormalizedFinding {
-  // Handle both raw ASFF (check_id) and NormalisedFinding (id) field names
-  const checkId = String(finding.check_id || finding.id || '');
+  const checkId = String(finding.check_id || '');
   const status = String(finding.status || '');
   const severity = mapProwlerSeverity(String(finding.severity || 'medium'));
-  const resource = String(finding.resource || finding.resource_id || finding.resourceId || '');
+  const resource = String(finding.resource || finding.resource_id || '');
   const checkTitle = String(finding.check_title || finding.title || checkId);
   const statusExtended = String(finding.status_extended || finding.description || '');
 
@@ -560,9 +528,6 @@ const definition = defineComponent({
           break;
         case 'trivy':
           normalized = normalizeTrivy(finding);
-          break;
-        case 'trivy-container':
-          normalized = normalizeTrivy(finding, true);
           break;
         case 'nuclei':
           normalized = normalizeNuclei(finding);

@@ -437,11 +437,6 @@ const definition = defineComponent({
       // Note: We don't cleanup the volume here because downstream components need it
       // The workflow engine handles cleanup after the workflow completes
 
-      // Contribute context for downstream components
-      context.contributeRunContext?.('repository', repository);
-      context.contributeRunContext?.('branch', actualBranch);
-      context.contributeRunContext?.('commitSha', commitSha);
-
       const output: Output = {
         volumePath: '/workspace/repo',
         repository,

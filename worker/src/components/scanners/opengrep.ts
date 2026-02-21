@@ -11,9 +11,6 @@ import {
   parameters,
   port,
   param,
-  generateFindingHash,
-  analyticsResultSchema,
-  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 
 /**
@@ -132,11 +129,6 @@ const outputSchema = outputs({
     label: 'Findings',
     description: 'Array of detected security issues in standardized format.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
-  }),
-  results: port(z.array(analyticsResultSchema()), {
-    label: 'Results',
-    description:
-      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
   findingCount: port(z.number(), {
     label: 'Finding Count',
@@ -411,7 +403,7 @@ const definition = defineComponent({
       opengrepOutput = parseOpenGrepOutput(rawOutput);
     } else if (rawResult && typeof rawResult === 'object') {
       // Runner already parsed the JSON — use it directly
-      opengrepOutput = rawResult as unknown as OpenGrepOutput;
+      opengrepOutput = rawResult as OpenGrepOutput;
       rawOutput = JSON.stringify(rawResult);
     } else {
       rawOutput = '';
@@ -456,23 +448,8 @@ const definition = defineComponent({
       });
     }
 
-    // Build analytics-ready results
-    const results: AnalyticsResult[] = findings.map((finding) => ({
-      ...finding,
-      scanner: 'opengrep',
-      title: finding.rule_id,
-      asset_key: finding.file,
-      finding_hash: generateFindingHash(
-        'opengrep',
-        finding.rule_id,
-        finding.file,
-        String(finding.line),
-      ),
-    }));
-
     const output: Output = {
       findings,
-      results,
       findingCount: findings.length,
       rawOutput,
     };

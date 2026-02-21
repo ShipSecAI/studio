@@ -147,7 +147,6 @@ export const normalisedFindingSchema = z.object({
   accountId: z.string().nullable(),
   resourceId: z.string().nullable(),
   region: z.string().nullable(),
-  serviceName: z.string().nullable(),
   severity: z.enum(severityLevels),
   status: z.enum(statusLevels),
   description: z.string().nullable(),
@@ -248,7 +247,6 @@ export function toNormalisedFinding(
   const accountId = finding.AwsAccountId ?? extractAccountId(primaryResource?.Id) ?? null;
   const region = primaryResource?.Region ?? extractRegionFromArn(primaryResource?.Id) ?? null;
   const resourceId = primaryResource?.Id ?? null;
-  const serviceName = extractServiceName(primaryResource?.Type, primaryResource?.Id);
   const severity = normaliseSeverity(finding);
   const status = normaliseStatus(finding.Compliance?.Status);
   const remediationText = finding.Remediation?.Recommendation?.Text ?? null;
@@ -260,7 +258,6 @@ export function toNormalisedFinding(
     accountId,
     resourceId,
     region,
-    serviceName,
     severity,
     status,
     description: finding.Description ?? null,
@@ -305,25 +302,6 @@ export function normaliseStatus(status?: string): NormalisedStatus {
   if (upper.includes('NOT_APPLICABLE') || upper === 'NOTAPPLICABLE') return 'NOT_APPLICABLE';
   if (upper.includes('NOT_AVAILABLE') || upper === 'NOTAVAILABLE') return 'NOT_AVAILABLE';
   return 'UNKNOWN';
-}
-
-/**
- * Extract a human-readable service name from a Prowler ASFF resource type.
- * e.g. "AwsCloudTrail" → "CloudTrail", "AwsS3Bucket" → "S3"
- * Falls back to extracting the service from the resource ARN.
- */
-export function extractServiceName(resourceType?: string, resourceId?: string): string | null {
-  if (resourceType) {
-    // Strip "Aws" prefix: "AwsCloudTrail" → "CloudTrail"
-    const stripped = resourceType.replace(/^Aws/, '');
-    if (stripped.length > 0) return stripped;
-  }
-  // Fallback: extract from ARN (arn:aws:SERVICE:region:account:...)
-  if (resourceId) {
-    const match = resourceId.match(/arn:[^:]*:([^:]+):/);
-    if (match?.[1]) return match[1];
-  }
-  return null;
 }
 
 export function extractAccountId(resourceId?: string): string | null {
