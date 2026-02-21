@@ -11,6 +11,7 @@ import {
   PublicResolveResultDto,
 } from './dto/human-inputs.dto';
 import { TemporalService } from '../temporal/temporal.service';
+import { AuditLogService } from '../audit/audit-log.service';
 
 @Injectable()
 export class HumanInputsService {
@@ -19,6 +20,7 @@ export class HumanInputsService {
   constructor(
     @Inject(DRIZZLE_TOKEN) private readonly db: NodePgDatabase<typeof schema>,
     private readonly temporalService: TemporalService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async list(
@@ -111,6 +113,18 @@ export class HumanInputsService {
       },
     });
 
+    this.auditLogService.record(null, {
+      action: 'human_input.resolve',
+      resourceType: 'human_input',
+      resourceId: updated.id,
+      resourceName: updated.title,
+      metadata: {
+        approved: isApproved,
+        respondedBy: dto.respondedBy ?? 'unknown',
+        inputType: updated.inputType,
+      },
+    });
+
     return updated as unknown as HumanInputResponseDto;
   }
 
@@ -182,6 +196,14 @@ export class HumanInputsService {
         respondedAt: new Date().toISOString(),
         responseData: responseData,
       },
+    });
+
+    this.auditLogService.record(null, {
+      action: 'human_input.resolve',
+      resourceType: 'human_input',
+      resourceId: updated.id,
+      resourceName: updated.title,
+      metadata: { approved: isApproved, respondedBy: 'public-link', inputType: updated.inputType },
     });
 
     return {
