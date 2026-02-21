@@ -5,6 +5,7 @@ import { McpServersEncryptionService } from './mcp-servers.encryption';
 import { McpServersRepository, type McpServerUpdateData } from './mcp-servers.repository';
 import { TemporalService } from '../temporal/temporal.service';
 import type { AuthContext } from '../auth/types';
+import { AuditLogService } from '../audit/audit-log.service';
 import { DEFAULT_ORGANIZATION_ID } from '../auth/constants';
 import type {
   CreateMcpServerDto,
@@ -30,6 +31,7 @@ export class McpServersService {
     private readonly secretResolver: SecretResolver,
     @Optional() @Inject(MCP_SERVERS_REDIS) private readonly redis: Redis | null,
     @Optional() private readonly temporalService: TemporalService | null,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   private resolveOrganizationId(auth: AuthContext | null): string {
@@ -216,6 +218,15 @@ export class McpServersService {
 
     // Return header keys from input (we know the keys since we just created with them)
     const headerKeys = input.headers ? Object.keys(input.headers) : null;
+
+    this.auditLogService.record(auth, {
+      action: 'mcp_server.create',
+      resourceType: 'mcp_server',
+      resourceId: server.id,
+      resourceName: server.name,
+      metadata: { transportType: server.transportType },
+    });
+
     return this.mapServerToResponse(server, headerKeys);
   }
 
@@ -340,6 +351,14 @@ export class McpServersService {
       headerKeys = await this.extractHeaderKeys(server.headers);
     }
 
+    this.auditLogService.record(auth, {
+      action: 'mcp_server.update',
+      resourceType: 'mcp_server',
+      resourceId: server.id,
+      resourceName: server.name,
+      metadata: { transportType: server.transportType },
+    });
+
     return this.mapServerToResponse(server, headerKeys);
   }
 
@@ -351,12 +370,30 @@ export class McpServersService {
       { enabled: !current.enabled },
       { organizationId },
     );
+
+    this.auditLogService.record(auth, {
+      action: 'mcp_server.toggle',
+      resourceType: 'mcp_server',
+      resourceId: server.id,
+      resourceName: server.name,
+      metadata: { enabled: server.enabled },
+    });
+
     return this.mapServerToResponse(server);
   }
 
   async deleteServer(auth: AuthContext | null, id: string): Promise<void> {
     const organizationId = this.assertOrganizationId(auth);
+    const server = await this.repository.findById(id, { organizationId });
     await this.repository.delete(id, { organizationId });
+
+    this.auditLogService.record(auth, {
+      action: 'mcp_server.delete',
+      resourceType: 'mcp_server',
+      resourceId: server.id,
+      resourceName: server.name,
+      metadata: { transportType: server.transportType },
+    });
   }
 
   async getServerWithDecryptedHeaders(
