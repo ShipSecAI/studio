@@ -14,7 +14,12 @@ import {
 import type { ExecutionStatus } from '@shipsec/shared';
 import { categorizeComponent } from '../components/utils/categorization';
 import { WorkflowsService, type WorkflowRunSummary } from '../workflows/workflows.service';
-import type { ServiceWorkflowResponse } from '../workflows/dto/workflow-graph.dto';
+import {
+  WorkflowNodeSchema,
+  WorkflowEdgeSchema,
+  WorkflowViewportSchema,
+  type ServiceWorkflowResponse,
+} from '../workflows/dto/workflow-graph.dto';
 import type { AuthContext, ApiKeyPermissions } from '../auth/types';
 import {
   InMemoryTaskStore,
@@ -24,6 +29,9 @@ import {
 type PermissionPath =
   | 'workflows.list'
   | 'workflows.read'
+  | 'workflows.create'
+  | 'workflows.update'
+  | 'workflows.delete'
   | 'workflows.run'
   | 'runs.read'
   | 'runs.cancel';
@@ -147,6 +155,201 @@ export class StudioMcpService {
           const workflow = await this.workflowsService.findById(args.workflowId, auth);
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(workflow, null, 2) }],
+          };
+        } catch (error) {
+          return this.errorResult(error);
+        }
+      },
+    );
+
+    server.registerTool(
+      'create_workflow',
+      {
+        description:
+          'Create a new workflow. Provide a name, optional description, and the graph definition (nodes and edges).',
+        inputSchema: {
+          name: z.string().describe('Name of the workflow'),
+          description: z.string().optional().describe('Optional description of the workflow'),
+          nodes: z
+            .array(WorkflowNodeSchema)
+            .min(1)
+            .describe(
+              'Array of workflow nodes. Each node needs id, type (component ID), position {x, y}, and data {label, config}',
+            ),
+          edges: z
+            .array(WorkflowEdgeSchema)
+            .describe(
+              'Array of edges connecting nodes. Each edge needs id, source, target, and optionally sourceHandle/targetHandle for specific ports',
+            ),
+          viewport: WorkflowViewportSchema.optional().describe(
+            'Optional viewport position {x, y, zoom}',
+          ),
+        },
+      },
+      async (args: {
+        name: string;
+        description?: string;
+        nodes: z.infer<typeof WorkflowNodeSchema>[];
+        edges: z.infer<typeof WorkflowEdgeSchema>[];
+        viewport?: z.infer<typeof WorkflowViewportSchema>;
+      }) => {
+        const gate = this.checkPermission(auth, 'workflows.create');
+        if (!gate.allowed) return gate.error;
+        try {
+          const graph = {
+            name: args.name,
+            description: args.description,
+            nodes: args.nodes,
+            edges: args.edges,
+            viewport: args.viewport ?? { x: 0, y: 0, zoom: 1 },
+          };
+          const result = await this.workflowsService.create(graph, auth);
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(
+                  {
+                    id: result.id,
+                    name: result.name,
+                    description: result.description ?? null,
+                    currentVersion: result.currentVersion,
+                    currentVersionId: result.currentVersionId,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } catch (error) {
+          return this.errorResult(error);
+        }
+      },
+    );
+
+    server.registerTool(
+      'update_workflow',
+      {
+        description:
+          'Update an existing workflow graph (nodes and edges). This creates a new workflow version.',
+        inputSchema: {
+          workflowId: z.string().uuid().describe('ID of the workflow to update'),
+          name: z.string().describe('Name of the workflow'),
+          description: z.string().optional().describe('Optional description'),
+          nodes: z.array(WorkflowNodeSchema).min(1).describe('Full array of workflow nodes'),
+          edges: z.array(WorkflowEdgeSchema).describe('Full array of edges'),
+          viewport: WorkflowViewportSchema.optional().describe('Optional viewport position'),
+        },
+      },
+      async (args: {
+        workflowId: string;
+        name: string;
+        description?: string;
+        nodes: z.infer<typeof WorkflowNodeSchema>[];
+        edges: z.infer<typeof WorkflowEdgeSchema>[];
+        viewport?: z.infer<typeof WorkflowViewportSchema>;
+      }) => {
+        const gate = this.checkPermission(auth, 'workflows.update');
+        if (!gate.allowed) return gate.error;
+        try {
+          const graph = {
+            name: args.name,
+            description: args.description,
+            nodes: args.nodes,
+            edges: args.edges,
+            viewport: args.viewport ?? { x: 0, y: 0, zoom: 1 },
+          };
+          const result = await this.workflowsService.update(args.workflowId, graph, auth);
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(
+                  {
+                    id: result.id,
+                    name: result.name,
+                    description: result.description ?? null,
+                    currentVersion: result.currentVersion,
+                    currentVersionId: result.currentVersionId,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } catch (error) {
+          return this.errorResult(error);
+        }
+      },
+    );
+
+    server.registerTool(
+      'update_workflow_metadata',
+      {
+        description: 'Update only the name and/or description of a workflow.',
+        inputSchema: {
+          workflowId: z.string().uuid().describe('ID of the workflow to update'),
+          name: z.string().describe('New name for the workflow'),
+          description: z
+            .string()
+            .optional()
+            .nullable()
+            .describe('New description (or null to clear)'),
+        },
+      },
+      async (args: { workflowId: string; name: string; description?: string | null }) => {
+        const gate = this.checkPermission(auth, 'workflows.update');
+        if (!gate.allowed) return gate.error;
+        try {
+          const result = await this.workflowsService.updateMetadata(
+            args.workflowId,
+            { name: args.name, description: args.description ?? null },
+            auth,
+          );
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(
+                  {
+                    id: result.id,
+                    name: result.name,
+                    description: result.description ?? null,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } catch (error) {
+          return this.errorResult(error);
+        }
+      },
+    );
+
+    server.registerTool(
+      'delete_workflow',
+      {
+        description: 'Permanently delete a workflow and all its versions.',
+        inputSchema: {
+          workflowId: z.string().uuid().describe('ID of the workflow to delete'),
+        },
+      },
+      async (args: { workflowId: string }) => {
+        const gate = this.checkPermission(auth, 'workflows.delete');
+        if (!gate.allowed) return gate.error;
+        try {
+          await this.workflowsService.delete(args.workflowId, auth);
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({ deleted: true, workflowId: args.workflowId }, null, 2),
+              },
+            ],
           };
         } catch (error) {
           return this.errorResult(error);

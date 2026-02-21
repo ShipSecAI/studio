@@ -27,6 +27,26 @@ describe('StudioMcpService Unit Tests', () => {
     workflowsService = {
       list: jest.fn().mockResolvedValue([]),
       findById: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({
+        id: 'created-workflow-id',
+        name: 'Created Workflow',
+        description: null,
+        currentVersion: 1,
+        currentVersionId: 'created-version-id',
+      }),
+      update: jest.fn().mockResolvedValue({
+        id: 'updated-workflow-id',
+        name: 'Updated Workflow',
+        description: 'Updated description',
+        currentVersion: 2,
+        currentVersionId: 'updated-version-id',
+      }),
+      updateMetadata: jest.fn().mockResolvedValue({
+        id: 'updated-workflow-id',
+        name: 'Updated Workflow',
+        description: 'Updated description',
+      }),
+      delete: jest.fn().mockResolvedValue(undefined),
       run: jest.fn().mockResolvedValue({
         runId: 'test-run-id',
         workflowId: 'test-workflow-id',
@@ -69,6 +89,8 @@ describe('StudioMcpService Unit Tests', () => {
       const toolNames = Object.keys(registeredTools).sort();
       expect(toolNames).toEqual([
         'cancel_run',
+        'create_workflow',
+        'delete_workflow',
         'get_component',
         'get_run_result',
         'get_run_status',
@@ -77,6 +99,8 @@ describe('StudioMcpService Unit Tests', () => {
         'list_runs',
         'list_workflows',
         'run_workflow',
+        'update_workflow',
+        'update_workflow_metadata',
       ]);
     });
 
@@ -107,6 +131,58 @@ describe('StudioMcpService Unit Tests', () => {
       await getWorkflowTool.handler({ workflowId });
 
       expect(workflowsService.findById).toHaveBeenCalledWith(workflowId, mockAuthContext);
+    });
+
+    it('create_workflow tool uses auth context passed at creation time', async () => {
+      const server = service.createServer(mockAuthContext);
+      const registeredTools = getRegisteredTools(server);
+      const createWorkflowTool = registeredTools['create_workflow'];
+
+      expect(createWorkflowTool).toBeDefined();
+      await createWorkflowTool.handler({
+        name: 'New Workflow',
+        nodes: [
+          {
+            id: 'entry-1',
+            type: 'core.workflow.entrypoint',
+            position: { x: 10, y: 20 },
+            data: { label: 'Start', config: {} },
+          },
+        ],
+        edges: [],
+      });
+
+      expect(workflowsService.create).toHaveBeenCalledWith(
+        {
+          name: 'New Workflow',
+          description: undefined,
+          nodes: [
+            {
+              id: 'entry-1',
+              type: 'core.workflow.entrypoint',
+              position: { x: 10, y: 20 },
+              data: { label: 'Start', config: {} },
+            },
+          ],
+          edges: [],
+          viewport: { x: 0, y: 0, zoom: 1 },
+        },
+        mockAuthContext,
+      );
+    });
+
+    it('delete_workflow tool uses auth context passed at creation time', async () => {
+      const server = service.createServer(mockAuthContext);
+      const registeredTools = getRegisteredTools(server);
+      const deleteWorkflowTool = registeredTools['delete_workflow'];
+
+      expect(deleteWorkflowTool).toBeDefined();
+      await deleteWorkflowTool.handler({ workflowId: '11111111-1111-4111-8111-111111111111' });
+
+      expect(workflowsService.delete).toHaveBeenCalledWith(
+        '11111111-1111-4111-8111-111111111111',
+        mockAuthContext,
+      );
     });
 
     it('run_workflow task uses auth context passed at creation time', async () => {
@@ -257,6 +333,18 @@ describe('StudioMcpService Unit Tests', () => {
         expect(errorThrown).toBe(true);
       });
 
+      it('denies create_workflow when workflows.create is missing', async () => {
+        const server = service.createServer(restrictedAuth);
+        const tools = getRegisteredTools(server);
+        const result = (await tools['create_workflow'].handler({
+          name: 'Denied Create',
+          nodes: [],
+          edges: [],
+        })) as { isError?: boolean; content: { text: string }[] };
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('workflows.create');
+      });
+
       it('denies cancel_run when runs.cancel is false', async () => {
         const server = service.createServer(restrictedAuth);
         const tools = getRegisteredTools(server);
@@ -329,7 +417,7 @@ describe('StudioMcpService Unit Tests', () => {
         expect(getResult.isError).toBeUndefined();
       });
 
-      it('denies all 7 gated tools when all permissions are false', async () => {
+      it('denies all gated non-task tools when all permissions are false', async () => {
         const noPermsAuth: AuthContext = {
           ...restrictedAuth,
           apiKeyPermissions: {
@@ -345,6 +433,10 @@ describe('StudioMcpService Unit Tests', () => {
         const gatedTools = [
           'list_workflows',
           'get_workflow',
+          'create_workflow',
+          'update_workflow',
+          'update_workflow_metadata',
+          'delete_workflow',
           'list_runs',
           'get_run_status',
           'get_run_result',
