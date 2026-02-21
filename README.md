@@ -137,8 +137,12 @@ Run multiple isolated dev instances on one machine for parallel feature work:
 # Instance 0 (default)
 just dev
 
-# Instance 1 — offset ports (frontend :5273, backend :3311)
-SHIPSEC_INSTANCE=1 just dev
+# Switch active workspace instance
+just instance use 1
+just dev
+
+# Manage per-instance env files
+just instance-env init 1
 ```
 
 Each instance gets its own frontend port, backend port, database, and Temporal namespace while sharing a single Docker infra stack. See [Multi-Instance Development Guide](docs/MULTI-INSTANCE-DEV.md) for full details.
