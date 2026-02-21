@@ -10,6 +10,7 @@ import {
   Post,
   ParseUUIDPipe,
   Query,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
@@ -177,10 +178,13 @@ export class McpGroupsController {
   @ApiOperation({ summary: 'Import a group template (admin only)' })
   @ApiOkResponse({ type: ImportGroupTemplateResponse })
   async importTemplate(
-    @CurrentAuth() _auth: AuthContext | null,
+    @CurrentAuth() auth: AuthContext | null,
     @Param('slug') slug: string,
     @Body() body: ImportTemplateRequestDto,
   ): Promise<ImportGroupTemplateResponse> {
-    return this.mcpGroupsService.importTemplate(slug, body);
+    if (!auth?.organizationId) {
+      throw new UnauthorizedException('Organization context is required to import a template');
+    }
+    return this.mcpGroupsService.importTemplate(slug, auth.organizationId, body);
   }
 }
