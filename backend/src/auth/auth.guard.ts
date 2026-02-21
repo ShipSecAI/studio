@@ -124,6 +124,9 @@ export class AuthGuard implements CanActivate {
         run: Boolean(permissions.workflows?.run),
         list: Boolean(permissions.workflows?.list),
         read: Boolean(permissions.workflows?.read),
+        create: Boolean(permissions.workflows?.create),
+        update: Boolean(permissions.workflows?.update),
+        delete: Boolean(permissions.workflows?.delete),
       },
       runs: {
         read: Boolean(permissions.runs?.read),
