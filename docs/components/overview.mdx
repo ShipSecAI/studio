@@ -1,87 +1,146 @@
 ---
 title: "Components Overview"
-description: "Drag-and-drop building blocks for security automation workflows"
+description: "The drag-and-drop building blocks you connect together to automate security workflows — no code required."
 ---
 
-Components are the building blocks of ShipSec Studio workflows. Each component performs a specific task and can be connected together to create powerful automation pipelines.
+## What Are Components?
+
+Think of components like **LEGO bricks for security automation**. Each one does one specific job — scan subdomains, probe for live servers, detect leaked secrets, send a Slack message. You drag them onto a canvas, connect them together, and ShipSec Studio runs the whole chain automatically.
+
+No scripting. No glue code. Just connect and run.
+
+---
 
 ## Component Categories
 
-<CardGroup cols={2}>
+<CardGroup cols={3}>
   <Card title="Core" icon="cube" href="/components/core">
-    Triggers, file handling, data transformation, and outputs
+    Triggers, file handling, data transformation, logic, and outputs. The backbone of every workflow.
   </Card>
   <Card title="Security" icon="shield" href="/components/security">
-    Subdomain discovery, port scanning, DNS resolution, secret detection
+    Industry-standard security tools — subdomain discovery, port scanning, DNS resolution, secret detection, and more.
   </Card>
   <Card title="AI" icon="brain" href="/components/ai">
-    Provider configurations and autonomous agents
+    Connect LLM providers and autonomous agents to analyze, triage, and summarize findings automatically.
   </Card>
 </CardGroup>
 
-## How Components Work
+---
 
-Each component has:
+## How a Component Works
 
-- **Inputs** – Data ports that accept connections from other components
-- **Outputs** – Data ports that can be connected to downstream components  
-- **Parameters** – Configurable settings in the sidebar
+Every component has three parts you interact with:
 
-Components run inside Docker containers for isolation and reliability. Workflows are orchestrated by [Temporal](https://temporal.io/) with automatic retries and resumability.
+- **Inputs** — the left-side connection points. This is where data flows *in* from a previous component.
+- **Outputs** — the right-side connection points. This is where processed data flows *out* to the next component.
+- **Parameters** — the settings panel on the right sidebar. Configure behavior per-component without touching any code.
 
-## Component Structure
+<Info>
+  Every component runs inside its own **isolated Docker container**. This means a broken or misbehaving component can't affect the rest of your workflow. Each run is sandboxed, reproducible, and clean.
+</Info>
 
-```typescript
-interface ComponentDefinition<Input, Output> {
-  id: string;           // Unique identifier
-  label: string;        // Display name
-  category: string;     // Category for grouping
-  runner: RunnerConfig; // Execution configuration
-  inputSchema: ZodSchema<Input>;
-  outputSchema: ZodSchema<Output>;
-  execute: (input: Input, context: ExecutionContext) => Promise<Output>;
-}
-```
+Workflows are orchestrated by [Temporal](https://temporal.io/) under the hood — which means if something fails mid-run, it **automatically retries** and picks up exactly where it left off. You never lose progress.
+
+---
 
 ## Example Pipelines
 
+Here are two real-world workflows you can build in minutes by connecting components on the canvas.
+
 ### Attack Surface Discovery
 
+> *"What's exposed on the internet for this domain?"*
 ```
-Manual Trigger → Subfinder → DNSx → httpx → Notify
+Manual Trigger → Subfinder → DNSx → HTTPx → Notify
 ```
 
-1. **Manual Trigger** – User provides target domains
-2. **Subfinder** – Discovers subdomains
-3. **DNSx** – Resolves DNS records
-4. **httpx** – Probes for live HTTP services
-5. **Notify** – Sends results to Slack, Discord, or Teams
+| Step | Component | What it does |
+|---|---|---|
+| 1 | **Manual Trigger** | You provide one or more target domains |
+| 2 | **Subfinder** | Discovers all known subdomains |
+| 3 | **DNSx** | Resolves each subdomain to an IP address |
+| 4 | **HTTPx** | Checks which ones have live, responding web services |
+| 5 | **Notify** | Sends the final list to Slack, Discord, or Teams |
 
-### Secret Detection
+---
 
+### Secret Detection + AI Triage
+
+> *"Are there any leaked credentials in this repo, and how bad are they?"*
 ```
 Manual Trigger → TruffleHog → OpenAI Provider → AI Generate Text → Notify
 ```
 
-1. **Manual Trigger** – User provides repository URL
-2. **TruffleHog** – Scans for leaked credentials
-3. **OpenAI Provider** – Set up model and API key
-4. **AI Generate Text** – Analyzes and prioritizes findings
-5. **Notify** – Alerts team via Slack, Discord, or email
+| Step | Component | What it does |
+|---|---|---|
+| 1 | **Manual Trigger** | You provide a Git repository URL |
+| 2 | **TruffleHog** | Scans every commit for leaked API keys, tokens, and passwords |
+| 3 | **OpenAI Provider** | Configures your LLM model and API key |
+| 4 | **AI Generate Text** | Analyzes the findings and writes a prioritized summary |
+| 5 | **Notify** | Alerts your team with the AI-generated report |
 
-## Execution Context
+<Tip>
+  You can save any workflow as a **template** and reuse it across projects. Build once, run everywhere.
+</Tip>
 
-Components receive an `ExecutionContext` with access to:
+---
 
-| Service | Description |
-|---------|-------------|
-| `storage` | File upload/download to MinIO |
-| `secrets` | Encrypted secrets access |
-| `artifacts` | Workflow artifact storage |
-| `trace` | Event recording |
-| `logger` | Structured logging |
-| `terminal` | Terminal output streaming |
+## What Components Can Access
 
-## Building Custom Components
+When a component runs, it has access to a set of shared services behind the scenes. You don't configure these manually — they're available automatically.
 
-See the [Component Development Guide](/development/component-development) for detailed instructions on building your own components.
+| Service | What it gives the component |
+|---|---|
+| `storage` | Upload and download files to the workflow's storage bucket |
+| `secrets` | Securely read encrypted API keys and credentials |
+| `artifacts` | Save output files that can be downloaded after the run |
+| `trace` | Record events for the real-time timeline view |
+| `logger` | Write structured logs visible in the log panel |
+| `terminal` | Stream live terminal output to the Studio UI |
+
+---
+
+## Under the Hood (For the Curious)
+
+Every component is defined with a strict input/output contract using TypeScript and [Zod](https://zod.dev) schemas. This is what guarantees that components connect cleanly — the output of one component always matches what the next one expects.
+```typescript
+interface ComponentDefinition<Input, Output> {
+  id: string;           // Unique identifier
+  label: string;        // Display name in the canvas
+  category: string;     // Which category group it appears in
+  runner: RunnerConfig; // How and where it executes (Docker image, etc.)
+  inputSchema: ZodSchema<Input>;   // Validates incoming data
+  outputSchema: ZodSchema<Output>; // Validates outgoing data
+  execute: (input: Input, context: ExecutionContext) => Promise<Output>;
+}
+```
+
+<Note>
+  You don't need to understand this to use components. This is only relevant if you're **building your own custom component** from scratch.
+</Note>
+
+---
+
+## Want to Build Your Own?
+
+If the built-in components don't cover your use case, you can build a custom one. It's a TypeScript file, a Docker image, and a schema — and it'll show up in the canvas just like any other component.
+
+<CardGroup cols={2}>
+  <Card title="Component Development Guide" icon="code" href="/development/component-development">
+    Step-by-step guide to building, testing, and registering a custom component.
+  </Card>
+  <Card title="Security Components" icon="shield" href="/components/security">
+    Browse all available security tools — Subfinder, Nuclei, DNSX, HTTPx, and more.
+  </Card>
+</CardGroup>
+
+---
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="arrow-left" href="/architecture">
+    ← Previous
+  </Card>
+  <Card title="Core Components" icon="arrow-right" href="/components/core">
+    Next →
+  </Card>
+</CardGroup>

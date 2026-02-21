@@ -1,101 +1,129 @@
 ---
 title: "Quickstart"
-description: "Get ShipSec Studio running in 5 minutes"
+description: "Get ShipSec Studio running in 5 minutes."
 ---
 
 ## Prerequisites
 
-- Docker Desktop (≥8 GB RAM)
-- [Bun](https://bun.sh) runtime
-- [just](https://github.com/casey/just) command runner
+Before you begin, ensure you have the following installed:
+
+- **Docker Desktop** — with at least 8 GB RAM allocated
+- **[Bun](https://bun.sh)** — JavaScript runtime & package manager
+- **[just](https://github.com/casey/just)** — command runner
+
+<Tip>
+  On macOS, you can install both Bun and just via Homebrew: `brew install bun just`
+</Tip>
+
+---
 
 ## Quick Setup
 
 <Steps>
   <Step title="Clone and initialize">
-    ```bash
+```bash
     git clone https://github.com/shipsecai/studio.git
     cd studio
     just init
-    ```
-    
-    This automatically installs dependencies and creates environment files.
+```
+
+    `just init` installs all dependencies and scaffolds your environment files automatically — no manual `.env` configuration required.
   </Step>
-  
-  <Step title="Start development environment">
-    ```bash
+
+  <Step title="Start the development environment">
+```bash
     just dev
-    ```
-    
-    This starts all infrastructure (Postgres, Temporal, MinIO, Loki), runs migrations, and launches the full stack with hot-reload.
+```
+
+    This single command spins up the **full stack** — including Postgres, Temporal, MinIO, and Loki — runs database migrations, and launches all services with hot-reload enabled.
   </Step>
-  
+
   <Step title="Open ShipSec Studio">
-    Navigate to [http://localhost](http://localhost) and sign in or create an account.
+    Navigate to [http://localhost](http://localhost) in your browser. Sign in with an existing account or create a new one to get started.
   </Step>
 </Steps>
+
+---
 
 ## Access Points
 
-All services are accessible through nginx on port 80:
+All services are proxied through **nginx on port 80**. Use these URLs during development:
 
 | Service | URL |
-|---------|-----|
-| Frontend | http://localhost/ |
-| Backend API | http://localhost/api/ |
-| Temporal UI | http://localhost:8081 |
+|---|---|
+| Frontend | [http://localhost/](http://localhost/) |
+| Backend API | [http://localhost/api/](http://localhost/api/) |
+| Temporal UI | [http://localhost:8081](http://localhost:8081) |
 
 <Note>
-  Individual service ports are available for debugging (frontend: 5173, backend: 3211) but should not be used in normal development.
+  Direct service ports (`5173` for the frontend, `3211` for the backend) are available for low-level debugging but should not be used for normal development workflows.
 </Note>
+
+---
 
 ## Your First Workflow
 
+Build and run a **Subdomain Discovery** workflow in under a minute.
+
 <Steps>
   <Step title="Create a new workflow">
-    Click **New Workflow** in the dashboard. Name it "Subdomain Discovery".
+    From the dashboard, click **New Workflow** and name it `Subdomain Discovery`.
   </Step>
 
-  <Step title="Add components">
-    - Drag **Manual Trigger** to the canvas
-    - Drag **Subfinder** component to the canvas
-    - Connect the trigger output to the Subfinder input
+  <Step title="Build the canvas">
+    - Drag a **Manual Trigger** onto the canvas
+    - Drag a **Subfinder** component onto the canvas
+    - Connect the trigger's output node to the Subfinder's input node
   </Step>
 
-  <Step title="Run the workflow">
-    Click **Save**, then **Run**. Watch the execution unfold in real-time with streaming logs and terminal output.
+  <Step title="Run and observe">
+    Click **Save**, then **Run**. Execution unfolds in real-time — watch streaming logs and live terminal output as your workflow runs.
   </Step>
 </Steps>
 
-## Common Commands
+---
 
+## Common Commands
 ```bash
-# View logs
+# Stream live logs
 just dev logs
 
-# Check status
+# Check service health
 just dev status
 
-# Stop everything
+# Stop all services
 just dev stop
 
-# Restart
+# Full restart
 just dev stop && just dev
 ```
+
+---
 
 ## Next Steps
 
 <CardGroup cols={2}>
   <Card title="Full Installation" icon="download" href="/installation">
-    Detailed setup and configuration options
+    Detailed setup, environment configuration, and advanced options.
   </Card>
   <Card title="Command Reference" icon="terminal" href="/command-reference">
-    All available just commands
+    Complete list of available `just` commands and their usage.
   </Card>
   <Card title="Components" icon="cube" href="/components/overview">
-    Explore available components
+    Explore the built-in component library for building workflows.
   </Card>
   <Card title="Architecture" icon="sitemap" href="/architecture">
-    Understand the system design
+    Understand how the system is designed and how services interact.
+  </Card>
+</CardGroup>
+
+---
+
+<CardGroup cols={2}>
+  <Card title="Introduction" icon="arrow-left" href="/introduction">
+    ← Previous
+  </Card>
+  <Card title="Installation" icon="arrow-right" href="/installation">
+    Next →
   </Card>
 </CardGroup>

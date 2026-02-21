@@ -1,0 +1,215 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1150" width="100%" height="100%" style="background: transparent; font-family: 'JetBrains Mono', 'Fira Code', monospace;">
+  <defs>
+    <style>
+      /* DEFAULT (LIGHT MODE) VARIABLES */
+      :root {
+        --bg-layer: #ffffff;
+        --layer-border: #e2e8f0;
+        --box-fill: #f8fafc;
+        --box-border: #cbd5e1;
+        --box-hover-fill: #f1f5f9;
+        --box-hover-border: #6366f1;
+        --text-header: #4f46e5;
+        --text-main: #0f172a;
+        --text-sub: #64748b;
+        --connector: #6366f1;
+        --divider: #e2e8f0;
+        --temporal-bg: #eef2ff;
+      }
+
+      /* DARK MODE VARIABLES */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg-layer: #16162a;
+          --layer-border: #3a3a6a;
+          --box-fill: #2a2a4a;
+          --box-border: #4a4a8a;
+          --box-hover-fill: #32325d;
+          --box-hover-border: #818cf8;
+          --text-header: #818cf8;
+          --text-main: #ffffff;
+          --text-sub: #a1a1aa;
+          --connector: #818cf8;
+          --divider: #3a3a6a;
+          --temporal-bg: #1e1e3a;
+        }
+      }
+
+      @keyframes flow {
+        from { stroke-dashoffset: 20; }
+        to { stroke-dashoffset: 0; }
+      }
+      
+      .layer-bg { fill: var(--bg-layer); stroke: var(--layer-border); stroke-width: 1px; rx: 16px; }
+      .layer-temporal { fill: var(--temporal-bg); stroke: var(--connector); stroke-width: 2px; rx: 16px; }
+      
+      .box { fill: var(--box-fill); stroke: var(--box-border); stroke-width: 1.5px; rx: 8px; transition: all 0.3s ease; cursor: pointer; }
+      .box:hover { stroke: var(--box-hover-border); fill: var(--box-hover-fill); transform: translateY(-2px); }
+      
+      .text-header { fill: var(--text-header); font-weight: 800; font-size: 14px; text-anchor: middle; letter-spacing: 2px; text-transform: uppercase; }
+      .text-main { fill: var(--text-main); font-weight: 500; font-size: 13px; text-anchor: middle; }
+      .text-sub { fill: var(--text-sub); font-size: 10px; text-anchor: middle; }
+      
+      .connector { stroke: var(--connector); stroke-width: 2; fill: none; stroke-dasharray: 5, 5; animation: flow 1s linear infinite; }
+      .connector-label { fill: var(--connector); font-size: 11px; font-weight: 600; }
+      
+      .adapter-text { fill: var(--text-sub); font-size: 12px; text-anchor: middle; letter-spacing: 1px; }
+      .section-divider { stroke: var(--divider); stroke-width: 1; stroke-dasharray: 4; }
+    </style>
+  </defs>
+
+  <circle cx="850" cy="50" r="100" fill="var(--connector)" fill-opacity="0.05" />
+  <circle cx="50" cy="1100" r="150" fill="var(--connector)" fill-opacity="0.03" />
+
+  <g transform="translate(50, 40)">
+    <rect class="layer-bg" width="800" height="140" />
+    <text class="text-header" x="400" y="30">Frontend / Visual Workspace</text>
+    
+    <g transform="translate(20, 55)">
+      <rect class="box" width="180" height="60" />
+      <text class="text-main" x="90" y="30">Visual Builder</text>
+      <text class="text-sub" x="90" y="45">ReactFlow • Canvas</text>
+    </g>
+    <g transform="translate(215, 55)">
+      <rect class="box" width="180" height="60" />
+      <text class="text-main" x="90" y="30">Terminal Viewer</text>
+      <text class="text-sub" x="90" y="45">xterm.js • Real-time</text>
+    </g>
+    <g transform="translate(410, 55)">
+      <rect class="box" width="180" height="60" />
+      <text class="text-main" x="90" y="30">Timeline Replay</text>
+      <text class="text-sub" x="90" y="45">Zustand • State</text>
+    </g>
+    <g transform="translate(605, 55)">
+      <rect class="box" width="180" height="60" />
+      <text class="text-main" x="90" y="30">Config Panel</text>
+      <text class="text-sub" x="90" y="45">Radix UI • Forms</text>
+    </g>
+  </g>
+
+  <path class="connector" d="M 450 180 L 450 230" />
+  <text class="connector-label" x="460" y="210">REST API + UNIFIED SSE</text>
+
+  <g transform="translate(50, 235)">
+    <rect class="layer-bg" width="800" height="210" />
+    <text class="text-header" x="400" y="30">Service Core (NestJS)</text>
+    
+    <g transform="translate(30, 55)">
+      <rect class="box" width="140" height="55" />
+      <text class="text-main" x="70" y="28">Workflows</text>
+      <text class="text-sub" x="70" y="42">DSL Engine</text>
+    </g>
+    <g transform="translate(185, 55)">
+      <rect class="box" width="140" height="55" />
+      <text class="text-main" x="70" y="28">Secrets</text>
+      <text class="text-sub" x="70" y="42">AES-256-GCM</text>
+    </g>
+    <g transform="translate(340, 55)">
+      <rect class="box" width="140" height="55" />
+      <text class="text-main" x="70" y="33">Storage</text>
+    </g>
+    <g transform="translate(495, 55)">
+      <rect class="box" width="140" height="55" />
+      <text class="text-main" x="70" y="33">Trace Events</text>
+    </g>
+    <g transform="translate(650, 55)">
+      <rect class="box" width="140" height="55" />
+      <text class="text-main" x="70" y="33">Auth (Clerk)</text>
+    </g>
+
+    <g transform="translate(30, 125)">
+      <rect class="box" width="140" height="55" />
+      <text class="text-main" x="70" y="33">Webhooks</text>
+    </g>
+    <g transform="translate(185, 125)">
+      <rect class="box" width="140" height="55" />
+      <text class="text-main" x="70" y="33">Schedules</text>
+    </g>
+    <g transform="translate(340, 125)">
+      <rect class="box" width="140" height="55" />
+      <text class="text-main" x="70" y="33">AI Agents</text>
+    </g>
+    <g transform="translate(495, 125)">
+      <rect class="box" width="140" height="55" />
+      <text class="text-main" x="70" y="33">Human Input</text>
+    </g>
+    <g transform="translate(650, 125)">
+      <rect class="box" width="140" height="55" />
+      <text class="text-main" x="70" y="33">Integrations</text>
+    </g>
+  </g>
+
+  <path class="connector" d="M 450 445 L 450 495" />
+  <text class="connector-label" x="460" y="475">TEMPORAL CLIENT gRPC</text>
+
+  <g transform="translate(50, 500)">
+    <rect class="layer-temporal" width="800" height="90" />
+    <text class="text-header" x="400" y="35">Temporal Orchestration</text>
+    <text class="text-main" x="400" y="65">Durability • Managed Retries • State Persistence</text>
+  </g>
+
+  <path class="connector" d="M 450 590 L 450 640" />
+  <text class="connector-label" x="460" y="620">ACTIVITY DISPATCH</text>
+
+  <g transform="translate(50, 645)">
+    <rect class="layer-bg" width="800" height="240" />
+    <text class="text-header" x="400" y="30">Execution Worker (Node/Bun)</text>
+    
+    <text class="text-sub" x="400" y="55" style="letter-spacing: 3px;">COMPONENT REGISTRY</text>
+    <g transform="translate(40, 70)">
+      <rect class="box" width="165" height="60" />
+      <text class="text-main" x="82.5" y="30">Security Tools</text>
+      <text class="text-sub" x="82.5" y="45">Nuclei • Subfinder</text>
+    </g>
+    <g transform="translate(225, 70)">
+      <rect class="box" width="165" height="60" />
+      <text class="text-main" x="82.5" y="35">AI Agents</text>
+    </g>
+    <g transform="translate(410, 70)">
+      <rect class="box" width="165" height="60" />
+      <text class="text-main" x="82.5" y="35">Human-in-Loop</text>
+    </g>
+    <g transform="translate(595, 70)">
+      <rect class="box" width="165" height="60" />
+      <text class="text-main" x="82.5" y="35">Core Utilities</text>
+    </g>
+
+    <line class="section-divider" x1="50" y1="160" x2="750" y2="160" />
+    
+    <text class="text-sub" x="400" y="185" style="letter-spacing: 3px;">SERVICE ADAPTERS</text>
+    <text class="adapter-text" x="400" y="215">SECRETS • STORAGE • ARTIFACTS • TRACE • TERMINAL • LOGS</text>
+  </g>
+
+  <path class="connector" d="M 450 885 L 450 935" />
+
+  <g transform="translate(50, 940)">
+    <rect class="layer-bg" width="800" height="140" />
+    <text class="text-header" x="400" y="30">Infrastructure Layer</text>
+    
+    <g transform="translate(30, 55)">
+      <rect class="box" width="140" height="60" />
+      <text class="text-main" x="70" y="30">PostgreSQL</text>
+      <text class="text-sub" x="70" y="45">Primary Data</text>
+    </g>
+    <g transform="translate(185, 55)">
+      <rect class="box" width="140" height="60" />
+      <text class="text-main" x="70" y="30">MinIO</text>
+      <text class="text-sub" x="70" y="45">Object Store</text>
+    </g>
+    <g transform="translate(340, 55)">
+      <rect class="box" width="140" height="60" />
+      <text class="text-main" x="70" y="30">Redis</text>
+      <text class="text-sub" x="70" y="45">Pub/Sub &amp; Cache</text>
+    </g>
+    <g transform="translate(495, 55)">
+      <rect class="box" width="140" height="60" />
+      <text class="text-main" x="70" y="30">Redpanda</text>
+      <text class="text-sub" x="70" y="45">Event Stream</text>
+    </g>
+    <g transform="translate(650, 55)">
+      <rect class="box" width="140" height="60" />
+      <text class="text-main" x="70" y="30">Loki</text>
+      <text class="text-sub" x="70" y="45">Log Aggregation</text>
+    </g>
+  </g>
+</svg>
