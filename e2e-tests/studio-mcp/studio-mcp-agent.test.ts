@@ -37,6 +37,7 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
         permissions: {
           workflows: { run: true, list: true, read: true },
           runs: { read: true, cancel: true },
+          audit: { read: true },
         },
       }),
     });
@@ -279,7 +280,7 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
             content: [
               {
                 type: 'text',
-                text: `Run the workflow with ID "${workflowId}" using the input message "Hello from AI SDK test". Then check its status.`,
+                text: `Run the workflow with ID "${workflowId}" using the input message "Hello from AI SDK test". Then check its status and result, and report back the final message.`,
               },
             ],
           },
