@@ -100,7 +100,7 @@ describe('HumanInputsService - IDOR Protection', () => {
       this._lastQuery = query;
     };
 
-    service = new HumanInputsService(mockDb, {} as any, {} as any);
+    service = new HumanInputsService(mockDb, {} as any, { record: () => {} } as any);
   });
 
   it('should filter list by organization', async () => {
