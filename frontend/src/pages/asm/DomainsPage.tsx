@@ -143,10 +143,11 @@ function AddDomainDialog({
   const [scopeExclude, setScopeExclude] = useState('');
   const createDomain = useCreateDomain();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleSubmit = async (scanNow: boolean) => {
     try {
-      await createDomain.mutateAsync({
+      const result = await createDomain.mutateAsync({
         domain,
         scopeInclude: scopeInclude ? scopeInclude.split('\n').filter(Boolean) : undefined,
         scopeExclude: scopeExclude ? scopeExclude.split('\n').filter(Boolean) : undefined,
@@ -160,6 +161,11 @@ function AddDomainDialog({
       setScopeInclude('');
       setScopeExclude('');
       onOpenChange(false);
+
+      // Navigate to the workflow run if a scan was triggered
+      if (scanNow && result.runId) {
+        navigate(`/runs/${result.runId}`);
+      }
     } catch (error) {
       toast({
         title: 'Failed to add domain',
@@ -298,6 +304,8 @@ export function DomainsPage() {
   const triggerScan = useTriggerDomainScan();
   const { toast } = useToast();
 
+  const navigate = useNavigate();
+
   const handleScan = async (domainId: string) => {
     try {
       const result = await triggerScan.mutateAsync({ domainId });
@@ -305,6 +313,10 @@ export function DomainsPage() {
         title: 'Scan started',
         description: `Running attack surface scan for ${result.domain}`,
       });
+      // Navigate to the workflow run
+      if (result.runId) {
+        navigate(`/runs/${result.runId}`);
+      }
     } catch (error) {
       toast({
         title: 'Failed to start scan',

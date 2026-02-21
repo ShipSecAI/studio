@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/components/ui/use-toast';
 import {
   Github,
@@ -61,8 +62,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
+  AlertCircle,
 } from 'lucide-react';
 import type { GitHubRepo, GitHubScanResult } from '@/store/githubStore';
+import { useGitHubStore } from '@/store/githubStore';
 import {
   useGitHubStatus,
   useGitHubInstallations,
@@ -85,9 +88,11 @@ import {
   SummaryBadges,
   formatRelativeTime,
   formatExactTime,
+  formatDuration,
   getScanSourceMeta,
 } from '@/components/scans/scan-utils';
 import { cn } from '@/lib/utils';
+import { CodeScanScheduleDialog } from '@/components/security/CodeScanScheduleDialog';
 
 interface WorkflowOption {
   id: string;
@@ -156,37 +161,37 @@ function EmptyState({
 }
 
 // Predefined quick scan workflow templates.
-// `matchPattern` is matched (case-insensitive) against workflow names to resolve to a real workflow UUID.
+// `templateSlug` matches against system workflow template slugs to resolve to a real workflow UUID.
 const QUICK_SCANS = [
   {
     slug: 'secret-detection',
+    templateSlug: 'sys-secret-scan',
     name: 'Secret Detection',
     description: 'Scan for exposed secrets, API keys, and credentials',
     icon: Shield,
-    matchPattern: /secret|trufflehog/i,
   },
   {
     slug: 'sast-opengrep',
+    templateSlug: 'sys-sast-scan',
     name: 'SAST (OpenGrep)',
     description: 'Static Application Security Testing',
     icon: Search,
-    matchPattern: /sast|opengrep|semgrep/i,
   },
   {
     slug: 'dependency-audit',
+    templateSlug: 'sys-dependency-scan',
     name: 'Dependency Audit',
     description: 'Check dependencies for known vulnerabilities',
     icon: Package,
-    matchPattern: /dependency|audit/i,
   },
 ];
 
-/** Resolve a quick scan slug to a real workflow UUID by matching workflow names. */
+/** Resolve a quick scan slug to a real workflow UUID by matching system workflow template slugs. */
 function resolveQuickScans(
-  workflows: WorkflowOption[],
+  systemWorkflows: { id: string; slug: string | null }[],
 ): { slug: string; workflowId: string; name: string; description: string; icon: typeof Shield }[] {
   return QUICK_SCANS.flatMap((scan) => {
-    const match = workflows.find((w) => scan.matchPattern.test(w.name));
+    const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
     if (!match) return [];
     return [
       {
@@ -208,8 +213,10 @@ interface WorkflowPickerModalProps {
 }
 
 function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowPickerModalProps) {
-  const { mutateAsync: triggerScan } = useTriggerScan();
+  const { mutate: triggerScan } = useTriggerScan();
   const { toast } = useToast();
+  const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
+  const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([]);
   const [workflowCompatibility, setWorkflowCompatibility] = useState<
     Record<string, WorkflowCompatibility>
@@ -218,6 +225,11 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
   const [selectedWorkflow, setSelectedWorkflow] = useState<string>('');
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [triggering, setTriggering] = useState<string | null>(null);
+
+  // Ensure system workflows are loaded
+  useEffect(() => {
+    if (open) fetchSystemWorkflows();
+  }, [open, fetchSystemWorkflows]);
 
   // Fetch workflows when modal opens
   useEffect(() => {
@@ -266,7 +278,7 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
   const selectedWorkflowRequiresPrContext =
     selectedWorkflowCompatibility?.requiresPrContext ?? false;
 
-  const handleTrigger = async (workflowId: string) => {
+  const handleTrigger = (workflowId: string) => {
     if (!repository) return;
     const compatibility = workflowCompatibility[workflowId];
     if (compatibility?.requiresPrContext) {
@@ -279,23 +291,39 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
       return;
     }
     setTriggering(workflowId);
-    try {
-      await triggerScan({ repoId: repository.id, workflowId, branch: selectedBranch || undefined });
-      toast({
-        title: 'Scan started',
-        description: `Security scan started for ${repository.fullName}`,
-      });
-      onClose();
-      onSuccess();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to start scan',
-        variant: 'destructive',
-      });
-    } finally {
-      setTriggering(null);
-    }
+    triggerScan(
+      { repoId: repository.id, workflowId, branch: selectedBranch || undefined },
+      {
+        onSuccess: (result) => {
+          toast({
+            title: 'Scan started',
+            description: (
+              <span>
+                Security scan started for {repository.fullName}.{' '}
+                <Link
+                  to={`/runs/${result.runId}`}
+                  className="font-medium text-primary hover:underline"
+                >
+                  Open Run &rarr;
+                </Link>
+              </span>
+            ),
+          });
+          onClose();
+          onSuccess();
+        },
+        onError: (error) => {
+          toast({
+            title: 'Scan failed',
+            description: error instanceof Error ? error.message : 'Failed to start scan',
+            variant: 'destructive',
+          });
+        },
+        onSettled: () => {
+          setTriggering(null);
+        },
+      },
+    );
   };
 
   if (!repository) return null;
@@ -330,7 +358,7 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground">Quick Scans</h4>
             <div className="grid gap-2">
-              {resolveQuickScans(workflows).map((scan) => {
+              {resolveQuickScans(systemWorkflows).map((scan) => {
                 const Icon = scan.icon;
                 return (
                   <Button
@@ -472,7 +500,7 @@ function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="rounded-full bg-muted p-6 mb-6">
-        <Github className="h-12 w-12 text-muted-foreground" />
+        <img src="/icons/github.svg" alt="GitHub" className="h-12 w-12" />
       </div>
       <h2 className="text-2xl font-bold mb-2">Connect GitHub</h2>
       <p className="text-muted-foreground mb-6 max-w-lg">
@@ -483,7 +511,11 @@ function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
         <div className="w-full max-w-xl space-y-4">
           <Button asChild size="lg">
             <a href={installUrl} target="_blank" rel="noopener noreferrer">
-              <Github className="mr-2 h-5 w-5" />
+              <img
+                src="/icons/github.svg"
+                alt="GitHub"
+                className="mr-2 h-5 w-5 brightness-0 invert"
+              />
               Install GitHub App
             </a>
           </Button>
@@ -529,11 +561,18 @@ function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
 
 interface RepositoriesTabProps {
   onRunScan: (repo: GitHubRepo) => void;
+  onSchedule: (repo: GitHubRepo) => void;
 }
 
-function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
+function RepositoriesTab({ onRunScan, onSchedule }: RepositoriesTabProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { data: repositories = [], isLoading: loading } = useGitHubRepositories();
+  const {
+    data: repositories = [],
+    isLoading: loading,
+    isError: reposError,
+    error: reposErrorDetail,
+    refetch: refetchRepos,
+  } = useGitHubRepositories();
   const { mutateAsync: syncRepositories } = useSyncRepositories();
   const { mutateAsync: toggleRepoScans } = useToggleRepoScans();
   const qc = useQueryClient();
@@ -713,6 +752,20 @@ function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
         {[...Array(3)].map((_, i) => (
           <Skeleton key={i} className="h-16 w-full" />
         ))}
+      </div>
+    );
+  }
+
+  if (reposError && repositories.length === 0) {
+    return (
+      <div className="text-center py-12 border rounded-lg bg-card border-destructive">
+        <AlertCircle className="h-10 w-10 mx-auto mb-3 text-destructive" />
+        <h3 className="text-lg font-semibold mb-2">Failed to load repositories</h3>
+        <p className="text-muted-foreground mb-4">{reposErrorDetail?.message ?? 'Unknown error'}</p>
+        <Button onClick={() => refetchRepos()} variant="outline">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Try Again
+        </Button>
       </div>
     );
   }
@@ -929,9 +982,16 @@ function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
                     </a>
                   </div>
                   {repo.description && (
-                    <p className="text-sm text-muted-foreground truncate max-w-md">
-                      {repo.description}
-                    </p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <p className="text-sm text-muted-foreground truncate max-w-md">
+                          {repo.description}
+                        </p>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-sm">
+                        {repo.description}
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                 </TableCell>
                 <TableCell>
@@ -964,16 +1024,34 @@ function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
                   </Button>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onRunScan(repo)}
-                    disabled={!repo.scansEnabled}
-                    title={!repo.scansEnabled ? 'Enable scans first to run a scan' : undefined}
-                  >
-                    <PlayCircle className="h-4 w-4 mr-1" />
-                    Run Scan
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSchedule(repo);
+                      }}
+                      disabled={!repo.scansEnabled}
+                      title={!repo.scansEnabled ? 'Enable scans first' : 'Schedule scan'}
+                    >
+                      <CalendarClock className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRunScan(repo);
+                      }}
+                      disabled={!repo.scansEnabled}
+                      title={!repo.scansEnabled ? 'Enable scans first to run a scan' : undefined}
+                    >
+                      <PlayCircle className="h-4 w-4 mr-1" />
+                      Run Scan
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))
@@ -987,7 +1065,13 @@ function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
 function TriggerRulesTab() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { data: triggerRules = [], isLoading: loading } = useTriggerRules();
+  const {
+    data: triggerRules = [],
+    isLoading: loading,
+    isError: triggersError,
+    error: triggersErrorDetail,
+    refetch: refetchTriggers,
+  } = useTriggerRules();
   const { data: repositories = [] } = useGitHubRepositories();
   const { mutateAsync: deleteTriggerRule } = useDeleteTriggerRule();
   const { toast } = useToast();
@@ -1177,6 +1261,22 @@ function TriggerRulesTab() {
     );
   }
 
+  if (triggersError && triggerRules.length === 0) {
+    return (
+      <div className="text-center py-12 border rounded-lg bg-card border-destructive">
+        <AlertCircle className="h-10 w-10 mx-auto mb-3 text-destructive" />
+        <h3 className="text-lg font-semibold mb-2">Failed to load trigger rules</h3>
+        <p className="text-muted-foreground mb-4">
+          {triggersErrorDetail?.message ?? 'Unknown error'}
+        </p>
+        <Button onClick={() => refetchTriggers()} variant="outline">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
   if (triggerRules.length === 0) {
     return (
       <EmptyState
@@ -1305,12 +1405,22 @@ function TriggerRulesTab() {
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{rule.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {rule.description || 'No description'}
-                      </p>
-                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{rule.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {rule.description || 'No description'}
+                          </p>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        <p className="font-medium">{rule.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {rule.description || 'No description'}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
                     <div className="flex gap-1">
                       <Button
                         variant="ghost"
@@ -1458,7 +1568,7 @@ function TriggerRulesTab() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigate(`/github?tab=scans&triggerRuleId=${selectedRule.id}`)}
+                      onClick={() => navigate(`/github/scans?triggerRuleId=${selectedRule.id}`)}
                     >
                       View all in Scans
                     </Button>
@@ -1537,7 +1647,7 @@ function TriggerRulesTab() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => navigate(`/github?tab=scans&scan=${scan.id}`)}
+                                  onClick={() => navigate(`/github/scans?scan=${scan.id}`)}
                                 >
                                   Scan
                                 </Button>
@@ -1743,7 +1853,13 @@ function ScansTab() {
         ? 'desc'
         : 'asc';
 
-  const { data: scanResultsData, isLoading: loading } = useGitHubScanResults({
+  const {
+    data: scanResultsData,
+    isLoading: loading,
+    isError: scansError,
+    error: scansErrorDetail,
+    refetch: refetchScans,
+  } = useGitHubScanResults({
     limit: SCAN_PAGE_SIZE,
     offset,
     repositoryId: repositoryFilter || undefined,
@@ -2010,6 +2126,20 @@ function ScansTab() {
     );
   }
 
+  if (scansError && scanResults.length === 0) {
+    return (
+      <div className="text-center py-12 border rounded-lg bg-card border-destructive">
+        <AlertCircle className="h-10 w-10 mx-auto mb-3 text-destructive" />
+        <h3 className="text-lg font-semibold mb-2">Failed to load scan results</h3>
+        <p className="text-muted-foreground mb-4">{scansErrorDetail?.message ?? 'Unknown error'}</p>
+        <Button onClick={() => refetchScans()} variant="outline">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn('flex', isPanelOpen && 'border rounded-lg overflow-hidden')}
@@ -2181,56 +2311,90 @@ function ScansTab() {
             ) : (
               <>
                 {liveScans.length > 0 && (
-                  <div className="border-b bg-muted/20">
-                    <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <div className="p-3 border-b">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
                       Live scans ({liveScans.length})
                     </div>
-                    <div className="divide-y">
+                    <div
+                      className={cn(
+                        'grid gap-3',
+                        isPanelOpen ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
+                      )}
+                    >
                       {liveScans.map((scan) => {
-                        const source = getScanSourceMeta(scan);
+                        const startTime = scan.startedAt ?? scan.createdAt;
+                        const elapsed = startTime
+                          ? formatDuration(startTime, new Date().toISOString())
+                          : null;
                         return (
-                          <div key={`live-${scan.id}`} className="px-3 py-3">
-                            <div className="flex items-center gap-2 mb-1">
-                              <div
-                                className={`p-0.5 rounded-full ${STATUS_COLORS[scan.status]} text-white`}
-                              >
-                                {STATUS_ICONS[scan.status]}
-                              </div>
-                              <span className="text-sm font-medium truncate">
-                                {getRepoName(scan.repositoryId)}
-                              </span>
-                              <Badge variant="outline" className="h-5 text-[10px] capitalize">
-                                {source.label}
-                                {source.detail ? ` ${source.detail}` : ''}
-                              </Badge>
-                              <span
-                                className="text-xs text-muted-foreground ml-auto flex-shrink-0"
-                                title={formatExactTime(scan.createdAt)}
-                              >
-                                {formatRelativeTime(scan.createdAt)}
-                              </span>
+                          <div
+                            key={`live-${scan.id}`}
+                            className="rounded-lg border border-blue-200 dark:border-blue-700/50 bg-blue-500/5 p-3 space-y-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-sm font-medium truncate">
+                                    {getRepoName(scan.repositoryId)}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                  {getRepoName(scan.repositoryId)}
+                                </TooltipContent>
+                              </Tooltip>
                             </div>
-                            <div className="text-xs text-muted-foreground truncate">
-                              {scan.workflowName ?? 'Workflow run'}
+                            <div className="text-xs text-muted-foreground">
+                              Started {formatRelativeTime(startTime)}
+                              {elapsed ? ` \u00b7 Elapsed ${elapsed}` : ''}
                             </div>
-                            <div className="mt-2 flex gap-2">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => handleSelectScan(scan.id)}
+                              >
+                                View
+                              </Button>
                               <Button asChild variant="outline" size="sm" className="h-7 text-xs">
                                 <Link to={`/runs/${scan.workflowRunId}`}>Open Run</Link>
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-xs"
-                                disabled={stoppingRunId === scan.workflowRunId}
-                                onClick={() => handleStopRun(scan)}
-                              >
-                                {stoppingRunId === scan.workflowRunId ? (
-                                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                                ) : (
-                                  <PauseCircle className="h-3.5 w-3.5 mr-1" />
-                                )}
-                                Stop
-                              </Button>
+                              {scan.triggerType && scan.triggerType !== 'manual' ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span tabIndex={0}>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 text-xs"
+                                        disabled
+                                      >
+                                        <PauseCircle className="h-3.5 w-3.5 mr-1" />
+                                        Stop
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    System-triggered runs cannot be stopped
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  disabled={stoppingRunId === scan.workflowRunId}
+                                  onClick={() => handleStopRun(scan)}
+                                >
+                                  {stoppingRunId === scan.workflowRunId ? (
+                                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                  ) : (
+                                    <PauseCircle className="h-3.5 w-3.5 mr-1" />
+                                  )}
+                                  Stop
+                                </Button>
+                              )}
                             </div>
                           </div>
                         );
@@ -2259,15 +2423,26 @@ function ScansTab() {
                             >
                               {STATUS_ICONS[scan.status]}
                             </div>
-                            <span className="text-sm font-medium truncate">
-                              {getRepoName(scan.repositoryId)}
-                            </span>
-                            <span
-                              className="text-xs text-muted-foreground ml-auto flex-shrink-0"
-                              title={formatExactTime(scan.createdAt)}
-                            >
-                              {formatRelativeTime(scan.createdAt)}
-                            </span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-sm font-medium truncate">
+                                  {getRepoName(scan.repositoryId)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                {getRepoName(scan.repositoryId)}
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-xs text-muted-foreground ml-auto flex-shrink-0">
+                                  {formatRelativeTime(scan.createdAt)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                {formatExactTime(scan.createdAt)}
+                              </TooltipContent>
+                            </Tooltip>
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <div className="flex items-center gap-1">
@@ -2281,16 +2456,30 @@ function ScansTab() {
                               ) : source.kind === 'push' ? (
                                 <>
                                   <GitBranch className="h-3 w-3" />
-                                  <span className="truncate max-w-[100px]">
-                                    {source.detail ?? source.label}
-                                  </span>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="truncate max-w-[100px]">
+                                        {source.detail ?? source.label}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">
+                                      {source.detail ?? source.label}
+                                    </TooltipContent>
+                                  </Tooltip>
                                 </>
                               ) : source.kind === 'schedule' ? (
                                 <>
                                   <CalendarClock className="h-3 w-3" />
-                                  <span className="truncate max-w-[120px]">
-                                    {source.detail ?? source.label}
-                                  </span>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="truncate max-w-[120px]">
+                                        {source.detail ?? source.label}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">
+                                      {source.detail ?? source.label}
+                                    </TooltipContent>
+                                  </Tooltip>
                                 </>
                               ) : (
                                 <>
@@ -2360,13 +2549,12 @@ function ScansTab() {
                       {historyScans.map((scan, idx) => {
                         const source = getScanSourceMeta(scan);
                         const sourceFilterParams = new URLSearchParams({
-                          tab: 'scans',
                           source: 'schedule',
                         });
                         if (source.scheduleId) {
                           sourceFilterParams.set('scheduleId', source.scheduleId);
                         }
-                        const scheduleScanLink = `/github?${sourceFilterParams.toString()}`;
+                        const scheduleScanLink = `/github/scans?${sourceFilterParams.toString()}`;
                         return (
                           <TableRow
                             key={scan.id}
@@ -2717,7 +2905,13 @@ function ConnectionOverview({
 
 export function GitHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { data: statusData } = useGitHubStatus();
+  const navigate = useNavigate();
+  const {
+    data: statusData,
+    isError: statusError,
+    error: statusErrorDetail,
+    refetch: refetchStatus,
+  } = useGitHubStatus();
   const isConfigured = statusData?.configured ?? null;
   const installUrl = statusData?.installUrl ?? null;
   const { data: installations = [] } = useGitHubInstallations();
@@ -2728,65 +2922,23 @@ export function GitHubPage() {
 
   // Modal state for workflow picker
   const [selectedRepoForScan, setSelectedRepoForScan] = useState<GitHubRepo | null>(null);
-  const validTabs = ['repos', 'scans', 'triggers'];
-  const tabParam = searchParams.get('tab');
-  const activeTab = validTabs.includes(tabParam ?? '') ? tabParam! : 'repos';
+  const [selectedRepoForSchedule, setSelectedRepoForSchedule] = useState<GitHubRepo | null>(null);
+  const location = useLocation();
+  const activeTab = location.pathname.startsWith('/github/scans')
+    ? 'scans'
+    : location.pathname.startsWith('/github/triggers')
+      ? 'triggers'
+      : 'repos';
   const [settingUp, setSettingUp] = useState(false);
 
-  const sanitizeParamsForTab = useCallback((tab: string, params: URLSearchParams) => {
-    const allowedByTab: Record<string, Set<string>> = {
-      repos: new Set([
-        'repoQ',
-        'repoScans',
-        'repoVisibility',
-        'repoOwner',
-        'repoLanguage',
-        'repoSort',
-        'repoDir',
-      ]),
-      scans: new Set([
-        'tab',
-        'scan',
-        'finding',
-        'page',
-        'repositoryId',
-        'status',
-        'source',
-        'scheduleId',
-        'triggerRuleId',
-        'scansSort',
-        'scansDir',
-      ]),
-      triggers: new Set(['tab', 'trQ', 'trStatus', 'trEvent', 'trRule', 'trRunsQ', 'trScan']),
-    };
-
-    const cleaned = new URLSearchParams();
-    const allowed = allowedByTab[tab] ?? new Set<string>();
-
-    for (const [key, value] of params.entries()) {
-      if (allowed.has(key)) {
-        cleaned.set(key, value);
-      }
-    }
-
-    if (tab !== 'repos') {
-      cleaned.set('tab', tab);
-    }
-
-    return cleaned;
-  }, []);
-
   const setActiveTab = (tab: string) => {
-    const newParams = sanitizeParamsForTab(tab, searchParams);
-    setSearchParams(newParams, { replace: true });
+    const pathMap: Record<string, string> = {
+      repos: '/github/repositories',
+      scans: '/github/scans',
+      triggers: '/github/triggers',
+    };
+    navigate(pathMap[tab] ?? '/github/repositories');
   };
-
-  useEffect(() => {
-    const sanitized = sanitizeParamsForTab(activeTab, searchParams);
-    if (sanitized.toString() !== searchParams.toString()) {
-      setSearchParams(sanitized, { replace: true });
-    }
-  }, [activeTab, sanitizeParamsForTab, searchParams, setSearchParams]);
 
   // Handle GitHub App installation callback
   useEffect(() => {
@@ -2796,11 +2948,8 @@ export function GitHubPage() {
     if (installationId && setupAction === 'install') {
       setSettingUp(true);
 
-      // Clean installation URL params, preserve tab
-      const cleanParams = new URLSearchParams();
-      const currentTab = searchParams.get('tab');
-      if (currentTab) cleanParams.set('tab', currentTab);
-      setSearchParams(cleanParams, { replace: true });
+      // Clean installation URL params
+      setSearchParams(new URLSearchParams(), { replace: true });
 
       const id = parseInt(installationId, 10);
       if (!isNaN(id)) {
@@ -2833,9 +2982,9 @@ export function GitHubPage() {
     }
   }, []);
 
-  const handleRunScan = (repo: GitHubRepo) => {
+  const handleRunScan = useCallback((repo: GitHubRepo) => {
     setSelectedRepoForScan(repo);
-  };
+  }, []);
 
   const handleScanSuccess = () => {
     // Switch to Scans tab and refresh scan results
@@ -2853,6 +3002,27 @@ export function GitHubPage() {
           <p className="text-muted-foreground">
             Syncing your repositories from GitHub. This will only take a moment.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error fetching GitHub status
+  if (statusError) {
+    return (
+      <div className="container py-6 space-y-6">
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="rounded-full bg-destructive/10 p-4 mb-4">
+            <AlertCircle className="h-8 w-8 text-destructive" />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">Failed to load GitHub status</h3>
+          <p className="text-muted-foreground mb-4 max-w-md">
+            {statusErrorDetail?.message ?? 'Could not connect to the server. Please try again.'}
+          </p>
+          <Button onClick={() => refetchStatus()} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Try Again
+          </Button>
         </div>
       </div>
     );
@@ -2904,7 +3074,10 @@ export function GitHubPage() {
               installUrl={installUrl}
               onSync={() => qc.invalidateQueries({ queryKey: queryKeys.github.repositories() })}
             />
-            <RepositoriesTab onRunScan={handleRunScan} />
+            <RepositoriesTab
+              onRunScan={handleRunScan}
+              onSchedule={(repo) => setSelectedRepoForSchedule(repo)}
+            />
           </div>
         </TabsContent>
 
@@ -2923,6 +3096,11 @@ export function GitHubPage() {
         onClose={() => setSelectedRepoForScan(null)}
         repository={selectedRepoForScan}
         onSuccess={handleScanSuccess}
+      />
+      <CodeScanScheduleDialog
+        open={selectedRepoForSchedule !== null}
+        onClose={() => setSelectedRepoForSchedule(null)}
+        repository={selectedRepoForSchedule ?? undefined}
       />
     </div>
   );

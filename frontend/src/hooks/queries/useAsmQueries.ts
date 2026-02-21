@@ -112,7 +112,7 @@ export function useCreateDomain() {
       scopeExclude?: string[];
       scanNow?: boolean;
     }) =>
-      asmFetch<AsmDomain>('/domains', {
+      asmFetch<AsmDomain & { runId?: string; scanTriggered?: boolean }>('/domains', {
         method: 'POST',
         body: JSON.stringify(data),
       }),

@@ -16,6 +16,7 @@ import { useSecurityViewStore } from '@/store/securityViewStore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCategoryCounts } from '@/hooks/queries/useSecurityQueries';
 import { QueryErrorBoundary } from '@/components/ui/QueryErrorBoundary';
+import { useAsmStats } from '@/hooks/queries/useAsmQueries';
 
 // Lazy-load the heavy SecurityDashboardContent (pulls in recharts, markdown-it, etc.)
 const SecurityDashboardContent = lazy(() =>
@@ -95,7 +96,12 @@ const EMPTY_COUNTS: CategoryCounts = { critical: 0, high: 0, medium: 0, low: 0 }
 
 type UserState = 'new' | 'partial' | 'complete';
 
-const CATEGORY_KEYS = ['cloud-security', 'code-security', 'dependency-security'];
+const CATEGORY_KEYS = [
+  'cloud-security',
+  'code-security',
+  'dependency-security',
+  'surface-security',
+];
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -110,6 +116,7 @@ export function HomePage() {
     useIntegrationConnections(userId);
   const { data: recentRuns = [] } = useRecentRuns(10);
   const activeViewId = useSecurityViewStore((s) => s.activeViewId);
+  const { data: asmStats } = useAsmStats();
 
   // True until we have enough data to determine the user's onboarding state
   const stateLoading = installationsLoading || connectionsLoading;
@@ -120,6 +127,7 @@ export function HomePage() {
       'cloud-security': { ...EMPTY_COUNTS },
       'code-security': { ...EMPTY_COUNTS },
       'dependency-security': { ...EMPTY_COUNTS },
+      'surface-security': { ...EMPTY_COUNTS },
     },
     isError: analyticsError,
   } = useCategoryCounts(SCANNER_TO_CATEGORY, CATEGORY_KEYS);
@@ -240,6 +248,7 @@ export function HomePage() {
     const cloud = categoryCounts['cloud-security'] ?? EMPTY_COUNTS;
     const code = categoryCounts['code-security'] ?? EMPTY_COUNTS;
     const dep = categoryCounts['dependency-security'] ?? EMPTY_COUNTS;
+    const surface = categoryCounts['surface-security'] ?? EMPTY_COUNTS;
     return [
       {
         category: 'Cloud',
@@ -253,6 +262,12 @@ export function HomePage() {
         critical: dep.critical,
         high: dep.high,
         href: '/?view=dependency-security',
+      },
+      {
+        category: 'Surface',
+        critical: surface.critical,
+        high: surface.high,
+        href: '/?view=surface-security',
       },
     ];
   }, [categoryCounts]);
@@ -310,6 +325,8 @@ export function HomePage() {
             totalRepos={repositories.length}
             totalScans={totalScans}
             integrationsConnected={integrationsConnected}
+            domainsCount={asmStats?.domains ?? 0}
+            assetsCount={asmStats?.assets ?? 0}
           />
 
           <GettingStartedChecklist
@@ -398,6 +415,8 @@ export function HomePage() {
           totalRepos={repositories.length}
           totalScans={totalScans}
           integrationsConnected={integrationsConnected}
+          domainsCount={asmStats?.domains ?? 0}
+          assetsCount={asmStats?.assets ?? 0}
           securityScore={analyticsError ? 0 : securityScore}
           showScore
         />

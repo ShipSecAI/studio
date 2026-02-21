@@ -72,7 +72,7 @@ test.describe('API Keys CRUD', () => {
     await dialog.getByRole('button', { name: /done/i }).click();
 
     // Key name should appear in table
-    await expect(page.getByText('test-key-ui')).toBeVisible();
+    await expect(page.getByText('test-key-ui').first()).toBeVisible();
   });
 
   test('delete API key via confirm dialog', async ({ page, consoleMonitor }) => {
@@ -91,7 +91,10 @@ test.describe('API Keys CRUD', () => {
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: /confirm/i }).click();
 
+    // Wait for dialog to close before checking table
+    await expect(dialog).not.toBeVisible();
+
     testKey = null;
-    await expect(page.getByText(keyName)).not.toBeVisible();
+    await expect(page.locator('tbody').getByText(keyName)).not.toBeVisible();
   });
 });

@@ -10,8 +10,8 @@ test.describe('Workflow List Page', () => {
     await page.goto('/builder');
     await waitForPageReady(page);
 
-    const rows = page.getByRole('row');
-    await expect(rows).toHaveCount(count + 1);
+    const rows = page.locator('tbody tr');
+    await expect(rows).toHaveCount(count);
   });
 
   test('each workflow row shows name', async ({ page, consoleMonitor }) => {
@@ -21,7 +21,7 @@ test.describe('Workflow List Page', () => {
     await page.goto('/builder');
     await waitForPageReady(page);
 
-    await expect(page.getByText(items[0].name)).toBeVisible();
+    await expect(page.getByText(items[0].name).first()).toBeVisible();
   });
 
   test('Create Workflow button navigates', async ({ page, consoleMonitor }) => {
@@ -81,7 +81,7 @@ test.describe('Workflow List Page', () => {
     await waitForPageReady(page);
 
     // Click the first workflow row (not the header)
-    await page.getByRole('row').filter({ hasText: items[0].name }).click();
+    await page.getByRole('row').filter({ hasText: items[0].name }).first().click();
     await expect(page).toHaveURL(new RegExp(`/workflows/${firstId}`));
   });
 });
@@ -116,8 +116,9 @@ test.describe('Workflow Delete', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: /delete workflow/i }).click();
+    await expect(dialog).not.toBeVisible();
 
     testWf = null;
-    await expect(page.getByText(wfName)).not.toBeVisible();
+    await expect(page.locator('tbody').getByText(wfName)).not.toBeVisible();
   });
 });

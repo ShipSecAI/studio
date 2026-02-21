@@ -28,7 +28,14 @@ export async function createTestApiKey() {
   const name = `test-key-${randomUUID().slice(0, 8)}`;
   const res = await apiRequest<{ id: string }>('/api-keys', {
     method: 'POST',
-    body: { name, description: 'UI test key', permissions: ['workflows:run', 'workflows:list'] },
+    body: {
+      name,
+      description: 'UI test key',
+      permissions: {
+        workflows: { run: true, list: true, read: false },
+        runs: { read: false, cancel: false },
+      },
+    },
   });
   return {
     id: res.id,
@@ -41,7 +48,22 @@ export async function createTestWorkflow() {
   const name = `test-wf-${randomUUID().slice(0, 8)}`;
   const res = await apiRequest<{ id: string }>('/workflows', {
     method: 'POST',
-    body: { name },
+    body: {
+      name,
+      nodes: [{
+        id: 'trigger',
+        type: 'core.workflow.entrypoint',
+        position: { x: 0, y: 0 },
+        data: {
+          label: 'Trigger',
+          config: {
+            params: { runtimeInputs: [{ id: 'input', label: 'Input', type: 'text', required: false }] },
+            inputOverrides: {},
+          },
+        },
+      }],
+      edges: [],
+    },
   });
   return {
     id: res.id,

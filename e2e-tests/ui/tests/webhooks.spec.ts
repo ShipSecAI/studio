@@ -59,8 +59,7 @@ test.describe('Webhooks Page', () => {
     await page.getByRole('button', { name: /refresh/i }).click();
 
     // Toast should appear
-    const toast = page.locator('[role="status"], [data-sonner-toast]');
-    await expect(toast.first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('Webhooks refreshed')).toBeVisible({ timeout: 5_000 });
   });
 
   test('copy URL button shows toast', async ({ page, consoleMonitor }) => {
@@ -75,8 +74,7 @@ test.describe('Webhooks Page', () => {
     await copyBtn.click();
 
     // Toast should appear
-    const toast = page.locator('[role="status"], [data-sonner-toast]');
-    await expect(toast.first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText(/copied/i).or(page.getByText(/webhook url copied/i))).toBeVisible({ timeout: 5_000 });
   });
 
   test('row click navigates to webhook detail', async ({ page, consoleMonitor }) => {

@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { ShieldAlert, GitBranch, Scan, Link2 } from 'lucide-react';
+import { ShieldAlert, GitBranch, Scan, Link2, Globe } from 'lucide-react';
 import { SecurityScoreRing } from './SecurityScoreRing';
 
 interface QuickStatsRowProps {
@@ -7,6 +7,8 @@ interface QuickStatsRowProps {
   totalRepos: number;
   totalScans: number;
   integrationsConnected: number;
+  domainsCount?: number;
+  assetsCount?: number;
   securityScore?: number;
   showScore?: boolean;
 }
@@ -21,9 +23,12 @@ export function QuickStatsRow({
   totalRepos,
   totalScans,
   integrationsConnected,
+  domainsCount = 0,
+  assetsCount = 0,
   securityScore = 0,
   showScore = false,
 }: QuickStatsRowProps) {
+  const hasAsm = domainsCount > 0 || assetsCount > 0;
   const stats = [
     {
       label: 'Findings',
@@ -47,11 +52,30 @@ export function QuickStatsRow({
       color: 'text-green-500',
       bg: 'bg-green-500/10',
     },
+    ...(hasAsm
+      ? [
+          {
+            label: 'Domains',
+            value: domainsCount,
+            icon: Globe,
+            color: 'text-emerald-500',
+            bg: 'bg-emerald-500/10',
+          },
+        ]
+      : []),
   ];
 
   return (
     <div
-      className={`grid gap-4 ${showScore ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}`}
+      className={`grid gap-4 grid-cols-2 sm:grid-cols-3 ${
+        showScore
+          ? hasAsm
+            ? 'lg:grid-cols-6'
+            : 'lg:grid-cols-5'
+          : hasAsm
+            ? 'lg:grid-cols-5'
+            : 'lg:grid-cols-4'
+      }`}
     >
       {stats.map((stat) => {
         const Icon = stat.icon;

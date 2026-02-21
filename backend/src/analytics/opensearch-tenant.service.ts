@@ -310,15 +310,26 @@ export class OpenSearchTenantService {
         mappings: {
           properties: {
             '@timestamp': { type: 'date' },
+            // Workflow context
             workflow_id: { type: 'keyword' },
             workflow_name: { type: 'keyword' },
             run_id: { type: 'keyword' },
             node_ref: { type: 'keyword' },
             component_id: { type: 'keyword' },
+            // Common finding fields
             asset_key: { type: 'keyword' },
             scanner: { type: 'keyword' },
             severity: { type: 'keyword' },
+            status: { type: 'keyword' },
             finding_hash: { type: 'keyword' },
+            // Cloud finding fields (prowler)
+            check_name: { type: 'keyword' },
+            region: { type: 'keyword' },
+            service_name: { type: 'keyword' },
+            account_id: { type: 'keyword' },
+            // Code finding fields (opengrep)
+            rule_id: { type: 'keyword' },
+            file: { type: 'keyword' },
           },
         },
       },

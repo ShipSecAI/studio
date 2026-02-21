@@ -552,7 +552,7 @@ function EmptyInstallationState({
         {installUrl && (
           <Button asChild>
             <a href={installUrl} target="_blank" rel="noopener noreferrer">
-              <img src="/icons/github.svg" alt="" className="mr-2 h-4 w-4" />
+              <img src="/icons/github.svg" alt="" className="mr-2 h-4 w-4 brightness-0 invert" />
               Install GitHub App
             </a>
           </Button>

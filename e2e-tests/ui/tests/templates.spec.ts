@@ -52,10 +52,10 @@ test.describe('Templates Page', () => {
 
     // Should have Use Template and Close buttons
     await expect(dialog.getByRole('button', { name: /use template/i })).toBeVisible();
-    await expect(dialog.getByRole('button', { name: /close/i })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /close/i }).last()).toBeVisible();
 
     // Close dialog
-    await dialog.getByRole('button', { name: /close/i }).click();
+    await dialog.getByRole('button', { name: /close/i }).last().click();
     await expect(dialog).not.toBeVisible();
   });
 

@@ -4,7 +4,7 @@ import { getHumanInputs } from '../helpers/api-expectations';
 
 test.describe('Action Center Page', () => {
   test('displays pending count matching API', async ({ page, consoleMonitor }) => {
-    const { count } = await getHumanInputs('PENDING');
+    const { count } = await getHumanInputs('pending');
 
     await page.goto('/action-center');
     await waitForPageReady(page);
@@ -75,7 +75,7 @@ test.describe('Action Center Page', () => {
   });
 
   test('approve button opens resolve dialog', async ({ page, consoleMonitor }) => {
-    const { count } = await getHumanInputs('PENDING');
+    const { count } = await getHumanInputs('pending');
     if (count === 0) return test.skip();
 
     await page.goto('/action-center');

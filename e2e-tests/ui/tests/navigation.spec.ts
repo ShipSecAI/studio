@@ -6,7 +6,7 @@ test.describe('Navigation', () => {
     await page.goto('/');
     await waitForPageReady(page);
 
-    const sidebar = page.locator('nav, [class*="sidebar"]');
+    const sidebar = page.locator('aside');
     await expect(sidebar.first()).toBeVisible();
   });
 
@@ -15,7 +15,7 @@ test.describe('Navigation', () => {
     await waitForPageReady(page);
 
     // Click Builder link in sidebar
-    const builderLink = page.locator('nav a[href="/builder"], nav a[href*="builder"]').first();
+    const builderLink = page.locator('aside a[href="/builder"], aside a[href*="builder"]').first();
     if (await builderLink.isVisible().catch(() => false)) {
       await builderLink.click();
       await waitForPageReady(page);
@@ -27,7 +27,7 @@ test.describe('Navigation', () => {
     await page.goto('/builder');
     await waitForPageReady(page);
 
-    const sidebar = page.locator('nav, [class*="sidebar"]');
+    const sidebar = page.locator('aside');
     await expect(sidebar.first()).toBeVisible();
 
     // The active link should have distinct styling (data-active, aria-current, etc.)
@@ -65,7 +65,7 @@ test.describe('Navigation', () => {
     await page.goto('/nonexistent-route-that-does-not-exist');
     await waitForPageReady(page);
 
-    await expect(page.getByText(/not found|404/i)).toBeVisible();
+    await expect(page.getByText(/not found|404/i).first()).toBeVisible();
   });
 
   test('settings section reveals settings links', async ({ page, consoleMonitor }) => {
@@ -73,13 +73,13 @@ test.describe('Navigation', () => {
     await waitForPageReady(page);
 
     // Look for settings section trigger
-    const settingsTrigger = page.locator('nav').getByText(/settings/i).first();
+    const settingsTrigger = page.locator('aside').getByRole('button', { name: /manage/i }).first();
     if (!(await settingsTrigger.isVisible().catch(() => false))) return;
 
     await settingsTrigger.click();
 
     // Should reveal settings links (Secrets, API Keys, etc.)
-    const secretsLink = page.locator('nav a[href="/secrets"]');
+    const secretsLink = page.locator('aside a[href="/secrets"]');
     await expect(secretsLink).toBeVisible();
   });
 });

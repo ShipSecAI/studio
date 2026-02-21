@@ -113,6 +113,6 @@ test.describe('Secrets CRUD', () => {
 
     // Secret should be removed — cleanup is no longer needed
     testSecret = null;
-    await expect(page.getByText(secretName)).not.toBeVisible();
+    await expect(page.locator('tbody').getByText(secretName)).not.toBeVisible();
   });
 });

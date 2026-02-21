@@ -1973,9 +1973,16 @@ export function McpLibraryPage() {
                                     <div>
                                       <div className="font-medium">{server.serverName}</div>
                                       {server.description && (
-                                        <div className="text-xs text-muted-foreground truncate max-w-[180px]">
-                                          {server.description}
-                                        </div>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <div className="text-xs text-muted-foreground truncate max-w-[180px]">
+                                              {server.description}
+                                            </div>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="bottom" className="max-w-xs">
+                                            {server.description}
+                                          </TooltipContent>
+                                        </Tooltip>
                                       )}
                                     </div>
                                   </TableCell>
@@ -2238,6 +2245,7 @@ export function McpLibraryPage() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              aria-label="Edit server"
                               onClick={() => handleEdit(server.id)}
                             >
                               <Edit3 className="h-4 w-4" />
@@ -2253,6 +2261,7 @@ export function McpLibraryPage() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              aria-label="Delete server"
                               onClick={() => {
                                 setServerToDelete(server.id);
                                 setDeleteDialogOpen(true);

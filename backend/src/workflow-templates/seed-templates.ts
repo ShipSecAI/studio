@@ -598,8 +598,12 @@ function attackSurfaceReconTemplate(): SeedTemplate {
         makeNode(dnsx, 'shipsec.dnsx.run', 'DNSx', 600, 0),
         makeNode(httpx, 'shipsec.httpx.scan', 'HTTPx', 900, -100),
         makeNode(naabu, 'shipsec.naabu.scan', 'Naabu', 900, 100),
-        makeNode(nuclei, 'shipsec.nuclei.scan', 'Nuclei', 1200, 0),
-        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1500, 0),
+        makeNode(nuclei, 'shipsec.nuclei.scan', 'Nuclei', 1200, 0, {
+          severityFilter: ['low', 'medium', 'high', 'critical'],
+        }),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1500, 0, {
+          dataInputs: [{ id: 'input1', label: 'ASM Findings', sourceTag: 'nuclei' }],
+        }),
       ],
       edges: [
         // Entry Point → Subfinder (domains injected at trigger time)
@@ -609,8 +613,8 @@ function attackSurfaceReconTemplate(): SeedTemplate {
         // DNSx → HTTPx + Naabu (pass resolved hosts)
         makeEdge('e3', dnsx, httpx, 'resolvedHosts', 'targets'),
         makeEdge('e4', dnsx, naabu, 'resolvedHosts', 'targets'),
-        // HTTPx → Nuclei (pass live hosts as targets)
-        makeEdge('e5', httpx, nuclei, 'responses', 'targets'),
+        // DNSx → Nuclei (pass resolved hosts directly for vuln scanning)
+        makeEdge('e5', dnsx, nuclei, 'resolvedHosts', 'targets'),
         // Nuclei → Analytics (use results port directly, bypass normalize)
         makeEdge('e6', nuclei, analytics, 'results', 'input1'),
       ],

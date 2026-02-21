@@ -23,6 +23,7 @@ export function getFrontendBaseUrl(): string {
 const HEADERS: Record<string, string> = {
   'Content-Type': 'application/json',
   'x-internal-token': 'local-internal-token',
+  'Authorization': `Basic ${btoa('admin:admin')}`,
 };
 
 interface ApiRequestOptions {
@@ -63,6 +64,10 @@ export async function healthCheck(): Promise<void> {
 
   const checkBackend = fetch(backendUrl, {
     signal: AbortSignal.timeout(5_000),
+    headers: {
+      ...HEADERS,
+      'Authorization': `Basic ${btoa('admin:admin')}`,
+    },
   }).then((r) => {
     if (!r.ok) throw new Error(`Backend health check failed: ${r.status}`);
   });
