@@ -232,6 +232,7 @@ describe('SchedulesService', () => {
       repository as unknown as ScheduleRepository,
       workflowsService,
       temporalService,
+      {} as any,
     );
     ensureWorkflowAdminAccessCalls.length = 0;
     getCompiledWorkflowContextCalls.length = 0;

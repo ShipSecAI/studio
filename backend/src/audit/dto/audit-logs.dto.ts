@@ -9,6 +9,10 @@ export const AuditResourceTypeSchema = z.enum([
   'webhook',
   'artifact',
   'analytics',
+  'schedule',
+  'mcp_server',
+  'mcp_group',
+  'human_input',
 ]);
 
 export const AuditLogEntrySchema = z.object({
