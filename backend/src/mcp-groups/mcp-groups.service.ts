@@ -138,9 +138,14 @@ export class McpGroupsService implements OnModuleInit {
 
   async importTemplate(
     slug: string,
+    organizationId: string,
     input?: ImportTemplateRequestDto,
   ): Promise<ImportGroupTemplateResponse> {
-    const result: TemplateSyncResult = await this.seedingService.syncTemplate(slug);
+    const result: TemplateSyncResult = await this.seedingService.syncTemplate(
+      slug,
+      false,
+      organizationId,
+    );
     const group = await this.getGroupBySlug(slug);
 
     // If cache tokens were provided, create tools for each server
