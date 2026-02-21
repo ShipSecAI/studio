@@ -946,7 +946,7 @@ async function scanSingleOrgAccount(
   }
 }
 
-async function executeOrgScan(
+async function _executeOrgScan(
   { inputs, params }: { inputs: unknown; params: unknown },
   context: any,
 ): Promise<Output> {
