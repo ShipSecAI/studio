@@ -19,9 +19,9 @@ export interface AuditEventInput {
 }
 
 export interface ListAuditLogsInput {
-  resourceType?: string;
+  resourceType?: string | string[];
   resourceId?: string;
-  action?: string;
+  action?: string | string[];
   actorId?: string;
   from?: Date;
   to?: Date;
@@ -74,8 +74,14 @@ export class AuditLogService {
     return false;
   }
 
-  record(auth: AuthContext | null, event: AuditEventInput, meta?: AuditRequestMeta): void {
-    const organizationId = auth?.organizationId ?? DEFAULT_ORGANIZATION_ID;
+  record(
+    auth: AuthContext | null,
+    event: AuditEventInput,
+    meta?: AuditRequestMeta,
+    organizationIdOverride?: string | null,
+  ): void {
+    const organizationId =
+      organizationIdOverride ?? auth?.organizationId ?? DEFAULT_ORGANIZATION_ID;
     const actorType = actorTypeFromAuth(auth);
     const actorId = auth?.userId ?? null;
 
@@ -113,11 +119,22 @@ export class AuditLogService {
     const organizationId = auth?.organizationId ?? DEFAULT_ORGANIZATION_ID;
     const cursor = input.cursor ? decodeCursor(input.cursor) : null;
 
+    const resourceTypes = input.resourceType
+      ? (Array.isArray(input.resourceType)
+          ? input.resourceType
+          : input.resourceType.split(',')
+        ).map((s) => s.trim())
+      : undefined;
+
+    const actions = input.action
+      ? (Array.isArray(input.action) ? input.action : input.action.split(',')).map((s) => s.trim())
+      : undefined;
+
     const items = await this.repository.list({
       organizationId,
-      resourceType: input.resourceType,
+      resourceType: resourceTypes,
       resourceId: input.resourceId,
-      action: input.action,
+      action: actions,
       actorId: input.actorId,
       from: input.from,
       to: input.to,

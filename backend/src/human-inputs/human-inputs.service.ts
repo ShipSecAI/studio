@@ -200,13 +200,22 @@ export class HumanInputsService {
       },
     });
 
-    this.auditLogService.record(null, {
-      action: 'human_input.resolve',
-      resourceType: 'human_input',
-      resourceId: updated.id,
-      resourceName: updated.title,
-      metadata: { approved: isApproved, respondedBy: 'public-link', inputType: updated.inputType },
-    });
+    this.auditLogService.record(
+      null,
+      {
+        action: 'human_input.resolve',
+        resourceType: 'human_input',
+        resourceId: updated.id,
+        resourceName: updated.title,
+        metadata: {
+          approved: isApproved,
+          respondedBy: 'public-link',
+          inputType: updated.inputType,
+        },
+      },
+      undefined,
+      request.organizationId,
+    );
 
     return {
       success: true,

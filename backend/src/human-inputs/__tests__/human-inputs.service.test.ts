@@ -10,6 +10,8 @@ import { randomUUID } from 'node:crypto';
 describe('HumanInputsService - IDOR Protection', () => {
   let service: HumanInputsService;
   let mockDb: any;
+  let auditRecordCalls: unknown[][];
+  let temporalSignalCalls: unknown[];
 
   const ORG_A = 'org-a-' + randomUUID();
   const ORG_B = 'org-b-' + randomUUID();
@@ -31,6 +33,9 @@ describe('HumanInputsService - IDOR Protection', () => {
   };
 
   beforeEach(() => {
+    auditRecordCalls = [];
+    temporalSignalCalls = [];
+
     // Mock database with query builder
     mockDb = {
       query: {
@@ -100,7 +105,18 @@ describe('HumanInputsService - IDOR Protection', () => {
       this._lastQuery = query;
     };
 
-    service = new HumanInputsService(mockDb, {} as any, { record: () => {} } as any);
+    const temporalService = {
+      signalWorkflow: async (payload: unknown) => {
+        temporalSignalCalls.push(payload);
+      },
+    };
+    const auditLogService = {
+      record: (...args: unknown[]) => {
+        auditRecordCalls.push(args);
+      },
+    };
+
+    service = new HumanInputsService(mockDb, temporalService as any, auditLogService as any);
   });
 
   it('should filter list by organization', async () => {
@@ -193,5 +209,47 @@ describe('HumanInputsService - IDOR Protection', () => {
     expect(service.list.length).toBeGreaterThan(0); // Has parameters
     expect(service.getById.length).toBeGreaterThan(0);
     expect(service.resolve.length).toBeGreaterThan(0);
+  });
+
+  it('should keep public-link audit logs scoped to the request organization', async () => {
+    const publicRequest = {
+      id: randomUUID(),
+      organizationId: ORG_B,
+      title: 'Public Approval in Org B',
+      status: 'pending',
+      inputType: 'approval',
+      resolveToken: 'public-token',
+      runId: 'run-1',
+      nodeRef: 'approval-node',
+      respondedAt: null,
+    };
+    const updated = {
+      ...publicRequest,
+      status: 'resolved',
+      respondedBy: 'public-link',
+      responseData: { status: 'approved' },
+      updatedAt: new Date(),
+      respondedAt: new Date(),
+    };
+
+    mockDb.query.humanInputRequests.findFirst = async () => publicRequest;
+    mockDb.update = (_table: unknown) => ({
+      set: (_updates: unknown) => ({
+        where: (_where: unknown) => ({
+          returning: async () => [updated],
+        }),
+      }),
+    });
+
+    const result = await service.resolveByToken('public-token', 'approve', {
+      comment: 'approved via link',
+    });
+
+    expect(result.success).toBe(true);
+    expect(temporalSignalCalls).toHaveLength(1);
+    expect(auditRecordCalls).toHaveLength(1);
+    expect(auditRecordCalls[0]?.[0]).toBeNull();
+    expect((auditRecordCalls[0]?.[1] as { action?: string }).action).toBe('human_input.resolve');
+    expect(auditRecordCalls[0]?.[3]).toBe(ORG_B);
   });
 });

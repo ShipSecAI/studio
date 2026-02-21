@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gte, lt, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, lt, lte, or, sql, inArray, type SQL } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { DRIZZLE_TOKEN } from '../database/database.module';
@@ -7,9 +7,9 @@ import { auditLogsTable, type AuditLogInsert, type AuditLogRecord } from '../dat
 
 export interface ListAuditLogFilters {
   organizationId: string;
-  resourceType?: string;
+  resourceType?: string | string[];
   resourceId?: string;
-  action?: string;
+  action?: string | string[];
   actorId?: string;
   from?: Date;
   to?: Date;
@@ -38,13 +38,25 @@ export class AuditLogRepository {
     conditions.push(eq(auditLogsTable.organizationId, filters.organizationId));
 
     if (filters.resourceType) {
-      conditions.push(eq(auditLogsTable.resourceType, filters.resourceType as any));
+      if (Array.isArray(filters.resourceType)) {
+        if (filters.resourceType.length > 0) {
+          conditions.push(inArray(auditLogsTable.resourceType, filters.resourceType as any[]));
+        }
+      } else {
+        conditions.push(eq(auditLogsTable.resourceType, filters.resourceType as any));
+      }
     }
     if (filters.resourceId) {
       conditions.push(eq(auditLogsTable.resourceId, filters.resourceId));
     }
     if (filters.action) {
-      conditions.push(eq(auditLogsTable.action, filters.action));
+      if (Array.isArray(filters.action)) {
+        if (filters.action.length > 0) {
+          conditions.push(inArray(auditLogsTable.action, filters.action));
+        }
+      } else {
+        conditions.push(eq(auditLogsTable.action, filters.action));
+      }
     }
     if (filters.actorId) {
       conditions.push(eq(auditLogsTable.actorId, filters.actorId));

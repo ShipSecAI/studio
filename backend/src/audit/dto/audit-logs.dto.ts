@@ -35,7 +35,7 @@ export const AuditLogEntrySchema = z.object({
 export class AuditLogEntryDto extends createZodDto(AuditLogEntrySchema) {}
 
 export const ListAuditLogsQuerySchema = z.object({
-  resourceType: AuditResourceTypeSchema.optional(),
+  resourceType: z.string().optional(),
   resourceId: z.string().optional(),
   action: z.string().optional(),
   actorId: z.string().optional(),
