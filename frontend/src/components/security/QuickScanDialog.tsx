@@ -10,17 +10,32 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Cloud, FolderGit, GitBranch, Loader2, PlayCircle, Search } from 'lucide-react';
+import {
+  ArrowLeft,
+  Cloud,
+  FolderGit,
+  GitBranch,
+  Globe,
+  Loader2,
+  PlayCircle,
+  Search,
+} from 'lucide-react';
 import { useGitHubRepositories, useTriggerScan } from '@/hooks/queries/useGithubQueries';
 import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries';
 import { useGitHubStore } from '@/store/githubStore';
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/services/api';
 import { cn } from '@/lib/utils';
-import { QUICK_SCANS, CLOUD_QUICK_SCANS, resolveScansToWorkflows } from './constants';
+import {
+  QUICK_SCANS,
+  CLOUD_QUICK_SCANS,
+  ASM_QUICK_SCANS,
+  resolveScansToWorkflows,
+} from './constants';
+import { useAsmDomains, useTriggerDomainScan, type AsmDomain } from '@/hooks/queries/useAsmQueries';
 import type { GitHubRepo } from '@/store/githubStore';
 
-type ScanCategory = 'code' | 'cloud';
+type ScanCategory = 'code' | 'cloud' | 'attack-surface';
 type WizardStep = 1 | 2 | 3;
 
 interface AwsConnection {
@@ -97,8 +112,10 @@ export function QuickScanDialog({ open, onOpenChange }: QuickScanDialogProps) {
   const [category, setCategory] = useState<ScanCategory | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
   const [selectedConnection, setSelectedConnection] = useState<AwsConnection | null>(null);
+  const [selectedDomain, setSelectedDomain] = useState<AsmDomain | null>(null);
   const [repoSearch, setRepoSearch] = useState('');
   const [connectionSearch, setConnectionSearch] = useState('');
+  const [domainSearch, setDomainSearch] = useState('');
   const [imageRef, setImageRef] = useState('');
   const [expandedScan, setExpandedScan] = useState<string | null>(null);
   const [triggering, setTriggering] = useState<string | null>(null);
@@ -108,6 +125,8 @@ export function QuickScanDialog({ open, onOpenChange }: QuickScanDialogProps) {
   const { data: repositories = [], isLoading: reposLoading } = useGitHubRepositories();
   const { data: orgConnections = [], isLoading: connectionsLoading } = useIntegrationConnections();
   const triggerScanMutation = useTriggerScan();
+  const { data: asmDomains = [], isLoading: domainsLoading } = useAsmDomains();
+  const triggerDomainScan = useTriggerDomainScan();
   const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
   const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
 
@@ -123,8 +142,10 @@ export function QuickScanDialog({ open, onOpenChange }: QuickScanDialogProps) {
       setCategory(null);
       setSelectedRepo(null);
       setSelectedConnection(null);
+      setSelectedDomain(null);
       setRepoSearch('');
       setConnectionSearch('');
+      setDomainSearch('');
       setImageRef('');
       setExpandedScan(null);
       setTriggering(null);
@@ -165,6 +186,17 @@ export function QuickScanDialog({ open, onOpenChange }: QuickScanDialogProps) {
     [systemWorkflows],
   );
 
+  const resolvedAsmScans = useMemo(
+    () => resolveScansToWorkflows(ASM_QUICK_SCANS, systemWorkflows),
+    [systemWorkflows],
+  );
+
+  const filteredDomains = useMemo(() => {
+    if (!domainSearch.trim()) return asmDomains;
+    const q = domainSearch.toLowerCase();
+    return asmDomains.filter((d) => d.domain.toLowerCase().includes(q));
+  }, [asmDomains, domainSearch]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleSelectCategory = (cat: ScanCategory) => {
@@ -182,10 +214,16 @@ export function QuickScanDialog({ open, onOpenChange }: QuickScanDialogProps) {
     setStep(3);
   };
 
+  const handleSelectDomain = (domain: AsmDomain) => {
+    setSelectedDomain(domain);
+    setStep(3);
+  };
+
   const handleBack = () => {
     if (step === 3) {
       setSelectedRepo(null);
       setSelectedConnection(null);
+      setSelectedDomain(null);
       setImageRef('');
       setExpandedScan(null);
       setStep(2);
@@ -193,9 +231,35 @@ export function QuickScanDialog({ open, onOpenChange }: QuickScanDialogProps) {
       setCategory(null);
       setSelectedRepo(null);
       setSelectedConnection(null);
+      setSelectedDomain(null);
       setRepoSearch('');
       setConnectionSearch('');
+      setDomainSearch('');
       setStep(1);
+    }
+  };
+
+  const handleAsmScan = async (workflowId: string) => {
+    if (!selectedDomain) return;
+    setTriggering(workflowId);
+    try {
+      const result = await triggerDomainScan.mutateAsync({
+        domainId: selectedDomain.id,
+      });
+      if (!result.runId) {
+        toast({ title: 'Error', description: 'No run ID returned', variant: 'destructive' });
+        return;
+      }
+      onOpenChange(false);
+      navigate(`/runs/${result.runId}`);
+    } catch (error) {
+      toast({
+        title: 'Failed to start scan',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setTriggering(null);
     }
   };
 
@@ -255,7 +319,9 @@ export function QuickScanDialog({ open, onOpenChange }: QuickScanDialogProps) {
 
   const getTitle = () => {
     if (step === 1) return 'What do you want to scan?';
-    if (step === 2) return category === 'code' ? 'Select Repository' : 'Select Cloud Account';
+    if (step === 2 && category === 'code') return 'Select Repository';
+    if (step === 2 && category === 'cloud') return 'Select Cloud Account';
+    if (step === 2 && category === 'attack-surface') return 'Select Domain';
     if (step === 3) return 'Choose Scan Type';
     return 'Quick Scan';
   };
@@ -264,9 +330,11 @@ export function QuickScanDialog({ open, onOpenChange }: QuickScanDialogProps) {
     if (step === 1) return 'Choose a scan category to get started';
     if (step === 2 && category === 'code') return 'Pick a repository to scan';
     if (step === 2 && category === 'cloud') return 'Pick an AWS account to scan';
+    if (step === 2 && category === 'attack-surface') return 'Pick a domain to scan';
     if (step === 3 && selectedRepo) return `Scanning ${selectedRepo.fullName}`;
     if (step === 3 && selectedConnection)
       return `Scanning ${selectedConnection.displayName || 'AWS Account'}`;
+    if (step === 3 && selectedDomain) return `Scanning ${selectedDomain.domain}`;
     return '';
   };
 
@@ -294,31 +362,44 @@ export function QuickScanDialog({ open, onOpenChange }: QuickScanDialogProps) {
 
         {/* Step 1: Category Selection */}
         {step === 1 && (
-          <div className="grid grid-cols-2 gap-3 py-2">
+          <div className="grid grid-cols-3 gap-3 py-2">
             <button
               type="button"
               onClick={() => handleSelectCategory('code')}
-              className="flex flex-col items-center gap-3 rounded-lg border-2 border-border p-6 text-center transition-colors hover:border-primary hover:bg-primary/5"
+              className="flex flex-col items-center gap-3 rounded-lg border-2 border-border p-4 text-center transition-colors hover:border-primary hover:bg-primary/5"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10">
                 <GitBranch className="h-6 w-6 text-blue-500" />
               </div>
               <div>
-                <p className="font-medium">Code Security</p>
-                <p className="text-xs text-muted-foreground mt-1">Secrets, SAST, Dependencies</p>
+                <p className="font-medium text-sm">Code Security</p>
+                <p className="text-xs text-muted-foreground mt-1">Secrets, SAST, Deps</p>
               </div>
             </button>
             <button
               type="button"
               onClick={() => handleSelectCategory('cloud')}
-              className="flex flex-col items-center gap-3 rounded-lg border-2 border-border p-6 text-center transition-colors hover:border-primary hover:bg-primary/5"
+              className="flex flex-col items-center gap-3 rounded-lg border-2 border-border p-4 text-center transition-colors hover:border-primary hover:bg-primary/5"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-500/10">
                 <Cloud className="h-6 w-6 text-orange-500" />
               </div>
               <div>
-                <p className="font-medium">Cloud Security</p>
-                <p className="text-xs text-muted-foreground mt-1">Misconfiguration, Containers</p>
+                <p className="font-medium text-sm">Cloud Security</p>
+                <p className="text-xs text-muted-foreground mt-1">Misconfig, Containers</p>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectCategory('attack-surface')}
+              className="flex flex-col items-center gap-3 rounded-lg border-2 border-border p-4 text-center transition-colors hover:border-primary hover:bg-primary/5"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10">
+                <Globe className="h-6 w-6 text-emerald-500" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">Attack Surface</p>
+                <p className="text-xs text-muted-foreground mt-1">Subdomains, Ports, Vulns</p>
               </div>
             </button>
           </div>
@@ -444,6 +525,64 @@ export function QuickScanDialog({ open, onOpenChange }: QuickScanDialogProps) {
                     </button>
                   );
                 })
+              )}
+            </div>
+          </div>
+        )}
+
+        {step === 2 && category === 'attack-surface' && (
+          <div className="space-y-3 py-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search domains..."
+                value={domainSearch}
+                onChange={(e) => setDomainSearch(e.target.value)}
+                className="h-8 pl-8 text-sm"
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto space-y-1">
+              {domainsLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))
+              ) : filteredDomains.length === 0 ? (
+                asmDomains.length === 0 ? (
+                  <div className="text-center py-6 space-y-3">
+                    <p className="text-sm text-muted-foreground">No domains added yet</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        onOpenChange(false);
+                        navigate('/asm/domains');
+                      }}
+                    >
+                      <Globe className="h-4 w-4 mr-2" />
+                      Add Domain
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No matching domains
+                  </p>
+                )
+              ) : (
+                filteredDomains.map((domain) => (
+                  <button
+                    key={domain.id}
+                    onClick={() => handleSelectDomain(domain)}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors"
+                  >
+                    <Globe className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{domain.domain}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {domain.assetCount} asset{domain.assetCount !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                  </button>
+                ))
               )}
             </div>
           </div>
@@ -584,6 +723,53 @@ export function QuickScanDialog({ open, onOpenChange }: QuickScanDialogProps) {
                   </div>
                 );
               })
+            )}
+          </div>
+        )}
+        {step === 3 && category === 'attack-surface' && (
+          <div className="space-y-3 py-2">
+            {resolvedAsmScans.length === 0 ? (
+              <div className="text-center py-6 space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  No ASM scan workflows found. Install them from Templates.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    onOpenChange(false);
+                    navigate('/templates');
+                  }}
+                >
+                  Browse Templates
+                </Button>
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                {resolvedAsmScans.map((scan) => {
+                  const Icon = scan.icon;
+                  const isTriggering = triggering === scan.workflowId;
+                  return (
+                    <Button
+                      key={scan.workflowId}
+                      variant="outline"
+                      className="justify-start h-auto py-3 px-4"
+                      onClick={() => handleAsmScan(scan.workflowId)}
+                      disabled={triggering !== null}
+                    >
+                      {isTriggering ? (
+                        <Loader2 className="h-5 w-5 mr-3 animate-spin" />
+                      ) : (
+                        <Icon className="h-5 w-5 mr-3 text-muted-foreground" />
+                      )}
+                      <div className="text-left">
+                        <div className="font-medium">{scan.name}</div>
+                        <div className="text-xs text-muted-foreground">{scan.description}</div>
+                      </div>
+                    </Button>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}

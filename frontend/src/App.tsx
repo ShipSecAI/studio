@@ -85,18 +85,25 @@ const IntegrationDetailPage = lazy(() =>
 const GitHubIntegrationPage = lazy(() =>
   import('@/pages/GitHubIntegrationPage').then((m) => ({ default: m.GitHubIntegrationPage })),
 );
-const SecurityDashboard = lazy(() =>
-  import('@/pages/SecurityDashboard').then((m) => ({ default: m.SecurityDashboardContent })),
-);
 const HomePage = lazy(() => import('@/pages/HomePage').then((m) => ({ default: m.HomePage })));
 const WorkflowTemplatesPage = lazy(() =>
   import('@/pages/WorkflowTemplatesPage').then((m) => ({ default: m.WorkflowTemplatesPage })),
 );
-const ReconPage = lazy(() => import('@/pages/ReconPage').then((m) => ({ default: m.ReconPage })));
+// ReconPage retained for /recon → /asm/domains redirect (handled via Navigate component)
+// const ReconPage = lazy(() => import('@/pages/ReconPage').then((m) => ({ default: m.ReconPage })));
 const CloudAccountsPage = lazy(() =>
   import('@/pages/CloudAccountsPage').then((m) => ({ default: m.CloudAccountsPage })),
 );
 const ActivityPage = lazy(() => import('@/pages/ActivityPage'));
+const DomainsPage = lazy(() =>
+  import('@/pages/asm/DomainsPage').then((m) => ({ default: m.DomainsPage })),
+);
+const AssetsPage = lazy(() =>
+  import('@/pages/asm/AssetsPage').then((m) => ({ default: m.AssetsPage })),
+);
+const AsmScansPage = lazy(() =>
+  import('@/pages/asm/AsmScansPage').then((m) => ({ default: m.AsmScansPage })),
+);
 
 function AuthIntegration({ children }: { children: React.ReactNode }) {
   useAuthStoreIntegration();
@@ -223,12 +230,14 @@ function App() {
                             <Route path="/schedules" element={<SchedulesPage />} />
                             <Route path="/action-center" element={<ActionCenterPage />} />
                             <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
-                            <Route path="/dashboards/security" element={<SecurityDashboard />} />
                             <Route path="/artifacts" element={<ArtifactLibrary />} />
                             <Route path="/mcp-library" element={<McpLibraryPage />} />
                             <Route path="/cloud/accounts" element={<CloudAccountsPage />} />
                             <Route path="/cloud/scans" element={<CloudAccountsPage />} />
-                            <Route path="/recon" element={<ReconPage />} />
+                            <Route path="/asm/domains" element={<DomainsPage />} />
+                            <Route path="/asm/assets" element={<AssetsPage />} />
+                            <Route path="/asm/scans" element={<AsmScansPage />} />
+                            <Route path="/recon" element={<Navigate to="/asm/domains" replace />} />
                             <Route path="/runs/:runId" element={<RunRedirect />} />
                             <Route
                               path="/integrations/callback/:provider"

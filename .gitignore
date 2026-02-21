@@ -51,6 +51,11 @@ CLAUDE.md
 # Testing
 coverage/
 .nyc_output/
+e2e-tests/ui/test-results/
+
+# Planning files
+.planning/
+wiki.json
 
 # Temporary files
 *.tmp
@@ -76,9 +81,3 @@ vite.config.ts.timestamp-*
 .playwright-mcp/
 .omc/
 MCP_FLOW_TRACE.md
-
-# Playwright MCP
-.playwright-mcp/
-
-# Test screenshots
-chat-*.png

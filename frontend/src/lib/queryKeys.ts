@@ -101,4 +101,14 @@ export const queryKeys = {
       ['github', getOrgScope(), 'scans', filters] as const,
     scan: (id: string) => ['github', getOrgScope(), 'scan', id] as const,
   },
+  asm: {
+    domains: (filters?: Record<string, unknown>) =>
+      ['asm', getOrgScope(), 'domains', filters] as const,
+    domain: (id: string) => ['asm', getOrgScope(), 'domain', id] as const,
+    assets: (filters?: Record<string, unknown>) =>
+      ['asm', getOrgScope(), 'assets', filters] as const,
+    asset: (id: string) => ['asm', getOrgScope(), 'asset', id] as const,
+    scans: (filters?: Record<string, unknown>) => ['asm', getOrgScope(), 'scans', filters] as const,
+    stats: () => ['asm', getOrgScope(), 'stats'] as const,
+  },
 } as const;

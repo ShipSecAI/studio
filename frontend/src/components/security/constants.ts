@@ -1,4 +1,4 @@
-import { ShieldAlert, ShieldCheck, ShieldX, Shield, Container } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, ShieldX, Shield, Container, Globe } from 'lucide-react';
 
 export const PAGE_SIZE = 25;
 
@@ -67,6 +67,16 @@ export const CLOUD_QUICK_SCANS = [
     name: 'Container Image Scan',
     description: 'Trivy — ECR image vulnerability scan',
     icon: Container,
+  },
+];
+
+export const ASM_QUICK_SCANS = [
+  {
+    slug: 'attack-surface-recon',
+    templateSlug: 'sys-attack-surface-recon',
+    name: 'Full Surface Recon',
+    description: 'Subfinder + DNSX + httpx + Naabu + Nuclei',
+    icon: Globe,
   },
 ];
 

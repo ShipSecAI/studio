@@ -6,6 +6,7 @@ import {
   Package,
   Container,
   AlertTriangle,
+  Globe,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -78,13 +79,21 @@ export const BUILT_IN_VIEWS: SecurityViewDefinition[] = [
     order: 4,
   },
   {
+    id: 'surface-security',
+    label: 'Surface Security',
+    icon: Globe,
+    builtIn: true,
+    baseFilter: { scannerTerms: ['subfinder', 'dnsx', 'httpx', 'naabu', 'nuclei', 'amass'] },
+    order: 5,
+  },
+  {
     id: 'incidents',
     label: 'Incidents',
     icon: AlertTriangle,
     builtIn: true,
     disabled: true,
     baseFilter: {},
-    order: 5,
+    order: 6,
   },
 ];
 
