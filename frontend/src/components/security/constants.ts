@@ -1,4 +1,4 @@
-import { ShieldAlert, ShieldCheck, ShieldX, Shield } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, ShieldX, Shield, Container } from 'lucide-react';
 
 export const PAGE_SIZE = 25;
 
@@ -52,3 +52,41 @@ export const CODE_SCHEDULE_SCANS = [
     icon: ShieldCheck,
   },
 ];
+
+export const CLOUD_QUICK_SCANS = [
+  {
+    slug: 'cloud-security-scan',
+    templateSlug: 'sys-cloud-security-scan',
+    name: 'Misconfiguration Scan',
+    description: 'Prowler — CIS, GDPR, HIPAA benchmarks',
+    icon: Shield,
+  },
+  {
+    slug: 'container-image-scan',
+    templateSlug: 'sys-container-image-scan',
+    name: 'Container Image Scan',
+    description: 'Trivy — ECR image vulnerability scan',
+    icon: Container,
+  },
+];
+
+interface SystemWorkflow {
+  id: string;
+  slug: string | null;
+}
+
+interface ScanDefinition {
+  templateSlug: string;
+  [key: string]: unknown;
+}
+
+export function resolveScansToWorkflows<T extends ScanDefinition>(
+  scans: T[],
+  systemWorkflows: SystemWorkflow[],
+): (T & { workflowId: string })[] {
+  return scans.flatMap((scan) => {
+    const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
+    if (!match) return [];
+    return [{ ...scan, workflowId: match.id }];
+  });
+}

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +16,7 @@ import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries
 import { useCreateSchedule, useSchedules } from '@/hooks/queries/useScheduleQueries';
 import { useToast } from '@/components/ui/use-toast';
 import { CadencePicker } from '@/components/schedules/CadencePicker';
+import { CLOUD_QUICK_SCANS, resolveScansToWorkflows } from './constants';
 
 interface AwsConnection {
   id: string;
@@ -25,21 +25,6 @@ interface AwsConnection {
   config?: Record<string, unknown>;
   status?: string;
 }
-
-const CLOUD_QUICK_SCANS = [
-  {
-    slug: 'cloud-security-scan',
-    templateSlug: 'sys-cloud-security-scan',
-    name: 'Misconfiguration Scan',
-    description: 'Prowler — CIS, GDPR, HIPAA benchmarks',
-  },
-  {
-    slug: 'container-image-scan',
-    templateSlug: 'sys-container-image-scan',
-    name: 'Container Image Scan',
-    description: 'Trivy — ECR image vulnerability scan',
-  },
-];
 
 function getLocalTimezone(): string {
   try {
@@ -118,13 +103,10 @@ export function CloudScanScheduleDialog({
     );
   }, [awsConnections, connectionSearch]);
 
-  const resolvedScans = useMemo(() => {
-    return CLOUD_QUICK_SCANS.flatMap((scan) => {
-      const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
-      if (!match) return [];
-      return [{ ...scan, workflowId: match.id }];
-    });
-  }, [systemWorkflows]);
+  const resolvedScans = useMemo(
+    () => resolveScansToWorkflows(CLOUD_QUICK_SCANS, systemWorkflows),
+    [systemWorkflows],
+  );
 
   const selectedScanDef = resolvedScans.find((s) => s.slug === selectedScan);
   const isContainerScan = selectedScan === 'container-image-scan';
@@ -185,9 +167,9 @@ export function CloudScanScheduleDialog({
         description: (
           <span>
             Cadence: {humanLabel || cronExpression} ({timezone}).{' '}
-            <Link to="/schedules" className="underline font-medium">
+            <a href="/schedules" className="underline font-medium">
               View on Schedules page
-            </Link>
+            </a>
           </span>
         ),
       });

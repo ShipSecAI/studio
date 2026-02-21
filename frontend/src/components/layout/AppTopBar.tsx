@@ -1,7 +1,9 @@
-import { useLocation, Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useLocation, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { PanelLeftClose, PanelLeftOpen, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { QuickScanDialog } from '@/components/security/QuickScanDialog';
 
 interface AppTopBarProps {
   title?: string;
@@ -295,17 +297,20 @@ export function AppTopBar({
 }
 
 function QuickScanButton({ isMobile }: { isMobile: boolean }) {
-  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
 
   return (
-    <Button
-      variant="default"
-      size={isMobile ? 'sm' : 'default'}
-      className="gap-1.5"
-      onClick={() => navigate('/github/repositories')}
-    >
-      <Zap className="h-3.5 w-3.5" />
-      <span className="hidden sm:inline">Quick Scan</span>
-    </Button>
+    <>
+      <Button
+        variant="default"
+        size={isMobile ? 'sm' : 'default'}
+        className="gap-1.5"
+        onClick={() => setOpen(true)}
+      >
+        <Zap className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Quick Scan</span>
+      </Button>
+      {open && <QuickScanDialog open={open} onOpenChange={setOpen} />}
+    </>
   );
 }
