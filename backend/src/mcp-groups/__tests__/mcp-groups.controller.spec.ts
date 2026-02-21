@@ -67,6 +67,11 @@ describe('McpGroupsController.importTemplate', () => {
     const body: ImportTemplateRequestDto = { serverCacheTokens: {} };
     await controller.importTemplate(AUTH_WITH_ORG, 'my-template', body);
 
-    expect(service.importTemplate).toHaveBeenCalledWith('my-template', 'org-123', body);
+    expect(service.importTemplate).toHaveBeenCalledWith(
+      'my-template',
+      'org-123',
+      body,
+      AUTH_WITH_ORG,
+    );
   });
 });
