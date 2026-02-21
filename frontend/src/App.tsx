@@ -68,6 +68,9 @@ const RunRedirect = lazy(() =>
 const AnalyticsSettingsPage = lazy(() =>
   import('@/pages/AnalyticsSettingsPage').then((m) => ({ default: m.AnalyticsSettingsPage })),
 );
+const SettingsPage = lazy(() =>
+  import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+);
 const GitHubPage = lazy(() =>
   import('@/pages/GitHubPage').then((m) => ({ default: m.GitHubPage })),
 );
@@ -201,6 +204,7 @@ function App() {
                           <Route path="/schedules" element={<SchedulesPage />} />
                           <Route path="/action-center" element={<ActionCenterPage />} />
                           <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
+                          <Route path="/settings/*" element={<SettingsPage />} />
                           <Route path="/artifacts" element={<ArtifactLibrary />} />
                           <Route path="/mcp-library" element={<McpLibraryPage />} />
                           <Route path="/github" element={<GitHubPage />} />

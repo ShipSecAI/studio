@@ -27,6 +27,7 @@ import { SchedulesModule } from './schedules/schedules.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { McpModule } from './mcp/mcp.module';
 import { StudioMcpModule } from './studio-mcp/studio-mcp.module';
+import { AuditModule } from './audit/audit.module';
 import { ChatModule } from './chat/chat.module';
 
 import { ApiKeysModule } from './api-keys/api-keys.module';
@@ -55,6 +56,7 @@ const coreModules = [
   McpModule,
   GitHubAppModule,
   StudioMcpModule,
+  AuditModule,
   ChatModule,
 ];
 

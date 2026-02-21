@@ -37,6 +37,9 @@ export const queryKeys = {
   apiKeys: {
     all: () => ['apiKeys', getOrgScope()] as const,
   },
+  auditLogs: {
+    all: (filters?: Record<string, unknown>) => ['auditLogs', getOrgScope(), filters] as const,
+  },
   webhooks: {
     all: (filters?: Record<string, unknown>) => ['webhooks', getOrgScope(), filters] as const,
     detail: (id: string) => ['webhooks', getOrgScope(), id] as const,
