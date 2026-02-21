@@ -15,6 +15,9 @@ export interface ApiKeyPermissions {
     run: boolean;
     list: boolean;
     read: boolean;
+    create?: boolean;
+    update?: boolean;
+    delete?: boolean;
   };
   runs: {
     read: boolean;
