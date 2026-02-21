@@ -8,7 +8,7 @@ test.describe('Integrations Page', () => {
 
     const providers = ['AWS', 'GitHub', 'Slack'];
     for (const provider of providers) {
-      await expect(page.getByText(provider)).toBeVisible();
+      await expect(page.getByRole('heading', { name: provider })).toBeVisible();
     }
   });
 

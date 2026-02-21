@@ -7,7 +7,7 @@ test.describe('GitHub Integration Page', () => {
     await waitForPageReady(page);
 
     await expect(page.locator('main')).toBeVisible();
-    await expect(page.getByText('GitHub')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'GitHub' })).toBeVisible();
   });
 
   test('shows setup instructions', async ({ page, consoleMonitor }) => {

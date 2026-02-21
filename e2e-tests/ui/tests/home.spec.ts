@@ -13,8 +13,8 @@ test.describe('Home Page', () => {
     await page.goto('/?stage=new');
     await waitForPageReady(page);
 
-    await expect(page.getByText('Get Started')).toBeVisible();
-    await expect(page.locator('main')).toContainText(/Welcome|Get Started|ShipSec/i);
+    await expect(page.getByText('Getting Started')).toBeVisible();
+    await expect(page.locator('main')).toContainText(/Welcome to ShipSec Studio/i);
   });
 
   test('checklist items link to correct pages', async ({ page, consoleMonitor }) => {
@@ -22,10 +22,9 @@ test.describe('Home Page', () => {
     await waitForPageReady(page);
 
     // Checklist should have links to integration pages
-    const connectGithub = page.getByText(/connect github/i);
-    if (await connectGithub.isVisible().catch(() => false)) {
-      const link = connectGithub.locator('xpath=ancestor::a[1]').or(connectGithub);
-      const href = await link.getAttribute('href');
+    const connectGithubLink = page.getByRole('link', { name: /connect github/i }).first();
+    if (await connectGithubLink.isVisible().catch(() => false)) {
+      const href = await connectGithubLink.getAttribute('href');
       if (href) expect(href).toContain('/github');
     }
   });
