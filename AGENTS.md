@@ -27,6 +27,16 @@ just instance show     # Print active instance number
 just instance use 5    # Set active instance for this workspace
 ```
 
+**Instance env files**:
+
+```bash
+just instance-init 5           # Initialize .instances/instance-5/*.env
+just instance-env init 5       # Create from app/.env or app/.env.example
+just instance-env update 5     # Re-apply instance-scoped vars
+just instance-env copy 5 6     # Copy env setup from instance 5 -> 6
+just instance-env show 6       # Show file status and computed values
+```
+
 **URLs**:
 
 - Frontend: `http://localhost:${5173 + instance*100}`
@@ -43,6 +53,7 @@ Local development runs as **multiple app instances** (PM2) on top of **one share
 - Per-instance apps: `shipsec-{frontend,backend,worker}-N`.
 - Isolation is via per-instance DB + Temporal namespace/task queue + Kafka topic suffixing + instance-scoped Kafka consumer groups/client IDs (not per-instance infra containers).
 - The workspace can have an **active instance** (stored in `.shipsec-instance`, gitignored).
+- Instance env files are stored at `.instances/instance-N/{backend,worker,frontend}.env` and can be managed with `just instance-env ...`.
 
 **Agent rule:** before running any dev commands, ensure you’re targeting the intended instance.
 
@@ -50,7 +61,7 @@ Local development runs as **multiple app instances** (PM2) on top of **one share
 - If the task is ambiguous (logs, curl, E2E, “run locally”, etc.), ask the user which instance to use.
 - If the user says “use instance N”, prefer either:
   - `just instance use N` then run `just dev` / `bun run test:e2e`, or
-  - explicit instance invocation (`just dev N ...`) for one-off commands.
+  - explicit env override (`SHIPSEC_INSTANCE=N just dev ...`) for one-off commands.
 
 **Ports / URLs**
 
@@ -61,7 +72,7 @@ Local development runs as **multiple app instances** (PM2) on top of **one share
 **E2E tests**
 
 - E2E targets the backend for `SHIPSEC_INSTANCE` (or the active instance).
-- When asked to run E2E, confirm the instance and ensure that instance is running: `just dev N start`.
+- When asked to run E2E, confirm the instance and ensure that instance is running: `SHIPSEC_INSTANCE=N just dev start` (or `just instance use N` then `just dev start`).
 
 **Keep docs in sync**
 

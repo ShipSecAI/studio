@@ -56,6 +56,7 @@ describe('StudioMcpController', () => {
     apiKeyPermissions: {
       workflows: { run: true, list: true, read: true },
       runs: { read: true, cancel: true },
+      audit: { read: true },
     },
   };
 
@@ -68,6 +69,7 @@ describe('StudioMcpController', () => {
     apiKeyPermissions: {
       workflows: { run: true, list: true, read: true },
       runs: { read: true, cancel: true },
+      audit: { read: true },
     },
   };
 

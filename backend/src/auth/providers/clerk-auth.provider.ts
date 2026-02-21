@@ -69,8 +69,7 @@ export class ClerkAuthProvider implements AuthProviderStrategy {
 
   private async verifyClerkToken(token: string): Promise<ClerkJwt> {
     try {
-      // Log token preview for debugging (first 20 chars)
-      this.logger.log(`[AUTH] Verifying token (preview: ${token.substring(0, 20)}...)`);
+      this.logger.log('[AUTH] Verifying token');
 
       // Add clock skew tolerance to handle server clock differences
       // Clerk tokens can have iat in the future due to clock skew between servers
@@ -88,7 +87,6 @@ export class ClerkAuthProvider implements AuthProviderStrategy {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`[AUTH] Clerk token verification failed: ${message}`);
-      this.logger.error(`[AUTH] Token preview: ${token.substring(0, 50)}...`);
       this.logger.error(`[AUTH] Secret key configured: ${this.config.secretKey ? 'yes' : 'no'}`);
       throw new UnauthorizedException('Invalid Clerk token');
     }

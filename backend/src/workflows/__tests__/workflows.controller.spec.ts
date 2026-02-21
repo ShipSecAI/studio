@@ -176,8 +176,6 @@ describe('WorkflowsController', () => {
         id,
         name: input.name,
         description: input.description ?? null,
-        icon: null,
-        iconColor: null,
         graph: input,
         compiledDefinition: null,
         lastRun: null,
@@ -185,8 +183,6 @@ describe('WorkflowsController', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         organizationId,
-        isSystem: false,
-        templateId: null,
       };
       repositoryStore.set(id, record);
       return record;
@@ -343,10 +339,6 @@ describe('WorkflowsController', () => {
       isEnabled: vi.fn().mockReturnValue(true),
     };
 
-    const systemWorkflowsServiceMock = {
-      ensureSystemWorkflows: vi.fn().mockResolvedValue(undefined),
-    };
-
     const temporalStub: Pick<
       TemporalService,
       | 'startWorkflow'
@@ -394,7 +386,7 @@ describe('WorkflowsController', () => {
       traceRepositoryStub as any,
       temporalStub as TemporalService,
       analyticsServiceMock as any,
-      systemWorkflowsServiceMock as any,
+      { record: vi.fn() } as any,
     );
     const traceService = new TraceService({
       listByRunId: async () => [],

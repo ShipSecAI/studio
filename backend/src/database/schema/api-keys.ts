@@ -26,28 +26,6 @@ export interface ApiKeyPermissions {
   audit: {
     read: boolean;
   };
-  artifacts?: {
-    read?: boolean;
-    delete?: boolean;
-  };
-  schedules?: {
-    list?: boolean;
-    read?: boolean;
-    create?: boolean;
-    update?: boolean;
-    delete?: boolean;
-  };
-  secrets?: {
-    list?: boolean;
-    read?: boolean;
-    create?: boolean;
-    update?: boolean;
-    delete?: boolean;
-  };
-  'human-inputs'?: {
-    read?: boolean;
-    resolve?: boolean;
-  };
 }
 
 export const apiKeys = pgTable(

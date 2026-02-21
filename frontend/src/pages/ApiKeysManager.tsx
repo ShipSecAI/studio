@@ -49,6 +49,9 @@ const INITIAL_FORM: CreateApiKeyInput = {
       read: true, // Default to allowing reading runs
       cancel: false,
     },
+    audit: {
+      read: false,
+    },
   },
 };
 
@@ -107,7 +110,7 @@ export function ApiKeysManager() {
   };
 
   const handlePermissionChange = (
-    category: 'workflows' | 'runs',
+    category: 'workflows' | 'runs' | 'audit',
     action: string,
     checked: boolean,
   ) => {
@@ -383,7 +386,7 @@ export function ApiKeysManager() {
 
               <div className="space-y-3">
                 <Label>Permissions</Label>
-                <div className="grid grid-cols-2 gap-4 border p-3 rounded-md">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border p-3 rounded-md">
                   <div className="space-y-2">
                     <Label className="text-xs uppercase text-muted-foreground font-semibold">
                       Workflows
@@ -452,6 +455,24 @@ export function ApiKeysManager() {
                       />
                       <Label htmlFor="perm-run-cancel" className="font-normal text-sm">
                         Cancel Runs
+                      </Label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase text-muted-foreground font-semibold">
+                      Audit
+                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="perm-audit-read"
+                        checked={formState.permissions.audit.read}
+                        onCheckedChange={(checked) =>
+                          handlePermissionChange('audit', 'read', checked as boolean)
+                        }
+                      />
+                      <Label htmlFor="perm-audit-read" className="font-normal text-sm">
+                        Read Audit Logs
                       </Label>
                     </div>
                   </div>
