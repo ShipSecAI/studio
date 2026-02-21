@@ -19,6 +19,7 @@ const routePrefetchMap: Record<string, PrefetchFn> = {
   '/api-keys': () => void import('@/pages/ApiKeysManager'),
   '/mcp-library': () => void import('@/pages/McpLibraryPage'),
   '/analytics-settings': () => void import('@/pages/AnalyticsSettingsPage'),
+  '/settings': () => void import('@/pages/SettingsPage'),
 };
 
 /** Prefetch all sidebar route chunks during browser idle time. */
