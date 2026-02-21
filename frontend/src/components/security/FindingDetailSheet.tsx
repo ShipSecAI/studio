@@ -60,7 +60,9 @@ function SeverityBadge({ severity }: { severity: string }) {
         ? 'warning'
         : s === 'medium'
           ? 'secondary'
-          : 'outline';
+          : s === 'info'
+            ? 'info'
+            : 'outline';
   return <Badge variant={variant}>{severity}</Badge>;
 }
 

@@ -566,7 +566,7 @@ function cloudSecurityScanTemplate(): SeedTemplate {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 8: Attack Surface Recon
-// Entry Point → Subfinder → DNSx → [HTTPx, Naabu] → Nuclei → Normalize → [Analytics, Slack]
+// Entry Point → Subfinder → DNSx → HTTPx → Dedupe+Enrich → Analytics
 // ──────────────────────────────────────────────────────────────────────────────
 function attackSurfaceReconTemplate(): SeedTemplate {
   resetCounter();
@@ -574,35 +574,31 @@ function attackSurfaceReconTemplate(): SeedTemplate {
   const subfinder = nid('node');
   const dnsx = nid('node');
   const httpx = nid('node');
-  const naabu = nid('node');
-  const nuclei = nid('node');
+  const dedupe = nid('node');
   const analytics = nid('node');
 
   return {
     name: 'Attack Surface Recon',
     slug: 'sys-attack-surface-recon',
     description:
-      'Full recon pipeline: subdomain discovery, DNS resolution, HTTP probing, port scanning, and vulnerability scanning.',
+      'Recon pipeline: subdomain discovery, DNS resolution, HTTP probing, and deduplicated enrichment.',
     category: 'attack-surface',
     icon: 'globe',
     isFeatured: true,
     isDefault: true,
     graph: {
       name: 'Attack Surface Recon',
-      description: 'Domain → Subdomains → Ports → Vulns',
+      description: 'Domain → Subdomains → DNS → HTTP → Dedupe',
       nodes: [
         makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
           runtimeInputs: [],
         }),
         makeNode(subfinder, 'shipsec.subfinder.run', 'Subfinder', 300, 0),
         makeNode(dnsx, 'shipsec.dnsx.run', 'DNSx', 600, 0),
-        makeNode(httpx, 'shipsec.httpx.scan', 'HTTPx', 900, -100),
-        makeNode(naabu, 'shipsec.naabu.scan', 'Naabu', 900, 100),
-        makeNode(nuclei, 'shipsec.nuclei.scan', 'Nuclei', 1200, 0, {
-          severityFilter: ['low', 'medium', 'high', 'critical'],
-        }),
+        makeNode(httpx, 'shipsec.httpx.scan', 'HTTPx', 900, -80, { techDetect: true }),
+        makeNode(dedupe, 'core.asm.recon-dedupe', 'Dedupe + Enrich', 1200, 0),
         makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1500, 0, {
-          dataInputs: [{ id: 'input1', label: 'ASM Findings', sourceTag: 'nuclei' }],
+          dataInputs: [{ id: 'input1', label: 'Recon Assets', sourceTag: 'asm-recon' }],
         }),
       ],
       edges: [
@@ -610,13 +606,13 @@ function attackSurfaceReconTemplate(): SeedTemplate {
         makeEdge('e1', entryPoint, subfinder),
         // Subfinder → DNSx (pass discovered subdomains)
         makeEdge('e2', subfinder, dnsx, 'subdomains', 'domains'),
-        // DNSx → HTTPx + Naabu (pass resolved hosts)
+        // DNSx → HTTPx (pass resolved hosts)
         makeEdge('e3', dnsx, httpx, 'resolvedHosts', 'targets'),
-        makeEdge('e4', dnsx, naabu, 'resolvedHosts', 'targets'),
-        // DNSx → Nuclei (pass resolved hosts directly for vuln scanning)
-        makeEdge('e5', dnsx, nuclei, 'resolvedHosts', 'targets'),
-        // Nuclei → Analytics (use results port directly, bypass normalize)
-        makeEdge('e6', nuclei, analytics, 'results', 'input1'),
+        // DNSx + HTTPx → Dedupe + Enrich
+        makeEdge('e4', dnsx, dedupe, 'results', 'dnsResults'),
+        makeEdge('e5', httpx, dedupe, 'results', 'httpResults'),
+        // Dedupe + Enrich → Analytics
+        makeEdge('e6', dedupe, analytics, 'results', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.6 },
     },

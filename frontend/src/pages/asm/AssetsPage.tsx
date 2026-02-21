@@ -1,16 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
-  Server,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Globe,
-  Wifi,
-  FileText,
-  Lock,
-} from 'lucide-react';
+import { Server, Search, ChevronLeft, ChevronRight, Globe, Code2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -23,37 +13,32 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  useAsmAssets,
-  useAsmAsset,
+  useAsmAssetsFromOpenSearch,
   useAsmDomains,
-  type AsmAsset,
+  type AsmAssetHit,
 } from '@/hooks/queries/useAsmQueries';
-
-const ASSET_TYPES = [
-  'subdomain',
-  'web_app',
-  'api',
-  'ip_address',
-  'certificate',
-  'open_port',
-  'dns_record',
-  'dangling_cname',
-] as const;
-
-const TYPE_LABELS: Record<string, string> = {
-  subdomain: 'Subdomain',
-  web_app: 'Web App',
-  api: 'API',
-  ip_address: 'IP Address',
-  certificate: 'Certificate',
-  open_port: 'Open Port',
-  dns_record: 'DNS Record',
-  dangling_cname: 'Dangling CNAME',
-};
 
 const PAGE_SIZE = 25;
 
-function formatDate(dateStr: string): string {
+const SCANNER_LABELS: Record<string, string> = {
+  dnsx: 'DNS',
+  httpx: 'HTTP',
+  nuclei: 'Nuclei',
+  'asm.recon': 'Recon',
+};
+
+function getScannerLabels(asset: AsmAssetHit): string[] {
+  if (Array.isArray(asset.scanner_labels) && asset.scanner_labels.length > 0) {
+    return asset.scanner_labels;
+  }
+  if (Array.isArray(asset.source_scanners) && asset.source_scanners.length > 0) {
+    return asset.source_scanners;
+  }
+  return [asset.scanner];
+}
+
+function formatDate(dateStr: string | undefined): string {
+  if (!dateStr) return '-';
   return new Date(dateStr).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
@@ -61,13 +46,14 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function AssetDetailPanel({ asset, onClose }: { asset: AsmAsset; onClose: () => void }) {
+function AssetDetailPanel({ asset, onClose }: { asset: AsmAssetHit; onClose: () => void }) {
   return (
     <div className="w-[460px] border-l bg-background overflow-y-auto flex-shrink-0">
       <div className="sticky top-0 bg-background border-b px-4 py-3 flex items-center justify-between z-10">
-        <h3 className="font-semibold truncate">{asset.hostname}</h3>
+        <h3 className="font-semibold truncate">{asset.host}</h3>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
-          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+          &times;
         </Button>
       </div>
 
@@ -79,88 +65,67 @@ function AssetDetailPanel({ asset, onClose }: { asset: AsmAsset; onClose: () => 
           </h4>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Type</span>
-              <Badge variant="outline">{TYPE_LABELS[asset.type] ?? asset.type}</Badge>
+              <span className="text-muted-foreground">Scanner</span>
+              <div className="flex flex-wrap justify-end gap-1">
+                {getScannerLabels(asset).map((scanner) => (
+                  <Badge key={scanner} variant="outline">
+                    {SCANNER_LABELS[scanner] ?? scanner}
+                  </Badge>
+                ))}
+              </div>
             </div>
-            {asset.ipAddresses && asset.ipAddresses.length > 0 && (
+            {asset.url && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">URL</span>
+                <span className="font-mono text-xs truncate max-w-[280px]">{asset.url}</span>
+              </div>
+            )}
+            {asset.ip && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">IP</span>
-                <span className="font-mono text-xs">{asset.ipAddresses.join(', ')}</span>
+                <span className="font-mono text-xs">{asset.ip}</span>
               </div>
             )}
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">First Seen</span>
-              <span>{formatDate(asset.firstSeen)}</span>
-            </div>
+            {asset.status_code != null && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Status Code</span>
+                <Badge variant={asset.status_code < 400 ? 'secondary' : 'destructive'}>
+                  {asset.status_code}
+                </Badge>
+              </div>
+            )}
+            {asset.title && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Title</span>
+                <span className="truncate max-w-[280px]">{asset.title}</span>
+              </div>
+            )}
+            {asset.webserver && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Web Server</span>
+                <span className="font-mono text-xs">{asset.webserver}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Last Seen</span>
-              <span>{formatDate(asset.lastSeen)}</span>
+              <span>{formatDate(asset['@timestamp'] as string)}</span>
             </div>
-            {asset.riskScore && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Risk Score</span>
-                <span className="font-medium">{asset.riskScore}</span>
-              </div>
-            )}
           </div>
         </section>
 
         {/* Technology */}
-        {asset.techStack && asset.techStack.length > 0 && (
+        {asset.technologies && asset.technologies.length > 0 && (
           <section>
             <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
-              <Server className="h-3.5 w-3.5" /> Technology
+              <Code2 className="h-3.5 w-3.5" /> Technology
             </h4>
             <div className="flex flex-wrap gap-1.5">
-              {asset.techStack.map((tech) => (
+              {asset.technologies.map((tech) => (
                 <Badge key={tech} variant="secondary" className="text-xs">
                   {tech}
                 </Badge>
               ))}
             </div>
-          </section>
-        )}
-
-        {/* Open Ports */}
-        {asset.ports && asset.ports.length > 0 && (
-          <section>
-            <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
-              <Wifi className="h-3.5 w-3.5" /> Open Ports
-            </h4>
-            <div className="space-y-1 text-sm">
-              {asset.ports.map((p) => (
-                <div key={p.port} className="flex justify-between font-mono text-xs">
-                  <span>
-                    {p.port}/{p.protocol}
-                  </span>
-                  <span className="text-muted-foreground">{p.service}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* TLS Info */}
-        {asset.tlsInfo && Object.keys(asset.tlsInfo).length > 0 && (
-          <section>
-            <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
-              <Lock className="h-3.5 w-3.5" /> Certificate
-            </h4>
-            <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
-              {JSON.stringify(asset.tlsInfo, null, 2)}
-            </pre>
-          </section>
-        )}
-
-        {/* DNS Records */}
-        {asset.dnsRecords && Object.keys(asset.dnsRecords).length > 0 && (
-          <section>
-            <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
-              <FileText className="h-3.5 w-3.5" /> DNS Records
-            </h4>
-            <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
-              {JSON.stringify(asset.dnsRecords, null, 2)}
-            </pre>
           </section>
         )}
       </div>
@@ -180,29 +145,34 @@ function LoadingSkeleton() {
 
 export function AssetsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [search, setSearch] = useState('');
-  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedAsset, setSelectedAsset] = useState<AsmAssetHit | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const domainId = searchParams.get('domainId') ?? undefined;
-  const type = searchParams.get('type') ?? undefined;
+  const domainFilter = searchParams.get('domain') ?? undefined;
+  const scannerFilter = searchParams.get('scanner') ?? undefined;
   const page = parseInt(searchParams.get('page') ?? '0', 10);
-  const sortBy = (searchParams.get('sortBy') as any) ?? 'lastSeen';
-  const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') ?? 'desc';
 
-  const { data, isLoading } = useAsmAssets({
-    limit: PAGE_SIZE,
-    offset: page * PAGE_SIZE,
-    domainId,
-    type,
-    search: search || undefined,
-    sortBy,
-    sortOrder,
-  });
+  // Debounce search input
+  useEffect(() => {
+    clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+    }, 300);
+    return () => clearTimeout(debounceTimer.current);
+  }, [searchInput]);
 
   const { data: domains } = useAsmDomains();
-  const { data: selectedAsset } = useAsmAsset(selectedAssetId);
 
-  const assets = data?.assets ?? [];
+  const { data, isLoading } = useAsmAssetsFromOpenSearch({
+    scanner: scannerFilter ? [scannerFilter] : undefined,
+    search: debouncedSearch || undefined,
+    page,
+    domain: domainFilter,
+  });
+
+  const hits = data?.hits ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -225,7 +195,7 @@ export function AssetsPage() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Assets</h1>
               <p className="text-muted-foreground text-sm mt-1">
-                {total} asset{total !== 1 ? 's' : ''} discovered across all domains
+                {total} unique host{total !== 1 ? 's' : ''} discovered across all domains
               </p>
             </div>
           </div>
@@ -233,8 +203,8 @@ export function AssetsPage() {
           {/* Filter bar */}
           <div className="flex flex-wrap gap-3 mb-4">
             <Select
-              value={domainId ?? '__all__'}
-              onValueChange={(v) => setFilterParam('domainId', v === '__all__' ? null : v)}
+              value={domainFilter ?? '__all__'}
+              onValueChange={(v) => setFilterParam('domain', v === '__all__' ? null : v)}
             >
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="All Domains" />
@@ -242,7 +212,7 @@ export function AssetsPage() {
               <SelectContent>
                 <SelectItem value="__all__">All Domains</SelectItem>
                 {domains?.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
+                  <SelectItem key={d.id} value={d.domain}>
                     {d.domain}
                   </SelectItem>
                 ))}
@@ -250,19 +220,16 @@ export function AssetsPage() {
             </Select>
 
             <Select
-              value={type ?? '__all__'}
-              onValueChange={(v) => setFilterParam('type', v === '__all__' ? null : v)}
+              value={scannerFilter ?? '__all__'}
+              onValueChange={(v) => setFilterParam('scanner', v === '__all__' ? null : v)}
             >
               <SelectTrigger className="w-40">
-                <SelectValue placeholder="All Types" />
+                <SelectValue placeholder="All Scanners" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__all__">All Types</SelectItem>
-                {ASSET_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {TYPE_LABELS[t]}
-                  </SelectItem>
-                ))}
+                <SelectItem value="__all__">All Scanners</SelectItem>
+                <SelectItem value="dnsx">DNS (DNSx)</SelectItem>
+                <SelectItem value="httpx">HTTP (HTTPx)</SelectItem>
               </SelectContent>
             </Select>
 
@@ -270,8 +237,8 @@ export function AssetsPage() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search hosts..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-9"
               />
             </div>
@@ -280,7 +247,7 @@ export function AssetsPage() {
           {/* Table */}
           {isLoading ? (
             <LoadingSkeleton />
-          ) : assets.length === 0 ? (
+          ) : hits.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="rounded-full bg-muted p-4 mb-4">
                 <Server className="h-8 w-8 text-muted-foreground" />
@@ -297,39 +264,60 @@ export function AssetsPage() {
                   <thead>
                     <tr className="border-b bg-muted/50">
                       <th className="text-left px-4 py-3 font-medium">Host</th>
-                      <th className="text-left px-4 py-3 font-medium">Type</th>
+                      <th className="text-left px-4 py-3 font-medium">Scanner</th>
                       <th className="text-left px-4 py-3 font-medium hidden md:table-cell">
-                        Technology
+                        Status
                       </th>
                       <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">
-                        Ports
+                        Technology
                       </th>
+                      <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">IP</th>
                       <th className="text-left px-4 py-3 font-medium hidden sm:table-cell">
-                        First Seen
+                        Web Server
                       </th>
                       <th className="text-left px-4 py-3 font-medium">Last Seen</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {assets.map((asset) => (
+                    {hits.map((hit) => (
                       <tr
-                        key={asset.id}
+                        key={hit._id}
                         className={`border-b hover:bg-muted/30 cursor-pointer transition-colors ${
-                          selectedAssetId === asset.id ? 'bg-muted/50' : ''
+                          selectedAsset?._id === hit._id ? 'bg-muted/50' : ''
                         }`}
-                        onClick={() => setSelectedAssetId(asset.id)}
+                        onClick={() => setSelectedAsset(hit)}
                       >
                         <td className="px-4 py-3 font-mono text-xs truncate max-w-[300px]">
-                          {asset.hostname}
+                          {hit.host}
                         </td>
                         <td className="px-4 py-3">
-                          <Badge variant="outline" className="text-xs">
-                            {TYPE_LABELS[asset.type] ?? asset.type}
-                          </Badge>
+                          <div className="flex flex-wrap gap-1">
+                            {getScannerLabels(hit).map((scanner) => (
+                              <Badge
+                                key={`${hit._id}-${scanner}`}
+                                variant="outline"
+                                className="text-xs"
+                              >
+                                {SCANNER_LABELS[scanner] ?? scanner}
+                              </Badge>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-4 py-3 hidden md:table-cell">
+                          {hit.status_code != null ? (
+                            <Badge
+                              variant={hit.status_code < 400 ? 'secondary' : 'destructive'}
+                              className="text-xs"
+                            >
+                              {hit.status_code}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 hidden lg:table-cell">
                           <div className="flex gap-1 flex-wrap">
-                            {asset.techStack?.slice(0, 3).map((t) => (
+                            {hit.technologies?.slice(0, 3).map((t) => (
                               <Badge key={t} variant="secondary" className="text-xs">
                                 {t}
                               </Badge>
@@ -337,13 +325,13 @@ export function AssetsPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 hidden lg:table-cell font-mono text-xs text-muted-foreground">
-                          {asset.ports?.map((p) => p.port).join(', ') || '-'}
+                          {hit.ip ?? '-'}
                         </td>
-                        <td className="px-4 py-3 hidden sm:table-cell text-muted-foreground">
-                          {formatDate(asset.firstSeen)}
+                        <td className="px-4 py-3 hidden sm:table-cell text-muted-foreground text-xs">
+                          {hit.webserver ?? '-'}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
-                          {formatDate(asset.lastSeen)}
+                          {formatDate(hit['@timestamp'] as string)}
                         </td>
                       </tr>
                     ))}
@@ -386,7 +374,7 @@ export function AssetsPage() {
 
       {/* Detail panel */}
       {selectedAsset && (
-        <AssetDetailPanel asset={selectedAsset} onClose={() => setSelectedAssetId(null)} />
+        <AssetDetailPanel asset={selectedAsset} onClose={() => setSelectedAsset(null)} />
       )}
     </div>
   );

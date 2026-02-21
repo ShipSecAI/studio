@@ -18,7 +18,14 @@ export function TimeSeriesChart({
   timeRange,
   onTimeRangeChange,
 }: {
-  data: { date: string; critical: number; high: number; medium: number; low: number }[];
+  data: {
+    date: string;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    info: number;
+  }[];
   loading: boolean;
   timeRange: string;
   onTimeRangeChange: (range: string) => void;

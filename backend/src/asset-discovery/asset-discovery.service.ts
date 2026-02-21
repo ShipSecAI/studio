@@ -41,7 +41,7 @@ export class AssetDiscoveryService {
 
   async listSyncRuns(
     auth: AuthContext,
-    options: { integrationId?: string; limit?: number; page?: number } = {},
+    options: { integrationId?: string; limit?: number; page?: number; offset?: number } = {},
   ) {
     const organizationId = this.requireOrganizationId(auth);
     return this.syncRunsRepo.listByOrg(organizationId, options);

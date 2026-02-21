@@ -67,6 +67,7 @@ export interface SeverityCounts {
   high: number;
   medium: number;
   low: number;
+  info: number;
 }
 
 export interface TimeSeriesBucket {
@@ -75,6 +76,7 @@ export interface TimeSeriesBucket {
   high: number;
   medium: number;
   low: number;
+  info: number;
 }
 
 export interface AggBucket {
@@ -133,6 +135,7 @@ export const INITIAL_SEVERITY_COUNTS: SeverityCounts = {
   high: 0,
   medium: 0,
   low: 0,
+  info: 0,
 };
 
 // --- Helpers ---
@@ -145,9 +148,9 @@ export function buildBaseFilter(
 
   if (viewFilter?.scannerTerms && viewFilter.scannerTerms.length > 0) {
     if (viewFilter.scannerTerms.length === 1) {
-      must.push({ term: { scanner: viewFilter.scannerTerms[0] } });
+      must.push({ term: { 'scanner.keyword': viewFilter.scannerTerms[0] } });
     } else {
-      must.push({ terms: { scanner: viewFilter.scannerTerms } });
+      must.push({ terms: { 'scanner.keyword': viewFilter.scannerTerms } });
     }
   }
 
@@ -167,11 +170,11 @@ export function buildBaseFilter(
   }
 
   if (filters.severity.length > 0) {
-    filter.push({ terms: { severity: filters.severity } });
+    filter.push({ terms: { 'severity.keyword': filters.severity } });
   }
 
   if (filters.status.length > 0) {
-    filter.push({ terms: { status: filters.status } });
+    filter.push({ terms: { 'status.keyword': filters.status } });
   }
 
   if (filters.region.length > 0) {
@@ -197,7 +200,7 @@ export function buildBaseFilter(
   }
 
   if (filters.scanner.length > 0) {
-    filter.push({ terms: { scanner: filters.scanner } });
+    filter.push({ terms: { 'scanner.keyword': filters.scanner } });
   }
 
   if (filters.repository.length > 0) {
@@ -235,19 +238,18 @@ export function buildBaseFilter(
 }
 
 // Fields explicitly mapped as keyword in the index template — sort directly without .keyword
-const KEYWORD_SORT_FIELDS = new Set([
-  'severity',
-  'status',
-  'scanner',
-  'region',
-  'service_name',
-  'check_name',
-]);
+const KEYWORD_SORT_FIELDS = new Set(['region', 'service_name', 'check_name']);
 
 export function buildSort(filters: SecurityDashboardFilters): Record<string, any>[] {
   let field: string;
   if (filters.sort === '@timestamp') {
     field = '@timestamp';
+  } else if (
+    filters.sort === 'severity' ||
+    filters.sort === 'status' ||
+    filters.sort === 'scanner'
+  ) {
+    field = `${filters.sort}.keyword`;
   } else if (KEYWORD_SORT_FIELDS.has(filters.sort)) {
     field = filters.sort;
   } else {

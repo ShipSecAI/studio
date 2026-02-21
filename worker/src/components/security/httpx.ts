@@ -14,7 +14,7 @@ import {
   analyticsResultSchema,
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
-import { createIsolatedVolume } from '../../utils/isolated-volume';
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
 const inputSchema = inputs({
   targets: port(
@@ -122,6 +122,18 @@ const parameterSchema = parameters({
       editor: 'text',
       placeholder: '/admin',
       description: 'Append a specific path to each target during probing.',
+    },
+  ),
+  techDetect: param(
+    z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Enable technology detection to identify web frameworks, CMS, and libraries'),
+    {
+      label: 'Tech Detection',
+      editor: 'boolean',
+      description: 'Detect technologies (frameworks, CMS, libraries) on responsive endpoints.',
     },
   ),
 });
@@ -274,6 +286,7 @@ const definition = defineComponent({
       followRedirects: parsedParams.followRedirects ?? false,
       tlsProbe: parsedParams.tlsProbe ?? false,
       preferHttps: parsedParams.preferHttps ?? false,
+      techDetect: parsedParams.techDetect ?? false,
     };
 
     if (runnerParams.targets.length === 0) {
@@ -309,7 +322,7 @@ const definition = defineComponent({
     });
 
     const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const volume = createIsolatedVolume(tenantId, context.runId);
+    const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
     try {
       const targets = Array.from(
@@ -344,6 +357,9 @@ const definition = defineComponent({
       }
       if (runnerParams.preferHttps) {
         httpxArgs.push('-prefer-https');
+      }
+      if (runnerParams.techDetect) {
+        httpxArgs.push('-td');
       }
 
       const runnerConfig = {
@@ -419,6 +435,7 @@ const definition = defineComponent({
         title: finding.title,
         webserver: finding.webserver,
         technologies: finding.technologies,
+        ip: finding.ip,
       }));
 
       const output: Output = {

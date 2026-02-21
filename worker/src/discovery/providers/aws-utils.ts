@@ -93,6 +93,8 @@ export function sanitizeMetadata(raw: Record<string, unknown>): {
       return value;
     }
 
+    if (value instanceof Date) return value.toISOString();
+
     if (Array.isArray(value)) {
       if (value.length > METADATA_MAX_ARRAY) {
         truncated = true;
@@ -109,8 +111,6 @@ export function sanitizeMetadata(raw: Record<string, unknown>): {
       return obj;
     }
 
-    // Dates, functions, etc.
-    if (value instanceof Date) return value.toISOString();
     return String(value);
   }
 

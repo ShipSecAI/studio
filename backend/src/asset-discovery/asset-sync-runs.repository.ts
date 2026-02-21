@@ -54,10 +54,11 @@ export class AssetSyncRunsRepository {
       integrationId?: string;
       limit?: number;
       page?: number;
+      offset?: number;
     } = {},
   ) {
     const limit = Math.min(options.limit ?? 20, 100);
-    const offset = ((options.page ?? 1) - 1) * limit;
+    const offset = options.offset != null ? options.offset : ((options.page ?? 1) - 1) * limit;
 
     const conditions = [eq(assetSyncRuns.organizationId, organizationId)];
     if (options.integrationId) {
@@ -77,7 +78,7 @@ export class AssetSyncRunsRepository {
       this.db.select({ total: count() }).from(assetSyncRuns).where(where),
     ]);
 
-    return { data: rows, total, page: options.page ?? 1, limit };
+    return { syncRuns: rows, total, page: options.page ?? 1, limit };
   }
 
   /**

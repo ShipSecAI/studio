@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import { API_V1_URL } from '@/services/api';
+import { api, API_V1_URL } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 import { getFreshClerkToken } from '@/utils/clerk-token';
 
@@ -168,39 +168,62 @@ export function useTriggerDomainScan() {
   });
 }
 
-// ── Asset Queries ────────────────────────────────────────────────────────────
+// ── Asset Queries (OpenSearch-backed) ────────────────────────────────────────
 
-export function useAsmAssets(options?: {
-  limit?: number;
-  offset?: number;
-  domainId?: string;
-  type?: string;
-  search?: string;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-}) {
-  const params = new URLSearchParams();
-  if (options?.limit) params.set('limit', String(options.limit));
-  if (options?.offset) params.set('offset', String(options.offset));
-  if (options?.domainId) params.set('domainId', options.domainId);
-  if (options?.type) params.set('type', options.type);
-  if (options?.search) params.set('search', options.search);
-  if (options?.sortBy) params.set('sortBy', options.sortBy);
-  if (options?.sortOrder) params.set('sortOrder', options.sortOrder);
-
-  const filters = options ?? {};
-  return useQuery({
-    queryKey: queryKeys.asm.assets(filters),
-    queryFn: () => asmFetch<{ assets: AsmAsset[]; total: number }>(`/assets?${params.toString()}`),
-    staleTime: 30_000,
-  });
+export interface AsmAssetHit {
+  _id: string;
+  scanner: string;
+  scanner_labels?: string[];
+  source_scanners?: string[];
+  host: string;
+  url?: string;
+  ip?: string;
+  status_code?: number;
+  title?: string;
+  webserver?: string;
+  technologies?: string[];
+  '@timestamp'?: string;
+  [key: string]: unknown;
 }
 
-export function useAsmAsset(id: string | null) {
+export function useAsmAssetsFromOpenSearch(filters: {
+  scanner?: string[];
+  search?: string;
+  page?: number;
+  domain?: string;
+}) {
   return useQuery({
-    queryKey: queryKeys.asm.asset(id ?? ''),
-    queryFn: () => asmFetch<AsmAsset>(`/assets/${id}`),
-    enabled: !!id,
+    queryKey: queryKeys.asm.assets(filters),
+    queryFn: async () => {
+      const must: Record<string, unknown>[] = [
+        { terms: { 'scanner.keyword': filters.scanner ?? ['dnsx', 'httpx'] } },
+      ];
+      if (filters.search) {
+        const escaped = filters.search.replace(/[*?\\]/g, '\\$&');
+        must.push({ wildcard: { 'host.keyword': `*${escaped}*` } });
+      }
+      if (filters.domain) {
+        must.push({ term: { 'shipsec.trigger_source.keyword': `asm:${filters.domain}` } });
+      }
+
+      const result = await api.analytics.query({
+        query: { bool: { must } },
+        size: 25,
+        from: (filters.page ?? 0) * 25,
+        sort: [{ '@timestamp': 'desc' }],
+        collapse: { field: 'host.keyword' },
+        aggs: {
+          scanners: { terms: { field: 'scanner.keyword' } },
+          unique_hosts: { cardinality: { field: 'host.keyword' } },
+        },
+      });
+
+      return {
+        hits: result.hits.map((h) => ({ _id: h._id, ...h._source })) as AsmAssetHit[],
+        total: (result.aggregations?.unique_hosts as { value?: number })?.value ?? result.total,
+        aggregations: result.aggregations,
+      };
+    },
     staleTime: 30_000,
   });
 }
@@ -232,7 +255,18 @@ export function useAsmScans(options?: {
 export function useAsmStats() {
   return useQuery({
     queryKey: queryKeys.asm.stats(),
-    queryFn: () => asmFetch<AsmStats>('/stats'),
+    queryFn: async () => {
+      const pgStats = await asmFetch<AsmStats>('/stats');
+      const osResult = await api.analytics.query({
+        query: { bool: { must: [{ terms: { 'scanner.keyword': ['dnsx', 'httpx'] } }] } },
+        size: 0,
+        aggs: { unique_hosts: { cardinality: { field: 'host.keyword' } } },
+      });
+      return {
+        domains: pgStats.domains,
+        assets: (osResult.aggregations?.unique_hosts as { value?: number })?.value ?? 0,
+      };
+    },
     staleTime: 60_000,
   });
 }

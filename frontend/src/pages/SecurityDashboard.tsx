@@ -30,6 +30,8 @@ import {
 } from 'lucide-react';
 import { useSecurityDashboardStore } from '@/store/securityDashboardStore';
 import { useSecurityViewStore } from '@/store/securityViewStore';
+import { getBuiltInView } from '@/config/securityViews';
+import type { SecurityColumnKey, SecurityFilterKey } from '@/config/securityViews';
 import { useGitHubInstallations, useGitHubScanResults } from '@/hooks/queries/useGithubQueries';
 import { useCloudScans } from '@/hooks/queries/useCloudScanQueries';
 import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries';
@@ -94,6 +96,7 @@ export function SecurityDashboardContent() {
     high: 0,
     medium: 0,
     low: 0,
+    info: 0,
   };
   const accounts = findingsData?.summary.accounts ?? [];
   const regions = findingsData?.summary.regions ?? [];
@@ -405,10 +408,15 @@ export function SecurityDashboardContent() {
   const showFrom = total === 0 ? 0 : (filters.page - 1) * PAGE_SIZE + 1;
   const showTo = Math.min(filters.page * PAGE_SIZE, total);
 
-  // Active view for conditional rendering
+  // Active view config for conditional rendering
   const activeViewId = useSecurityViewStore((s) => s.activeViewId);
-  const showAccountTabs = activeViewId === 'cloud-security';
-  const isCodeSecurityView = activeViewId === 'code-security';
+  const activeView = getBuiltInView(activeViewId);
+  const uiConfig = activeView?.uiConfig ?? {
+    columns: ['status', 'scanner', 'firstSeen'],
+    filters: ['severity', 'status', 'scanner'],
+  };
+  const showColumn = (col: SecurityColumnKey) => uiConfig.columns.includes(col);
+  const showFilter = (filter: SecurityFilterKey) => uiConfig.filters.includes(filter);
 
   // Account tab value
   const accountTab = filters.account ?? 'all';
@@ -427,13 +435,13 @@ export function SecurityDashboardContent() {
     () => repositories.map((r) => r.key).filter(Boolean),
     [repositories],
   );
-  // For code-security view, only show SAST-style rule IDs (dotted identifiers like "php.lang.security...")
-  // This excludes prowler check names ("prowler-cloudtrail_...") and trufflehog detector types ("GitHub", "AWS")
+  // Only show SAST-style rule IDs (dotted identifiers like "php.lang.security...")
+  // when the rule filter is active for this view
   const ruleIdOptions = useMemo(() => {
     const all = ruleIds.map((r) => r.key).filter(Boolean);
-    if (!isCodeSecurityView) return all;
-    return all.filter((id) => id.includes('.'));
-  }, [ruleIds, isCodeSecurityView]);
+    if (showFilter('rule')) return all.filter((id) => id.includes('.'));
+    return all;
+  }, [ruleIds, uiConfig.filters]);
   const fileOptions = useMemo(() => files.map((f) => f.key).filter(Boolean), [files]);
 
   // Derive language options from rule ID prefixes (e.g. "php.lang.security..." → "php")
@@ -486,7 +494,11 @@ export function SecurityDashboardContent() {
   }, [resetFilters]);
 
   const totalFindings =
-    severityCounts.critical + severityCounts.high + severityCounts.medium + severityCounts.low;
+    severityCounts.critical +
+    severityCounts.high +
+    severityCounts.medium +
+    severityCounts.low +
+    severityCounts.info;
 
   // Check if any filters are active (user-applied, not view-level)
   const hasActiveFilters =
@@ -698,7 +710,7 @@ export function SecurityDashboardContent() {
       <div className="container mx-auto px-3 md:px-4 pt-2 md:pt-3 pb-4 md:pb-8 space-y-4 md:space-y-6">
         {/* Account Tabs (only on Cloud Security) + Reset button */}
         <div className="flex items-center justify-between gap-2">
-          {showAccountTabs && accounts.length > 0 ? (
+          {uiConfig.showAccountTabs && accounts.length > 0 ? (
             <Tabs
               value={accountTab}
               onValueChange={(v) => setFilters({ account: v === 'all' ? null : v, page: 1 })}
@@ -733,7 +745,7 @@ export function SecurityDashboardContent() {
         </div>
 
         {/* Severity Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {SEVERITY_CONFIG.map((sev) => {
             const count = severityCounts[sev.key as keyof typeof severityCounts];
             const isActive = filters.severity.includes(sev.key);
@@ -783,19 +795,35 @@ export function SecurityDashboardContent() {
           </div>
           <FilterPopover
             label="Severity"
-            options={['critical', 'high', 'medium', 'low']}
+            options={SEVERITY_CONFIG.map((s) => s.key)}
             selected={filters.severity}
             onToggle={(v) => toggleSeverityFilter(v)}
           />
-          {isCodeSecurityView && languageOptions.length > 0 && (
+          {showFilter('status') && (
             <FilterPopover
-              label="Language"
-              options={languageOptions}
-              selected={filters.language}
-              onToggle={toggleLanguageFilter}
+              label="Status"
+              options={statusOptions}
+              selected={filters.status}
+              onToggle={toggleStatusFilter}
             />
           )}
-          {isCodeSecurityView && scannerOptions.length > 0 && (
+          {showFilter('region') && (
+            <FilterPopover
+              label="Region"
+              options={regionOptions}
+              selected={filters.region}
+              onToggle={toggleRegionFilter}
+            />
+          )}
+          {showFilter('service') && (
+            <FilterPopover
+              label="Service"
+              options={serviceOptions}
+              selected={filters.service}
+              onToggle={toggleServiceFilter}
+            />
+          )}
+          {showFilter('scanner') && scannerOptions.length > 0 && (
             <FilterPopover
               label="Scanner"
               options={scannerOptions}
@@ -803,7 +831,39 @@ export function SecurityDashboardContent() {
               onToggle={toggleScannerFilter}
             />
           )}
-          {isCodeSecurityView && repositoryOptions.length > 0 && (
+          {showFilter('compliance') && complianceOptions.length > 0 && (
+            <FilterPopover
+              label="Compliance"
+              options={complianceOptions}
+              selected={filters.compliance}
+              onToggle={toggleComplianceFilter}
+            />
+          )}
+          {showFilter('check') && checkNameOptions.length > 0 && (
+            <FilterPopover
+              label="Check"
+              options={checkNameOptions}
+              selected={filters.checkName}
+              onToggle={toggleCheckNameFilter}
+            />
+          )}
+          {showFilter('tags') && tagKeyOptions.length > 0 && (
+            <FilterPopover
+              label="Tags"
+              options={tagKeyOptions}
+              selected={filters.tags}
+              onToggle={toggleTagFilter}
+            />
+          )}
+          {showFilter('language') && languageOptions.length > 0 && (
+            <FilterPopover
+              label="Language"
+              options={languageOptions}
+              selected={filters.language}
+              onToggle={toggleLanguageFilter}
+            />
+          )}
+          {showFilter('repository') && repositoryOptions.length > 0 && (
             <FilterPopover
               label="Repository"
               options={repositoryOptions}
@@ -812,7 +872,7 @@ export function SecurityDashboardContent() {
               wide
             />
           )}
-          {isCodeSecurityView && ruleIdOptions.length > 0 && (
+          {showFilter('rule') && ruleIdOptions.length > 0 && (
             <FilterPopover
               label="Rule"
               options={ruleIdOptions}
@@ -821,61 +881,13 @@ export function SecurityDashboardContent() {
               wide
             />
           )}
-          {isCodeSecurityView && fileOptions.length > 0 && (
+          {showFilter('file') && fileOptions.length > 0 && (
             <FilterPopover
               label="File"
               options={fileOptions}
               selected={filters.file}
               onToggle={toggleFileFilter}
               wide
-            />
-          )}
-          {!isCodeSecurityView && (
-            <FilterPopover
-              label="Status"
-              options={statusOptions}
-              selected={filters.status}
-              onToggle={toggleStatusFilter}
-            />
-          )}
-          {!isCodeSecurityView && (
-            <FilterPopover
-              label="Region"
-              options={regionOptions}
-              selected={filters.region}
-              onToggle={toggleRegionFilter}
-            />
-          )}
-          {!isCodeSecurityView && (
-            <FilterPopover
-              label="Service"
-              options={serviceOptions}
-              selected={filters.service}
-              onToggle={toggleServiceFilter}
-            />
-          )}
-          {complianceOptions.length > 0 && (
-            <FilterPopover
-              label="Compliance"
-              options={complianceOptions}
-              selected={filters.compliance}
-              onToggle={toggleComplianceFilter}
-            />
-          )}
-          {checkNameOptions.length > 0 && (
-            <FilterPopover
-              label="Check"
-              options={checkNameOptions}
-              selected={filters.checkName}
-              onToggle={toggleCheckNameFilter}
-            />
-          )}
-          {tagKeyOptions.length > 0 && (
-            <FilterPopover
-              label="Tags"
-              options={tagKeyOptions}
-              selected={filters.tags}
-              onToggle={toggleTagFilter}
             />
           )}
         </div>
@@ -904,20 +916,28 @@ export function SecurityDashboardContent() {
                       )}
                     </button>
                   </TableHead>
-                  {!isCodeSecurityView && <TableHead className="w-[80px]">Status</TableHead>}
-                  {isCodeSecurityView ? (
-                    <>
-                      <TableHead className="hidden md:table-cell w-[150px]">Repository</TableHead>
-                      <TableHead className="hidden lg:table-cell w-[100px]">Scanner</TableHead>
-                    </>
-                  ) : (
-                    <>
-                      <TableHead className="hidden lg:table-cell w-[100px]">Service</TableHead>
-                      <TableHead className="hidden md:table-cell w-[120px]">Region</TableHead>
-                      <TableHead className="hidden md:table-cell w-[130px]">Account</TableHead>
-                    </>
+                  {showColumn('status') && <TableHead className="w-[80px]">Status</TableHead>}
+                  {showColumn('service') && (
+                    <TableHead className="hidden lg:table-cell w-[100px]">Service</TableHead>
                   )}
-                  <TableHead className="hidden xl:table-cell w-[140px]">First Seen</TableHead>
+                  {showColumn('region') && (
+                    <TableHead className="hidden md:table-cell w-[120px]">Region</TableHead>
+                  )}
+                  {showColumn('account') && (
+                    <TableHead className="hidden md:table-cell w-[130px]">Account</TableHead>
+                  )}
+                  {showColumn('repository') && (
+                    <TableHead className="hidden md:table-cell w-[150px]">Repository</TableHead>
+                  )}
+                  {showColumn('scanner') && (
+                    <TableHead className="hidden lg:table-cell w-[100px]">Scanner</TableHead>
+                  )}
+                  {showColumn('host') && (
+                    <TableHead className="hidden md:table-cell w-[150px]">Host</TableHead>
+                  )}
+                  {showColumn('firstSeen') && (
+                    <TableHead className="hidden xl:table-cell w-[140px]">First Seen</TableHead>
+                  )}
                   <TableHead className="w-[140px]">
                     <button
                       className="inline-flex items-center gap-1 hover:text-foreground"
@@ -947,36 +967,46 @@ export function SecurityDashboardContent() {
                         <TableCell>
                           <Skeleton className="h-4 w-16" />
                         </TableCell>
-                        {!isCodeSecurityView && (
+                        {showColumn('status') && (
                           <TableCell>
                             <Skeleton className="h-4 w-14" />
                           </TableCell>
                         )}
-                        {isCodeSecurityView ? (
-                          <>
-                            <TableCell className="hidden md:table-cell">
-                              <Skeleton className="h-4 w-24" />
-                            </TableCell>
-                            <TableCell className="hidden lg:table-cell">
-                              <Skeleton className="h-4 w-16" />
-                            </TableCell>
-                          </>
-                        ) : (
-                          <>
-                            <TableCell className="hidden lg:table-cell">
-                              <Skeleton className="h-4 w-16" />
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell">
-                              <Skeleton className="h-4 w-20" />
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell">
-                              <Skeleton className="h-4 w-24" />
-                            </TableCell>
-                          </>
+                        {showColumn('service') && (
+                          <TableCell className="hidden lg:table-cell">
+                            <Skeleton className="h-4 w-16" />
+                          </TableCell>
                         )}
-                        <TableCell className="hidden xl:table-cell">
-                          <Skeleton className="h-4 w-16" />
-                        </TableCell>
+                        {showColumn('region') && (
+                          <TableCell className="hidden md:table-cell">
+                            <Skeleton className="h-4 w-20" />
+                          </TableCell>
+                        )}
+                        {showColumn('account') && (
+                          <TableCell className="hidden md:table-cell">
+                            <Skeleton className="h-4 w-24" />
+                          </TableCell>
+                        )}
+                        {showColumn('repository') && (
+                          <TableCell className="hidden md:table-cell">
+                            <Skeleton className="h-4 w-24" />
+                          </TableCell>
+                        )}
+                        {showColumn('scanner') && (
+                          <TableCell className="hidden lg:table-cell">
+                            <Skeleton className="h-4 w-16" />
+                          </TableCell>
+                        )}
+                        {showColumn('host') && (
+                          <TableCell className="hidden md:table-cell">
+                            <Skeleton className="h-4 w-24" />
+                          </TableCell>
+                        )}
+                        {showColumn('firstSeen') && (
+                          <TableCell className="hidden xl:table-cell">
+                            <Skeleton className="h-4 w-16" />
+                          </TableCell>
+                        )}
                         <TableCell>
                           <Skeleton className="h-4 w-20" />
                         </TableCell>
@@ -985,7 +1015,10 @@ export function SecurityDashboardContent() {
                   : null}
                 {!findingsLoading && findings.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={isCodeSecurityView ? 6 : 8} className="text-center py-12">
+                    <TableCell
+                      colSpan={2 + uiConfig.columns.length + 1}
+                      className="text-center py-12"
+                    >
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <ShieldCheck className="h-10 w-10" />
                         <p className="text-sm font-medium">No findings found</p>
@@ -1031,7 +1064,7 @@ export function SecurityDashboardContent() {
                             </TooltipContent>
                           </Tooltip>
                         )}
-                        {!finding.file && !isCodeSecurityView && finding.asset_key && (
+                        {!finding.file && !showColumn('host') && finding.asset_key && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="text-xs text-muted-foreground line-clamp-1 font-mono">
@@ -1044,7 +1077,7 @@ export function SecurityDashboardContent() {
                           </Tooltip>
                         )}
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          {isCodeSecurityView && finding.rule_id && (
+                          {showFilter('rule') && finding.rule_id && (
                             <Badge
                               variant="outline"
                               className="h-4 px-1 text-[10px] font-mono font-normal"
@@ -1073,97 +1106,116 @@ export function SecurityDashboardContent() {
                     <TableCell>
                       <SeverityBadge severity={finding.severity} />
                     </TableCell>
-                    {!isCodeSecurityView && (
+                    {showColumn('status') && (
                       <TableCell>
                         <StatusBadge status={finding.status} />
                       </TableCell>
                     )}
-                    {isCodeSecurityView ? (
-                      <>
-                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                          {finding.shipsec?.trigger_source ? (
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <GitBranch className="h-3.5 w-3.5 flex-shrink-0" />
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="line-clamp-1 font-mono text-xs">
-                                    {finding.shipsec.trigger_source.replace(/#.*$|:.*$/, '')}
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-sm break-all">
-                                  {finding.shipsec.trigger_source}
-                                </TooltipContent>
-                              </Tooltip>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">--</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1.5">
-                            {SCANNER_LOGO[finding.scanner]?.emoji ? (
-                              <span
-                                className="w-4 h-4 flex items-center justify-center text-sm"
-                                role="img"
-                                aria-label={SCANNER_LOGO[finding.scanner].alt}
-                              >
-                                {SCANNER_LOGO[finding.scanner].emoji}
-                              </span>
-                            ) : SCANNER_LOGO[finding.scanner]?.src ? (
-                              <img
-                                src={SCANNER_LOGO[finding.scanner].src}
-                                alt={SCANNER_LOGO[finding.scanner].alt}
-                                className="w-4 h-4 rounded object-contain"
-                              />
-                            ) : null}
-                            {finding.scanner}
-                          </div>
-                        </TableCell>
-                      </>
-                    ) : (
-                      <>
-                        <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                          {finding.service_name ?? '--'}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                          {finding.region ?? '--'}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-sm">
-                          {finding.account_id ? (
-                            <div>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="text-foreground truncate max-w-[120px]">
-                                    {accountNameMap.get(finding.account_id) ??
-                                      formatAccountId(finding.account_id)}
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">
+                    {showColumn('service') && (
+                      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                        {finding.service_name ?? '--'}
+                      </TableCell>
+                    )}
+                    {showColumn('region') && (
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {finding.region ?? '--'}
+                      </TableCell>
+                    )}
+                    {showColumn('account') && (
+                      <TableCell className="hidden md:table-cell text-sm">
+                        {finding.account_id ? (
+                          <div>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="text-foreground truncate max-w-[120px]">
                                   {accountNameMap.get(finding.account_id) ??
                                     formatAccountId(finding.account_id)}
-                                </TooltipContent>
-                              </Tooltip>
-                              {accountNameMap.has(finding.account_id) && (
-                                <div className="text-xs text-muted-foreground font-mono">
-                                  {formatAccountId(finding.account_id)}
                                 </div>
-                              )}
-                            </div>
-                          ) : (
-                            '--'
-                          )}
-                        </TableCell>
-                      </>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                {accountNameMap.get(finding.account_id) ??
+                                  formatAccountId(finding.account_id)}
+                              </TooltipContent>
+                            </Tooltip>
+                            {accountNameMap.has(finding.account_id) && (
+                              <div className="text-xs text-muted-foreground font-mono">
+                                {formatAccountId(finding.account_id)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          '--'
+                        )}
+                      </TableCell>
                     )}
-                    <TableCell className="hidden xl:table-cell text-sm text-muted-foreground whitespace-nowrap">
-                      {findingLifecycles[finding.finding_hash] ? (
-                        formatTimestamp(findingLifecycles[finding.finding_hash].firstSeen)
-                      ) : findingLifecyclesLoading ? (
-                        <Skeleton className="h-4 w-16" />
-                      ) : (
-                        '--'
-                      )}
-                    </TableCell>
+                    {showColumn('repository') && (
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {finding.shipsec?.trigger_source ? (
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <GitBranch className="h-3.5 w-3.5 flex-shrink-0" />
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="line-clamp-1 font-mono text-xs">
+                                  {finding.shipsec.trigger_source.replace(/#.*$|:.*$/, '')}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-sm break-all">
+                                {finding.shipsec.trigger_source}
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">--</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {showColumn('scanner') && (
+                      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          {SCANNER_LOGO[finding.scanner]?.emoji ? (
+                            <span
+                              className="w-4 h-4 flex items-center justify-center text-sm"
+                              role="img"
+                              aria-label={SCANNER_LOGO[finding.scanner].alt}
+                            >
+                              {SCANNER_LOGO[finding.scanner].emoji}
+                            </span>
+                          ) : SCANNER_LOGO[finding.scanner]?.src ? (
+                            <img
+                              src={SCANNER_LOGO[finding.scanner].src}
+                              alt={SCANNER_LOGO[finding.scanner].alt}
+                              className="w-4 h-4 rounded object-contain"
+                            />
+                          ) : null}
+                          {finding.scanner}
+                        </div>
+                      </TableCell>
+                    )}
+                    {showColumn('host') && (
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="line-clamp-1 font-mono text-xs">
+                              {finding.asset_key ?? '--'}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-sm break-all">
+                            {finding.asset_key ?? '--'}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TableCell>
+                    )}
+                    {showColumn('firstSeen') && (
+                      <TableCell className="hidden xl:table-cell text-sm text-muted-foreground whitespace-nowrap">
+                        {findingLifecycles[finding.finding_hash] ? (
+                          formatTimestamp(findingLifecycles[finding.finding_hash].firstSeen)
+                        ) : findingLifecyclesLoading ? (
+                          <Skeleton className="h-4 w-16" />
+                        ) : (
+                          '--'
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {formatTimestamp(finding['@timestamp'])}
                     </TableCell>

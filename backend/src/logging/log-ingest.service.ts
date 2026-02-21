@@ -5,7 +5,6 @@ import { getTopicResolver } from '../common/kafka-topic-resolver';
 import { LogStreamRepository } from '../trace/log-stream.repository';
 import type { KafkaLogEntry } from './log-entry.types';
 import { LokiLogClient } from './loki.client';
-import { redactSensitiveData } from './redact-sensitive';
 
 @Injectable()
 export class LogIngestService implements OnModuleInit, OnModuleDestroy {
@@ -16,6 +15,9 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
   private readonly kafkaGroupId: string;
   private readonly kafkaClientId: string;
   private readonly lokiClient: LokiLogClient;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private reconnectAttempts = 0;
+  private isShuttingDown = false;
 
   constructor(private readonly repository: LogStreamRepository) {
     const brokerEnv = process.env.LOG_KAFKA_BROKERS ?? '';
@@ -52,13 +54,24 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    this.connectToKafka().catch((error) => {
-      this.logger.error('Failed to initialize Kafka log ingestion', error as Error);
+    this.connectToKafka().catch(() => {
+      // Initial error is already logged in connectToKafka.
     });
   }
 
   private async connectToKafka(): Promise<void> {
+    if (this.isShuttingDown) {
+      return;
+    }
+
     try {
+      if (this.consumer) {
+        await this.consumer.disconnect().catch(() => {
+          // Best effort cleanup before reconnecting.
+        });
+        this.consumer = undefined;
+      }
+
       const kafka = new Kafka({
         clientId: this.kafkaClientId,
         brokers: this.kafkaBrokers,
@@ -73,6 +86,22 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
         groupId: this.kafkaGroupId,
         sessionTimeout: 6000,
         heartbeatInterval: 2000,
+      });
+      this.consumer.on(this.consumer.events.CRASH, (event) => {
+        if (this.isShuttingDown) {
+          return;
+        }
+        this.logger.error(
+          `Kafka log consumer crashed: ${(event as { payload?: { error?: unknown } }).payload?.error ?? 'unknown'}`,
+        );
+        this.scheduleReconnect();
+      });
+      this.consumer.on(this.consumer.events.DISCONNECT, () => {
+        if (this.isShuttingDown) {
+          return;
+        }
+        this.logger.warn('Kafka log consumer disconnected, scheduling reconnect');
+        this.scheduleReconnect();
       });
       await this.consumer.connect();
       await this.consumer.subscribe({ topic: this.kafkaTopic, fromBeginning: true });
@@ -89,16 +118,23 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
           }
         },
       });
+      this.reconnectAttempts = 0;
       this.logger.log(
         `Kafka log ingestion connected (${this.kafkaBrokers.join(', ')}) topic=${this.kafkaTopic}`,
       );
     } catch (error) {
       this.logger.error('Failed to connect to Kafka log ingestion', error as Error);
-      // We don't throw here to ensure the backend stays up even if ingestion fails initially
+      this.scheduleReconnect();
+      throw error;
     }
   }
 
   async onModuleDestroy(): Promise<void> {
+    this.isShuttingDown = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.consumer) {
       this.logger.log('Disconnecting Kafka consumer...');
       await this.consumer.disconnect().catch((error) => {
@@ -108,15 +144,29 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private scheduleReconnect(): void {
+    if (this.isShuttingDown || this.reconnectTimer) {
+      return;
+    }
+    const delayMs = Math.min(30_000, 1_000 * 2 ** Math.min(this.reconnectAttempts, 5));
+    this.reconnectAttempts += 1;
+    this.logger.warn(`Retrying Kafka log ingestion connection in ${delayMs}ms`);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connectToKafka().catch(() => {
+        // Connection errors are logged in connectToKafka.
+      });
+    }, delayMs);
+  }
+
   private async processEntry(entry: KafkaLogEntry): Promise<void> {
-    const sanitizedMessage = redactSensitiveData(entry.message ?? '');
-    if (!sanitizedMessage || sanitizedMessage.trim().length === 0) {
+    if (!entry.message || entry.message.trim().length === 0) {
       return;
     }
 
     const timestamp = entry.timestamp ? new Date(entry.timestamp) : new Date();
     const labels = this.buildLabels(entry);
-    const lines = this.buildLines(sanitizedMessage, timestamp);
+    const lines = this.buildLines(entry.message, timestamp);
     if (!lines.length) {
       return;
     }

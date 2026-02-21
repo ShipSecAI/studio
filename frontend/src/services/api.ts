@@ -31,7 +31,6 @@ type ApiKeyResponseDto = components['schemas']['ApiKeyResponseDto'];
 type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto'];
 type CreateApiKeyDto = components['schemas']['CreateApiKeyDto'];
 type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto'];
-type ListAuditLogsResponseDto = components['schemas']['ListAuditLogsResponseDto'];
 
 export interface TerminalChunkResponse {
   runId: string;
@@ -52,6 +51,8 @@ export interface WorkflowSummary {
   id: string;
   name: string;
   description: string | null;
+  icon: string | null;
+  iconColor: string | null;
   organizationId: string | null;
   isSystem: boolean;
   templateId: string | null;
@@ -127,9 +128,9 @@ function resolveApiBaseUrl() {
     }
   }
 
-  // No explicit API URL — use same-origin relative paths.
-  // Works with path-based routing (/api/v1/* routed to backend via Ingress).
-  // For local dev, set VITE_API_URL=http://localhost:3211 in frontend/.env
+  // Default to empty string (relative URLs) so API calls go through the same
+  // origin that served the page. This avoids CORS/mixed-content issues when
+  // accessed via ngrok or custom domains (nginx proxies /api/ to the backend).
   return '';
 }
 
@@ -137,7 +138,7 @@ export const API_BASE_URL = resolveApiBaseUrl();
 export const API_V1_URL = `${API_BASE_URL}/api/v1`;
 
 // Helper function to get auth headers (reused by middleware and file operations)
-async function getAuthHeaders(): Promise<Record<string, string>> {
+export async function getAuthHeaders(): Promise<Record<string, string>> {
   const storeState = useAuthStore.getState();
   let token = storeState.token;
   // For local auth, always use 'local-dev' org ID
@@ -286,7 +287,12 @@ export const api = {
 
     updateMetadata: async (
       id: string,
-      metadata: { name: string; description?: string | null },
+      metadata: {
+        name: string;
+        description?: string | null;
+        icon?: string | null;
+        iconColor?: string | null;
+      },
     ): Promise<WorkflowResponseDto> => {
       const response = await apiClient.updateWorkflowMetadata(id, metadata);
       if (response.error) throw new Error('Failed to update workflow metadata');
@@ -696,38 +702,6 @@ export const api = {
     },
   },
 
-  auditLogs: {
-    list: async (query: {
-      resourceType?: string;
-      resourceId?: string;
-      action?: string;
-      actorId?: string;
-      from?: string;
-      to?: string;
-      limit?: number;
-      cursor?: string;
-    }): Promise<ListAuditLogsResponseDto> => {
-      const headers = await getAuthHeaders();
-      const url = new URL(`${API_V1_URL}/audit-logs`);
-
-      if (query.resourceType) url.searchParams.set('resourceType', query.resourceType);
-      if (query.resourceId) url.searchParams.set('resourceId', query.resourceId);
-      if (query.action) url.searchParams.set('action', query.action);
-      if (query.actorId) url.searchParams.set('actorId', query.actorId);
-      if (query.from) url.searchParams.set('from', query.from);
-      if (query.to) url.searchParams.set('to', query.to);
-      if (query.cursor) url.searchParams.set('cursor', query.cursor);
-      if (query.limit) url.searchParams.set('limit', String(query.limit));
-
-      const res = await fetch(url.toString(), { headers });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Failed to fetch audit logs: ${res.status} ${text}`);
-      }
-      return (await res.json()) as ListAuditLogsResponseDto;
-    },
-  },
-
   executions: {
     start: async (
       workflowId: string,
@@ -805,8 +779,7 @@ export const api = {
       },
     ): Promise<TerminalChunkResponse> => {
       const headers = await getAuthHeaders();
-      const path = `${API_V1_URL}/workflows/runs/${executionId}/terminal`;
-      const url = new URL(path, window.location.origin);
+      const url = new URL(`${API_V1_URL}/workflows/runs/${executionId}/terminal`);
       if (params?.nodeRef) url.searchParams.set('nodeRef', params.nodeRef);
       if (params?.stream) url.searchParams.set('stream', params.stream);
       if (params?.cursor) url.searchParams.set('cursor', params.cursor);
@@ -854,15 +827,12 @@ export const api = {
       const { FetchEventSource } = await import('@/utils/sse-client');
 
       const storeState = useAuthStore.getState();
-      let token = storeState.token;
-      const organizationId = storeState.organizationId;
 
       // For Clerk auth, fetch a fresh token
       if (storeState.provider === 'clerk') {
         try {
           const freshToken = await getFreshClerkToken();
           if (freshToken) {
-            token = freshToken;
             storeState.setToken(freshToken);
           }
         } catch (_error) {
@@ -879,19 +849,8 @@ export const api = {
       const query = params.toString();
       const url = `${API_V1_URL}/workflows/runs/${executionId}/stream${query ? `?${query}` : ''}`;
 
-      // Build auth headers
-      const headers: Record<string, string> = {};
-      // For local auth with admin credentials, use Basic Auth
-      if (storeState.provider === 'local' && storeState.adminUsername && storeState.adminPassword) {
-        const credentials = btoa(`${storeState.adminUsername}:${storeState.adminPassword}`);
-        headers['Authorization'] = `Basic ${credentials}`;
-      } else if (token && token.trim().length > 0) {
-        const headerValue = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-        headers['Authorization'] = headerValue;
-      }
-      if (organizationId && organizationId.trim().length > 0) {
-        headers['X-Organization-Id'] = organizationId;
-      }
+      // Reuse shared auth header resolver so SSE org/auth headers stay consistent with REST calls.
+      const headers = await getAuthHeaders();
 
       return new FetchEventSource(url, { headers });
     },
@@ -904,13 +863,22 @@ export const api = {
 
     listRuns: async (options?: {
       workflowId?: string;
+      workflowIds?: string;
       status?: string;
+      triggerType?: string;
+      search?: string;
       limit?: number;
       offset?: number;
     }) => {
       const response = await apiClient.listWorkflowRuns(options);
       if (response.error) throw new Error('Failed to fetch runs');
       return response.data || { runs: [] };
+    },
+
+    getRunActivity: async (options?: { days?: number }) => {
+      const response = await apiClient.getRunActivity(options);
+      if (response.error) throw new Error('Failed to fetch run activity');
+      return response.data || { totalRuns: 0, activity: [] };
     },
 
     getRun: async (runId: string) => {
@@ -1148,6 +1116,7 @@ export const api = {
       from?: number;
       aggs?: Record<string, any>;
       sort?: Record<string, any>[];
+      collapse?: Record<string, any>;
     }) => {
       const headers = await getAuthHeaders();
       const response = await fetch(`${API_V1_URL}/analytics/query`, {
@@ -1160,6 +1129,22 @@ export const api = {
         total: number;
         hits: { _id: string; _source: Record<string, any>; _score?: number }[];
         aggregations?: Record<string, any>;
+      }>;
+    },
+
+    batchRunSummaries: async (runIds: string[]) => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/analytics/batch-run-summaries`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runIds }),
+      });
+      if (!response.ok) throw new Error(`Batch run summaries failed: ${response.status}`);
+      return response.json() as Promise<{
+        summaries: Record<
+          string,
+          { critical: number; high: number; medium: number; low: number; info: number }
+        >;
       }>;
     },
   },

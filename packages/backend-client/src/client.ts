@@ -164,6 +164,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workflows/runs/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WorkflowsController_getRunActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workflows/runs": {
         parameters: {
             query?: never;
@@ -687,6 +703,54 @@ export interface paths {
         put: operations["AnalyticsController_updateAnalyticsSettings"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/batch-run-summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AnalyticsController_batchRunSummaries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/storage-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AnalyticsController_getStorageUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["AnalyticsController_purgeData"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2167,6 +2231,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/github/quick-scan-workflows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GitHubAppController_getQuickScanWorkflows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/github/repos/{id}/scan": {
         parameters: {
             query?: never;
@@ -2302,14 +2382,110 @@ export interface paths {
         patch: operations["StudioMcpController_handleMcp_patch"];
         trace?: never;
     };
-    "/api/v1/audit-logs": {
+    "/api/v1/workflow-templates": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AuditLogsController_list"];
+        get: operations["WorkflowTemplatesController_list"];
+        put?: never;
+        post: operations["WorkflowTemplatesController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflow-templates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WorkflowTemplatesController_getById"];
+        put?: never;
+        post?: never;
+        delete: operations["WorkflowTemplatesController_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflow-templates/{id}/instantiate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["WorkflowTemplatesController_instantiate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asm/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AsmController_listDomains"];
+        put?: never;
+        post: operations["AsmController_createDomain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asm/domains/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AsmController_getDomain"];
+        put?: never;
+        post?: never;
+        delete: operations["AsmController_deleteDomain"];
+        options?: never;
+        head?: never;
+        patch: operations["AsmController_updateDomain"];
+        trace?: never;
+    };
+    "/api/v1/asm/domains/{id}/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AsmController_triggerScan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asm/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AsmController_listAssets"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2318,48 +2494,240 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/sessions": {
+    "/api/v1/asm/assets/{id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["ChatController_listSessions"];
+        get: operations["AsmController_getAsset"];
         put?: never;
-        post: operations["ChatController_createSession"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/sessions/{id}": {
+    "/api/v1/asm/assets/{id}/scan": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["ChatController_getSession"];
+        get?: never;
         put?: never;
-        post?: never;
-        delete: operations["ChatController_deleteSession"];
+        post: operations["AsmController_triggerAssetScan"];
+        delete?: never;
         options?: never;
         head?: never;
-        patch: operations["ChatController_updateSession"];
+        patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/sessions/{id}/messages": {
+    "/api/v1/asm/scans": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["ChatController_getMessages"];
+        get: operations["AsmController_listScans"];
         put?: never;
-        post: operations["ChatController_sendMessage"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asm/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AsmController_getDashboardStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AssetDiscoveryController_listAssets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/assets/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AssetDiscoveryController_getAssetSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/assets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AssetDiscoveryController_getAsset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/assets/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssetDiscoveryController_triggerSync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/sync-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AssetDiscoveryController_listSyncRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/sync-runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AssetDiscoveryController_getSyncRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/internal/sync-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssetDiscoveryController_createSyncRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/internal/assets/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssetDiscoveryController_reconcileAssets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/internal/sync-runs/{id}/scopes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssetDiscoveryController_persistSyncRunScopes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/internal/assets/mark-stale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssetDiscoveryController_markStaleAssets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/internal/sync-runs/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssetDiscoveryController_updateSyncRunStatus"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2569,6 +2937,11 @@ export interface components {
                 };
             };
             compiledDefinition: unknown;
+            icon: string | null;
+            iconColor: string | null;
+            isSystem: boolean;
+            /** Format: uuid */
+            templateId: string | null;
             lastRun: string | null;
             runCount: number;
             createdAt: string;
@@ -2653,6 +3026,8 @@ export interface components {
         UpdateWorkflowMetadataDto: {
             name: string;
             description?: string | null;
+            icon?: string | null;
+            iconColor?: string | null;
         };
         WorkflowRuntimeInputsResponseDto: {
             workflowId: string;
@@ -2937,6 +3312,8 @@ export interface components {
             aggs?: Record<string, never>;
             /** @description Sort specification */
             sort?: string[];
+            /** @description Field collapsing specification for deduplication */
+            collapse?: Record<string, never>;
         };
         AnalyticsQueryResponseDto: {
             /**
@@ -3007,16 +3384,10 @@ export interface components {
                     run: boolean;
                     list: boolean;
                     read: boolean;
-                    create?: boolean;
-                    update?: boolean;
-                    delete?: boolean;
                 };
                 runs: {
                     read: boolean;
                     cancel: boolean;
-                };
-                audit: {
-                    read: boolean;
                 };
             };
             isActive: boolean;
@@ -3038,16 +3409,10 @@ export interface components {
                     run: boolean;
                     list: boolean;
                     read: boolean;
-                    create?: boolean;
-                    update?: boolean;
-                    delete?: boolean;
                 };
                 runs: {
                     read: boolean;
                     cancel: boolean;
-                };
-                audit: {
-                    read: boolean;
                 };
             };
             /** Format: date-time */
@@ -3066,16 +3431,10 @@ export interface components {
                     run: boolean;
                     list: boolean;
                     read: boolean;
-                    create?: boolean;
-                    update?: boolean;
-                    delete?: boolean;
                 };
                 runs: {
                     read: boolean;
                     cancel: boolean;
-                };
-                audit: {
-                    read: boolean;
                 };
             };
             isActive: boolean;
@@ -3099,16 +3458,10 @@ export interface components {
                     run: boolean;
                     list: boolean;
                     read: boolean;
-                    create?: boolean;
-                    update?: boolean;
-                    delete?: boolean;
                 };
                 runs: {
                     read: boolean;
                     cancel: boolean;
-                };
-                audit: {
-                    read: boolean;
                 };
             };
             isActive?: boolean;
@@ -3943,30 +4296,22 @@ export interface components {
             error?: string;
             errorCode?: string;
         };
-        ListAuditLogsResponseDto: {
-            items: {
-                /** Format: uuid */
-                id: string;
-                organizationId: string | null;
-                actorId: string | null;
-                /** @enum {string} */
-                actorType: "user" | "api-key" | "internal" | "unknown";
-                actorDisplay: string | null;
-                action: string;
-                /** @enum {string} */
-                resourceType: "workflow" | "secret" | "api_key" | "webhook" | "artifact" | "analytics" | "schedule" | "mcp_server" | "mcp_group" | "human_input";
-                resourceId: string | null;
-                resourceName: string | null;
-                metadata: {
-                    [key: string]: unknown;
-                } | null;
-                ip: string | null;
-                userAgent: string | null;
-                /** Format: date-time */
-                createdAt: string;
-            }[];
-            nextCursor: string | null;
+        CreateDomainDto: {
+            domain: string;
+            scopeInclude?: string[];
+            scopeExclude?: string[];
+            /** @default false */
+            scanNow: boolean;
         };
+        UpdateDomainDto: {
+            scopeInclude?: string[];
+            scopeExclude?: string[];
+        };
+        TriggerScanDto: {
+            /** @default sys-attack-surface-recon */
+            templateSlug: string;
+        };
+        TriggerSyncDto: Record<string, never>;
     };
     responses: never;
     parameters: never;
@@ -4238,6 +4583,8 @@ export interface operations {
                         id?: string;
                         name?: string;
                         description?: string | null;
+                        icon?: string | null;
+                        iconColor?: string | null;
                         isSystem?: boolean;
                         /** Format: uuid */
                         templateId?: string | null;
@@ -4254,11 +4601,41 @@ export interface operations {
             };
         };
     };
+    WorkflowsController_getRunActivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aggregated run counts per day */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        totalRuns?: number;
+                        activity?: {
+                            /** Format: date */
+                            date?: string;
+                            count?: number;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
     WorkflowsController_listRuns: {
         parameters: {
             query?: {
                 workflowId?: string;
+                workflowIds?: string;
                 status?: string;
+                triggerType?: string;
+                search?: string;
                 limit?: number;
                 offset?: number;
             };
@@ -5407,6 +5784,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AnalyticsSettingsResponseDto"];
+                };
+            };
+        };
+    };
+    AnalyticsController_batchRunSummaries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Get severity counts for multiple run IDs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AnalyticsController_getStorageUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Get OpenSearch storage usage for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        usedBytes?: number;
+                        documentCount?: number;
+                        indexCount?: number;
+                        opensearchEnabled?: boolean;
+                    };
+                };
+            };
+        };
+    };
+    AnalyticsController_purgeData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Purge all analytics data for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        deletedIndices?: number;
+                    };
                 };
             };
         };
@@ -8034,6 +8476,23 @@ export interface operations {
             };
         };
     };
+    GitHubAppController_getQuickScanWorkflows: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     GitHubAppController_triggerScan: {
         parameters: {
             query?: never;
@@ -8345,27 +8804,7 @@ export interface operations {
             };
         };
     };
-    AuditLogsController_list: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description List audit log events for the authenticated organization */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ListAuditLogsResponseDto"];
-                };
-            };
-        };
-    };
-    ChatController_listSessions: {
+    WorkflowTemplatesController_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -8382,7 +8821,7 @@ export interface operations {
             };
         };
     };
-    ChatController_createSession: {
+    WorkflowTemplatesController_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8399,7 +8838,7 @@ export interface operations {
             };
         };
     };
-    ChatController_getSession: {
+    WorkflowTemplatesController_getById: {
         parameters: {
             query?: never;
             header?: never;
@@ -8418,7 +8857,7 @@ export interface operations {
             };
         };
     };
-    ChatController_deleteSession: {
+    WorkflowTemplatesController_delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -8437,7 +8876,68 @@ export interface operations {
             };
         };
     };
-    ChatController_updateSession: {
+    WorkflowTemplatesController_instantiate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Creates a new workflow from the template */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AsmController_listDomains: {
+        parameters: {
+            query?: {
+                limit?: string;
+                offset?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AsmController_createDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDomainDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AsmController_getDomain: {
         parameters: {
             query?: never;
             header?: never;
@@ -8456,7 +8956,7 @@ export interface operations {
             };
         };
     };
-    ChatController_getMessages: {
+    AsmController_deleteDomain: {
         parameters: {
             query?: never;
             header?: never;
@@ -8475,18 +8975,356 @@ export interface operations {
             };
         };
     };
-    ChatController_sendMessage: {
+    AsmController_updateDomain: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 id: string;
             };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDomainDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AsmController_triggerScan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TriggerScanDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AsmController_listAssets: {
+        parameters: {
+            query?: {
+                limit?: string;
+                offset?: string;
+                domainId?: string;
+                type?: string;
+                search?: string;
+                sortBy?: "hostname" | "type" | "riskScore" | "firstSeen" | "lastSeen";
+                sortOrder?: "asc" | "desc";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AsmController_getAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AsmController_triggerAssetScan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TriggerScanDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AsmController_listScans: {
+        parameters: {
+            query?: {
+                limit?: string;
+                offset?: string;
+                status?: "running" | "completed" | "failed" | "timed_out";
+                domainId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AsmController_getDashboardStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetDiscoveryController_listAssets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetDiscoveryController_getAssetSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetDiscoveryController_getAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetDiscoveryController_triggerSync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TriggerSyncDto"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetDiscoveryController_listSyncRuns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetDiscoveryController_getSyncRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetDiscoveryController_createSyncRun: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-organization-id": string;
+            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetDiscoveryController_reconcileAssets: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-organization-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetDiscoveryController_persistSyncRunScopes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetDiscoveryController_markStaleAssets: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-organization-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetDiscoveryController_updateSyncRunStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

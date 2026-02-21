@@ -11,6 +11,18 @@ import { RdsServiceProvider } from './providers/rds.provider';
 import { CloudFrontServiceProvider } from './providers/cloudfront.provider';
 import { ElbServiceProvider } from './providers/elb.provider';
 import { VpcServiceProvider } from './providers/vpc.provider';
+// Tier 3 providers
+import { SecretsManagerServiceProvider } from './providers/secretsmanager.provider';
+import { KmsServiceProvider } from './providers/kms.provider';
+import { EcsServiceProvider } from './providers/ecs.provider';
+import { AcmServiceProvider } from './providers/acm.provider';
+import { CloudTrailServiceProvider } from './providers/cloudtrail.provider';
+import { GuardDutyServiceProvider } from './providers/guardduty.provider';
+import { SnsServiceProvider } from './providers/sns.provider';
+import { SqsServiceProvider } from './providers/sqs.provider';
+import { DynamoDbServiceProvider } from './providers/dynamodb.provider';
+import { ElastiCacheServiceProvider } from './providers/elasticache.provider';
+import { ApiGatewayServiceProvider } from './providers/apigateway.provider';
 
 /**
  * Discovery engine — registry of providers with dispatch logic.
@@ -34,6 +46,18 @@ export class DiscoveryEngine {
     aws.registerService(new CloudFrontServiceProvider());
     aws.registerService(new ElbServiceProvider());
     aws.registerService(new VpcServiceProvider());
+    // Tier 3 providers (comprehensive coverage)
+    aws.registerService(new SecretsManagerServiceProvider());
+    aws.registerService(new KmsServiceProvider());
+    aws.registerService(new EcsServiceProvider());
+    aws.registerService(new AcmServiceProvider());
+    aws.registerService(new CloudTrailServiceProvider());
+    aws.registerService(new GuardDutyServiceProvider());
+    aws.registerService(new SnsServiceProvider());
+    aws.registerService(new SqsServiceProvider());
+    aws.registerService(new DynamoDbServiceProvider());
+    aws.registerService(new ElastiCacheServiceProvider());
+    aws.registerService(new ApiGatewayServiceProvider());
     this.register(aws);
   }
 

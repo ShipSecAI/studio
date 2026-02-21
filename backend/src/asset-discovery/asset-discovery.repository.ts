@@ -299,13 +299,14 @@ export class AssetDiscoveryRepository {
       integrationId?: string;
       search?: string;
       page?: number;
+      offset?: number;
       limit?: number;
       sortBy?: string;
       sortOrder?: 'asc' | 'desc';
     } = {},
   ) {
     const limit = Math.min(options.limit ?? 50, 200);
-    const offset = ((options.page ?? 1) - 1) * limit;
+    const offset = options.offset != null ? options.offset : ((options.page ?? 1) - 1) * limit;
 
     const conditions = [eq(assets.organizationId, organizationId)];
     if (options.provider) conditions.push(eq(assets.provider, options.provider));
@@ -340,7 +341,7 @@ export class AssetDiscoveryRepository {
       this.db.select({ total: count() }).from(assets).where(where),
     ]);
 
-    return { data: rows, total, page: options.page ?? 1, limit };
+    return { assets: rows, total, page: options.page ?? 1, limit };
   }
 
   /**
@@ -361,7 +362,7 @@ export class AssetDiscoveryRepository {
   async getSummary(organizationId: string) {
     const baseWhere = eq(assets.organizationId, organizationId);
 
-    const [totalResult, byTypeResult, byStatusResult, byProviderResult] = await Promise.all([
+    const [totalResult, byTypeResult, byStatusResult, byRegionResult] = await Promise.all([
       this.db.select({ total: count() }).from(assets).where(baseWhere),
       this.db
         .select({ assetType: assets.assetType, count: count() })
@@ -374,17 +375,23 @@ export class AssetDiscoveryRepository {
         .where(baseWhere)
         .groupBy(assets.status),
       this.db
-        .select({ provider: assets.provider, count: count() })
+        .select({ region: assets.region, count: count() })
         .from(assets)
         .where(baseWhere)
-        .groupBy(assets.provider),
+        .groupBy(assets.region),
     ]);
 
     return {
       totalAssets: totalResult[0]?.total ?? 0,
-      byProvider: Object.fromEntries(byProviderResult.map((r) => [r.provider, r.count])),
-      byType: Object.fromEntries(byTypeResult.map((r) => [r.assetType, r.count])),
-      byStatus: Object.fromEntries(byStatusResult.map((r) => [r.status ?? 'unknown', r.count])),
+      byType: byTypeResult.map((r) => ({ assetType: r.assetType, count: Number(r.count) })),
+      byRegion: byRegionResult.map((r) => ({
+        region: r.region ?? 'global',
+        count: Number(r.count),
+      })),
+      byStatus: byStatusResult.map((r) => ({
+        status: r.status ?? 'unknown',
+        count: Number(r.count),
+      })),
     };
   }
 

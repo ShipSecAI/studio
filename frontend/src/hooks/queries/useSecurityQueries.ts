@@ -33,14 +33,14 @@ export function useSecurityFindings(
         from: (filters.page - 1) * PAGE_SIZE,
         sort: buildSort(filters),
         aggs: {
-          severity_counts: { terms: { field: 'severity' } },
+          severity_counts: { terms: { field: 'severity.keyword' } },
           accounts: { terms: { field: 'account_id.keyword', size: 50 } },
           regions: { terms: { field: 'region', size: 50 } },
           services: { terms: { field: 'service_name', size: 100 } },
           compliance_frameworks: { terms: { field: 'compliance.keyword', size: 50 } },
           check_names: { terms: { field: 'check_name', size: 200 } },
-          status_counts: { terms: { field: 'status' } },
-          scanners: { terms: { field: 'scanner', size: 50 } },
+          status_counts: { terms: { field: 'status.keyword' } },
+          scanners: { terms: { field: 'scanner.keyword', size: 50 } },
           repositories: { terms: { field: 'shipsec.trigger_source.keyword', size: 100 } },
           rule_ids: { terms: { field: 'rule_id.keyword', size: 200 } },
           files: { terms: { field: 'file.keyword', size: 200 } },
@@ -100,7 +100,7 @@ export function useSecurityTimeSeries(
               min_doc_count: 0,
             },
             aggs: {
-              by_severity: { terms: { field: 'severity' } },
+              by_severity: { terms: { field: 'severity.keyword' } },
             },
           },
         },
@@ -108,7 +108,13 @@ export function useSecurityTimeSeries(
 
       const buckets = result.aggregations?.over_time?.buckets ?? [];
       return buckets.map((bucket: any) => {
-        const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
+        const counts: Record<string, number> = {
+          critical: 0,
+          high: 0,
+          medium: 0,
+          low: 0,
+          info: 0,
+        };
         for (const sev of bucket.by_severity?.buckets ?? []) {
           const key = sev.key?.toLowerCase();
           if (key in counts) {
@@ -148,7 +154,7 @@ export function useSecurityTimeSeriesForHeatmap(days = 90) {
               min_doc_count: 0,
             },
             aggs: {
-              by_severity: { terms: { field: 'severity' } },
+              by_severity: { terms: { field: 'severity.keyword' } },
             },
           },
         },
@@ -156,7 +162,13 @@ export function useSecurityTimeSeriesForHeatmap(days = 90) {
 
       const buckets = result.aggregations?.over_time?.buckets ?? [];
       return buckets.map((bucket: any) => {
-        const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
+        const counts: Record<string, number> = {
+          critical: 0,
+          high: 0,
+          medium: 0,
+          low: 0,
+          info: 0,
+        };
         for (const sev of bucket.by_severity?.buckets ?? []) {
           const key = sev.key?.toLowerCase();
           if (key in counts) counts[key] = sev.doc_count;
@@ -202,7 +214,7 @@ export function useFindingLifecycle(hash: string | null) {
           const result = await api.analytics.query({
             query: {
               bool: {
-                filter: [{ term: { finding_hash: hash } }],
+                filter: [{ term: { 'finding_hash.keyword': hash } }],
               },
             },
             size: 0,
@@ -247,7 +259,7 @@ export function useBatchLifecycles(hashes: string[]) {
               aggs: {
                 by_hash: {
                   terms: {
-                    field: 'finding_hash',
+                    field: 'finding_hash.keyword',
                     size: uniqueHashes.length,
                   },
                   aggs: {
@@ -292,9 +304,9 @@ export function useCategoryCounts(scannerToCategory: Record<string, string>, cat
         size: 0,
         aggs: {
           by_scanner: {
-            terms: { field: 'scanner', size: 20 },
+            terms: { field: 'scanner.keyword', size: 20 },
             aggs: {
-              by_severity: { terms: { field: 'severity' } },
+              by_severity: { terms: { field: 'severity.keyword' } },
             },
           },
         },

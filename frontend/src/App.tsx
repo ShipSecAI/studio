@@ -1,14 +1,8 @@
-import { lazy, Suspense, useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import React, { lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
-const ReactQueryDevtools = lazy(() =>
-  import('@tanstack/react-query-devtools').then((mod) => ({
-    default: mod.ReactQueryDevtools,
-  })),
-);
 import { queryClient } from '@/lib/queryClient';
 import { ToastProvider } from '@/components/ui/toast-provider';
-import { TooltipProvider } from '@/components/ui/tooltip';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AuthProvider } from '@/auth/auth-context';
 import { useAuthStoreIntegration } from '@/auth/store-integration';
@@ -18,11 +12,20 @@ import { PostHogClerkBridge } from '@/features/analytics/PostHogClerkBridge';
 import { useCommandPaletteKeyboard } from '@/features/command-palette/useCommandPaletteKeyboard';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { env } from '@/config/env';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+
+const ReactQueryDevtools = lazy(() =>
+  import('@tanstack/react-query-devtools').then((mod) => ({
+    default: mod.ReactQueryDevtools,
+  })),
+);
+const CommandPalette = lazy(() =>
+  import('@/features/command-palette/CommandPalette').then((m) => ({ default: m.CommandPalette })),
+);
 
 // Lazy-loaded page components
-const ChatInterface = lazy(() =>
-  import('@/pages/ChatInterface').then((m) => ({ default: m.ChatInterface })),
-);
 const WorkflowList = lazy(() =>
   import('@/pages/WorkflowList').then((m) => ({ default: m.WorkflowList })),
 );
@@ -68,9 +71,6 @@ const RunRedirect = lazy(() =>
 const AnalyticsSettingsPage = lazy(() =>
   import('@/pages/AnalyticsSettingsPage').then((m) => ({ default: m.AnalyticsSettingsPage })),
 );
-const SettingsPage = lazy(() =>
-  import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
-);
 const GitHubPage = lazy(() =>
   import('@/pages/GitHubPage').then((m) => ({ default: m.GitHubPage })),
 );
@@ -82,16 +82,36 @@ const EditTriggerRulePage = lazy(() => import('@/pages/EditTriggerRulePage'));
 const IntegrationDetailPage = lazy(() =>
   import('@/pages/IntegrationDetailPage').then((m) => ({ default: m.IntegrationDetailPage })),
 );
-const AwsSecurityDashboard = lazy(() =>
-  import('@/pages/AwsSecurityDashboard').then((m) => ({ default: m.AwsSecurityDashboard })),
+const GitHubIntegrationPage = lazy(() =>
+  import('@/pages/GitHubIntegrationPage').then((m) => ({ default: m.GitHubIntegrationPage })),
+);
+const HomePage = lazy(() => import('@/pages/HomePage').then((m) => ({ default: m.HomePage })));
+const WorkflowTemplatesPage = lazy(() =>
+  import('@/pages/WorkflowTemplatesPage').then((m) => ({ default: m.WorkflowTemplatesPage })),
+);
+// ReconPage retained for /recon → /asm/domains redirect (handled via Navigate component)
+// const ReconPage = lazy(() => import('@/pages/ReconPage').then((m) => ({ default: m.ReconPage })));
+const CloudAccountsPage = lazy(() =>
+  import('@/pages/CloudAccountsPage').then((m) => ({ default: m.CloudAccountsPage })),
+);
+const CloudInventoryPage = lazy(() =>
+  import('@/pages/CloudInventoryPage').then((m) => ({ default: m.CloudInventoryPage })),
+);
+const ActivityPage = lazy(() => import('@/pages/ActivityPage'));
+const DomainsPage = lazy(() =>
+  import('@/pages/asm/DomainsPage').then((m) => ({ default: m.DomainsPage })),
+);
+const AssetsPage = lazy(() =>
+  import('@/pages/asm/AssetsPage').then((m) => ({ default: m.AssetsPage })),
+);
+const AsmScansPage = lazy(() =>
+  import('@/pages/asm/AsmScansPage').then((m) => ({ default: m.AsmScansPage })),
 );
 
-// Lazy-load CommandPalette — it pulls in the entire lucide-react barrel (~350KB)
-const CommandPalette = lazy(() =>
-  import('@/features/command-palette/CommandPalette').then((m) => ({
-    default: m.CommandPalette,
-  })),
-);
+function AuthIntegration({ children }: { children: React.ReactNode }) {
+  useAuthStoreIntegration();
+  return <>{children}</>;
+}
 
 function PageSkeleton() {
   return (
@@ -115,26 +135,16 @@ function PageSkeleton() {
   );
 }
 
-function AuthIntegration({ children }: { children: React.ReactNode }) {
-  useAuthStoreIntegration();
-  return <>{children}</>;
-}
-
 function CommandPaletteProvider({ children }: { children: React.ReactNode }) {
   useCommandPaletteKeyboard();
-  const isOpen = useCommandPaletteStore((state) => state.isOpen);
-  const [hasOpened, setHasOpened] = useState(false);
-
-  useEffect(() => {
-    if (isOpen && !hasOpened) {
-      setHasOpened(true);
-    }
-  }, [isOpen, hasOpened]);
-
+  const isOpen = useCommandPaletteStore((s) => s.isOpen);
+  // Track whether the palette has ever been opened so we keep it mounted after first use
+  const hasOpened = React.useRef(false);
+  if (isOpen) hasOpened.current = true;
   return (
     <>
       {children}
-      {hasOpened && (
+      {hasOpened.current && (
         <Suspense fallback={null}>
           <CommandPalette />
         </Suspense>
@@ -149,87 +159,109 @@ function App() {
       <AuthIntegration>
         <QueryClientProvider client={queryClient}>
           <ToastProvider>
-            <BrowserRouter>
-              <TooltipProvider>
+            <TooltipProvider>
+              <BrowserRouter>
                 <CommandPaletteProvider>
                   {/* Analytics wiring */}
                   <AnalyticsRouterListener />
                   <PostHogClerkBridge />
                   <AppLayout>
                     <ProtectedRoute>
-                      <Suspense fallback={<PageSkeleton />}>
-                        <Routes>
-                          <Route path="/" element={<ChatInterface />} />
-                          <Route path="/workflows" element={<WorkflowList />} />
-                          <Route
-                            path="/workflows/:id"
-                            element={
-                              <ProtectedRoute>
-                                <WorkflowBuilder />
-                              </ProtectedRoute>
-                            }
-                          />
-                          <Route
-                            path="/workflows/:id/runs"
-                            element={
-                              <ProtectedRoute>
-                                <WorkflowBuilder />
-                              </ProtectedRoute>
-                            }
-                          />
-                          <Route
-                            path="/workflows/:id/runs/:runId"
-                            element={
-                              <ProtectedRoute>
-                                <WorkflowBuilder />
-                              </ProtectedRoute>
-                            }
-                          />
-                          <Route path="/secrets" element={<SecretsManager />} />
-                          <Route path="/api-keys" element={<ApiKeysManager />} />
-                          <Route path="/integrations" element={<IntegrationsManager />} />
-                          <Route
-                            path="/integrations/:provider"
-                            element={<IntegrationDetailPage />}
-                          />
-                          <Route
-                            path="/dashboards/aws-security"
-                            element={<AwsSecurityDashboard />}
-                          />
-                          <Route path="/webhooks" element={<WebhooksPage />} />
-                          <Route path="/webhooks/new" element={<WebhookEditorPage />} />
-                          <Route path="/webhooks/:id" element={<WebhookEditorPage />} />
-                          <Route path="/webhooks/:id/deliveries" element={<WebhookEditorPage />} />
-                          <Route path="/webhooks/:id/settings" element={<WebhookEditorPage />} />
-                          <Route path="/schedules" element={<SchedulesPage />} />
-                          <Route path="/action-center" element={<ActionCenterPage />} />
-                          <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
-                          <Route path="/settings/*" element={<SettingsPage />} />
-                          <Route path="/artifacts" element={<ArtifactLibrary />} />
-                          <Route path="/mcp-library" element={<McpLibraryPage />} />
-                          <Route path="/github" element={<GitHubPage />} />
-                          <Route path="/github/triggers/new" element={<CreateTriggerRulePage />} />
-                          <Route path="/github/triggers/:id" element={<EditTriggerRulePage />} />
-                          <Route path="/github/scans/:id" element={<ScanResultPage />} />
-                          <Route path="/runs/:runId" element={<RunRedirect />} />
-                          <Route
-                            path="/integrations/callback/:provider"
-                            element={<IntegrationCallback />}
-                          />
-                          <Route path="*" element={<NotFound />} />
-                        </Routes>
-                      </Suspense>
+                      <ErrorBoundary resetOnNavigate>
+                        <Suspense fallback={<PageSkeleton />}>
+                          <Routes>
+                            <Route path="/" element={<HomePage />} />
+                            <Route path="/activity" element={<ActivityPage />} />
+                            <Route path="/builder" element={<WorkflowList />} />
+                            <Route path="/templates" element={<WorkflowTemplatesPage />} />
+                            <Route
+                              path="/workflows/:id"
+                              element={
+                                <ProtectedRoute>
+                                  <WorkflowBuilder />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/workflows/:id/runs"
+                              element={
+                                <ProtectedRoute>
+                                  <WorkflowBuilder />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/workflows/:id/runs/:runId"
+                              element={
+                                <ProtectedRoute>
+                                  <WorkflowBuilder />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route path="/secrets" element={<SecretsManager />} />
+                            <Route path="/api-keys" element={<ApiKeysManager />} />
+                            <Route path="/integrations" element={<IntegrationsManager />} />
+                            <Route
+                              path="/integrations/github"
+                              element={<GitHubIntegrationPage />}
+                            />
+                            <Route
+                              path="/integrations/:provider"
+                              element={<IntegrationDetailPage />}
+                            />
+                            <Route
+                              path="/github"
+                              element={<Navigate to="/github/repositories" replace />}
+                            />
+                            <Route path="/github/repositories" element={<GitHubPage />} />
+                            <Route path="/github/scans" element={<GitHubPage />} />
+                            <Route path="/github/scans/:id" element={<ScanResultPage />} />
+                            <Route path="/github/triggers" element={<GitHubPage />} />
+                            <Route
+                              path="/github/triggers/new"
+                              element={<CreateTriggerRulePage />}
+                            />
+                            <Route path="/github/triggers/:id" element={<EditTriggerRulePage />} />
+                            <Route path="/webhooks" element={<WebhooksPage />} />
+                            <Route path="/webhooks/new" element={<WebhookEditorPage />} />
+                            <Route path="/webhooks/:id" element={<WebhookEditorPage />} />
+                            <Route
+                              path="/webhooks/:id/deliveries"
+                              element={<WebhookEditorPage />}
+                            />
+                            <Route path="/webhooks/:id/settings" element={<WebhookEditorPage />} />
+                            <Route path="/schedules" element={<SchedulesPage />} />
+                            <Route path="/action-center" element={<ActionCenterPage />} />
+                            <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
+                            <Route path="/artifacts" element={<ArtifactLibrary />} />
+                            <Route path="/mcp-library" element={<McpLibraryPage />} />
+                            <Route path="/cloud/accounts" element={<CloudAccountsPage />} />
+                            <Route path="/cloud/inventory" element={<CloudInventoryPage />} />
+                            <Route path="/cloud/scans" element={<CloudAccountsPage />} />
+                            <Route path="/asm/domains" element={<DomainsPage />} />
+                            <Route path="/asm/assets" element={<AssetsPage />} />
+                            <Route path="/asm/scans" element={<AsmScansPage />} />
+                            <Route path="/recon" element={<Navigate to="/asm/domains" replace />} />
+                            <Route path="/runs/:runId" element={<RunRedirect />} />
+                            <Route
+                              path="/integrations/callback/:provider"
+                              element={<IntegrationCallback />}
+                            />
+                            <Route path="*" element={<NotFound />} />
+                          </Routes>
+                        </Suspense>
+                      </ErrorBoundary>
                     </ProtectedRoute>
                   </AppLayout>
                 </CommandPaletteProvider>
-              </TooltipProvider>
-            </BrowserRouter>
+              </BrowserRouter>
+            </TooltipProvider>
+            {import.meta.env.DEV && env.VITE_ENABLE_DEVTOOLS && (
+              <Suspense fallback={null}>
+                <ReactQueryDevtools />
+              </Suspense>
+            )}
           </ToastProvider>
-          {import.meta.env.DEV && import.meta.env.VITE_DISABLE_DEVTOOLS !== 'true' && (
-            <Suspense fallback={null}>
-              <ReactQueryDevtools />
-            </Suspense>
-          )}
         </QueryClientProvider>
       </AuthIntegration>
     </AuthProvider>
