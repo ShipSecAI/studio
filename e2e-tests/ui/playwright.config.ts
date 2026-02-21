@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+import path from 'node:path';
 
 const DEFAULT_INSTANCE = 0;
 const FRONTEND_BASE_PORT = 5173;
@@ -26,7 +27,7 @@ export default defineConfig({
   ],
   use: {
     baseURL: `http://localhost:${frontendPort}`,
-    storageState: './test-results/.auth/storage-state.json',
+    storageState: path.join(__dirname, 'test-results', '.auth', 'storage-state.json'),
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

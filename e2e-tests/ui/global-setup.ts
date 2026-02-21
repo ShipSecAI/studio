@@ -57,35 +57,26 @@ async function globalSetup(_config: FullConfig) {
   const adminUsername = process.env.E2E_ADMIN_USER ?? 'admin';
   const adminPassword = process.env.E2E_ADMIN_PASS ?? 'admin';
 
-  // Build the auth state matching frontend/src/store/authStore.ts shape
-  const authState = {
-    state: {
-      token: null,
-      userId: 'admin',
-      organizationId: 'local-dev',
-      roles: ['ADMIN'],
-      provider: 'local',
-      adminUsername,
-      adminPassword,
-    },
-    version: 3,
-  };
-
-  // Launch browser to set localStorage and save storage state
+  // Launch browser and perform actual login to get proper auth state + cookies
   const browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
 
   const frontendUrl = getFrontendBaseUrl();
   await page.goto(frontendUrl);
-  await page.evaluate((state) => {
-    localStorage.setItem('shipsec-auth', JSON.stringify(state));
-  }, authState);
+
+  // Wait for the admin login form to appear and fill it
+  await page.getByLabel('Username').fill(adminUsername);
+  await page.getByLabel('Password').fill(adminPassword);
+  await page.getByRole('button', { name: /login/i }).click();
+
+  // Wait for successful login — the login form should disappear
+  await page.waitForSelector('text=Admin Login', { state: 'hidden', timeout: 15_000 });
 
   const storageStatePath = `${authDir}/storage-state.json`;
   await context.storageState({ path: storageStatePath });
   await browser.close();
-  console.log('  ✓ Auth storage state saved');
+  console.log('  ✓ Auth storage state saved (via browser login)');
 
   // 5. Write seed manifest for mutating tests to validate against
   console.log('  Building seed manifest...');

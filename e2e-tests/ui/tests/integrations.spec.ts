@@ -6,7 +6,7 @@ test.describe('Integrations Page', () => {
     await page.goto('/integrations');
     await waitForPageReady(page);
 
-    const providers = ['AWS', 'GitHub', 'Slack'];
+    const providers = ['Amazon Web Services', 'GitHub', 'Slack'];
     for (const provider of providers) {
       await expect(page.getByRole('heading', { name: provider })).toBeVisible();
     }
