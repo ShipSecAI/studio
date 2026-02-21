@@ -138,57 +138,71 @@ export class StudioMcpService {
       },
     );
 
-    server.registerTool(
+    const runWorkflowSchema = {
+      workflowId: z.string().uuid(),
+      inputs: z.record(z.string(), z.unknown()).optional(),
+      versionId: z.string().uuid().optional(),
+    };
+
+    server.experimental.tasks.registerToolTask(
       'run_workflow',
       {
         description:
-          'Start a workflow execution. Returns the run ID and initial status. Use get_run_status to poll for completion.',
-        inputSchema: {
-          workflowId: z.string().uuid(),
-          inputs: z.record(z.string(), z.unknown()).optional(),
-          versionId: z.string().uuid().optional(),
-        },
+          'Start a workflow execution as a background task. The task handle can be monitored for status updates, and finally retrieved for the workflow result. Also supports legacy polling via get_run_status.',
+        inputSchema: runWorkflowSchema,
+        execution: { taskSupport: 'optional' },
       },
-      async (args: {
-        workflowId: string;
-        inputs?: Record<string, unknown>;
-        versionId?: string;
-      }) => {
-        const gate = this.checkPermission(auth, 'workflows.run');
-        if (!gate.allowed) return gate.error;
-        try {
+      {
+        createTask: async (args, extra) => {
+          const gate = this.checkPermission(auth, 'workflows.run');
+          if (!gate.allowed) throw new Error(gate.error.content[0].text);
+
+          const task = await extra.taskStore.createTask({ ttl: 12 * 60 * 60 * 1000 });
+
           const handle = await this.workflowsService.run(
             args.workflowId,
-            { inputs: args.inputs ?? {}, versionId: args.versionId },
+            {
+              inputs: args.inputs ?? {},
+              versionId: args.versionId,
+            },
             auth,
             {
               trigger: {
                 type: 'api',
                 sourceId: auth.userId ?? 'api-key',
-                label: 'Studio MCP',
+                label: 'Studio MCP Task',
               },
             },
           );
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: JSON.stringify(
-                  {
-                    runId: handle.runId,
-                    workflowId: handle.workflowId,
-                    status: handle.status,
-                    workflowVersion: handle.workflowVersion,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
-        } catch (error) {
-          return this.errorResult(error);
-        }
+
+          this.monitorWorkflowRun(
+            handle.runId,
+            handle.temporalRunId,
+            task.taskId,
+            extra.taskStore,
+            server,
+            auth,
+          ).catch((err) => {
+            this.logger.error(`Error monitoring workflow run task for run ${handle.runId}: ${err}`);
+          });
+
+          return { task };
+        },
+        getTask: async (args, extra) => {
+          const gate = this.checkPermission(auth, 'runs.read');
+          if (!gate.allowed) throw new Error(gate.error.content[0].text);
+          const task = await extra.taskStore.getTask(extra.taskId);
+          if (!task) {
+            throw new Error(`Task ${extra.taskId} not found`);
+          }
+          return task;
+        },
+        getTaskResult: async (args, extra) => {
+          const gate = this.checkPermission(auth, 'runs.read');
+          if (!gate.allowed) throw new Error(gate.error.content[0].text);
+          const result = await extra.taskStore.getTaskResult(extra.taskId);
+          return result as any;
+        },
       },
     );
   }
@@ -395,6 +409,85 @@ export class StudioMcpService {
         }
       },
     );
+  }
+
+  private async monitorWorkflowRun(
+    runId: string,
+    temporalRunId: string | undefined,
+    taskId: string,
+    taskStore: any,
+    server: McpServer,
+    auth: AuthContext,
+  ): Promise<void> {
+    const isTerminal = (status: string) =>
+      ['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT'].includes(status);
+
+    const mapStatus = (status: string): 'working' | 'completed' | 'cancelled' | 'failed' => {
+      switch (status) {
+        case 'RUNNING':
+        case 'QUEUED':
+        case 'AWAITING_INPUT':
+          return 'working';
+        case 'COMPLETED':
+          return 'completed';
+        case 'CANCELLED':
+        case 'TERMINATED':
+        case 'TIMED_OUT':
+          return 'cancelled';
+        case 'FAILED':
+          return 'failed';
+        default:
+          return 'working';
+      }
+    };
+
+    while (true) {
+      try {
+        const runStatusPayload = await this.workflowsService.getRunStatus(
+          runId,
+          temporalRunId,
+          auth,
+        );
+        const taskState = mapStatus(runStatusPayload.status);
+
+        await taskStore.updateTaskStatus(taskId, taskState, runStatusPayload.status);
+
+        if (isTerminal(runStatusPayload.status)) {
+          let resultData: any;
+          if (taskState === 'completed') {
+            try {
+              resultData = await this.workflowsService.getRunResult(runId, temporalRunId, auth);
+            } catch (err) {
+              resultData = { error: String(err) };
+            }
+          } else {
+            resultData = runStatusPayload.failure || { reason: runStatusPayload.status };
+          }
+
+          const resultPayload = {
+            content: [{ type: 'text', text: JSON.stringify(resultData, null, 2) }],
+          };
+
+          const storeStatus = taskState === 'completed' ? 'completed' : 'failed';
+          await taskStore.storeTaskResult(taskId, storeStatus, resultPayload);
+          break;
+        }
+
+        await new Promise((res) => setTimeout(res, 2000));
+      } catch (err) {
+        this.logger.error(`Error monitoring task ${taskId} (run: ${runId}): ${err}`);
+        try {
+          await taskStore.updateTaskStatus(taskId, 'failed', String(err));
+          await taskStore.storeTaskResult(taskId, 'failed', {
+            content: [{ type: 'text', text: `Failed to monitor workflow run: ${String(err)}` }],
+            isError: true,
+          });
+        } catch (_updateErr) {
+          // Ignore
+        }
+        break;
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
