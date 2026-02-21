@@ -64,6 +64,9 @@ const RunRedirect = lazy(() =>
 const AnalyticsSettingsPage = lazy(() =>
   import('@/pages/AnalyticsSettingsPage').then((m) => ({ default: m.AnalyticsSettingsPage })),
 );
+const SettingsPage = lazy(() =>
+  import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+);
 
 // Lazy-load CommandPalette — it pulls in the entire lucide-react barrel (~350KB)
 const CommandPalette = lazy(() =>
@@ -173,6 +176,7 @@ function App() {
                         <Route path="/schedules" element={<SchedulesPage />} />
                         <Route path="/action-center" element={<ActionCenterPage />} />
                         <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
+                        <Route path="/settings/*" element={<SettingsPage />} />
                         <Route path="/artifacts" element={<ArtifactLibrary />} />
                         <Route path="/mcp-library" element={<McpLibraryPage />} />
                         <Route path="/runs/:runId" element={<RunRedirect />} />

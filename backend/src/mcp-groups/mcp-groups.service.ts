@@ -11,6 +11,8 @@ import Redis from 'ioredis';
 import { McpGroupsRepository, type McpGroupUpdateData } from './mcp-groups.repository';
 import { McpGroupsSeedingService } from './mcp-groups-seeding.service';
 import { McpServersRepository } from '../mcp-servers/mcp-servers.repository';
+import { AuditLogService } from '../audit/audit-log.service';
+import type { AuthContext } from '../auth/types';
 import type {
   CreateMcpGroupDto,
   UpdateMcpGroupDto,
@@ -38,6 +40,7 @@ export class McpGroupsService implements OnModuleInit {
     private readonly seedingService: McpGroupsSeedingService,
     private readonly mcpServersRepository: McpServersRepository,
     @Optional() @Inject(MCP_SERVERS_REDIS) private readonly redis: Redis | null,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async onModuleInit() {
@@ -140,6 +143,7 @@ export class McpGroupsService implements OnModuleInit {
     slug: string,
     organizationId: string,
     input?: ImportTemplateRequestDto,
+    auth?: AuthContext | null,
   ): Promise<ImportGroupTemplateResponse> {
     const result: TemplateSyncResult = await this.seedingService.syncTemplate(
       slug,
@@ -188,13 +192,21 @@ export class McpGroupsService implements OnModuleInit {
       }
     }
 
+    this.auditLogService.record(auth ?? null, {
+      action: 'mcp_group.import_template',
+      resourceType: 'mcp_group',
+      resourceId: group.id,
+      resourceName: group.name,
+      metadata: { slug, action: result.action },
+    });
+
     return {
       action: result.action,
       group,
     };
   }
 
-  async createGroup(input: CreateMcpGroupDto): Promise<McpGroupResponse> {
+  async createGroup(auth: AuthContext | null, input: CreateMcpGroupDto): Promise<McpGroupResponse> {
     // Validate slug format
     if (!/^[a-z0-9-]+$/.test(input.slug)) {
       throw new BadRequestException(
@@ -212,10 +224,22 @@ export class McpGroupsService implements OnModuleInit {
       enabled: input.enabled ?? true,
     });
 
+    this.auditLogService.record(auth, {
+      action: 'mcp_group.create',
+      resourceType: 'mcp_group',
+      resourceId: group.id,
+      resourceName: group.name,
+      metadata: { slug: group.slug },
+    });
+
     return this.mapGroupToResponse(group);
   }
 
-  async updateGroup(id: string, input: UpdateMcpGroupDto): Promise<McpGroupResponse> {
+  async updateGroup(
+    auth: AuthContext | null,
+    id: string,
+    input: UpdateMcpGroupDto,
+  ): Promise<McpGroupResponse> {
     const updates: McpGroupUpdateData = {};
 
     if (input.name !== undefined) {
@@ -252,12 +276,21 @@ export class McpGroupsService implements OnModuleInit {
     }
 
     const group = await this.repository.update(id, updates);
+
+    this.auditLogService.record(auth, {
+      action: 'mcp_group.update',
+      resourceType: 'mcp_group',
+      resourceId: group.id,
+      resourceName: group.name,
+      metadata: { slug: group.slug },
+    });
+
     return this.mapGroupToResponse(group);
   }
 
-  async deleteGroup(id: string): Promise<void> {
+  async deleteGroup(auth: AuthContext | null, id: string): Promise<void> {
     // Verify group exists and collect servers to clean up
-    await this.repository.findById(id);
+    const group = await this.repository.findById(id);
     const servers = await this.repository.findServersByGroup(id);
 
     for (const server of servers) {
@@ -269,6 +302,14 @@ export class McpGroupsService implements OnModuleInit {
     }
 
     await this.repository.delete(id);
+
+    this.auditLogService.record(auth, {
+      action: 'mcp_group.delete',
+      resourceType: 'mcp_group',
+      resourceId: group.id,
+      resourceName: group.name,
+      metadata: { slug: group.slug, serverCount: servers.length },
+    });
   }
 
   // Group-Server relationship methods

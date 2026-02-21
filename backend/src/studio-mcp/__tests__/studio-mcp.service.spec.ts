@@ -217,6 +217,7 @@ describe('StudioMcpService Unit Tests', () => {
         apiKeyPermissions: {
           workflows: { run: false, list: true, read: true },
           runs: { read: true, cancel: false },
+          audit: { read: false },
         },
       };
 
@@ -281,6 +282,7 @@ describe('StudioMcpService Unit Tests', () => {
           apiKeyPermissions: {
             workflows: { run: false, list: false, read: false },
             runs: { read: false, cancel: false },
+            audit: { read: false },
           },
         };
         const server = service.createServer(noPermsAuth);
@@ -301,6 +303,7 @@ describe('StudioMcpService Unit Tests', () => {
           apiKeyPermissions: {
             workflows: { run: false, list: false, read: false },
             runs: { read: false, cancel: false },
+            audit: { read: false },
           },
         };
         const server = service.createServer(noPermsAuth);

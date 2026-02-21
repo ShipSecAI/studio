@@ -13,6 +13,7 @@ import type { WorkflowScheduleRecord } from '../database/schema';
 import { TemporalService, type ScheduleTriggerWorkflowArgs } from '../temporal/temporal.service';
 import { CreateScheduleRequestDto, UpdateScheduleRequestDto } from './dto/schedule.dto';
 import type { ScheduleRepositoryFilters } from './repository/schedule.repository';
+import { AuditLogService } from '../audit/audit-log.service';
 
 @Injectable()
 export class SchedulesService {
@@ -22,6 +23,7 @@ export class SchedulesService {
     private readonly repository: ScheduleRepository,
     private readonly workflowsService: WorkflowsService,
     private readonly temporalService: TemporalService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async list(auth: AuthContext | null, filters: ScheduleRepositoryFilters = {}) {
@@ -114,6 +116,17 @@ export class SchedulesService {
       { organizationId: context.organizationId },
     );
 
+    this.auditLogService.record(auth, {
+      action: 'schedule.create',
+      resourceType: 'schedule',
+      resourceId: (updated ?? record).id,
+      resourceName: (updated ?? record).name,
+      metadata: {
+        workflowId: (updated ?? record).workflowId,
+        cronExpression: (updated ?? record).cronExpression,
+      },
+    });
+
     return this.mapRecord(updated ?? record);
   }
 
@@ -188,6 +201,14 @@ export class SchedulesService {
       throw new NotFoundException(`Schedule ${id} not found`);
     }
 
+    this.auditLogService.record(auth, {
+      action: 'schedule.update',
+      resourceType: 'schedule',
+      resourceId: updated.id,
+      resourceName: updated.name,
+      metadata: { workflowId: updated.workflowId, cronExpression: updated.cronExpression },
+    });
+
     return this.mapRecord(updated);
   }
 
@@ -205,6 +226,14 @@ export class SchedulesService {
       });
     }
     await this.repository.delete(existing.id, { organizationId: existing.organizationId });
+
+    this.auditLogService.record(auth, {
+      action: 'schedule.delete',
+      resourceType: 'schedule',
+      resourceId: existing.id,
+      resourceName: existing.name,
+      metadata: { workflowId: existing.workflowId },
+    });
   }
 
   async pause(auth: AuthContext | null, id: string): Promise<WorkflowSchedule> {
@@ -219,6 +248,13 @@ export class SchedulesService {
       { status: 'paused' },
       { organizationId: existing.organizationId },
     );
+    this.auditLogService.record(auth, {
+      action: 'schedule.pause',
+      resourceType: 'schedule',
+      resourceId: existing.id,
+      resourceName: existing.name,
+    });
+
     return this.mapRecord(updated ?? existing);
   }
 
@@ -234,6 +270,14 @@ export class SchedulesService {
       { status: 'active' },
       { organizationId: existing.organizationId },
     );
+
+    this.auditLogService.record(auth, {
+      action: 'schedule.resume',
+      resourceType: 'schedule',
+      resourceId: existing.id,
+      resourceName: existing.name,
+    });
+
     return this.mapRecord(updated ?? existing);
   }
 
@@ -264,6 +308,14 @@ export class SchedulesService {
     );
 
     await this.workflowsService.startPreparedRun(prepared);
+
+    this.auditLogService.record(auth, {
+      action: 'schedule.trigger',
+      resourceType: 'schedule',
+      resourceId: existing.id,
+      resourceName: existing.name,
+      metadata: { workflowId: existing.workflowId },
+    });
   }
 
   private async findOwnedScheduleOrThrow(id: string, auth: AuthContext | null) {

@@ -114,6 +114,7 @@ describe('AuthGuard', () => {
         permissions: {
           workflows: { run: true, list: true, read: true },
           runs: { read: true, cancel: false },
+          audit: { read: false },
         },
         isActive: true,
         expiresAt: null,
@@ -258,6 +259,7 @@ describe('AuthGuard', () => {
         permissions: {
           workflows: { run: true, list: true, read: true },
           runs: { read: true, cancel: true },
+          audit: { read: false },
         },
         isActive: true,
         expiresAt: null,
@@ -367,6 +369,7 @@ describe('AuthGuard', () => {
         permissions: {
           workflows: { run: true, list: true, read: true },
           runs: { read: true, cancel: false },
+          audit: { read: false },
         },
         isActive: true,
         expiresAt: null,
@@ -464,6 +467,7 @@ describe('AuthGuard', () => {
         permissions: {
           workflows: { run: true, list: true, read: true },
           runs: { read: true, cancel: false },
+          audit: { read: false },
         },
         isActive: true,
         expiresAt: null,
@@ -507,6 +511,7 @@ describe('AuthGuard', () => {
         permissions: {
           workflows: { run: true, list: true, read: true },
           runs: { read: true, cancel: false },
+          audit: { read: false },
         },
         isActive: true,
         expiresAt: null,
@@ -546,6 +551,7 @@ describe('AuthGuard', () => {
         permissions: {
           workflows: { run: true, list: true, read: true },
           runs: { read: true, cancel: false },
+          audit: { read: false },
         },
         isActive: true,
         expiresAt: null,

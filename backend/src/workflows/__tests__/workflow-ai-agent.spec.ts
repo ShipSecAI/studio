@@ -248,6 +248,10 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
       isEnabled: vi.fn().mockReturnValue(true),
     };
 
+    const auditLogServiceMock = {
+      record: vi.fn(),
+    };
+
     const service = new WorkflowsService(
       repositoryMock as WorkflowRepository,
       workflowRoleRepositoryMock as any,
@@ -256,6 +260,7 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
       traceRepositoryMock as any,
       {} as any,
       analyticsServiceMock as any,
+      auditLogServiceMock as any,
     );
 
     const definition = await service.commit(workflowId, authContext);
