@@ -63,7 +63,7 @@ export class HumanInputsController {
     if (!auth || !auth.organizationId) {
       throw new UnauthorizedException('Authentication required');
     }
-    return this.service.resolve(id, dto, auth.organizationId);
+    return this.service.resolve(id, dto, auth.organizationId, auth);
   }
 
   // Public endpoints for resolving via token (no auth guard)

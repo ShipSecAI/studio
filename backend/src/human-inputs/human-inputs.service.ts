@@ -12,6 +12,7 @@ import {
 } from './dto/human-inputs.dto';
 import { TemporalService } from '../temporal/temporal.service';
 import { AuditLogService } from '../audit/audit-log.service';
+import type { AuthContext } from '../auth/types';
 
 @Injectable()
 export class HumanInputsService {
@@ -75,6 +76,7 @@ export class HumanInputsService {
     id: string,
     dto: ResolveHumanInputDto,
     organizationId?: string,
+    auth?: AuthContext | null,
   ): Promise<HumanInputResponseDto> {
     const request = await this.getById(id, organizationId);
 
@@ -113,7 +115,7 @@ export class HumanInputsService {
       },
     });
 
-    this.auditLogService.record(null, {
+    this.auditLogService.record(auth ?? null, {
       action: 'human_input.resolve',
       resourceType: 'human_input',
       resourceId: updated.id,
