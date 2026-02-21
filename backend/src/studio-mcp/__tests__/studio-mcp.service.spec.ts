@@ -454,8 +454,15 @@ describe('StudioMcpService Unit Tests', () => {
         global.setTimeout = originalSetTimeout as any;
       }
 
+      // updateTaskStatus is only called for non-terminal states (RUNNING → working).
+      // For COMPLETED, storeTaskResult handles the terminal transition directly.
+      expect(mockTaskStore.updateTaskStatus).toHaveBeenCalledTimes(1);
       expect(mockTaskStore.updateTaskStatus).toHaveBeenCalledWith(taskId, 'working', 'RUNNING');
-      expect(mockTaskStore.updateTaskStatus).toHaveBeenCalledWith(taskId, 'completed', 'COMPLETED');
+      expect(mockTaskStore.updateTaskStatus).not.toHaveBeenCalledWith(
+        taskId,
+        'completed',
+        'COMPLETED',
+      );
       expect(workflowsService.getRunResult).toHaveBeenCalledWith(runId, undefined, mockAuthContext);
       expect(mockTaskStore.storeTaskResult).toHaveBeenCalledWith(taskId, 'completed', {
         content: [{ type: 'text', text: JSON.stringify({ output: 'test-output' }, null, 2) }],
@@ -485,7 +492,8 @@ describe('StudioMcpService Unit Tests', () => {
         mockAuthContext,
       );
 
-      expect(mockTaskStore.updateTaskStatus).toHaveBeenCalledWith(taskId, 'failed', 'FAILED');
+      // updateTaskStatus is NOT called for terminal states — storeTaskResult handles it.
+      expect(mockTaskStore.updateTaskStatus).not.toHaveBeenCalled();
       expect(mockTaskStore.storeTaskResult).toHaveBeenCalledWith(taskId, 'failed', {
         content: [{ type: 'text', text: JSON.stringify({ message: 'boom' }, null, 2) }],
       });
