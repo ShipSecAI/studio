@@ -14,12 +14,33 @@ import {
   param,
   analyticsResultSchema,
   generateFindingHash,
+  resolveDockerPath,
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
+import { spawn } from 'node:child_process';
 
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 import { awsCredentialSchema } from '@shipsec/contracts';
-import { createIsolatedVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume, IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { assumeRole } from '../core/aws-assume-role';
+import { discoverOrgAccounts } from '../core/aws-org-discovery';
+import {
+  type RecommendedFlagId,
+  type NormalisedFinding,
+  type NormalisedSeverity,
+  severityLevels,
+  recommendedFlagOptions,
+  defaultSelectedFlagIds,
+  recommendedFlagIdSchema,
+  recommendedFlagMap,
+  normalisedFindingSchema,
+  runnerPayloadSchema,
+  normaliseFindings,
+  mapToAnalyticsSeverity,
+  buildScanId,
+  buildMemberRoleArn,
+  splitArgs,
+} from './prowler-shared';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1196,48 +1217,9 @@ const definition = defineComponent({
     ],
   },
   async execute({ inputs, params }, context) {
+    const parsedInputs = inputSchema.parse(inputs);
     const parsedParams = parameterSchema.parse(params);
 
-    // Helper: split custom CLI flags honoring simple quotes
-    const splitArgs = (input: string): string[] => {
-      const args: string[] = [];
-      let current = '';
-      let quote: '"' | "'" | null = null;
-      let escape = false;
-      for (const ch of input) {
-        if (escape) {
-          current += ch;
-          escape = false;
-          continue;
-        }
-        if (ch === '\\') {
-          escape = true;
-          continue;
-        }
-        if (quote) {
-          if (ch === quote) {
-            quote = null;
-          } else {
-            current += ch;
-          }
-          continue;
-        }
-        if (ch === '"' || ch === "'") {
-          quote = ch as '"' | "'";
-          continue;
-        }
-        if (/\s/.test(ch)) {
-          if (current.length > 0) {
-            args.push(current);
-            current = '';
-          }
-          continue;
-        }
-        current += ch;
-      }
-      if (current.length > 0) args.push(current);
-      return args;
-    };
     const parsedRegions = parsedInputs.regions
       .split(',')
       .map((region) => region.trim())
@@ -1495,7 +1477,7 @@ const definition = defineComponent({
         }
       });
 
-      const scanId = buildScanId(parsedInputs.accountId, parsedParams.scanMode);
+      const scanId = buildScanId(parsedInputs.accountId ?? 'unknown', parsedParams.scanMode);
 
       // Build analytics-ready results (follows core.analytics.result.v1 contract)
       const results: AnalyticsResult[] = findings.map((finding) => ({

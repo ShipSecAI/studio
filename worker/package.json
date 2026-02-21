@@ -24,6 +24,7 @@
     "@ai-sdk/openai": "^3.0.18",
     "@aws-sdk/client-organizations": "^3.992.0",
     "@aws-sdk/client-s3": "^3.975.0",
+    "@aws-sdk/client-sts": "^3.995.0",
     "@google-cloud/storage": "^7.14.0",
     "@googleapis/admin": "^29.0.0",
     "@grpc/grpc-js": "^1.14.3",
