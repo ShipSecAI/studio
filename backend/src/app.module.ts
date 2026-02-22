@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { join } from 'node:path';
 import { ThrottlerModule, ThrottlerGuard, seconds } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
@@ -100,6 +101,7 @@ function getEnvFilePaths(): string[] {
         };
       },
     }),
+    EventEmitterModule.forRoot(),
     OpenSearchModule,
     ...coreModules,
     ...testingModules,

@@ -54,7 +54,14 @@ export class AwsService implements OnModuleInit {
       } else {
         this.logger.log(`Platform identity verified: ${platformArn}`);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.message?.includes('Region is missing')) {
+        this.logger.warn(
+          'AWS region not configured — skipping platform identity verification. ' +
+            'Set AWS_REGION or AWS_DEFAULT_REGION to enable.',
+        );
+        return;
+      }
       this.logger.error('AWS platform identity verification failed', error);
       throw error; // Prevent app from starting with invalid AWS creds
     }

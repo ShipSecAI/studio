@@ -33,6 +33,22 @@ export function useIntegrationConnections(_userId?: string | undefined) {
   });
 }
 
+export function useIntegrationCatalog() {
+  return useQuery({
+    queryKey: ['integrationCatalog'],
+    queryFn: () => api.integrations.getCatalog(),
+    staleTime: Infinity,
+  });
+}
+
+export function useAwsSetupInfo() {
+  return useQuery({
+    queryKey: ['awsSetupInfo'],
+    queryFn: () => api.integrations.getAwsSetupInfo(),
+    staleTime: 25 * 60_000, // matches backend TTL
+  });
+}
+
 export function useProviderConfig(providerId: string | undefined, enabled = true) {
   const isEnabled = !!providerId && enabled;
   return useQuery({
@@ -49,7 +65,7 @@ export function useRefreshConnection() {
   return useMutation({
     mutationFn: ({ id }: { id: string }) => api.integrations.refreshConnection(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['integrationConnections'] });
+      qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
     },
   });
 }
@@ -59,7 +75,61 @@ export function useDisconnectIntegration() {
   return useMutation({
     mutationFn: ({ id }: { id: string }) => api.integrations.disconnect(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['integrationConnections'] });
+      qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
     },
+  });
+}
+
+export function useCreateAwsConnection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      displayName: string;
+      roleArn: string;
+      region?: string;
+      externalId: string;
+      setupToken: string;
+    }) => api.integrations.createAwsConnection(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
+      qc.removeQueries({ queryKey: ['awsSetupInfo'] }); // clear so next connection gets fresh setup token
+    },
+  });
+}
+
+export function useCreateSlackWebhookConnection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { displayName: string; webhookUrl: string }) =>
+      api.integrations.createSlackWebhookConnection(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
+    },
+  });
+}
+
+export function useValidateAwsConnection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.integrations.validateAwsConnection(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
+    },
+  });
+}
+
+export function useTestSlackConnection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.integrations.testSlackConnection(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
+    },
+  });
+}
+
+export function useDiscoverOrgAccounts() {
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.integrations.discoverOrgAccounts(id),
   });
 }

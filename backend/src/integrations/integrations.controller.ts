@@ -297,10 +297,10 @@ export class IntegrationsController {
   @Get('aws/setup-info')
   @ApiOkResponse({ type: AwsSetupInfoResponseDto })
   async getAwsSetupInfo(@CurrentAuth() auth: AuthContext | null): Promise<AwsSetupInfoResponseDto> {
-    if (!auth?.organizationId) {
-      throw new BadRequestException('Authentication with organization context required');
+    if (!auth?.organizationId || !auth?.userId) {
+      throw new BadRequestException('Authentication with user and organization context required');
     }
-    return this.integrations.getAwsSetupInfo(auth.organizationId);
+    return this.integrations.getAwsSetupInfo(auth.organizationId, auth.userId);
   }
 
   @Post('aws/connections')

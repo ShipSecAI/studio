@@ -1427,7 +1427,7 @@ function ConnectAccountDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Connect AWS Account</DialogTitle>
           <DialogDescription>

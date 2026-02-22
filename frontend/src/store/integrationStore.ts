@@ -159,7 +159,7 @@ export const useIntegrationStore = create<IntegrationStore>((set, get) => ({
   createAwsConnection: async (payload) => {
     try {
       const connection = await api.integrations.createAwsConnection(payload);
-      set({ _awsSetupInfoCache: null }); // clear so next connection gets a fresh ExternalId
+      set({ _awsSetupInfoCache: null }); // clear so next connection gets a fresh setup token
       get().upsertConnection(connection);
       return connection;
     } catch (error) {

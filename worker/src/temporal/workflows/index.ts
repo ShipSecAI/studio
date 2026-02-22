@@ -1207,3 +1207,6 @@ export { mcpDiscoveryWorkflow, mcpGroupDiscoveryWorkflow } from './mcp-discovery
 
 // Export webhook parsing workflow (Docker execution must run in worker).
 export { webhookParsingWorkflow } from './webhook-parsing-workflow.js';
+
+// Export asset sync workflow (cloud inventory reconciliation).
+export { assetSyncWorkflow } from './asset-sync-workflow.js';

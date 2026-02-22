@@ -22,3 +22,4 @@ export * from './node-io';
 export * from './organization-settings';
 export * from './github-app';
 export * from './workflow-templates';
+export * from './user-settings';

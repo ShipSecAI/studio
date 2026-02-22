@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { SecretEncryptionMaterial } from '@shipsec/shared';
 
@@ -8,6 +8,7 @@ import {
   integrationTokens,
   integrationOAuthStates,
   integrationProviderConfigs,
+  userSettingsTable,
   type IntegrationTokenRecord,
   type IntegrationOAuthStateRecord,
   type IntegrationProviderConfigRecord,
@@ -159,7 +160,9 @@ export class IntegrationsRepository {
    * Insert a new connection (no upsert). For non-OAuth connection types.
    * On unique constraint violation, catches the error and returns the existing connection (D12).
    */
-  async insertConnection(input: InsertConnectionInput): Promise<IntegrationTokenRecord> {
+  async insertConnection(
+    input: InsertConnectionInput,
+  ): Promise<{ record: IntegrationTokenRecord; isNew: boolean }> {
     try {
       const [record] = await this.db
         .insert(integrationTokens)
@@ -183,7 +186,7 @@ export class IntegrationsRepository {
         })
         .returning();
 
-      return record;
+      return { record, isNew: true };
     } catch (error: any) {
       // Unique constraint violation — return existing connection (D12 natural idempotency)
       if (error?.code === '23505') {
@@ -201,7 +204,7 @@ export class IntegrationsRepository {
           .limit(1);
 
         if (existing[0]) {
-          return existing[0];
+          return { record: existing[0], isNew: false };
         }
       }
       throw error;
@@ -216,6 +219,41 @@ export class IntegrationsRepository {
     await this.db
       .delete(integrationTokens)
       .where(and(eq(integrationTokens.userId, userId), eq(integrationTokens.provider, provider)));
+  }
+
+  async getUserAwsExternalId(userId: string): Promise<string | null> {
+    const [record] = await this.db
+      .select({ awsExternalId: userSettingsTable.awsExternalId })
+      .from(userSettingsTable)
+      .where(eq(userSettingsTable.userId, userId))
+      .limit(1);
+    return record?.awsExternalId ?? null;
+  }
+
+  async insertUserAwsExternalId(userId: string, externalId: string): Promise<string | null> {
+    const [record] = await this.db
+      .insert(userSettingsTable)
+      .values({
+        userId,
+        awsExternalId: externalId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoNothing()
+      .returning({ awsExternalId: userSettingsTable.awsExternalId });
+    return record?.awsExternalId ?? null;
+  }
+
+  async findLatestAwsExternalIdFromConnections(userId: string): Promise<string | null> {
+    const [record] = await this.db
+      .select({ metadata: integrationTokens.metadata })
+      .from(integrationTokens)
+      .where(and(eq(integrationTokens.userId, userId), eq(integrationTokens.provider, 'aws')))
+      .orderBy(desc(integrationTokens.createdAt))
+      .limit(1);
+
+    const externalId = record?.metadata?.externalId;
+    return typeof externalId === 'string' ? externalId : null;
   }
 
   async updateConnectionHealth(

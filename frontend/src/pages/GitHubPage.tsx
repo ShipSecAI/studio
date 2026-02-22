@@ -34,7 +34,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/components/ui/use-toast';
 import {
   Github,
@@ -3045,59 +3045,61 @@ export function GitHubPage() {
   }
 
   return (
-    <div className="container py-6 space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="repos">
-            <FolderGit className="h-4 w-4 mr-2" />
-            Repositories
-          </TabsTrigger>
-          <TabsTrigger value="scans">
-            <PlayCircle className="h-4 w-4 mr-2" />
-            Scans
-          </TabsTrigger>
-          <TabsTrigger value="triggers">
-            <GitPullRequest className="h-4 w-4 mr-2" />
-            Trigger Rules
-          </TabsTrigger>
-        </TabsList>
+    <TooltipProvider>
+      <div className="container py-6 space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="repos">
+              <FolderGit className="h-4 w-4 mr-2" />
+              Repositories
+            </TabsTrigger>
+            <TabsTrigger value="scans">
+              <PlayCircle className="h-4 w-4 mr-2" />
+              Scans
+            </TabsTrigger>
+            <TabsTrigger value="triggers">
+              <GitPullRequest className="h-4 w-4 mr-2" />
+              Trigger Rules
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="repos" className="mt-6">
-          <div className="space-y-6">
-            <ConnectionOverview
-              installations={installations}
-              repositories={repositories}
-              installUrl={installUrl}
-              onSync={() => qc.invalidateQueries({ queryKey: queryKeys.github.repositories() })}
-            />
-            <RepositoriesTab
-              onRunScan={handleRunScan}
-              onSchedule={(repo) => setSelectedRepoForSchedule(repo)}
-            />
-          </div>
-        </TabsContent>
+          <TabsContent value="repos" className="mt-6">
+            <div className="space-y-6">
+              <ConnectionOverview
+                installations={installations}
+                repositories={repositories}
+                installUrl={installUrl}
+                onSync={() => qc.invalidateQueries({ queryKey: queryKeys.github.repositories() })}
+              />
+              <RepositoriesTab
+                onRunScan={handleRunScan}
+                onSchedule={(repo) => setSelectedRepoForSchedule(repo)}
+              />
+            </div>
+          </TabsContent>
 
-        <TabsContent value="scans" className="mt-6">
-          <ScansTab />
-        </TabsContent>
+          <TabsContent value="scans" className="mt-6">
+            <ScansTab />
+          </TabsContent>
 
-        <TabsContent value="triggers" className="mt-6">
-          <TriggerRulesTab />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="triggers" className="mt-6">
+            <TriggerRulesTab />
+          </TabsContent>
+        </Tabs>
 
-      {/* Workflow Picker Modal */}
-      <WorkflowPickerModal
-        open={selectedRepoForScan !== null}
-        onClose={() => setSelectedRepoForScan(null)}
-        repository={selectedRepoForScan}
-        onSuccess={handleScanSuccess}
-      />
-      <CodeScanScheduleDialog
-        open={selectedRepoForSchedule !== null}
-        onClose={() => setSelectedRepoForSchedule(null)}
-        repository={selectedRepoForSchedule ?? undefined}
-      />
-    </div>
+        {/* Workflow Picker Modal */}
+        <WorkflowPickerModal
+          open={selectedRepoForScan !== null}
+          onClose={() => setSelectedRepoForScan(null)}
+          repository={selectedRepoForScan}
+          onSuccess={handleScanSuccess}
+        />
+        <CodeScanScheduleDialog
+          open={selectedRepoForSchedule !== null}
+          onClose={() => setSelectedRepoForSchedule(null)}
+          repository={selectedRepoForSchedule ?? undefined}
+        />
+      </div>
+    </TooltipProvider>
   );
 }

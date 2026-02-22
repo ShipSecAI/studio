@@ -18,12 +18,6 @@ sync:
         - 'build'
         - '**/build'
         - '*.tsbuildinfo'
-        # Environment files — server has its own configured .env files
-        - '.env'
-        - '**/.env'
-        - '.env.*'
-        - '**/.env.*'
-        - 'docker/.env'
         # Runtime / instance state
         - '.shipsec-instance'
         - '.instances'
