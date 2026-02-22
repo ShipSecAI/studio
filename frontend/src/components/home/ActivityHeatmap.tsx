@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { Fragment, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useRunActivity } from '@/hooks/queries/useRunQueries';
@@ -287,12 +287,9 @@ export function ActivityHeatmap() {
                 }}
               >
                 {Array.from({ length: 7 }, (_, dayIndex) => (
-                  <>
+                  <Fragment key={`day-${dayIndex}`}>
                     {/* Day label */}
-                    <div
-                      key={`label-${dayIndex}`}
-                      className="text-[10px] text-muted-foreground flex items-center"
-                    >
+                    <div className="text-[10px] text-muted-foreground flex items-center">
                       {DAY_LABELS[dayIndex]}
                     </div>
 
@@ -321,7 +318,7 @@ export function ActivityHeatmap() {
                         </Tooltip>
                       );
                     })}
-                  </>
+                  </Fragment>
                 ))}
               </div>
 

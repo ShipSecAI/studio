@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+
 import {
   Dialog,
   DialogContent,
@@ -185,9 +185,9 @@ export function CloudScanScheduleDialog({
         description: (
           <span>
             Cadence: {humanLabel || cronExpression} ({timezone}).{' '}
-            <Link to="/schedules" className="underline font-medium">
+            <a href="/schedules" className="underline font-medium">
               View on Schedules page
-            </Link>
+            </a>
           </span>
         ),
       });
