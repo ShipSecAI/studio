@@ -21,7 +21,7 @@
     "dev:stack": "bun run dev:infra && pm2 logs shipsec-frontend",
     "dev:stack:stop": "bash -lc 'pm2 delete shipsec-frontend shipsec-backend shipsec-worker || true && docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml -p shipsec down'",
     "typecheck": "tsc --build",
-    "test": "rm -rf worker/dist && bun test",
+    "test": "rm -rf worker/dist && bun test backend frontend worker packages",
     "test:e2e": "bash -lc 'SHIPSEC_INSTANCE=${SHIPSEC_INSTANCE:-$(./scripts/active-instance.sh get)} RUN_E2E=true bun test --force-exit e2e-tests'",
     "test:e2e:core": "bash -lc 'SHIPSEC_INSTANCE=${SHIPSEC_INSTANCE:-$(./scripts/active-instance.sh get)} RUN_E2E=true bun test --force-exit e2e-tests/core'",
     "test:e2e:pipeline": "bash -lc 'SHIPSEC_INSTANCE=${SHIPSEC_INSTANCE:-$(./scripts/active-instance.sh get)} RUN_E2E=true bun test --force-exit e2e-tests/pipeline'",
