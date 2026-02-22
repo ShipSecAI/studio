@@ -25,11 +25,13 @@ import {
   Search,
   Command,
   Webhook,
+  Server,
   ServerCog,
   Settings,
   ChevronDown,
   Home,
   Globe,
+  Radar,
   GitPullRequest,
   ScanSearch,
   LayoutTemplate,
@@ -344,6 +346,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       label: 'CLOUD SECURITY',
       items: [
         { name: 'Cloud Accounts', href: '/cloud/accounts', icon: Cloud },
+        { name: 'Cloud Inventory', href: '/cloud/inventory', icon: Server },
         {
           name: 'Cloud Findings',
           href: '/dashboards/security?view=cloud-security',
@@ -354,7 +357,11 @@ export function AppLayout({ children }: AppLayoutProps) {
     },
     {
       label: 'ATTACK SURFACE',
-      items: [{ name: 'Recon', href: '/recon', icon: Globe }],
+      items: [
+        { name: 'Domains', href: '/asm/domains', icon: Globe },
+        { name: 'Assets', href: '/asm/assets', icon: Server },
+        { name: 'Scans', href: '/asm/scans', icon: Radar },
+      ],
     },
     {
       label: 'WORKFLOWS',
