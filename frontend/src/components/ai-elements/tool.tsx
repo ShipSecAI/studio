@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import {
+  AlertCircleIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   CircleIcon,
@@ -215,7 +216,19 @@ export const ToolOutput = ({ className, output, errorText, ...props }: ToolOutpu
   let copyText: string | undefined;
 
   if (displayError) {
-    renderContent = <div className="p-3 text-xs whitespace-pre-wrap">{displayError}</div>;
+    renderContent = (
+      <div className="m-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+        <div className="flex items-start gap-2">
+          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div className="min-w-0 flex-1">
+            <p className="mb-1 text-xs font-medium text-destructive">Tool Error</p>
+            <p className="whitespace-pre-wrap break-words text-xs text-destructive/80">
+              {displayError}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
     copyText = String(displayError);
   } else if (isValidElement(displayOutput as React.ReactNode)) {
     renderContent = <div className="p-3">{displayOutput as React.ReactNode}</div>;

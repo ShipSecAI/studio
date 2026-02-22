@@ -93,11 +93,24 @@ export function parseWorkflowRunOutput(output: unknown): ParsedWorkflowRunOutput
     let innerRunId: string | undefined = undefined;
     let innerWorkflowId: string | undefined = undefined;
 
+    // Try to get runId/workflowId from the final result
     if (payload.result !== undefined) {
       const innerPayload = extractPayload(payload.result);
       if (isRecord(innerPayload)) {
         if (typeof innerPayload.runId === 'string') innerRunId = innerPayload.runId;
         if (typeof innerPayload.workflowId === 'string') innerWorkflowId = innerPayload.workflowId;
+      }
+    }
+
+    // Also parse from statusMessage JSON (sent during live polling before final result)
+    if (typeof payload.statusMessage === 'string') {
+      try {
+        const parsed = JSON.parse(payload.statusMessage) as Record<string, unknown>;
+        if (!innerRunId && typeof parsed.runId === 'string') innerRunId = parsed.runId;
+        if (!innerWorkflowId && typeof parsed.workflowId === 'string')
+          innerWorkflowId = parsed.workflowId;
+      } catch {
+        // statusMessage is plain text, not JSON — ignore
       }
     }
 

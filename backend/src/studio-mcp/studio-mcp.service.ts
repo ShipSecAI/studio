@@ -705,8 +705,13 @@ export class StudioMcpService {
           break;
         }
 
-        // Non-terminal: just update status and keep polling
-        await taskStore.updateTaskStatus(taskId, taskState, runStatusPayload.status);
+        // Non-terminal: update status with run metadata so the chat UI can
+        // show the WorkflowRunStatusCard immediately (before the run finishes).
+        await taskStore.updateTaskStatus(
+          taskId,
+          taskState,
+          JSON.stringify({ runId, workflowId, executionStatus: runStatusPayload.status }),
+        );
         await new Promise((res) => setTimeout(res, 2000));
       } catch (err) {
         this.logger.error(`Error monitoring task ${taskId} (run: ${runId}): ${err}`);
