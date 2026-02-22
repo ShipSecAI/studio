@@ -2,22 +2,31 @@ import { useEffect } from 'react';
 import { X, Activity } from 'lucide-react';
 import { useChatStore } from '@/store/chatStore';
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
+import { useExecutionStore } from '@/store/executionStore';
 import { ExecutionInspector } from '@/components/timeline/ExecutionInspector';
 
 export function RunInspectorSidePanel() {
   const { isRunInspectorOpen, selectedRunId, setRunInspectorOpen, setSelectedRun } = useChatStore();
   const selectRun = useExecutionTimelineStore((state) => state.selectRun);
+  const monitorRun = useExecutionStore((state) => state.monitorRun);
+  const stopPolling = useExecutionStore((state) => state.stopPolling);
 
-  // Need to load the timeline for this run when opened
+  // Keep timeline + live stream in sync with the selected run while inspector is open.
   useEffect(() => {
-    if (selectedRunId && isRunInspectorOpen) {
-      // Use live mode by default or figure out based on status
-      selectRun(selectedRunId, 'live');
+    if (!isRunInspectorOpen) {
+      stopPolling();
+      return;
     }
-  }, [selectedRunId, isRunInspectorOpen, selectRun]);
+
+    if (selectedRunId) {
+      void selectRun(selectedRunId, 'live');
+      monitorRun(selectedRunId);
+    }
+  }, [selectedRunId, isRunInspectorOpen, selectRun, monitorRun, stopPolling]);
 
   const handleClose = () => {
     setRunInspectorOpen(false);
+    stopPolling();
     // don't clear selectedRunId immediately to allow slide out animation
     setTimeout(() => {
       setSelectedRun(null);

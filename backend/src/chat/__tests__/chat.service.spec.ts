@@ -167,6 +167,7 @@ describe('ChatService Unit Tests', () => {
         parts: [{ type: 'text', text: 'Hello' }],
       });
       expect(temporalService.signalChatWorkflow).toHaveBeenCalledWith('session-1', {
+        id: 'msg-1',
         role: 'user',
         parts: [{ type: 'text', text: 'Hello' }],
       });

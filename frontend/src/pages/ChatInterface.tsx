@@ -146,13 +146,17 @@ function ChatMessageItem({ message, isStreaming, userImageUrl }: ChatMessageProp
                         : part.state;
                     const partToolName = 'toolName' in part ? (part.toolName as string) : undefined;
 
-                    // Detect run_workflow completed output to show a live status card
-                    const workflowRun =
-                      partToolName === 'run_workflow' &&
-                      part.state === 'output-available' &&
+                    const parsedWorkflowRun =
+                      (part.state === 'output-available' || part.state === 'output-error') &&
                       'output' in part
                         ? parseWorkflowRunOutput((part as any).output)
                         : null;
+                    const shouldRenderWorkflowRunCard =
+                      parsedWorkflowRun !== null &&
+                      (partToolName === 'run_workflow' ||
+                        Boolean(parsedWorkflowRun.runId) ||
+                        Boolean(parsedWorkflowRun.workflowId) ||
+                        Boolean(parsedWorkflowRun.taskId));
                     return (
                       <Tool key={toolId}>
                         <ToolHeader
@@ -164,8 +168,8 @@ function ChatMessageItem({ message, isStreaming, userImageUrl }: ChatMessageProp
                           {'input' in part && part.input !== undefined && (
                             <ToolInput input={part.input} />
                           )}
-                          {workflowRun ? (
-                            <WorkflowRunStatusCard run={workflowRun} />
+                          {shouldRenderWorkflowRunCard && parsedWorkflowRun ? (
+                            <WorkflowRunStatusCard run={parsedWorkflowRun} />
                           ) : (
                             (part.state === 'output-available' || part.state === 'output-error') &&
                             'output' in part && (

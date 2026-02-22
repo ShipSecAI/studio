@@ -4,7 +4,7 @@ import { createMCPClient } from '@ai-sdk/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { streamText, generateText, stepCountIs, convertToModelMessages, smoothStream } from 'ai';
-import type { UIMessage } from 'ai';
+import type { ToolExecutionOptions, UIMessage } from 'ai';
 import type Redis from 'ioredis';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, asc } from 'drizzle-orm';
@@ -253,9 +253,69 @@ export async function runChatAgentStepActivity(
       tools: tools as Record<string, any>,
       taskClient: taskClient as unknown as TaskAwareMcpClient,
       toolNames: ['run_workflow'],
+      // Never auto-fallback for workflow runs; fallback can trigger duplicate executions.
+      fallbackToOriginal: false,
       onTaskEvent: enqueueTaskEvent,
       onDebug: (message) => console.debug(`[chat-agent] ${message}`),
     });
+
+    // Guard against duplicate run_workflow calls in a single assistant turn.
+    // If the model re-issues the same workflow run request, reuse the first outcome
+    // (including failures) instead of triggering another run.
+    const runWorkflowTool = taskAwareTools.run_workflow;
+    if (runWorkflowTool && typeof runWorkflowTool.execute === 'function') {
+      const runWorkflowInflight = new Map<string, Promise<unknown>>();
+      const runWorkflowCompleted = new Map<string, unknown>();
+      const runWorkflowFailed = new Map<string, Error>();
+      const baseExecute = runWorkflowTool.execute.bind(runWorkflowTool);
+
+      taskAwareTools.run_workflow = {
+        ...runWorkflowTool,
+        execute: async (input: unknown, options: ToolExecutionOptions): Promise<unknown> => {
+          const workflowId =
+            typeof input === 'object' &&
+            input !== null &&
+            'workflowId' in (input as Record<string, unknown>) &&
+            typeof (input as Record<string, unknown>).workflowId === 'string'
+              ? ((input as Record<string, unknown>).workflowId as string)
+              : undefined;
+          const key = workflowId
+            ? `workflow:${workflowId}`
+            : `args:${JSON.stringify(input ?? null)}`;
+
+          if (runWorkflowCompleted.has(key)) {
+            return runWorkflowCompleted.get(key);
+          }
+
+          if (runWorkflowFailed.has(key)) {
+            throw runWorkflowFailed.get(key)!;
+          }
+
+          const existing = runWorkflowInflight.get(key);
+          if (existing) {
+            return await existing;
+          }
+
+          const execution = Promise.resolve(baseExecute(input, options))
+            .then((result) => {
+              runWorkflowCompleted.set(key, result);
+              return result;
+            })
+            .catch((error) => {
+              const normalized =
+                error instanceof Error ? error : new Error(`run_workflow failed: ${String(error)}`);
+              runWorkflowFailed.set(key, normalized);
+              throw normalized;
+            })
+            .finally(() => {
+              runWorkflowInflight.delete(key);
+            });
+
+          runWorkflowInflight.set(key, execution);
+          return await execution;
+        },
+      };
+    }
 
     console.log(
       `[chat-agent] Discovered ${Object.keys(tools).length} MCP tools for session ${sessionId}`,

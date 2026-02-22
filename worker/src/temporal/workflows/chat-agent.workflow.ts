@@ -93,6 +93,20 @@ export interface ChatAgentWorkflowInput {
 
 const MAX_HISTORY_EVENTS = 2000;
 
+function getMessageId(message: ChatUIMessage): string | null {
+  if (typeof message.id !== 'string') return null;
+  const trimmed = message.id.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function partsSignature(parts: ChatMessagePart[]): string {
+  try {
+    return JSON.stringify(parts ?? []);
+  } catch {
+    return '__unserializable_parts__';
+  }
+}
+
 export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<string> {
   const { sessionId, organizationId, systemPrompt } = input;
 
@@ -101,9 +115,44 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
   let chatEnded = false;
   let titleGenerated = (input.initialMessages?.length ?? 0) > 0; // skip if continuing
   const pendingUserMessages: ChatUIMessage[] = [];
+  const seenUserMessageIds = new Set(
+    messages
+      .filter((message) => message.role === 'user')
+      .map(getMessageId)
+      .filter((id): id is string => Boolean(id)),
+  );
 
   // ---- Signal handlers ----
   setHandler(userMessageSignal, (msg: ChatUIMessage) => {
+    // Defensive dedupe for transport retries / duplicate signal delivery.
+    if (msg.role !== 'user') {
+      return;
+    }
+
+    const messageId = getMessageId(msg);
+    if (messageId && seenUserMessageIds.has(messageId)) {
+      return;
+    }
+
+    if (!messageId) {
+      const pendingTail = pendingUserMessages[pendingUserMessages.length - 1];
+      const latestCommitted = messages[messages.length - 1];
+      const incomingSignature = partsSignature(msg.parts);
+      const isDuplicatePendingTail =
+        pendingTail?.role === 'user' && partsSignature(pendingTail.parts) === incomingSignature;
+      const isImmediateRetryWhileProcessing =
+        status === 'processing' &&
+        pendingUserMessages.length === 0 &&
+        latestCommitted?.role === 'user' &&
+        partsSignature(latestCommitted.parts) === incomingSignature;
+      if (isDuplicatePendingTail || isImmediateRetryWhileProcessing) {
+        return;
+      }
+    }
+
+    if (messageId) {
+      seenUserMessageIds.add(messageId);
+    }
     pendingUserMessages.push(msg);
   });
 

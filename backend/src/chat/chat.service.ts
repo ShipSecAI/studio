@@ -180,6 +180,7 @@ export class ChatService implements OnModuleInit {
     // If the workflow timed out (idle 30 min), restart it with history from DB.
     try {
       await this.temporalService.signalChatWorkflow(sessionId, {
+        id: lastMessage.id,
         role: lastMessage.role,
         parts: lastMessage.parts,
       });
@@ -210,6 +211,7 @@ export class ChatService implements OnModuleInit {
 
       // Now signal the newly started workflow
       await this.temporalService.signalChatWorkflow(sessionId, {
+        id: lastMessage.id,
         role: lastMessage.role,
         parts: lastMessage.parts,
       });

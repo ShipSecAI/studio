@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { useExecutionStatus, useExecutionRun } from '@/hooks/queries/useExecutionQueries';
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
@@ -156,8 +156,7 @@ export function WorkflowRunStatusCard({ run }: { run: ParsedWorkflowRunOutput })
   const { data: runData } = useExecutionRun(run.runId ?? null);
   const setSelectedRun = useChatStore((state) => state.setSelectedRun);
 
-  // Timeline store — for live event feed
-  const selectRun = useExecutionTimelineStore((state) => state.selectRun);
+  // Timeline store — for inspector-linked event feed
   const storeRunId = useExecutionTimelineStore((state) => state.selectedRunId);
   const allEvents = useExecutionTimelineStore((state) => state.events);
 
@@ -172,21 +171,6 @@ export function WorkflowRunStatusCard({ run }: { run: ParsedWorkflowRunOutput })
 
   const statusMeta = getStatusMeta(effectiveStatus);
   const StatusIcon = statusMeta.Icon;
-
-  // ── Auto-start timeline SSE for this run (only if not already tracking it)
-  const didStartRef = useRef(false);
-  useEffect(() => {
-    if (!effectiveRunId || didStartRef.current) return;
-    if (storeRunId === effectiveRunId) {
-      didStartRef.current = true;
-      return;
-    }
-    // Only start if the run is not terminal (live) or it just appeared
-    didStartRef.current = true;
-    selectRun(effectiveRunId, 'live').catch(() => {
-      /* ignore */
-    });
-  }, [effectiveRunId, storeRunId, selectRun]);
 
   // ── Elapsed timer
   const startTimeMs = useMemo(() => {

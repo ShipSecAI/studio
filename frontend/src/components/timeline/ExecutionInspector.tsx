@@ -118,7 +118,11 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
   const { id: rootWorkflowId, currentVersion: currentWorkflowVersion } = useWorkflowStore(
     (state) => state.metadata,
   );
-  const workflowId = rootWorkflowId || runData?.workflowId;
+  // In chat mode, rootWorkflowId can be stale from the builder context.
+  // Prefer the selected run's workflow when a run is selected.
+  const workflowId = selectedRunId
+    ? (runData?.workflowId ?? null)
+    : (rootWorkflowId ?? runData?.workflowId ?? null);
   const { data: runsPage, isLoading: isLoadingRuns } = useWorkflowRuns(workflowId);
   const runs = runsPage?.runs ?? (runData ? [normalizeRunSummary(runData)] : []);
   const { status, runStatus, stopExecution, runId: liveRunId } = useWorkflowExecution(workflowId);
