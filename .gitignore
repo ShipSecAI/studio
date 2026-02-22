@@ -52,6 +52,9 @@ CLAUDE.md
 coverage/
 .nyc_output/
 
+# Planning files
+.planning/
+
 # Temporary files
 *.tmp
 .cache/
