@@ -91,12 +91,6 @@ export class OpenSearchTenantService {
    * Returns true if all resources were created/verified successfully.
    */
   async ensureTenantExists(orgId: string): Promise<boolean> {
-    // No-op when security is disabled (dev mode)
-    if (!this.securityEnabled) {
-      this.logger.debug(`Tenant provisioning skipped (security disabled): ${orgId}`);
-      return true;
-    }
-
     // Normalize to lowercase for consistent tenant naming
     const normalizedOrgId = orgId.toLowerCase();
 
@@ -106,7 +100,26 @@ export class OpenSearchTenantService {
       return false;
     }
 
-    this.logger.log(`Provisioning tenant for org: ${normalizedOrgId}`);
+    // Index template + seed index are always needed (proper field mappings for
+    // aggregations/sorting), regardless of whether the security plugin is active.
+    try {
+      await this.createIndexTemplate(normalizedOrgId);
+      await this.createSeedIndex(normalizedOrgId);
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to create index template/seed for ${normalizedOrgId}: ${error?.message || error}`,
+      );
+      return false;
+    }
+
+    // Security-plugin resources (tenant, role, role mapping, index pattern) are
+    // only relevant when the security plugin is enabled (production).
+    if (!this.securityEnabled) {
+      this.logger.debug(`Security-plugin provisioning skipped (security disabled): ${orgId}`);
+      return true;
+    }
+
+    this.logger.log(`Provisioning security tenant for org: ${normalizedOrgId}`);
 
     try {
       // Brief delay to let the nginx auth_request burst settle before
@@ -122,13 +135,7 @@ export class OpenSearchTenantService {
       // Step 3: Create role mapping
       await this.createRoleMapping(normalizedOrgId);
 
-      // Step 4: Create index template with field mappings
-      await this.createIndexTemplate(normalizedOrgId);
-
-      // Step 5: Create seed index so the index pattern can resolve fields
-      await this.createSeedIndex(normalizedOrgId);
-
-      // Step 6: Create index pattern in Dashboards
+      // Step 4: Create index pattern in Dashboards
       await this.createIndexPattern(normalizedOrgId);
 
       this.logger.log(`Tenant provisioned successfully: ${normalizedOrgId}`);
@@ -304,6 +311,29 @@ export class OpenSearchTenantService {
             scanner: { type: 'keyword' },
             severity: { type: 'keyword' },
             finding_hash: { type: 'keyword' },
+            status: { type: 'keyword' },
+            region: { type: 'keyword' },
+            service_name: { type: 'keyword' },
+            account_id: { type: 'keyword' },
+            shipsec: {
+              properties: {
+                organization_id: { type: 'keyword' },
+                run_id: { type: 'keyword' },
+                workflow_id: { type: 'keyword' },
+                workflow_name: { type: 'keyword' },
+                component_id: { type: 'keyword' },
+                node_ref: { type: 'keyword' },
+                asset_key: { type: 'keyword' },
+                trigger_source: { type: 'keyword' },
+                trigger_type: { type: 'keyword' },
+                repository: { type: 'keyword' },
+                branch: { type: 'keyword' },
+                commit_sha: { type: 'keyword' },
+                account_id: { type: 'keyword' },
+                connection_name: { type: 'keyword' },
+                provider: { type: 'keyword' },
+              },
+            },
           },
         },
       },
@@ -359,6 +389,29 @@ export class OpenSearchTenantService {
               scanner: { type: 'keyword' },
               severity: { type: 'keyword' },
               finding_hash: { type: 'keyword' },
+              status: { type: 'keyword' },
+              region: { type: 'keyword' },
+              service_name: { type: 'keyword' },
+              account_id: { type: 'keyword' },
+              shipsec: {
+                properties: {
+                  organization_id: { type: 'keyword' },
+                  run_id: { type: 'keyword' },
+                  workflow_id: { type: 'keyword' },
+                  workflow_name: { type: 'keyword' },
+                  component_id: { type: 'keyword' },
+                  node_ref: { type: 'keyword' },
+                  asset_key: { type: 'keyword' },
+                  trigger_source: { type: 'keyword' },
+                  trigger_type: { type: 'keyword' },
+                  repository: { type: 'keyword' },
+                  branch: { type: 'keyword' },
+                  commit_sha: { type: 'keyword' },
+                  account_id: { type: 'keyword' },
+                  connection_name: { type: 'keyword' },
+                  provider: { type: 'keyword' },
+                },
+              },
             },
           },
         }),
