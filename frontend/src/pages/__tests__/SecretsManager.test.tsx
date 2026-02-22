@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach, expect, mock } from 'bun:test';
 import { fireEvent, render, screen, within, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import type { SecretSummary } from '@/schemas/secret';
 
 mock.module('@/components/ui/dialog', () => {
@@ -69,7 +70,9 @@ mock.module('@/hooks/queries/useSecretQueries', () => ({
 
 const mockInvalidateQueries = mock().mockResolvedValue(undefined);
 
+const actualReactQuery = await import('@tanstack/react-query');
 mock.module('@tanstack/react-query', () => ({
+  ...actualReactQuery,
   useQueryClient: () => ({
     invalidateQueries: mockInvalidateQueries,
   }),
@@ -121,9 +124,11 @@ const baseSecret: SecretSummary = {
 
 const renderSecretsManager = () =>
   render(
-    <MemoryRouter>
-      <SecretsManager />
-    </MemoryRouter>,
+    <TooltipProvider>
+      <MemoryRouter>
+        <SecretsManager />
+      </MemoryRouter>
+    </TooltipProvider>,
   );
 
 const setupStore = (overrides: MockQueryOverrides = {}) => {
