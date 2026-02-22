@@ -69,6 +69,7 @@ export async function runWorkflowActivity(
         workflowId: input.workflowId,
         workflowVersionId: input.workflowVersionId ?? null,
         triggerSource: input.triggerSource ?? null,
+        triggerType: input.triggerType ?? null,
       },
     );
     const duration = Date.now() - startTime;
