@@ -36,6 +36,8 @@ import { McpServersModule } from './mcp-servers/mcp-servers.module';
 import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
 import { GitHubAppModule } from './github-app/github-app.module';
 import { WorkflowTemplatesModule } from './workflow-templates/workflow-templates.module';
+import { AsmModule } from './asm/asm.module';
+import { AssetDiscoveryModule } from './asset-discovery/asset-discovery.module';
 
 const coreModules = [
   AgentsModule,
@@ -58,6 +60,8 @@ const coreModules = [
   StudioMcpModule,
   GitHubAppModule,
   WorkflowTemplatesModule,
+  AsmModule,
+  AssetDiscoveryModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];

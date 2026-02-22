@@ -10,6 +10,20 @@ import { getDiscoveryEngine } from '../../discovery/discovery-engine';
 let backendBaseUrl: string;
 let internalToken: string;
 
+interface ConnectionCredentialsResponse {
+  credentialType: string;
+  provider: string;
+  data: {
+    accessKeyId?: string;
+    secretAccessKey?: string;
+    sessionToken?: string;
+    region?: string;
+  };
+  accountId?: string;
+  region?: string;
+  displayName?: string;
+}
+
 /**
  * Initialize asset sync activity dependencies.
  * Called once during worker startup.
@@ -18,7 +32,11 @@ export function initializeAssetSyncActivities(config: {
   backendUrl: string;
   internalToken: string;
 }) {
-  backendBaseUrl = config.backendUrl;
+  // Normalize to API root so callers can pass either http://host:port or http://host:port/api/v1.
+  backendBaseUrl = config.backendUrl.replace(/\/$/, '');
+  if (!backendBaseUrl.endsWith('/api/v1')) {
+    backendBaseUrl = `${backendBaseUrl}/api/v1`;
+  }
   internalToken = config.internalToken;
 }
 
@@ -45,7 +63,11 @@ async function callBackend<T>(
     throw new Error(`Backend API error (${response.status}): ${text}`);
   }
 
-  return response.json() as T;
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+  return JSON.parse(text) as T;
 }
 
 // ── Activity 1: Create Sync Run ──────────────────────────────────────────────
@@ -61,13 +83,25 @@ export async function createSyncRunActivity(input: {
   regions: string[];
   syncStartTime: string;
 }> {
-  // Get connection info to resolve accountIdentifier and regions
-  const connInfo = await callBackend<{
-    accountIdentifier: string;
-    regions: string[];
-  }>(`/integrations/connections/${input.integrationId}/token`, {
-    organizationId: input.organizationId,
-  });
+  // Resolve connection details from the internal credentials endpoint.
+  const connInfo = await callBackend<ConnectionCredentialsResponse>(
+    `/integrations/connections/${input.integrationId}/credentials`,
+    {
+      organizationId: input.organizationId,
+    },
+  );
+
+  const accountIdentifier = connInfo.accountId;
+  if (!accountIdentifier) {
+    throw new Error('Connection credentials missing accountId for asset sync');
+  }
+
+  const defaultRegion =
+    connInfo.region ??
+    (typeof connInfo.data?.region === 'string' ? connInfo.data.region : undefined) ??
+    process.env.AWS_DEFAULT_REGION ??
+    'us-east-1';
+  const regions = [defaultRegion];
 
   // Create the sync run record
   const run = await callBackend<{
@@ -76,8 +110,8 @@ export async function createSyncRunActivity(input: {
   }>('/asset-discovery/internal/sync-runs', {
     body: {
       integrationId: input.integrationId,
-      accountIdentifier: connInfo.accountIdentifier,
-      regions: connInfo.regions,
+      accountIdentifier,
+      regions,
       temporalWorkflowId: input.temporalWorkflowId,
       temporalRunId: input.temporalRunId,
     },
@@ -86,8 +120,8 @@ export async function createSyncRunActivity(input: {
 
   return {
     syncRunId: run.id,
-    accountIdentifier: connInfo.accountIdentifier,
-    regions: connInfo.regions,
+    accountIdentifier,
+    regions,
     syncStartTime: run.startedAt,
   };
 }
@@ -111,15 +145,28 @@ export async function discoverAndReconcilePageActivity(input: {
   scannedScopes?: { assetType: string; region: string }[];
 }> {
   // CRITICAL: Resolve credentials INSIDE the activity (never in workflow)
-  const creds = await callBackend<{
-    credentials: {
-      accessKeyId: string;
-      secretAccessKey: string;
-      sessionToken?: string;
-    };
-  }>(`/integrations/connections/${input.integrationId}/credentials`, {
-    organizationId: input.organizationId,
-  });
+  const creds = await callBackend<ConnectionCredentialsResponse>(
+    `/integrations/connections/${input.integrationId}/credentials`,
+    {
+      organizationId: input.organizationId,
+    },
+  );
+
+  const accessKeyId = creds.data?.accessKeyId;
+  const secretAccessKey = creds.data?.secretAccessKey;
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error('Resolved credentials are missing accessKeyId/secretAccessKey');
+  }
+
+  const effectiveRegions =
+    input.regions.length > 0
+      ? input.regions
+      : [
+          creds.region ??
+            (typeof creds.data?.region === 'string' ? creds.data.region : undefined) ??
+            process.env.AWS_DEFAULT_REGION ??
+            'us-east-1',
+        ];
 
   // Discover a page of assets
   const engine = getDiscoveryEngine();
@@ -128,9 +175,13 @@ export async function discoverAndReconcilePageActivity(input: {
     {
       integrationId: input.integrationId,
       organizationId: input.organizationId,
-      credentials: creds.credentials,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+        sessionToken: creds.data?.sessionToken,
+      },
       accountIdentifier: input.accountIdentifier,
-      regions: input.regions,
+      regions: effectiveRegions,
     },
     input.cursor,
   );

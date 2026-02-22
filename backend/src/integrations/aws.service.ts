@@ -6,6 +6,7 @@ interface AwsCredentials {
   accessKeyId: string;
   secretAccessKey: string;
   sessionToken?: string;
+  region?: string;
 }
 
 interface OrgAccount {
@@ -28,6 +29,19 @@ interface AssumedRoleCredentials {
 @Injectable()
 export class AwsService implements OnModuleInit {
   private readonly logger = new Logger(AwsService.name);
+  private static readonly DEFAULT_REGION = 'us-east-1';
+
+  private resolveRegion(preferred?: string): string {
+    const region = (
+      preferred ??
+      process.env.SHIPSEC_AWS_REGION ??
+      process.env.AWS_REGION ??
+      process.env.AWS_DEFAULT_REGION ??
+      AwsService.DEFAULT_REGION
+    ).trim();
+
+    return region || AwsService.DEFAULT_REGION;
+  }
 
   // ── Startup self-check ──
   async onModuleInit(): Promise<void> {
@@ -86,7 +100,10 @@ export class AwsService implements OnModuleInit {
             }),
           }
         : undefined; // SDK default chain
-    return new STSClient({ ...(credentials && { credentials }), ...(region && { region }) });
+    return new STSClient({
+      ...(credentials && { credentials }),
+      region: this.resolveRegion(region),
+    });
   }
 
   // ── Platform role ARN (from env var) ──
@@ -147,6 +164,7 @@ export class AwsService implements OnModuleInit {
   async discoverOrgAccounts(credentials: AwsCredentials): Promise<OrgAccountsResult> {
     try {
       const orgClient = new OrganizationsClient({
+        region: this.resolveRegion(credentials.region),
         credentials: {
           accessKeyId: credentials.accessKeyId,
           secretAccessKey: credentials.secretAccessKey,

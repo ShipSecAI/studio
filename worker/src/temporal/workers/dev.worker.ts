@@ -39,6 +39,15 @@ import {
   cacheDiscoveryResultActivity,
 } from '../activities/mcp-discovery.activity';
 import { executeWebhookParsingScriptActivity } from '../activities/webhook-parsing.activity';
+import {
+  createSyncRunActivity,
+  discoverAndReconcilePageActivity,
+  persistSyncRunScopesActivity,
+  markStaleAssetsActivity,
+  emitStaleAndRemovedEventsActivity,
+  updateSyncRunStatusActivity,
+  initializeAssetSyncActivities,
+} from '../activities/asset-sync.activities';
 
 // ... (existing imports)
 
@@ -230,6 +239,12 @@ async function main() {
     trace: traceAdapter,
   });
 
+  // Asset sync activities call internal backend endpoints.
+  initializeAssetSyncActivities({
+    backendUrl,
+    internalToken: process.env.INTERNAL_SERVICE_TOKEN ?? '',
+  });
+
   console.log(`✅ Service adapters initialized`);
 
   console.log(`🏗️ Creating Temporal worker...`);
@@ -250,6 +265,12 @@ async function main() {
       discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
       executeWebhookParsingScriptActivity,
+      createSyncRunActivity,
+      discoverAndReconcilePageActivity,
+      persistSyncRunScopesActivity,
+      markStaleAssetsActivity,
+      emitStaleAndRemovedEventsActivity,
+      updateSyncRunStatusActivity,
     }).join(', ')}`,
   );
 
@@ -292,6 +313,12 @@ async function main() {
       discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
       executeWebhookParsingScriptActivity,
+      createSyncRunActivity,
+      discoverAndReconcilePageActivity,
+      persistSyncRunScopesActivity,
+      markStaleAssetsActivity,
+      emitStaleAndRemovedEventsActivity,
+      updateSyncRunStatusActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],
