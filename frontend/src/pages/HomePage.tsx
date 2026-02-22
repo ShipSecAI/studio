@@ -1,7 +1,7 @@
 import { lazy, Suspense, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   useGitHubInstallations,
   useGitHubRepositories,
@@ -349,37 +349,35 @@ export function HomePage() {
                 {upcomingSchedules.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No scheduled scans.</p>
                 ) : (
-                  <TooltipProvider>
-                    <div className="space-y-1">
-                      <div className="flex items-center text-[11px] text-muted-foreground uppercase tracking-wide px-2 -mx-2 mb-1">
-                        <span className="flex-1">Scan</span>
-                        <span>Next run</span>
-                      </div>
-                      {upcomingSchedules.map((schedule) => (
-                        <div
-                          key={schedule.id}
-                          className="flex items-start gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50 transition-colors"
-                          onClick={() => navigate('/schedules')}
-                        >
-                          <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                          <div className="min-w-0 flex-1">
-                            <span className="truncate block">{schedule.name}</span>
-                            <span className="text-[10px] text-muted-foreground/70 font-mono">
-                              {schedule.cronExpression}
-                            </span>
-                          </div>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="text-xs text-muted-foreground whitespace-nowrap ml-2 mt-0.5">
-                                {formatFutureRelative(schedule.nextRunAt)}
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>{formatDateTime(schedule.nextRunAt)}</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      ))}
+                  <div className="space-y-1">
+                    <div className="flex items-center text-[11px] text-muted-foreground uppercase tracking-wide px-2 -mx-2 mb-1">
+                      <span className="flex-1">Scan</span>
+                      <span>Next run</span>
                     </div>
-                  </TooltipProvider>
+                    {upcomingSchedules.map((schedule) => (
+                      <div
+                        key={schedule.id}
+                        className="flex items-start gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50 transition-colors"
+                        onClick={() => navigate('/schedules')}
+                      >
+                        <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <span className="truncate block">{schedule.name}</span>
+                          <span className="text-[10px] text-muted-foreground/70 font-mono">
+                            {schedule.cronExpression}
+                          </span>
+                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap ml-2 mt-0.5">
+                              {formatFutureRelative(schedule.nextRunAt)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>{formatDateTime(schedule.nextRunAt)}</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -435,37 +433,35 @@ export function HomePage() {
               {upcomingSchedules.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No scheduled scans.</p>
               ) : (
-                <TooltipProvider>
-                  <div className="space-y-1">
-                    <div className="flex items-center text-[11px] text-muted-foreground uppercase tracking-wide px-2 -mx-2 mb-1">
-                      <span className="flex-1">Scan</span>
-                      <span>Next run</span>
-                    </div>
-                    {upcomingSchedules.map((schedule) => (
-                      <div
-                        key={schedule.id}
-                        className="flex items-start gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50 transition-colors"
-                        onClick={() => navigate('/schedules')}
-                      >
-                        <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                        <div className="min-w-0 flex-1">
-                          <span className="truncate block">{schedule.name}</span>
-                          <span className="text-[10px] text-muted-foreground/70 font-mono">
-                            {schedule.cronExpression}
-                          </span>
-                        </div>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="text-xs text-muted-foreground whitespace-nowrap ml-2 mt-0.5">
-                              {formatFutureRelative(schedule.nextRunAt)}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>{formatDateTime(schedule.nextRunAt)}</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    ))}
+                <div className="space-y-1">
+                  <div className="flex items-center text-[11px] text-muted-foreground uppercase tracking-wide px-2 -mx-2 mb-1">
+                    <span className="flex-1">Scan</span>
+                    <span>Next run</span>
                   </div>
-                </TooltipProvider>
+                  {upcomingSchedules.map((schedule) => (
+                    <div
+                      key={schedule.id}
+                      className="flex items-start gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50 transition-colors"
+                      onClick={() => navigate('/schedules')}
+                    >
+                      <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <span className="truncate block">{schedule.name}</span>
+                        <span className="text-[10px] text-muted-foreground/70 font-mono">
+                          {schedule.cronExpression}
+                        </span>
+                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap ml-2 mt-0.5">
+                            {formatFutureRelative(schedule.nextRunAt)}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>{formatDateTime(schedule.nextRunAt)}</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>

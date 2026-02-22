@@ -68,7 +68,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AwsSetupForm } from '@/components/integrations/AwsSetupForm';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
@@ -1270,109 +1270,107 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
 
             {/* 8. Full table (no panel) */}
             {!isLoading && !isError && allRuns.length > 0 && !isPanelOpen && (
-              <TooltipProvider>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <CloudSortableHeader
-                        column="time"
-                        label="Time"
-                        currentSort={sortColumn}
-                        currentDir={sortDirection}
-                        onSort={handleSort}
-                      />
-                      <CloudSortableHeader
-                        column="status"
-                        label="Status"
-                        currentSort={sortColumn}
-                        currentDir={sortDirection}
-                        onSort={handleSort}
-                      />
-                      <CloudSortableHeader
-                        column="scanType"
-                        label="Scan Type"
-                        currentSort={sortColumn}
-                        currentDir={sortDirection}
-                        onSort={handleSort}
-                      />
-                      <CloudSortableHeader
-                        column="source"
-                        label="Source"
-                        currentSort={sortColumn}
-                        currentDir={sortDirection}
-                        onSort={handleSort}
-                      />
-                      <CloudSortableHeader
-                        column="duration"
-                        label="Duration"
-                        currentSort={sortColumn}
-                        currentDir={sortDirection}
-                        onSort={handleSort}
-                      />
-                      <CloudSortableHeader
-                        column="findings"
-                        label="Findings"
-                        currentSort={sortColumn}
-                        currentDir={sortDirection}
-                        onSort={handleSort}
-                      />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pageRuns.map((run) => {
-                      const duration = LIVE_STATUSES.has(run.status)
-                        ? null
-                        : formatDuration(run.startTime, run.endTime ?? null);
-                      const statusDisplay = getExecutionStatusDisplay(run.status);
-                      const runSummary = summariesData?.[run.id];
-                      return (
-                        <TableRow
-                          key={run.id}
-                          className="cursor-pointer"
-                          onClick={() => handleSelectRun(run.id)}
-                        >
-                          <TableCell>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-sm">{formatRelativeTime(run.startTime)}</span>
-                              </TooltipTrigger>
-                              <TooltipContent>{formatExactTime(run.startTime)}</TooltipContent>
-                            </Tooltip>
-                          </TableCell>
-                          <TableCell>
-                            <div className={cn('flex items-center gap-1.5', statusDisplay.color)}>
-                              {statusDisplay.icon}
-                              <span className="text-sm">{statusDisplay.label}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{run.workflowName}</span>
-                              {run.workflowVersion != null && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                  v{run.workflowVersion}
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                              {getTriggerIcon(run.triggerType)}
-                              <span>{getTriggerLabel(run.triggerType)}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {duration ?? <span className="text-muted-foreground">&mdash;</span>}
-                          </TableCell>
-                          <TableCell>
-                            <FindingsBadges summary={runSummary} />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TooltipProvider>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <CloudSortableHeader
+                      column="time"
+                      label="Time"
+                      currentSort={sortColumn}
+                      currentDir={sortDirection}
+                      onSort={handleSort}
+                    />
+                    <CloudSortableHeader
+                      column="status"
+                      label="Status"
+                      currentSort={sortColumn}
+                      currentDir={sortDirection}
+                      onSort={handleSort}
+                    />
+                    <CloudSortableHeader
+                      column="scanType"
+                      label="Scan Type"
+                      currentSort={sortColumn}
+                      currentDir={sortDirection}
+                      onSort={handleSort}
+                    />
+                    <CloudSortableHeader
+                      column="source"
+                      label="Source"
+                      currentSort={sortColumn}
+                      currentDir={sortDirection}
+                      onSort={handleSort}
+                    />
+                    <CloudSortableHeader
+                      column="duration"
+                      label="Duration"
+                      currentSort={sortColumn}
+                      currentDir={sortDirection}
+                      onSort={handleSort}
+                    />
+                    <CloudSortableHeader
+                      column="findings"
+                      label="Findings"
+                      currentSort={sortColumn}
+                      currentDir={sortDirection}
+                      onSort={handleSort}
+                    />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pageRuns.map((run) => {
+                    const duration = LIVE_STATUSES.has(run.status)
+                      ? null
+                      : formatDuration(run.startTime, run.endTime ?? null);
+                    const statusDisplay = getExecutionStatusDisplay(run.status);
+                    const runSummary = summariesData?.[run.id];
+                    return (
+                      <TableRow
+                        key={run.id}
+                        className="cursor-pointer"
+                        onClick={() => handleSelectRun(run.id)}
+                      >
+                        <TableCell>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-sm">{formatRelativeTime(run.startTime)}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>{formatExactTime(run.startTime)}</TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell>
+                          <div className={cn('flex items-center gap-1.5', statusDisplay.color)}>
+                            {statusDisplay.icon}
+                            <span className="text-sm">{statusDisplay.label}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{run.workflowName}</span>
+                            {run.workflowVersion != null && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                v{run.workflowVersion}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                            {getTriggerIcon(run.triggerType)}
+                            <span>{getTriggerLabel(run.triggerType)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {duration ?? <span className="text-muted-foreground">&mdash;</span>}
+                        </TableCell>
+                        <TableCell>
+                          <FindingsBadges summary={runSummary} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             )}
 
             {/* Pagination */}

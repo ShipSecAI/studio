@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -495,17 +496,34 @@ export function SecretsManager() {
                     {secrets.map((secret) => (
                       <tr key={secret.id} className="border-t last:border-b">
                         <td className="py-3 pr-4 align-top">
-                          <div className="font-medium truncate max-w-[150px] md:max-w-none">
-                            {secret.name}
-                          </div>
-                          <div className="text-[10px] md:text-xs text-muted-foreground truncate max-w-[150px] md:max-w-none">
-                            ID: <span className="font-mono">{secret.id}</span>
-                          </div>
-                          {secret.description && (
-                            <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                              {secret.description}
-                            </div>
-                          )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <div className="font-medium truncate max-w-[150px] md:max-w-none">
+                                  {secret.name}
+                                </div>
+                                <div className="text-[10px] md:text-xs text-muted-foreground truncate max-w-[150px] md:max-w-none">
+                                  ID: <span className="font-mono">{secret.id}</span>
+                                </div>
+                                {secret.description && (
+                                  <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                    {secret.description}
+                                  </div>
+                                )}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-xs">
+                              <p className="font-medium">{secret.name}</p>
+                              <p className="text-xs text-muted-foreground font-mono">
+                                ID: {secret.id}
+                              </p>
+                              {secret.description && (
+                                <p className="text-xs text-muted-foreground">
+                                  {secret.description}
+                                </p>
+                              )}
+                            </TooltipContent>
+                          </Tooltip>
                         </td>
                         <td className="py-3 pr-4 align-top hidden sm:table-cell">
                           <div className="flex flex-wrap gap-1">

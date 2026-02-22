@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { ArtifactMetadata } from '@shipsec/shared';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { getRemoteUploads } from '@/utils/artifacts';
 
 const formatBytes = (bytes: number) => {
@@ -203,10 +204,22 @@ function ArtifactLibraryRow({
   return (
     <tr className="border-b last:border-none">
       <td className="px-3 md:px-6 py-3 md:py-4 align-top">
-        <div className="font-medium truncate max-w-[150px] md:max-w-none">{artifact.name}</div>
-        <div className="text-[10px] md:text-xs text-muted-foreground font-mono truncate max-w-[150px] md:max-w-none">
-          {artifact.id}
-        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div>
+              <div className="font-medium truncate max-w-[150px] md:max-w-none">
+                {artifact.name}
+              </div>
+              <div className="text-[10px] md:text-xs text-muted-foreground font-mono truncate max-w-[150px] md:max-w-none">
+                {artifact.id}
+              </div>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-xs">
+            <p className="font-medium">{artifact.name}</p>
+            <p className="text-xs text-muted-foreground font-mono">{artifact.id}</p>
+          </TooltipContent>
+        </Tooltip>
         {remoteUploads.length > 0 && (
           <div className="mt-2 space-y-1 hidden md:block">
             {remoteUploads.map((remote) => (
@@ -217,9 +230,16 @@ function ArtifactLibraryRow({
                 <Badge variant="outline" className="text-[10px] uppercase">
                   {remote.type}
                 </Badge>
-                <code className="max-w-[180px] lg:max-w-[240px] truncate font-mono text-[11px]">
-                  {remote.uri}
-                </code>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <code className="max-w-[180px] lg:max-w-[240px] truncate font-mono text-[11px]">
+                      {remote.uri}
+                    </code>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-sm break-all font-mono text-xs">
+                    {remote.uri}
+                  </TooltipContent>
+                </Tooltip>
                 <Button
                   type="button"
                   variant="ghost"
@@ -249,9 +269,12 @@ function ArtifactLibraryRow({
         )}
       </td>
       <td className="px-3 md:px-4 py-3 md:py-4 align-top text-xs md:text-sm text-muted-foreground hidden sm:table-cell">
-        <span className="truncate max-w-[150px] block" title={workflowName}>
-          {workflowName}
-        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="truncate max-w-[150px] block">{workflowName}</span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{workflowName}</TooltipContent>
+        </Tooltip>
       </td>
       <td className="px-3 md:px-4 py-3 md:py-4 align-top text-xs md:text-sm text-primary hidden sm:table-cell">
         <Link to={`/runs/${artifact.runId}`} className="hover:underline font-mono">

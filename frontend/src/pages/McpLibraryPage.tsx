@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
@@ -187,19 +187,17 @@ function HealthIndicator({
 
   if (checking) {
     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger>
-            <div className="flex items-center gap-1.5">
-              <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />
-              <span className="text-xs text-muted-foreground">Checking...</span>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Checking server status...</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger>
+          <div className="flex items-center gap-1.5">
+            <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />
+            <span className="text-xs text-muted-foreground">Checking...</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Checking server status...</p>
+        </TooltipContent>
+      </Tooltip>
     );
   }
 
@@ -207,19 +205,17 @@ function HealthIndicator({
   const Icon = config.icon;
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger>
-          <div className="flex items-center gap-1.5">
-            <Icon className={cn('h-4 w-4', config.color)} />
-            <span className="text-xs text-muted-foreground">{config.label}</span>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Server status: {config.label}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger>
+        <div className="flex items-center gap-1.5">
+          <Icon className={cn('h-4 w-4', config.color)} />
+          <span className="text-xs text-muted-foreground">{config.label}</span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>Server status: {config.label}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -529,49 +525,45 @@ export function McpLibraryPage() {
   }) => {
     if (connection.endpoint) {
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger className="text-left">
-              <div className="font-mono text-sm text-muted-foreground truncate max-w-[300px]">
-                {connection.endpoint}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-[400px]">
-              <p className="font-mono text-xs break-all">{connection.endpoint}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger className="text-left">
+            <div className="font-mono text-sm text-muted-foreground truncate max-w-[300px]">
+              {connection.endpoint}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-[400px]">
+            <p className="font-mono text-xs break-all">{connection.endpoint}</p>
+          </TooltipContent>
+        </Tooltip>
       );
     }
 
     if (connection.command) {
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger className="text-left">
-              <div className="font-mono text-sm text-muted-foreground truncate max-w-[300px]">
-                {connection.command}
-                {connection.args &&
-                  connection.args.length > 0 &&
-                  (() => {
-                    const argsStr = connection.args.join(' ');
-                    const MAX_INLINE_ARGS = 40;
-                    if (argsStr.length <= MAX_INLINE_ARGS) {
-                      return ` ${argsStr}`;
-                    }
-                    return ` +${connection.args.length} arg${
-                      connection.args.length === 1 ? '' : 's'
-                    }`;
-                  })()}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-[400px]">
-              <p className="font-mono text-xs break-all">
-                {connection.command} {connection.args?.join(' ') || ''}
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger className="text-left">
+            <div className="font-mono text-sm text-muted-foreground truncate max-w-[300px]">
+              {connection.command}
+              {connection.args &&
+                connection.args.length > 0 &&
+                (() => {
+                  const argsStr = connection.args.join(' ');
+                  const MAX_INLINE_ARGS = 40;
+                  if (argsStr.length <= MAX_INLINE_ARGS) {
+                    return ` ${argsStr}`;
+                  }
+                  return ` +${connection.args.length} arg${
+                    connection.args.length === 1 ? '' : 's'
+                  }`;
+                })()}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-[400px]">
+            <p className="font-mono text-xs break-all">
+              {connection.command} {connection.args?.join(' ') || ''}
+            </p>
+          </TooltipContent>
+        </Tooltip>
       );
     }
 
@@ -1857,18 +1849,16 @@ export function McpLibraryPage() {
             {filteredGroups.length} {filteredGroups.length === 1 ? 'group' : 'groups'}
           </Badge>
           <div className="ml-auto flex items-center gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <HelpCircle className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Import curated MCP groups to auto-register servers and discover tools.
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <HelpCircle className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Import curated MCP groups to auto-register servers and discover tools.
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -2004,26 +1994,24 @@ export function McpLibraryPage() {
                                   </TableCell>
                                   <TableCell className="text-center">
                                     {toolCounts && toolCounts.total > 0 ? (
-                                      <TooltipProvider>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              className="h-7 px-2 font-mono text-xs"
-                                              onClick={() => handleViewTools(server.serverId)}
-                                            >
-                                              {toolCounts.enabled}/{toolCounts.total}
-                                            </Button>
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                            <p>
-                                              {toolCounts.enabled} enabled out of {toolCounts.total}{' '}
-                                              tools
-                                            </p>
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 px-2 font-mono text-xs"
+                                            onClick={() => handleViewTools(server.serverId)}
+                                          >
+                                            {toolCounts.enabled}/{toolCounts.total}
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>
+                                            {toolCounts.enabled} enabled out of {toolCounts.total}{' '}
+                                            tools
+                                          </p>
+                                        </TooltipContent>
+                                      </Tooltip>
                                     ) : (
                                       <span className="text-muted-foreground text-xs">—</span>
                                     )}
@@ -2036,44 +2024,40 @@ export function McpLibraryPage() {
                                   </TableCell>
                                   <TableCell className="text-right">
                                     <div className="flex items-center justify-end gap-1">
-                                      <TooltipProvider>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              onClick={() => handleViewTools(server.serverId)}
-                                            >
-                                              <Wrench className="h-4 w-4" />
-                                            </Button>
-                                          </TooltipTrigger>
-                                          <TooltipContent>View tools</TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                      <TooltipProvider>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              onClick={() =>
-                                                handleDiscoverServerTools(
-                                                  server.serverId,
-                                                  group.defaultDockerImage ?? undefined,
-                                                )
-                                              }
-                                              disabled={discoveringServerIds.has(server.serverId)}
-                                            >
-                                              {discoveringServerIds.has(server.serverId) ? (
-                                                <Loader className="h-4 w-4 animate-spin" />
-                                              ) : (
-                                                <RefreshCw className="h-4 w-4" />
-                                              )}
-                                            </Button>
-                                          </TooltipTrigger>
-                                          <TooltipContent>Rediscover tools</TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleViewTools(server.serverId)}
+                                          >
+                                            <Wrench className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>View tools</TooltipContent>
+                                      </Tooltip>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() =>
+                                              handleDiscoverServerTools(
+                                                server.serverId,
+                                                group.defaultDockerImage ?? undefined,
+                                              )
+                                            }
+                                            disabled={discoveringServerIds.has(server.serverId)}
+                                          >
+                                            {discoveringServerIds.has(server.serverId) ? (
+                                              <Loader className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                              <RefreshCw className="h-4 w-4" />
+                                            )}
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Rediscover tools</TooltipContent>
+                                      </Tooltip>
                                     </div>
                                   </TableCell>
                                 </TableRow>
@@ -2175,22 +2159,20 @@ export function McpLibraryPage() {
                   </TableCell>
                   <TableCell className="text-center">
                     {toolCountsByServer[server.id]?.total > 0 ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <Badge variant="outline" className="font-mono text-xs">
-                              {toolCountsByServer[server.id].enabled}/
-                              {toolCountsByServer[server.id].total}
-                            </Badge>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>
-                              {toolCountsByServer[server.id].enabled} enabled out of{' '}
-                              {toolCountsByServer[server.id].total} tools
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {toolCountsByServer[server.id].enabled}/
+                            {toolCountsByServer[server.id].total}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>
+                            {toolCountsByServer[server.id].enabled} enabled out of{' '}
+                            {toolCountsByServer[server.id].total} tools
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
                     ) : (
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
@@ -2203,74 +2185,62 @@ export function McpLibraryPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleViewTools(server.id)}
-                            >
-                              <Wrench className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>View tools</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleViewTools(server.id)}
+                          >
+                            <Wrench className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>View tools</TooltipContent>
+                      </Tooltip>
 
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleTestConnection(server.id)}
-                              disabled={testingServer === server.id}
-                            >
-                              <Plug
-                                className={cn(
-                                  'h-4 w-4',
-                                  testingServer === server.id && 'animate-pulse',
-                                )}
-                              />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Test connection</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleTestConnection(server.id)}
+                            disabled={testingServer === server.id}
+                          >
+                            <Plug
+                              className={cn(
+                                'h-4 w-4',
+                                testingServer === server.id && 'animate-pulse',
+                              )}
+                            />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Test connection</TooltipContent>
+                      </Tooltip>
 
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(server.id)}
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Edit</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(server.id)}>
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Edit</TooltipContent>
+                      </Tooltip>
 
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setServerToDelete(server.id);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Delete</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setServerToDelete(server.id);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Delete</TooltipContent>
+                      </Tooltip>
                     </div>
                   </TableCell>
                 </TableRow>

@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   StopCircle,
@@ -419,303 +419,299 @@ export default function ActivityPage() {
   ];
 
   return (
-    <TooltipProvider>
-      <div className="flex flex-col gap-4 p-6 max-w-[1400px] mx-auto">
-        {/* Upcoming Schedules */}
-        <UpcomingSchedules />
+    <div className="flex flex-col gap-4 p-6 max-w-[1400px] mx-auto">
+      {/* Upcoming Schedules */}
+      <UpcomingSchedules />
 
-        {/* Filters */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Status tabs */}
-          <div className="flex items-center rounded-lg border bg-muted/50 p-0.5">
-            {statusTabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setFilter('status', tab.key === 'all' ? '' : tab.key)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  statusTab === tab.key
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Trigger type filter */}
-          <Select
-            value={triggerFilter || '__all__'}
-            onValueChange={(v) => setFilter('trigger', v === '__all__' ? '' : v)}
-          >
-            <SelectTrigger className="w-[140px] h-9">
-              <SelectValue placeholder="All triggers" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All triggers</SelectItem>
-              <SelectItem value="manual">Manual</SelectItem>
-              <SelectItem value="schedule">Schedule</SelectItem>
-              <SelectItem value="webhook">Webhook</SelectItem>
-              <SelectItem value="api">API</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Search */}
-          <form onSubmit={handleSearch} className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search workflows..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="pl-8 h-9 w-[200px]"
-              />
-            </div>
-            {searchInput !== searchQuery && (
-              <Button type="submit" size="sm" variant="outline" className="h-9">
-                Search
-              </Button>
-            )}
-          </form>
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {/* Status tabs */}
+        <div className="flex items-center rounded-lg border bg-muted/50 p-0.5">
+          {statusTabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setFilter('status', tab.key === 'all' ? '' : tab.key)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                statusTab === tab.key
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Activity Table */}
-        <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30">
-                  <TableHead className="w-[130px]">Status</TableHead>
-                  <TableHead>Workflow</TableHead>
-                  <TableHead className="hidden md:table-cell">Target</TableHead>
-                  <TableHead className="hidden lg:table-cell w-[150px]">Trigger</TableHead>
-                  <TableHead className="hidden xl:table-cell w-[130px]">Started</TableHead>
-                  <TableHead className="hidden xl:table-cell w-[90px]">Duration</TableHead>
-                  <TableHead className="w-[70px]">Actions</TableHead>
+        {/* Trigger type filter */}
+        <Select
+          value={triggerFilter || '__all__'}
+          onValueChange={(v) => setFilter('trigger', v === '__all__' ? '' : v)}
+        >
+          <SelectTrigger className="w-[140px] h-9">
+            <SelectValue placeholder="All triggers" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All triggers</SelectItem>
+            <SelectItem value="manual">Manual</SelectItem>
+            <SelectItem value="schedule">Schedule</SelectItem>
+            <SelectItem value="webhook">Webhook</SelectItem>
+            <SelectItem value="api">API</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Search */}
+        <form onSubmit={handleSearch} className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search workflows..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="pl-8 h-9 w-[200px]"
+            />
+          </div>
+          {searchInput !== searchQuery && (
+            <Button type="submit" size="sm" variant="outline" className="h-9">
+              Search
+            </Button>
+          )}
+        </form>
+      </div>
+
+      {/* Activity Table */}
+      <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead className="w-[130px]">Status</TableHead>
+                <TableHead>Workflow</TableHead>
+                <TableHead className="hidden md:table-cell">Target</TableHead>
+                <TableHead className="hidden lg:table-cell w-[150px]">Trigger</TableHead>
+                <TableHead className="hidden xl:table-cell w-[130px]">Started</TableHead>
+                <TableHead className="hidden xl:table-cell w-[90px]">Duration</TableHead>
+                <TableHead className="w-[70px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Skeleton className="h-5 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-4 w-48" />
+                        <Skeleton className="h-3 w-32" />
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <Skeleton className="h-5 w-24" />
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell">
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell">
+                      <Skeleton className="h-4 w-12" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-7 w-7" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : items.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-40">
+                    <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <Activity className="h-8 w-8 opacity-40" />
+                      <p className="text-sm font-medium">
+                        {searchQuery || triggerFilter || statusTab !== 'all'
+                          ? 'No runs match your filters'
+                          : 'No activity yet'}
+                      </p>
+                      <p className="text-xs">
+                        {searchQuery || triggerFilter || statusTab !== 'all'
+                          ? 'Try adjusting your search or filters'
+                          : 'Run a workflow to see execution history here'}
+                      </p>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  Array.from({ length: 8 }).map((_, i) => (
-                    <TableRow key={i}>
+              ) : (
+                items.map((item) => {
+                  const triggerDisplay = getTriggerDisplay(item.triggerType, item.triggerLabel);
+                  const isLive = item.isLive;
+                  const isManual = item.triggerType === 'manual';
+                  const TriggerIcon = triggerDisplay.icon;
+                  const scanContext = getScanContext(
+                    item.workflowName,
+                    item.inputPreview,
+                    connectionNameMap,
+                  );
+
+                  return (
+                    <TableRow
+                      key={item.id}
+                      className="group/row cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => navigate(item.detailHref)}
+                    >
                       <TableCell>
-                        <Skeleton className="h-5 w-24" />
+                        <StatusBadge status={item.status} />
                       </TableCell>
                       <TableCell>
-                        <div className="space-y-1.5">
-                          <Skeleton className="h-4 w-48" />
-                          <Skeleton className="h-3 w-32" />
+                        <div className="flex items-start gap-2.5">
+                          <ScanContextIcon context={scanContext} />
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="font-medium text-sm truncate max-w-[280px]">
+                                  {item.workflowName}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">{item.workflowName}</TooltipContent>
+                            </Tooltip>
+                            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+                              <RunId runId={item.id} detailHref={item.detailHref} />
+                              {item.nodeCount > 0 && (
+                                <>
+                                  <span className="text-muted-foreground/40">·</span>
+                                  <span>{item.nodeCount} nodes</span>
+                                </>
+                              )}
+                              {item.eventCount > 0 && (
+                                <>
+                                  <span className="text-muted-foreground/40">·</span>
+                                  <span>{item.eventCount} events</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        <Skeleton className="h-4 w-32" />
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        <Skeleton className="h-5 w-24" />
-                      </TableCell>
-                      <TableCell className="hidden xl:table-cell">
-                        <Skeleton className="h-4 w-16" />
-                      </TableCell>
-                      <TableCell className="hidden xl:table-cell">
-                        <Skeleton className="h-4 w-12" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-7 w-7" />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : items.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-40">
-                      <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                        <Activity className="h-8 w-8 opacity-40" />
-                        <p className="text-sm font-medium">
-                          {searchQuery || triggerFilter || statusTab !== 'all'
-                            ? 'No runs match your filters'
-                            : 'No activity yet'}
-                        </p>
-                        <p className="text-xs">
-                          {searchQuery || triggerFilter || statusTab !== 'all'
-                            ? 'Try adjusting your search or filters'
-                            : 'Run a workflow to see execution history here'}
-                        </p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  items.map((item) => {
-                    const triggerDisplay = getTriggerDisplay(item.triggerType, item.triggerLabel);
-                    const isLive = item.isLive;
-                    const isManual = item.triggerType === 'manual';
-                    const TriggerIcon = triggerDisplay.icon;
-                    const scanContext = getScanContext(
-                      item.workflowName,
-                      item.inputPreview,
-                      connectionNameMap,
-                    );
-
-                    return (
-                      <TableRow
-                        key={item.id}
-                        className="group/row cursor-pointer hover:bg-muted/50 transition-colors"
-                        onClick={() => navigate(item.detailHref)}
-                      >
-                        <TableCell>
-                          <StatusBadge status={item.status} />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-start gap-2.5">
-                            <ScanContextIcon context={scanContext} />
-                            <div className="flex flex-col gap-0.5 min-w-0">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="font-medium text-sm truncate max-w-[280px]">
-                                    {item.workflowName}
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">{item.workflowName}</TooltipContent>
-                              </Tooltip>
-                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
-                                <RunId runId={item.id} detailHref={item.detailHref} />
-                                {item.nodeCount > 0 && (
-                                  <>
-                                    <span className="text-muted-foreground/40">·</span>
-                                    <span>{item.nodeCount} nodes</span>
-                                  </>
-                                )}
-                                {item.eventCount > 0 && (
-                                  <>
-                                    <span className="text-muted-foreground/40">·</span>
-                                    <span>{item.eventCount} events</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {scanContext.targetLabel ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-sm text-muted-foreground truncate block max-w-[200px]">
-                                  {scanContext.targetLabel}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-[300px] break-all">
+                        {scanContext.targetLabel ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-sm text-muted-foreground truncate block max-w-[200px]">
                                 {scanContext.targetLabel}
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <span className="text-sm text-muted-foreground/40">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Badge
-                                variant={triggerDisplay.variant}
-                                className="text-[10px] gap-1 max-w-[140px] cursor-default"
-                              >
-                                <TriggerIcon className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
-                                <span className="truncate">{triggerDisplay.label}</span>
-                              </Badge>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">{triggerDisplay.label}</TooltipContent>
-                          </Tooltip>
-                        </TableCell>
-                        <TableCell className="hidden xl:table-cell">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="text-sm text-muted-foreground">
-                                {formatRelativeTime(item.startTime)}
                               </span>
                             </TooltipTrigger>
-                            <TooltipContent>{formatExactTime(item.startTime)}</TooltipContent>
+                            <TooltipContent side="top" className="max-w-[300px] break-all">
+                              {scanContext.targetLabel}
+                            </TooltipContent>
                           </Tooltip>
-                        </TableCell>
-                        <TableCell className="hidden xl:table-cell">
-                          <div className="flex items-center gap-1.5">
-                            {isLive && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse flex-shrink-0" />
-                            )}
-                            <span className="text-sm text-muted-foreground tabular-nums">
-                              {formatDuration(item.duration)}
+                        ) : (
+                          <span className="text-sm text-muted-foreground/40">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge
+                              variant={triggerDisplay.variant}
+                              className="text-[10px] gap-1 max-w-[140px] cursor-default"
+                            >
+                              <TriggerIcon className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                              <span className="truncate">{triggerDisplay.label}</span>
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">{triggerDisplay.label}</TooltipContent>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell className="hidden xl:table-cell">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-sm text-muted-foreground">
+                              {formatRelativeTime(item.startTime)}
                             </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {isLive && !isManual ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span tabIndex={0} onClick={(e) => e.stopPropagation()}>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled>
-                                    <StopCircle className="h-4 w-4 text-muted-foreground" />
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                System-triggered runs cannot be stopped
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : isLive && isManual ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-destructive hover:text-destructive"
-                                  disabled={cancelRun.isPending}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    cancelRun.mutate(item.id);
-                                  }}
-                                >
-                                  {cancelRun.isPending ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <StopCircle className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Stop this run</TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 opacity-0 group-hover/row:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(item.detailHref);
-                                  }}
-                                >
-                                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>View run details</TooltipContent>
-                            </Tooltip>
+                          </TooltipTrigger>
+                          <TooltipContent>{formatExactTime(item.startTime)}</TooltipContent>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell className="hidden xl:table-cell">
+                        <div className="flex items-center gap-1.5">
+                          {isLive && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse flex-shrink-0" />
                           )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                          <span className="text-sm text-muted-foreground tabular-nums">
+                            {formatDuration(item.duration)}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {isLive && !isManual ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span tabIndex={0} onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" disabled>
+                                  <StopCircle className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>System-triggered runs cannot be stopped</TooltipContent>
+                          </Tooltip>
+                        ) : isLive && isManual ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive"
+                                disabled={cancelRun.isPending}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  cancelRun.mutate(item.id);
+                                }}
+                              >
+                                {cancelRun.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <StopCircle className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Stop this run</TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(item.detailHref);
+                                }}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>View run details</TooltipContent>
+                          </Tooltip>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
         </div>
-
-        {/* Load more */}
-        {hasMore && !isLoading && (
-          <div className="flex justify-center">
-            <Button variant="outline" onClick={() => setFilter('page', String(page + 1))}>
-              Load more
-            </Button>
-          </div>
-        )}
       </div>
-    </TooltipProvider>
+
+      {/* Load more */}
+      {hasMore && !isLoading && (
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={() => setFilter('page', String(page + 1))}>
+            Load more
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }

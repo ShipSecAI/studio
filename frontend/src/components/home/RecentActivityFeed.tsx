@@ -1,7 +1,7 @@
 import { type ElementType, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Container, FileCode2, KeyRound, Package, Workflow } from 'lucide-react';
 import { formatRelativeTime } from '@/components/scans/scan-utils';
 import type { GitHubScanResult, GitHubRepo } from '@/store/githubStore';
@@ -232,81 +232,77 @@ export function RecentActivityFeed({
   }, [scanResults, repositories, recentRuns, connections]);
 
   return (
-    <TooltipProvider>
-      <Card className="h-full overflow-hidden">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <CardTitle className="text-base">Recent Scans</CardTitle>
-            {feedItems.length > 5 && (
-              <span className="text-xs text-muted-foreground font-normal">
-                ({feedItems.length})
-              </span>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {feedItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No scans yet.</p>
-          ) : (
-            <div
-              className={
-                feedItems.length > 5
-                  ? 'max-h-[320px] overflow-y-auto overflow-x-hidden space-y-1 pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [scrollbar-width:thin]'
-                  : 'space-y-1'
-              }
-            >
-              {feedItems.map((item) => {
-                const dotColor = STATUS_DOT_COLOR[item.status] ?? STATUS_DOT_COLOR.pending;
-                const time = formatRelativeTime(item.timestamp);
-
-                return (
-                  <Link
-                    key={item.id}
-                    to={item.href}
-                    className="flex items-start gap-2 text-xs hover:bg-muted/50 rounded p-1.5 -mx-1 transition-colors"
-                  >
-                    <div className="relative w-6 h-6 flex-shrink-0 mt-0.5">
-                      <ProviderIcon
-                        provider={item.provider}
-                        containerRegistry={item.containerRegistry}
-                        scanType={item.scanType}
-                      />
-                      <span
-                        className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background ${dotColor}`}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0 overflow-hidden">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate font-medium">{item.label}</span>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="text-[10px] text-muted-foreground flex-shrink-0 cursor-default">
-                              {time}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>{formatFullTimestamp(item.timestamp)}</TooltipContent>
-                        </Tooltip>
-                      </div>
-                      {item.subtitle && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <p className="text-[11px] text-muted-foreground truncate mt-0.5 max-w-[calc(100%-4rem)]">
-                              {item.subtitle}
-                            </p>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs break-words">
-                            {item.subtitle}
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+    <Card className="h-full overflow-hidden">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-base">Recent Scans</CardTitle>
+          {feedItems.length > 5 && (
+            <span className="text-xs text-muted-foreground font-normal">({feedItems.length})</span>
           )}
-        </CardContent>
-      </Card>
-    </TooltipProvider>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {feedItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No scans yet.</p>
+        ) : (
+          <div
+            className={
+              feedItems.length > 5
+                ? 'max-h-[320px] overflow-y-auto overflow-x-hidden space-y-1 pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [scrollbar-width:thin]'
+                : 'space-y-1'
+            }
+          >
+            {feedItems.map((item) => {
+              const dotColor = STATUS_DOT_COLOR[item.status] ?? STATUS_DOT_COLOR.pending;
+              const time = formatRelativeTime(item.timestamp);
+
+              return (
+                <Link
+                  key={item.id}
+                  to={item.href}
+                  className="flex items-start gap-2 text-xs hover:bg-muted/50 rounded p-1.5 -mx-1 transition-colors"
+                >
+                  <div className="relative w-6 h-6 flex-shrink-0 mt-0.5">
+                    <ProviderIcon
+                      provider={item.provider}
+                      containerRegistry={item.containerRegistry}
+                      scanType={item.scanType}
+                    />
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background ${dotColor}`}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate font-medium">{item.label}</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-[10px] text-muted-foreground flex-shrink-0 cursor-default">
+                            {time}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>{formatFullTimestamp(item.timestamp)}</TooltipContent>
+                      </Tooltip>
+                    </div>
+                    {item.subtitle && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <p className="text-[11px] text-muted-foreground truncate mt-0.5 max-w-[calc(100%-4rem)]">
+                            {item.subtitle}
+                          </p>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs break-words">
+                          {item.subtitle}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

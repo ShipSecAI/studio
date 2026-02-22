@@ -1,6 +1,6 @@
 import { Fragment, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useRunActivity } from '@/hooks/queries/useRunQueries';
 import { useSecurityTimeSeriesForHeatmap } from '@/hooks/queries/useSecurityQueries';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -258,80 +258,78 @@ export function ActivityHeatmap() {
         {isLoading ? (
           <Skeleton className="h-[120px] w-full rounded-md" />
         ) : (
-          <TooltipProvider delayDuration={100}>
-            <div className="overflow-x-auto">
-              {/* Month labels */}
-              <div
-                className="grid gap-[3px] mb-1"
-                style={{
-                  gridTemplateColumns: `28px repeat(${totalWeeks}, 14px)`,
-                }}
-              >
-                <div /> {/* Spacer for day labels */}
-                {Array.from({ length: totalWeeks }, (_, i) => {
-                  const monthLabel = monthLabels.find((m) => m.weekIndex === i);
-                  return (
-                    <div key={i} className="text-[10px] text-muted-foreground leading-none">
-                      {monthLabel?.label ?? ''}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Heatmap grid: 7 rows (days) x N columns (weeks) */}
-              <div
-                className="grid gap-[3px]"
-                style={{
-                  gridTemplateColumns: `28px repeat(${totalWeeks}, 14px)`,
-                  gridTemplateRows: 'repeat(7, 14px)',
-                }}
-              >
-                {Array.from({ length: 7 }, (_, dayIndex) => (
-                  <Fragment key={`day-${dayIndex}`}>
-                    {/* Day label */}
-                    <div className="text-[10px] text-muted-foreground flex items-center">
-                      {DAY_LABELS[dayIndex]}
-                    </div>
-
-                    {/* Cells for this day across all weeks */}
-                    {Array.from({ length: totalWeeks }, (_, weekIdx) => {
-                      const cell = cells.find(
-                        (c) => c.dayOfWeek === dayIndex && c.weekIndex === weekIdx,
-                      );
-
-                      if (!cell || cell.value === -1) {
-                        return <div key={`${dayIndex}-${weekIdx}`} className="rounded-sm" />;
-                      }
-
-                      const colorIdx = getColorIndex(cell.value, thresholds);
-
-                      return (
-                        <Tooltip key={`${dayIndex}-${weekIdx}`}>
-                          <TooltipTrigger asChild>
-                            <div
-                              className={`rounded-sm ${colors[colorIdx]} cursor-default transition-colors`}
-                            />
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="text-xs">
-                            {cell.tooltip}
-                          </TooltipContent>
-                        </Tooltip>
-                      );
-                    })}
-                  </Fragment>
-                ))}
-              </div>
-
-              {/* Legend */}
-              <div className="flex items-center justify-end gap-1 mt-2 text-[10px] text-muted-foreground">
-                <span>Less</span>
-                {colors.map((color, i) => (
-                  <div key={i} className={`w-3 h-3 rounded-sm ${color}`} />
-                ))}
-                <span>More</span>
-              </div>
+          <div className="overflow-x-auto">
+            {/* Month labels */}
+            <div
+              className="grid gap-[3px] mb-1"
+              style={{
+                gridTemplateColumns: `28px repeat(${totalWeeks}, 14px)`,
+              }}
+            >
+              <div /> {/* Spacer for day labels */}
+              {Array.from({ length: totalWeeks }, (_, i) => {
+                const monthLabel = monthLabels.find((m) => m.weekIndex === i);
+                return (
+                  <div key={i} className="text-[10px] text-muted-foreground leading-none">
+                    {monthLabel?.label ?? ''}
+                  </div>
+                );
+              })}
             </div>
-          </TooltipProvider>
+
+            {/* Heatmap grid: 7 rows (days) x N columns (weeks) */}
+            <div
+              className="grid gap-[3px]"
+              style={{
+                gridTemplateColumns: `28px repeat(${totalWeeks}, 14px)`,
+                gridTemplateRows: 'repeat(7, 14px)',
+              }}
+            >
+              {Array.from({ length: 7 }, (_, dayIndex) => (
+                <Fragment key={`day-${dayIndex}`}>
+                  {/* Day label */}
+                  <div className="text-[10px] text-muted-foreground flex items-center">
+                    {DAY_LABELS[dayIndex]}
+                  </div>
+
+                  {/* Cells for this day across all weeks */}
+                  {Array.from({ length: totalWeeks }, (_, weekIdx) => {
+                    const cell = cells.find(
+                      (c) => c.dayOfWeek === dayIndex && c.weekIndex === weekIdx,
+                    );
+
+                    if (!cell || cell.value === -1) {
+                      return <div key={`${dayIndex}-${weekIdx}`} className="rounded-sm" />;
+                    }
+
+                    const colorIdx = getColorIndex(cell.value, thresholds);
+
+                    return (
+                      <Tooltip key={`${dayIndex}-${weekIdx}`}>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={`rounded-sm ${colors[colorIdx]} cursor-default transition-colors`}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          {cell.tooltip}
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </Fragment>
+              ))}
+            </div>
+
+            {/* Legend */}
+            <div className="flex items-center justify-end gap-1 mt-2 text-[10px] text-muted-foreground">
+              <span>Less</span>
+              {colors.map((color, i) => (
+                <div key={i} className={`w-3 h-3 rounded-sm ${color}`} />
+              ))}
+              <span>More</span>
+            </div>
+          </div>
         )}
 
         {/* Stats summary */}

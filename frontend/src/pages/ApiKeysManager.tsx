@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Copy, Trash2, ShieldOff, AlertTriangle } from 'lucide-react';
@@ -48,9 +49,6 @@ const INITIAL_FORM: CreateApiKeyInput = {
     runs: {
       read: true, // Default to allowing reading runs
       cancel: false,
-    },
-    audit: {
-      read: false,
     },
   },
 };
@@ -110,7 +108,7 @@ export function ApiKeysManager() {
   };
 
   const handlePermissionChange = (
-    category: 'workflows' | 'runs' | 'audit',
+    category: 'workflows' | 'runs',
     action: string,
     checked: boolean,
   ) => {
@@ -228,12 +226,24 @@ export function ApiKeysManager() {
                   apiKeys.map((key) => (
                     <TableRow key={key.id}>
                       <TableCell className="font-medium">
-                        <div className="truncate max-w-[150px] md:max-w-none">{key.name}</div>
-                        {key.description && (
-                          <div className="text-xs text-muted-foreground truncate max-w-[150px] md:max-w-none">
-                            {key.description}
-                          </div>
-                        )}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <div className="truncate max-w-[150px] md:max-w-none">{key.name}</div>
+                              {key.description && (
+                                <div className="text-xs text-muted-foreground truncate max-w-[150px] md:max-w-none">
+                                  {key.description}
+                                </div>
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs">
+                            <p className="font-medium">{key.name}</p>
+                            {key.description && (
+                              <p className="text-xs text-muted-foreground">{key.description}</p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {truncateKey(key.keyHint)}
@@ -386,7 +396,7 @@ export function ApiKeysManager() {
 
               <div className="space-y-3">
                 <Label>Permissions</Label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border p-3 rounded-md">
+                <div className="grid grid-cols-2 gap-4 border p-3 rounded-md">
                   <div className="space-y-2">
                     <Label className="text-xs uppercase text-muted-foreground font-semibold">
                       Workflows
@@ -455,24 +465,6 @@ export function ApiKeysManager() {
                       />
                       <Label htmlFor="perm-run-cancel" className="font-normal text-sm">
                         Cancel Runs
-                      </Label>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase text-muted-foreground font-semibold">
-                      Audit
-                    </Label>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="perm-audit-read"
-                        checked={formState.permissions.audit.read}
-                        onCheckedChange={(checked) =>
-                          handlePermissionChange('audit', 'read', checked as boolean)
-                        }
-                      />
-                      <Label htmlFor="perm-audit-read" className="font-normal text-sm">
-                        Read Audit Logs
                       </Label>
                     </div>
                   </div>

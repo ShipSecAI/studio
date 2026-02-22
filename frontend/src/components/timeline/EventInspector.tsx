@@ -4,7 +4,7 @@ import { ExecutionErrorView } from '@/components/workflow/ExecutionErrorView';
 import { Badge } from '@/components/ui/badge';
 import { MessageModal } from '@/components/ui/MessageModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { createPreview } from '@/utils/textPreview';
 import { useExecutionTimelineStore, type TimelineEvent } from '@/store/executionTimelineStore';
 import { cn } from '@/lib/utils';
@@ -551,34 +551,32 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
                         </div>
                       </div>
                       <div className="flex items-center">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div
-                                onClick={(e) => {
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDiagnosticsDialogOpen(event.id);
+                              }}
+                              className="flex items-center justify-center rounded-md border border-border/60 bg-muted/20 p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground cursor-pointer"
+                              role="button"
+                              tabIndex={0}
+                              aria-label="View diagnostics"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
                                   e.stopPropagation();
                                   setDiagnosticsDialogOpen(event.id);
-                                }}
-                                className="flex items-center justify-center rounded-md border border-border/60 bg-muted/20 p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground cursor-pointer"
-                                role="button"
-                                tabIndex={0}
-                                aria-label="View diagnostics"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setDiagnosticsDialogOpen(event.id);
-                                  }
-                                }}
-                              >
-                                <Wrench className="h-3.5 w-3.5" />
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Diagnostics</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                                }
+                              }}
+                            >
+                              <Wrench className="h-3.5 w-3.5" />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Diagnostics</p>
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                       {hasExpandableContent && (
                         <button
