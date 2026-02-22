@@ -9,7 +9,9 @@ import {
   User,
   Pencil,
   Check,
+  Link2,
 } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ChatCommandPalette, WorkflowPreviewPanel } from '@/components/chat';
@@ -22,6 +24,7 @@ import { DefaultChatTransport, isToolOrDynamicToolUIPart } from 'ai';
 import type { UIMessage } from 'ai';
 import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
 import { StatusBar } from '@/components/agent/StatusBar';
+import { useToast } from '@/components/ui/use-toast';
 
 // AI Elements
 import {
@@ -294,13 +297,18 @@ function EmptyState({ userName, onSelectPrompt }: EmptyStateProps) {
 // Main Chat Interface
 export function ChatInterface() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { sessionId: routeSessionId } = useParams<{ sessionId?: string }>();
+  const { toast } = useToast();
   const {
     currentSessionId,
     createSession,
+    startNewConversation,
     updateSessionTitle,
     getCurrentSession,
     setCommandPaletteOpen,
     loadSessions,
+    setCurrentSession,
   } = useChatStore();
 
   const currentSession = getCurrentSession();
@@ -308,11 +316,56 @@ export function ChatInterface() {
   // Ref to always have the latest sessionId available in the transport callback
   const sessionIdRef = useRef(currentSessionId);
   sessionIdRef.current = currentSessionId;
+  // Track which session was lazily created so we skip message-loading for it
+  const lazyCreatedSessionRef = useRef<string | null>(null);
+  const isCreatingSessionRef = useRef(false);
 
   // Load sessions from server on mount
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
+
+  // Route is canonical for selecting a conversation when present.
+  useEffect(() => {
+    if (routeSessionId === 'new') {
+      // Respect explicit draft route, but don't clear immediately after we lazily
+      // created a session from the first user message.
+      if (
+        currentSessionId &&
+        !isCreatingSessionRef.current &&
+        currentSessionId !== lazyCreatedSessionRef.current
+      ) {
+        startNewConversation();
+      }
+      return;
+    }
+
+    if (routeSessionId && routeSessionId !== currentSessionId) {
+      setCurrentSession(routeSessionId);
+    }
+  }, [routeSessionId, currentSessionId, setCurrentSession, startNewConversation]);
+
+  // Keep URL synced with active conversation selection.
+  useEffect(() => {
+    if (routeSessionId === 'new') {
+      // Stay on draft URL unless this draft just materialized into a real session.
+      if (currentSessionId && currentSessionId === lazyCreatedSessionRef.current) {
+        navigate(`/chat/${currentSessionId}`, { replace: true });
+      }
+      return;
+    }
+
+    if (routeSessionId && routeSessionId !== 'new' && currentSessionId !== routeSessionId) {
+      return;
+    }
+
+    const targetPath = currentSessionId ? `/chat/${currentSessionId}` : '/chat/new';
+    const currentPath = routeSessionId ? `/chat/${routeSessionId}` : '/';
+
+    if (targetPath !== currentPath) {
+      navigate(targetPath, { replace: true });
+    }
+  }, [currentSessionId, routeSessionId, navigate]);
 
   // Create transport with auth headers — uses ref so it always reads the latest session ID
   const chatTransport = useMemo(
@@ -337,9 +390,6 @@ export function ChatInterface() {
     currentSessionId ? `${currentSessionId}-0` : `chat-${Date.now()}`,
   );
 
-  // Track which session was lazily created so we skip message-loading for it
-  const lazyCreatedSessionRef = useRef<string | null>(null);
-
   useEffect(() => {
     if (!currentSessionId) {
       // User clicked "New Conversation" — reset chat to empty state
@@ -348,9 +398,10 @@ export function ChatInterface() {
       return;
     }
 
-    // Skip loading messages for sessions we just created (they're empty)
+    // Skip backend hydration for sessions created from this draft.
+    // We already have local in-memory transcript (user + streaming assistant),
+    // and re-hydrating too early can reset the chat to a partial server snapshot.
     if (lazyCreatedSessionRef.current === currentSessionId) {
-      lazyCreatedSessionRef.current = null;
       return;
     }
 
@@ -384,6 +435,14 @@ export function ChatInterface() {
     return () => {
       cancelled = true;
     };
+  }, [currentSessionId, routeSessionId]);
+
+  // Once the user switches away from the just-created session, clear the
+  // marker so future visits hydrate from backend as usual.
+  useEffect(() => {
+    if (lazyCreatedSessionRef.current && currentSessionId !== lazyCreatedSessionRef.current) {
+      lazyCreatedSessionRef.current = null;
+    }
   }, [currentSessionId]);
 
   const { messages, sendMessage, status, error, stop } = useChat({
@@ -415,16 +474,23 @@ export function ChatInterface() {
 
       // Create session on first message if none exists
       if (!sessionIdRef.current) {
-        const title = text.slice(0, 50) + (text.length > 50 ? '...' : '');
-        // Mark this session as lazily created so we skip loading empty messages for it
-        const newSessionId = await createSession(title);
-        lazyCreatedSessionRef.current = newSessionId;
-        sessionIdRef.current = newSessionId;
+        isCreatingSessionRef.current = true;
+        try {
+          const title = text.slice(0, 50) + (text.length > 50 ? '...' : '');
+          // Mark this session as lazily created so we skip loading empty messages for it
+          const newSessionId = await createSession(title);
+          lazyCreatedSessionRef.current = newSessionId;
+          sessionIdRef.current = newSessionId;
+          // Route transition is explicit to avoid relying on effect timing.
+          navigate(`/chat/${newSessionId}`, { replace: true });
+        } finally {
+          isCreatingSessionRef.current = false;
+        }
       }
 
       sendMessage({ text });
     },
-    [sendMessage, createSession],
+    [sendMessage, createSession, navigate],
   );
 
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
@@ -448,6 +514,33 @@ export function ChatInterface() {
     }
     setIsEditingTitle(false);
   }, [editTitleValue, currentSessionId, currentSession?.title, updateSessionTitle]);
+
+  const conversationPath = currentSessionId ? `/chat/${currentSessionId}` : '/chat/new';
+
+  const conversationUrl = useMemo(() => {
+    if (typeof window === 'undefined') return conversationPath;
+    return `${window.location.origin}${conversationPath}`;
+  }, [conversationPath]);
+
+  const handleCopyConversationUrl = useCallback(async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(conversationUrl);
+        toast({
+          title: 'Conversation link copied',
+          description: conversationPath,
+        });
+      } else {
+        throw new Error('Clipboard unavailable');
+      }
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Unable to copy link automatically',
+        description: conversationUrl,
+      });
+    }
+  }, [conversationUrl, conversationPath, toast]);
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
@@ -505,6 +598,15 @@ export function ChatInterface() {
             )}
           </div>
         ) : null}
+
+        <button
+          onClick={handleCopyConversationUrl}
+          className="hidden md:inline-flex items-center gap-1.5 ml-1 px-2 py-1 rounded-md text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-muted transition-colors max-w-[280px]"
+          title={conversationUrl}
+        >
+          <Link2 className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{conversationPath}</span>
+        </button>
 
         {/* Spacer pushes StatusBar to the right */}
         <div className="flex-1" />

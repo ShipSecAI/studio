@@ -38,8 +38,7 @@ export function ChatCommandPalette({ onSelectPrompt }: ChatCommandPaletteProps) 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const { isCommandPaletteOpen, setCommandPaletteOpen, createSession, currentSessionId } =
-    useChatStore();
+  const { isCommandPaletteOpen, setCommandPaletteOpen, startNewConversation } = useChatStore();
 
   // Define all commands
   const commands: CommandItem[] = useMemo(() => {
@@ -52,7 +51,8 @@ export function ChatCommandPalette({ onSelectPrompt }: ChatCommandPaletteProps) 
         icon: Plus,
         category: 'chat',
         action: () => {
-          createSession();
+          startNewConversation();
+          navigate('/chat/new');
           setCommandPaletteOpen(false);
         },
         keywords: ['create', 'start', 'conversation'],
@@ -64,7 +64,8 @@ export function ChatCommandPalette({ onSelectPrompt }: ChatCommandPaletteProps) 
         icon: Trash2,
         category: 'chat',
         action: () => {
-          createSession();
+          startNewConversation();
+          navigate('/chat/new');
           setCommandPaletteOpen(false);
         },
         keywords: ['delete', 'remove', 'reset'],
@@ -198,7 +199,7 @@ export function ChatCommandPalette({ onSelectPrompt }: ChatCommandPaletteProps) 
     ];
 
     return baseCommands;
-  }, [navigate, createSession, currentSessionId, setCommandPaletteOpen, onSelectPrompt]);
+  }, [navigate, startNewConversation, setCommandPaletteOpen, onSelectPrompt]);
 
   // Filter commands based on query
   const filteredCommands = useMemo(() => {
