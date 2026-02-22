@@ -1,24 +1,22 @@
 # Remote Development Setup
 
-Run ShipSec Studio infrastructure on a remote Linux machine and develop from your Mac via SSH tunneling. This is useful when your local machine has limited RAM (e.g., 16GB Mac) and you want to offload Docker containers to a more powerful machine.
+Run ShipSec Studio infrastructure on a remote Linux machine and develop from your Mac. This is useful when your local machine has limited RAM (e.g., 16GB Mac) and you want to offload Docker containers to a more powerful machine.
 
 ## Architecture
 
 ```
-Mac (local)                          Linux Server (remote)
-─────────────                        ────────────────────
-Browser :18180  ──SSH tunnel──►  nginx :8180 ──► frontend :5173
-Browser :15173  ──SSH tunnel──►  frontend :5173
-Browser :13211  ──SSH tunnel──►  backend :3211
-Browser :18083  ──SSH tunnel──►  temporal-ui :8083
+Mac (local)                        Linux Server (remote)
+─────────────                      ────────────────────
+Browser  ──LAN (10.0.0.156)──►  nginx :80 ──► frontend :5173
+                                             └──► backend :3211
 
-Code editor     ──Mutagen sync──►  /home/shipsec/toronto/
+Code editor  ──Mutagen sync──►  /home/shipsec/toronto/
 ```
 
-- **SSH tunnels** forward Mac ports (prefixed with `1`) to server ports
-- **Mutagen** (optional) keeps code in sync bidirectionally
-- **Docker + PM2** run entirely on the server
-- Your Mac runs only the browser and editor
+- **LAN access** — browse directly via the server's IP, no tunnel needed
+- **Mutagen** — syncs code changes from Mac to server in real-time
+- **Docker + PM2** — run entirely on the server
+- **SSH** — used only for shell access and running commands
 
 ## Prerequisites
 
@@ -76,60 +74,23 @@ ln -sf /home/shipsec/.bun/bin/bun /usr/local/bin/bun
 ln -sf /home/shipsec/toronto/node_modules/.bin/pm2 /usr/local/bin/pm2
 ```
 
-### 4. Resolve port conflicts
+### 4. Check for port conflicts
 
-If the server runs other services (e.g., CasaOS), some default ports may conflict. Common conflicts and remaps:
-
-| Service       | Default Port | Conflict With  | Remapped To |
-| ------------- | ------------ | -------------- | ----------- |
-| nginx         | 80           | CasaOS gateway | 8180        |
-| Temporal UI   | 8081         | open-webui     | 8083        |
-| MinIO API     | 9000         | Portainer      | 9010        |
-| MinIO Console | 9001         | —              | 9011        |
-
-**Check for conflicts before starting:**
+The project uses standard ports. Before starting, verify nothing else occupies them:
 
 ```bash
 ss -tlnp | grep -E ':(80|8081|9000|9001)\s'
 ```
 
-**Apply port remaps** in `docker/docker-compose.dev-ports.yml`:
-
-```yaml
-# Only override ports that conflict — leave others as-is
-temporal-ui:
-  ports:
-    - '127.0.0.1:8083:8080' # was 8081:8080
-minio:
-  ports:
-    - '127.0.0.1:9010:9000' # was 9000:9000
-    - '127.0.0.1:9011:9001' # was 9001:9001
-```
-
-**And in `docker/docker-compose.infra.yml`** for nginx:
-
-```yaml
-nginx:
-  ports:
-    - '8180:80' # was '80:80'
-```
+If conflicts exist (e.g., from CasaOS or Portainer), move the conflicting services to different ports rather than remapping the project's ports. The docker-compose files use standard ports and should not be modified for server-specific conflicts.
 
 ### 5. Update .env files
 
 **`backend/.env`** — add/update:
 
 ```env
-MINIO_PORT=9010
 LOG_KAFKA_BROKERS="localhost:9092"
-CORS_EXTRA_ORIGINS="http://localhost:15173,http://localhost:18180,http://localhost:13211"
-```
-
-The `CORS_EXTRA_ORIGINS` allows requests from your Mac's SSH-tunneled ports.
-
-**`worker/.env`** — add/update:
-
-```env
-MINIO_PORT=9010
+CORS_EXTRA_ORIGINS="http://<server-ip>"
 ```
 
 **`frontend/.env`** — set empty so API calls use relative URLs through nginx:
@@ -154,7 +115,7 @@ To start completely fresh: `just dev clean` then `just dev`.
 
 ## Mac SSH Configuration
 
-Add this to `~/.ssh/config` on your Mac:
+Add this to `~/.ssh/config` for shell access to the server:
 
 ```ssh-config
 Host toronto-dev
@@ -164,33 +125,24 @@ Host toronto-dev
     ForwardAgent yes
     ServerAliveInterval 30
     ServerAliveCountMax 3
-    # App ports (prefixed with 1 to avoid local conflicts)
-    LocalForward 15173 127.0.0.1:5173
-    LocalForward 13211 127.0.0.1:3211
-    LocalForward 18083 127.0.0.1:8083
-    LocalForward 18180 127.0.0.1:8180
-    # Infra ports (uncomment as needed for debugging)
-    # LocalForward 15433 127.0.0.1:5433
-    # LocalForward 19200 127.0.0.1:9200
-    # LocalForward 19092 127.0.0.1:9092
 ```
 
 Connect with: `ssh toronto-dev`
 
-The tunnel stays alive as long as the SSH session is open. Use `ssh -N toronto-dev` for a background tunnel without a shell.
-
 ## Accessing the App
 
-Once connected via SSH tunnel:
+Access the app directly via the server's LAN IP — no tunnel needed:
 
 | Service           | URL                                  |
 | ----------------- | ------------------------------------ |
-| App (via nginx)   | http://localhost:18180               |
-| Frontend (direct) | http://localhost:15173               |
-| Backend API       | http://localhost:13211/api/v1/health |
-| Temporal UI       | http://localhost:18083               |
+| App (via nginx)   | http://10.0.0.156                    |
+| Frontend (direct) | http://10.0.0.156:5173               |
+| Backend API       | http://10.0.0.156:3211/api/v1/health |
+| Temporal UI       | http://10.0.0.156:8081               |
 
 Login with the default local auth credentials (`admin` / `admin`).
+
+> **Outside your LAN?** Use Tailscale (IP: 100.68.79.68) — same URLs, replace `10.0.0.156` with the Tailscale IP.
 
 ## File Sync with Mutagen
 
@@ -227,7 +179,7 @@ mutagen project terminate  # Stop and remove the session
 | Docs, tests          | `dist/`, `build/` outputs         |
 | `mutagen.yml` itself | `.git/` directory                 |
 
-> **Important:** `.env` files are deliberately excluded. The server's `.env` files have different values (MINIO port, CORS origins, empty VITE_API_URL) that must not be overwritten by your local `.env` files.
+> **Important:** `.env` files are deliberately excluded. The server's `.env` files have different values (CORS origins, empty VITE_API_URL) that must not be overwritten by your local `.env` files.
 
 ### Adding new npm dependencies
 
@@ -253,8 +205,6 @@ If you need the server's git history to reflect your commits (e.g., for branch-a
 git push && ssh toronto-dev 'cd /home/shipsec/toronto && git pull'
 ```
 
-Without Mutagen, you can edit files directly on the server via SSH, or use VS Code Remote-SSH extension.
-
 ## Troubleshooting
 
 ### Postgres healthcheck fails on first start
@@ -275,7 +225,7 @@ postgres:
 ### API calls fail with CORS or go to wrong port
 
 1. Verify `frontend/.env` has `VITE_API_URL=` (empty, not `http://localhost:3211`)
-2. Verify `backend/.env` has `CORS_EXTRA_ORIGINS` with your tunneled ports
+2. Verify `backend/.env` has `CORS_EXTRA_ORIGINS` with the server's LAN IP
 3. Hard-refresh the browser (Cmd+Shift+R) after changes — Vite caches JS bundles
 4. Restart the frontend: `pm2 restart shipsec-frontend-0`
 
@@ -295,6 +245,6 @@ The frontend resolves its API base URL through this chain:
 2. **`packages/backend-client/src/api-client.ts`** — `ShipSecApiClient` constructor receives the base URL. Uses `??` (nullish coalescing) so empty string is preserved as-is, only falling back to `http://localhost:3211` when `null`/`undefined`.
 3. **nginx** — Proxies `/api/` requests to the backend on port 3211 internally.
 
-This means when `VITE_API_URL=` is empty, all API calls become relative (e.g., `/api/v1/components`), which nginx routes correctly regardless of how you access the frontend (direct, SSH tunnel, ngrok, etc.).
+This means when `VITE_API_URL=` is empty, all API calls become relative (e.g., `/api/v1/components`), which nginx routes correctly regardless of how you access the frontend (LAN IP, Tailscale, ngrok, etc.).
 
 > **Note:** The `??` vs `||` distinction matters here. JavaScript's `||` treats `''` as falsy and would fall back to the default. The `??` operator only triggers on `null`/`undefined`, preserving the intentional empty string.
