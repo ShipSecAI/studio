@@ -1,0 +1,25 @@
+{
+  "cookies": [
+    {
+      "name": "shipsec_session",
+      "value": "eyJ1c2VybmFtZSI6ImFkbWluIiwidHMiOjE3NzE2MzU0MTUxMzF9LjBhOTAzYzIyYWMwYzEzNDRmODU2MDAwZDE2ODQwNGQ5MGM3NmZiOGMxMjk1NWZkM2FmZjQxYmRmODZhNjJlZDU%3D",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1772240215.134775,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:5273",
+      "localStorage": [
+        {
+          "name": "shipsec-auth",
+          "value": "{\"state\":{\"token\":\"basic-YWRtaW46YWRtaW4=\",\"userId\":\"admin\",\"organizationId\":\"local-dev\",\"roles\":[\"ADMIN\"],\"provider\":\"local\",\"adminUsername\":\"admin\",\"adminPassword\":\"admin\"},\"version\":3}"
+        }
+      ]
+    }
+  ]
+}

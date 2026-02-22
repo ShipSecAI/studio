@@ -27,16 +27,6 @@ just instance show     # Print active instance number
 just instance use 5    # Set active instance for this workspace
 ```
 
-**Instance env files**:
-
-```bash
-just instance-init 5           # Initialize .instances/instance-5/*.env
-just instance-env init 5       # Create from app/.env or app/.env.example
-just instance-env update 5     # Re-apply instance-scoped vars
-just instance-env copy 5 6     # Copy env setup from instance 5 -> 6
-just instance-env show 6       # Show file status and computed values
-```
-
 **URLs**:
 
 - Frontend: `http://localhost:${5173 + instance*100}`
@@ -53,7 +43,6 @@ Local development runs as **multiple app instances** (PM2) on top of **one share
 - Per-instance apps: `shipsec-{frontend,backend,worker}-N`.
 - Isolation is via per-instance DB + Temporal namespace/task queue + Kafka topic suffixing + instance-scoped Kafka consumer groups/client IDs (not per-instance infra containers).
 - The workspace can have an **active instance** (stored in `.shipsec-instance`, gitignored).
-- Instance env files are stored at `.instances/instance-N/{backend,worker,frontend}.env` and can be managed with `just instance-env ...`.
 
 **Agent rule:** before running any dev commands, ensure you’re targeting the intended instance.
 
@@ -61,7 +50,7 @@ Local development runs as **multiple app instances** (PM2) on top of **one share
 - If the task is ambiguous (logs, curl, E2E, “run locally”, etc.), ask the user which instance to use.
 - If the user says “use instance N”, prefer either:
   - `just instance use N` then run `just dev` / `bun run test:e2e`, or
-  - explicit env override (`SHIPSEC_INSTANCE=N just dev ...`) for one-off commands.
+  - explicit instance invocation (`just dev N ...`) for one-off commands.
 
 **Ports / URLs**
 
@@ -72,7 +61,7 @@ Local development runs as **multiple app instances** (PM2) on top of **one share
 **E2E tests**
 
 - E2E targets the backend for `SHIPSEC_INSTANCE` (or the active instance).
-- When asked to run E2E, confirm the instance and ensure that instance is running: `SHIPSEC_INSTANCE=N just dev start` (or `just instance use N` then `just dev start`).
+- When asked to run E2E, confirm the instance and ensure that instance is running: `just dev N start`.
 
 **Keep docs in sync**
 
@@ -97,9 +86,31 @@ bun run lint           # Lint
 
 ```bash
 just db-reset                              # Reset database
-bun --cwd backend run migration:push       # Push schema
+bun --cwd backend run migration:generate   # Generate migration SQL from schema changes
+bun --cwd backend run migration:migrate    # Apply committed migrations
+bun run migrate                            # Root alias for migration:migrate
 bun --cwd backend run db:studio            # View data
 ```
+
+### Database Schema Safety (CRITICAL)
+
+We use **`drizzle-kit generate` + `drizzle-kit migrate`** for both dev and production.
+
+- `migration:generate` creates reviewable SQL files in `backend/drizzle/`.
+- `migration:migrate` applies committed SQL migrations in order.
+- `migration:push` remains a **manual escape hatch only** and must never run from automated startup paths.
+
+**Rules for modifying database schema files (`backend/src/database/schema/*.ts`):**
+
+1. **Never rely on app startup to apply schema changes.** Generate and commit migrations explicitly before restart/deploy.
+2. **Required workflow:** schema change → `bun --cwd backend run migration:generate` → review SQL → commit `backend/drizzle/*` (SQL + `meta/`) → `bun --cwd backend run migration:migrate`.
+3. **Adding constraints to existing columns** (e.g., `.unique()`, `.notNull()`) can be destructive. Review generated SQL carefully.
+4. **NEVER change a column type in place** (e.g., `varchar` → `text`) without a safe multi-step migration.
+5. **NEVER rename columns/tables directly** in schema when data exists; use explicit add/backfill/swap migrations.
+6. **If generated SQL truncates or drops data, STOP and ask the user.**
+7. **Use multi-step migrations for risky changes:** add nullable column/table first, backfill, then enforce constraints in a follow-up migration.
+
+**SQL migration files in `backend/drizzle/` are the source of truth** and are applied by `migration:migrate`.
 
 ## Rules
 
@@ -108,6 +119,7 @@ bun --cwd backend run db:studio            # View data
 3. Tests alongside code in `__tests__/` folders
 4. **E2E Tests**: Mandatory for significant features. Place in `e2e-tests/` folder.
 5. **GitHub CLI**: Use `gh` for all GitHub operations (issues, PRs, actions, releases). Never use browser automation for GitHub tasks.
+6. **No shortcuts to avoid best practices.** Never use a non-idiomatic workaround just because the correct approach has a local dev constraint (e.g., an interactive prompt, a manual step, or a one-time migration). Use the proper, idiomatic pattern and handle the constraint explicitly — even if it means asking the user to run a command manually. Hacks that avoid good engineering to save a step are not acceptable.
 
 ### Frontend: Read Before Writing Code
 

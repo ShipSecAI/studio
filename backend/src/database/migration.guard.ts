@@ -40,7 +40,7 @@ export class MigrationGuard implements OnModuleInit {
       if (missing.length > 0) {
         const message =
           `Database schema incomplete: missing tables [${missing.join(', ')}]. ` +
-          'Run `bun run migrate` (alias for `bun --cwd backend x drizzle-kit push`) before starting the backend.';
+          'Run `bun run migrate` to apply pending migrations.';
         this.logger.error(message);
         throw new Error(message);
       }
@@ -48,7 +48,7 @@ export class MigrationGuard implements OnModuleInit {
       this.logger.log('Database schema check passed – required tables are present.');
     } catch (error) {
       this.logger.error(
-        'Failed to verify database schema. Run `bun run migrate` to ensure migrations are applied.',
+        'Failed to verify database schema. Run `bun run migrate` to apply pending migrations.',
         error instanceof Error ? error.stack : undefined,
       );
       throw error;

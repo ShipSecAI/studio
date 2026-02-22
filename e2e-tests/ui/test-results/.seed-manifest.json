@@ -1,0 +1,26 @@
+{
+  "workflows": {
+    "count": 0,
+    "sampleId": null
+  },
+  "schedules": {
+    "count": 0,
+    "sampleId": null
+  },
+  "webhooks": {
+    "count": 0,
+    "sampleId": null
+  },
+  "secrets": {
+    "count": 0,
+    "sampleId": null
+  },
+  "apiKeys": {
+    "count": 0,
+    "sampleId": null
+  },
+  "artifacts": {
+    "count": 0,
+    "sampleId": null
+  }
+}

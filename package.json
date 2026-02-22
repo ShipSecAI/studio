@@ -16,7 +16,7 @@
     "dev:frontend": "bun --cwd=frontend dev",
     "dev:backend": "bun --cwd=backend run dev",
     "dev": "bun run dev:frontend",
-    "migrate": "bun --cwd=backend run migration:push",
+    "migrate": "bun --cwd=backend run migration:migrate",
     "dev:infra": "bash -lc 'docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml -p shipsec up -d && pm2 startOrReload pm2.config.cjs --only shipsec-frontend,shipsec-backend,shipsec-worker --time'",
     "dev:stack": "bun run dev:infra && pm2 logs shipsec-frontend",
     "dev:stack:stop": "bash -lc 'pm2 delete shipsec-frontend shipsec-backend shipsec-worker || true && docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml -p shipsec down'",
