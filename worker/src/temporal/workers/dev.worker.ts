@@ -40,14 +40,12 @@ import {
 } from '../activities/mcp-discovery.activity';
 import { executeWebhookParsingScriptActivity } from '../activities/webhook-parsing.activity';
 import {
-  createSyncRunActivity,
-  discoverAndReconcilePageActivity,
-  persistSyncRunScopesActivity,
-  markStaleAssetsActivity,
-  emitStaleAndRemovedEventsActivity,
-  updateSyncRunStatusActivity,
-  initializeAssetSyncActivities,
-} from '../activities/asset-sync.activities';
+  runChatAgentStepActivity,
+  saveChatMessagesActivity,
+  loadChatMessagesActivity,
+  generateSessionTitleActivity,
+  initializeChatAgentActivities,
+} from '../activities/chat-agent.activities';
 
 // ... (existing imports)
 
@@ -227,7 +225,12 @@ async function main() {
   });
 
   // Initialize human input activity with database, trace and backend URL
-  const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:3211';
+  // STUDIO_API_BASE_URL includes /api/v1 suffix; BACKEND_URL is the bare origin.
+  // Derive the origin from whichever is available.
+  const studioApiBase = process.env.STUDIO_API_BASE_URL; // e.g. http://localhost:3611/api/v1
+  const backendUrl = studioApiBase
+    ? studioApiBase.replace(/\/api\/v1\/?$/, '')
+    : (process.env.BACKEND_URL ?? 'http://localhost:3211');
   initializeHumanInputActivity({
     database: db,
     trace: traceAdapter,
@@ -239,13 +242,22 @@ async function main() {
     trace: traceAdapter,
   });
 
-  // Asset sync activities call internal backend endpoints.
-  initializeAssetSyncActivities({
-    backendUrl,
-    internalToken: process.env.INTERNAL_SERVICE_TOKEN ?? '',
+  // Initialize chat agent activities
+  initializeChatAgentActivities({
+    database: db,
+    redis: terminalStream ? new Redis(terminalRedisUrl!) : undefined,
+    backendUrl: backendUrl,
   });
 
   console.log(`✅ Service adapters initialized`);
+
+  // Register K8s runner override if EXECUTION_MODE=k8s
+  if (process.env.EXECUTION_MODE === 'k8s') {
+    const { runComponentInK8sJob } = await import('../../utils/k8s-runner');
+    const { setDockerRunnerOverride } = await import('@shipsec/component-sdk');
+    setDockerRunnerOverride(runComponentInK8sJob);
+    console.log('[Worker] K8s execution mode enabled — docker runner overridden with K8s Jobs');
+  }
 
   console.log(`🏗️ Creating Temporal worker...`);
   console.log(
@@ -265,12 +277,6 @@ async function main() {
       discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
       executeWebhookParsingScriptActivity,
-      createSyncRunActivity,
-      discoverAndReconcilePageActivity,
-      persistSyncRunScopesActivity,
-      markStaleAssetsActivity,
-      emitStaleAndRemovedEventsActivity,
-      updateSyncRunStatusActivity,
     }).join(', ')}`,
   );
 
@@ -313,12 +319,10 @@ async function main() {
       discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
       executeWebhookParsingScriptActivity,
-      createSyncRunActivity,
-      discoverAndReconcilePageActivity,
-      persistSyncRunScopesActivity,
-      markStaleAssetsActivity,
-      emitStaleAndRemovedEventsActivity,
-      updateSyncRunStatusActivity,
+      runChatAgentStepActivity,
+      saveChatMessagesActivity,
+      loadChatMessagesActivity,
+      generateSessionTitleActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],

@@ -23,7 +23,9 @@ const DEFAULT_API_BASE_URL =
   'http://localhost:3211';
 
 function normalizeBaseUrl(url: string): string {
-  return url.endsWith('/') ? url.slice(0, -1) : url;
+  const trimmed = url.endsWith('/') ? url.slice(0, -1) : url;
+  // STUDIO_API_BASE_URL is typically ".../api/v1"; internal paths below already include "/api/v1".
+  return trimmed.replace(/\/api\/v1$/i, '');
 }
 
 async function callInternalApi(path: string, body: any) {

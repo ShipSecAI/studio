@@ -1,5 +1,6 @@
 import { Controller, All, Req, Res, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -35,6 +36,7 @@ export class StudioMcpController {
   constructor(private readonly studioMcpService: StudioMcpService) {}
 
   @All()
+  @Throttle({ default: { limit: 5000, ttl: 60000 } })
   @ApiOperation({ summary: 'Studio MCP endpoint (Streamable HTTP) for external agents' })
   async handleMcp(@Req() req: Request & { auth?: AuthContext }, @Res() res: Response) {
     const auth = req.auth;

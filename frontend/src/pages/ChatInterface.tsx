@@ -134,11 +134,17 @@ function ChatMessageItem({ message, isStreaming, userImageUrl }: ChatMessageProp
 
                   if (isToolOrDynamicToolUIPart(part)) {
                     const toolId = part.toolCallId ?? `tool-${idx}`;
+                    const displayState =
+                      part.state === 'output-available' &&
+                      'preliminary' in part &&
+                      part.preliminary === true
+                        ? 'input-available'
+                        : part.state;
                     return (
                       <Tool key={toolId}>
                         <ToolHeader
                           type={part.type as 'tool-invocation'}
-                          state={part.state}
+                          state={displayState}
                           title={
                             'toolName' in part
                               ? (part.toolName as string)

@@ -181,5 +181,107 @@ describe('ChatService Unit Tests', () => {
         }),
       );
     });
+
+    it('streams task progress updates as preliminary tool outputs', async () => {
+      let streamCallbacks:
+        | {
+            onEvent: (event: any) => void;
+            onComplete: () => void;
+            onError: (err: Error) => void;
+          }
+        | undefined;
+
+      (chatStreamService.subscribe as jest.Mock).mockImplementation((_sessionId, callbacks) => {
+        streamCallbacks = callbacks;
+        return { unsubscribe: jest.fn() };
+      });
+
+      const messages = [
+        {
+          id: 'msg-1',
+          role: 'user' as const,
+          parts: [{ type: 'text', text: 'Run workflow' }],
+        },
+      ];
+
+      const mockResponse = {
+        writeHead: jest.fn(),
+        write: jest.fn(),
+        end: jest.fn(),
+        on: jest.fn(),
+      } as any;
+
+      service.streamChatToResponse('session-1', messages as any, mockAuthContext, mockResponse);
+      await new Promise((r) => setTimeout(r, 20));
+
+      streamCallbacks?.onEvent({
+        type: 'tool-progress',
+        toolCallId: 'call-1',
+        output: { status: 'working', statusMessage: 'RUNNING' },
+      });
+      streamCallbacks?.onComplete();
+      await new Promise((r) => setTimeout(r, 20));
+
+      const writes = (mockResponse.write as jest.Mock).mock.calls.map((call) => String(call[0]));
+      const progressWrite = writes.find(
+        (line) =>
+          line.includes('"type":"tool-output-available"') &&
+          line.includes('"toolCallId":"call-1"') &&
+          line.includes('"preliminary":true'),
+      );
+
+      expect(progressWrite).toBeDefined();
+    });
+
+    it('streams tool errors as tool-output-error events', async () => {
+      let streamCallbacks:
+        | {
+            onEvent: (event: any) => void;
+            onComplete: () => void;
+            onError: (err: Error) => void;
+          }
+        | undefined;
+
+      (chatStreamService.subscribe as jest.Mock).mockImplementation((_sessionId, callbacks) => {
+        streamCallbacks = callbacks;
+        return { unsubscribe: jest.fn() };
+      });
+
+      const messages = [
+        {
+          id: 'msg-1',
+          role: 'user' as const,
+          parts: [{ type: 'text', text: 'Run workflow' }],
+        },
+      ];
+
+      const mockResponse = {
+        writeHead: jest.fn(),
+        write: jest.fn(),
+        end: jest.fn(),
+        on: jest.fn(),
+      } as any;
+
+      service.streamChatToResponse('session-1', messages as any, mockAuthContext, mockResponse);
+      await new Promise((r) => setTimeout(r, 20));
+
+      streamCallbacks?.onEvent({
+        type: 'tool-error',
+        toolCallId: 'call-err-1',
+        errorText: 'HTTP 429 Too Many Requests',
+      });
+      streamCallbacks?.onComplete();
+      await new Promise((r) => setTimeout(r, 20));
+
+      const writes = (mockResponse.write as jest.Mock).mock.calls.map((call) => String(call[0]));
+      const errorWrite = writes.find(
+        (line) =>
+          line.includes('"type":"tool-output-error"') &&
+          line.includes('"toolCallId":"call-err-1"') &&
+          line.includes('"errorText":"HTTP 429 Too Many Requests"'),
+      );
+
+      expect(errorWrite).toBeDefined();
+    });
   });
 });

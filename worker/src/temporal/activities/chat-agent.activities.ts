@@ -1,6 +1,8 @@
 import { Context } from '@temporalio/activity';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createMCPClient } from '@ai-sdk/mcp';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { streamText, generateText, stepCountIs, convertToModelMessages, smoothStream } from 'ai';
 import type { UIMessage } from 'ai';
 import type Redis from 'ioredis';
@@ -8,6 +10,11 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, asc } from 'drizzle-orm';
 
 import * as schema from '../../adapters/schema';
+import {
+  withTaskAwareMcpTools,
+  type TaskAwareMcpClient,
+  type TaskToolEvent,
+} from '../../utils/task-aware-mcp-tools';
 
 // ---------------------------------------------------------------------------
 // Types (shared with workflow)
@@ -115,6 +122,45 @@ async function createStudioMcpClient(organizationId?: string) {
   });
 }
 
+/** Create a low-level MCP task client for task stream execution. */
+async function createStudioTaskMcpClient(organizationId?: string): Promise<Client> {
+  if (!globalBackendUrl) throw new Error('Backend URL not initialized for chat agent activities');
+
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
+  const headers: Record<string, string> = {
+    'x-internal-token': internalToken,
+  };
+  if (organizationId) {
+    headers['x-organization-id'] = organizationId;
+  }
+
+  const transport = new StreamableHTTPClientTransport(
+    new URL(`${globalBackendUrl}/api/v1/studio-mcp`),
+    {
+      requestInit: { headers },
+    },
+  );
+
+  const client = new Client(
+    { name: 'shipsec-chat-task-client', version: '1.0.0' },
+    {
+      capabilities: {
+        tasks: {
+          requests: {
+            tasks: { get: {}, list: {}, result: {}, cancel: {} },
+          },
+        },
+      },
+    },
+  );
+
+  await client.connect(transport);
+  // Prime tool metadata so callToolStream can auto-enable task mode for task-capable tools.
+  await client.listTools();
+
+  return client;
+}
+
 /**
  * Convert ChatUIMessage[] to AI SDK ModelMessage format using the SDK's own converter.
  * This properly handles dynamic-tool parts, creating both assistant tool-call
@@ -148,11 +194,69 @@ export async function runChatAgentStepActivity(
   // Publish "processing" status
   publishStreamChunk(sessionId, JSON.stringify({ type: 'status', status: 'processing' }));
 
-  // Connect to the backend's MCP server for tool discovery + execution
+  // Connect to the backend's MCP servers for tool discovery + execution
   const mcpClient = await createStudioMcpClient(organizationId);
+  const taskClient = await createStudioTaskMcpClient(organizationId);
 
   try {
     const tools = await mcpClient.tools();
+    const pendingTaskEvents = new Map<string, TaskToolEvent[]>();
+    const startedToolCalls = new Set<string>();
+
+    const publishTaskEvent = (event: TaskToolEvent) => {
+      publishStreamChunk(
+        sessionId,
+        JSON.stringify({
+          type: 'tool-progress',
+          toolCallId: event.toolCallId,
+          toolName: event.toolName,
+          output: {
+            source: 'mcp-task',
+            eventType: event.type,
+            taskId: event.taskId,
+            status: event.status,
+            statusMessage: event.statusMessage,
+            pollInterval: event.pollInterval,
+          },
+        }),
+      );
+    };
+
+    const flushPendingTaskEvents = (toolCallId: string) => {
+      const queuedEvents = pendingTaskEvents.get(toolCallId);
+      if (!queuedEvents?.length) return;
+
+      for (const event of queuedEvents) {
+        publishTaskEvent(event);
+      }
+      pendingTaskEvents.delete(toolCallId);
+    };
+
+    const enqueueTaskEvent = (event: TaskToolEvent) => {
+      if (startedToolCalls.has(event.toolCallId)) {
+        publishTaskEvent(event);
+        return;
+      }
+
+      const queue = pendingTaskEvents.get(event.toolCallId) ?? [];
+      queue.push(event);
+      pendingTaskEvents.set(event.toolCallId, queue);
+    };
+
+    const markToolCallStarted = (toolCallId: string | undefined) => {
+      if (!toolCallId) return;
+      startedToolCalls.add(toolCallId);
+      flushPendingTaskEvents(toolCallId);
+    };
+
+    const taskAwareTools = withTaskAwareMcpTools({
+      tools: tools as Record<string, any>,
+      taskClient: taskClient as unknown as TaskAwareMcpClient,
+      toolNames: ['run_workflow'],
+      onTaskEvent: enqueueTaskEvent,
+      onDebug: (message) => console.debug(`[chat-agent] ${message}`),
+    });
+
     console.log(
       `[chat-agent] Discovered ${Object.keys(tools).length} MCP tools for session ${sessionId}`,
     );
@@ -169,7 +273,7 @@ export async function runChatAgentStepActivity(
         model: getModel(),
         system: systemPrompt,
         messages: aiMessages as any,
-        tools: tools as any,
+        tools: taskAwareTools as any,
         stopWhen: stepCountIs(maxSteps),
         experimental_transform: smoothStream(),
         onStepFinish: () => {
@@ -196,6 +300,7 @@ export async function runChatAgentStepActivity(
         if (c.type === 'text-delta') {
           publishStreamChunk(sessionId, JSON.stringify({ type: 'text-delta', text: c.delta }));
         } else if (c.type === 'tool-input-start') {
+          markToolCallStarted(c.toolCallId);
           publishStreamChunk(
             sessionId,
             JSON.stringify({
@@ -205,6 +310,7 @@ export async function runChatAgentStepActivity(
             }),
           );
         } else if (c.type === 'tool-input-available') {
+          markToolCallStarted(c.toolCallId);
           publishStreamChunk(
             sessionId,
             JSON.stringify({
@@ -221,6 +327,16 @@ export async function runChatAgentStepActivity(
               type: 'tool-result',
               toolCallId: c.toolCallId,
               result: c.output,
+              preliminary: c.preliminary,
+            }),
+          );
+        } else if (c.type === 'tool-output-error') {
+          publishStreamChunk(
+            sessionId,
+            JSON.stringify({
+              type: 'tool-error',
+              toolCallId: c.toolCallId,
+              errorText: c.errorText,
             }),
           );
         }
@@ -282,6 +398,9 @@ export async function runChatAgentStepActivity(
       throw error;
     }
   } finally {
+    await taskClient.close().catch(() => {
+      // Best-effort cleanup
+    });
     await mcpClient.close().catch(() => {
       // Best-effort cleanup
     });

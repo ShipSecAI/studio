@@ -274,6 +274,25 @@ export class ChatService implements OnModuleInit {
               type: 'tool-output-available',
               toolCallId,
               output: event.result ?? {},
+              preliminary: event.preliminary === true,
+            });
+          } else if (event.type === 'tool-progress') {
+            const toolCallId = event.toolCallId;
+            if (typeof toolCallId !== 'string') return;
+            this.writeSseEvent(res, {
+              type: 'tool-output-available',
+              toolCallId,
+              output: event.output ?? {},
+              preliminary: true,
+            });
+          } else if (event.type === 'tool-error') {
+            const toolCallId = event.toolCallId;
+            if (typeof toolCallId !== 'string') return;
+            this.writeSseEvent(res, {
+              type: 'tool-output-error',
+              toolCallId,
+              errorText:
+                typeof event.errorText === 'string' ? event.errorText : 'Tool execution failed',
             });
           } else if (event.type === 'title-update' && typeof event.title === 'string') {
             // Title updates are saved to DB by the worker activity.
