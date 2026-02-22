@@ -13,10 +13,12 @@ import {
   ClockIcon,
   WrenchIcon,
   XCircleIcon,
+  CopyIcon,
+  CheckIcon,
 } from 'lucide-react';
-import { isValidElement } from 'react';
+import { isValidElement, useState } from 'react';
 
-import { CodeBlock } from './code-block';
+import { ObjectViewer } from './object-viewer';
 
 export type ToolProps = ComponentProps<typeof Collapsible>;
 
@@ -41,7 +43,7 @@ export type ToolHeaderProps = {
     }
 );
 
-const statusLabels: Partial<Record<ToolPart['state'], string>> = {
+const statusLabels: Record<string, string> = {
   'input-available': 'Running',
   'input-streaming': 'Pending',
   'output-available': 'Completed',
@@ -49,7 +51,7 @@ const statusLabels: Partial<Record<ToolPart['state'], string>> = {
   'output-error': 'Error',
 };
 
-const statusIcons: Partial<Record<ToolPart['state'], ReactNode>> = {
+const statusIcons: Record<string, ReactNode> = {
   'input-available': <ClockIcon className="size-4 animate-pulse" />,
   'input-streaming': <CircleIcon className="size-4" />,
   'output-available': <CheckCircleIcon className="size-4 text-green-600" />,
@@ -57,7 +59,7 @@ const statusIcons: Partial<Record<ToolPart['state'], ReactNode>> = {
   'output-error': <XCircleIcon className="size-4 text-red-600" />,
 };
 
-export const getStatusBadge = (status: ToolPart['state']) => (
+const getStatusBadge = (status: ToolPart['state']) => (
   <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
     {statusIcons[status]}
     {statusLabels[status]}
@@ -110,8 +112,8 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
     <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
       Parameters
     </h4>
-    <div className="max-h-64 overflow-y-auto rounded-md bg-muted/50">
-      <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
+    <div className="max-h-64 overflow-y-auto rounded-md bg-muted/30 border p-3">
+      <ObjectViewer data={input} />
     </div>
   </div>
 );
@@ -164,6 +166,40 @@ function unwrapMcpOutput(output: unknown): { data: unknown; isError?: boolean } 
   return { data: output };
 }
 
+// Copy button helper
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // ignore
+    }
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded border border-border/60 hover:bg-muted/60"
+      title="Copy to clipboard"
+    >
+      {copied ? (
+        <>
+          <CheckIcon className="h-3 w-3 text-emerald-500" />
+          <span className="text-emerald-500">Copied</span>
+        </>
+      ) : (
+        <>
+          <CopyIcon className="h-3 w-3" />
+          <span>Copy</span>
+        </>
+      )}
+    </button>
+  );
+}
+
 export const ToolOutput = ({ className, output, errorText, ...props }: ToolOutputProps) => {
   if (!(output || errorText)) {
     return null;
@@ -174,27 +210,73 @@ export const ToolOutput = ({ className, output, errorText, ...props }: ToolOutpu
   const displayError = errorText || (mcpError ? 'Tool execution failed' : undefined);
   const displayOutput = unwrapped;
 
-  let Output = <div>{displayOutput as ReactNode}</div>;
+  // Decide how to render
+  let renderContent: React.ReactNode;
+  let copyText: string | undefined;
 
-  if (typeof displayOutput === 'object' && !isValidElement(displayOutput)) {
-    Output = <CodeBlock code={JSON.stringify(displayOutput, null, 2)} language="json" />;
+  if (displayError) {
+    renderContent = <div className="p-3 text-xs whitespace-pre-wrap">{displayError}</div>;
+    copyText = String(displayError);
+  } else if (isValidElement(displayOutput as React.ReactNode)) {
+    renderContent = <div className="p-3">{displayOutput as React.ReactNode}</div>;
   } else if (typeof displayOutput === 'string') {
-    Output = <CodeBlock code={displayOutput} language="json" />;
+    // Try to parse as JSON first
+    try {
+      const parsed = JSON.parse(displayOutput);
+      if (typeof parsed === 'object' && parsed !== null) {
+        const jsonStr = JSON.stringify(parsed, null, 2);
+        copyText = jsonStr;
+        renderContent = (
+          <div className="p-3">
+            <ObjectViewer data={parsed} />
+          </div>
+        );
+      } else {
+        copyText = displayOutput;
+        renderContent = <div className="p-3 whitespace-pre-wrap text-xs">{displayOutput}</div>;
+      }
+    } catch {
+      copyText = displayOutput;
+      if (displayOutput.length <= 300) {
+        // Short text — render as clean readable block
+        renderContent = <div className="p-3 text-sm leading-relaxed">{displayOutput}</div>;
+      } else {
+        renderContent = (
+          <div className="p-3 whitespace-pre-wrap text-xs font-mono">{displayOutput}</div>
+        );
+      }
+    }
+  } else if (typeof displayOutput === 'object' && displayOutput !== null) {
+    const jsonStr = JSON.stringify(displayOutput, null, 2);
+    copyText = jsonStr;
+    renderContent = (
+      <div className="p-3">
+        <ObjectViewer data={displayOutput as Record<string, unknown>} />
+      </div>
+    );
+  } else if (displayOutput !== undefined && displayOutput !== null) {
+    const str = String(displayOutput);
+    copyText = str;
+    renderContent = <div className="p-3 text-sm">{str}</div>;
+  } else {
+    return null;
   }
 
   return (
     <div className={cn('space-y-2', className)} {...props}>
-      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {displayError ? 'Error' : 'Result'}
-      </h4>
+      <div className="flex items-center justify-between">
+        <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+          {displayError ? 'Error' : 'Result'}
+        </h4>
+        {copyText && !displayError && <CopyButton text={copyText} />}
+      </div>
       <div
         className={cn(
           'max-h-80 overflow-auto rounded-md text-xs [&_table]:w-full',
           displayError ? 'bg-destructive/10 text-destructive' : 'bg-muted/50 text-foreground',
         )}
       >
-        {displayError && <div>{displayError}</div>}
-        {Output}
+        {renderContent}
       </div>
     </div>
   );

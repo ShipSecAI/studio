@@ -25,6 +25,7 @@ function useIsMobile(breakpoint = 768) {
 }
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
 import { useExecutionStore } from '@/store/executionStore';
+import { useExecutionRun } from '@/hooks/queries/useExecutionQueries';
 import { useWorkflowExecution } from '@/hooks/useWorkflowExecution';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -38,7 +39,7 @@ import { NodeIOInspector } from '@/components/timeline/NodeIOInspector';
 import { NetworkPanel } from '@/components/timeline/NetworkPanel';
 import { getTriggerDisplay } from '@/utils/triggerDisplay';
 import { RunInfoDisplay } from '@/components/timeline/RunInfoDisplay';
-import { isRunLive } from '@/features/workflow-builder/utils/executionRuns';
+import { isRunLive, normalizeRunSummary } from '@/features/workflow-builder/utils/executionRuns';
 
 const formatTime = (timestamp: string) => {
   const date = new Date(timestamp);
@@ -113,12 +114,14 @@ const DEFAULT_TIMELINE_HEIGHT = 320;
 
 export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {}) {
   const { selectedRunId, playbackMode, isPlaying } = useExecutionTimelineStore();
-  const { id: workflowId, currentVersion: currentWorkflowVersion } = useWorkflowStore(
+  const { data: runData } = useExecutionRun(selectedRunId);
+  const { id: rootWorkflowId, currentVersion: currentWorkflowVersion } = useWorkflowStore(
     (state) => state.metadata,
   );
+  const workflowId = rootWorkflowId || runData?.workflowId;
   const { data: runsPage, isLoading: isLoadingRuns } = useWorkflowRuns(workflowId);
-  const runs = runsPage?.runs ?? [];
-  const { status, runStatus, stopExecution, runId: liveRunId } = useWorkflowExecution();
+  const runs = runsPage?.runs ?? (runData ? [normalizeRunSummary(runData)] : []);
+  const { status, runStatus, stopExecution, runId: liveRunId } = useWorkflowExecution(workflowId);
   const { inspectorTab, setInspectorTab } = useWorkflowUiStore();
   const { getDisplayLogs, setLogMode } = useExecutionStore();
   const [logModal, setLogModal] = useState<{ open: boolean; message: string; title: string }>({

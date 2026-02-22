@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ChatCommandPalette, WorkflowPreviewPanel } from '@/components/chat';
+import { RunInspectorSidePanel } from '@/components/chat/RunInspectorSidePanel';
 import { useChatStore } from '@/store/chatStore';
 import { useAuth } from '@/auth/auth-context';
 import { useSidebar } from '@/components/layout/sidebar-context';
@@ -36,10 +37,9 @@ import {
   ToolInput,
   ToolOutput,
 } from '@/components/ai-elements/tool';
-import {
-  WorkflowRunStatusCard,
-  parseWorkflowRunOutput,
-} from '@/components/ai-elements/workflow-run-status-card';
+import { WorkflowRunStatusCard } from '@/components/ai-elements/workflow-run-status-card';
+import { parseWorkflowRunOutput } from '@/utils/workflowRunParsing';
+
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
 import {
   PromptInput,
@@ -507,91 +507,102 @@ export function ChatInterface() {
         <StatusBar className="border-b-0" />
       </div>
 
-      {/* Content Area */}
-      <div className="flex-1 overflow-hidden flex flex-col relative">
-        {messages.length === 0 ? (
-          <EmptyState userName={getUserName(user)} onSelectPrompt={handleSelectPrompt} />
-        ) : (
-          <Conversation className="flex-1">
-            <ConversationContent className="max-w-5xl mx-auto gap-6 px-4 py-6 md:px-8">
-              {messages.map((msg, idx) => (
-                <ChatMessageItem
-                  key={msg.id}
-                  message={msg}
-                  isStreaming={
-                    status === 'streaming' &&
-                    msg.role === 'assistant' &&
-                    idx === messages.length - 1
-                  }
-                  userImageUrl={userImageUrl}
-                />
-              ))}
-            </ConversationContent>
-            <ConversationScrollButton />
-          </Conversation>
-        )}
+      {/* Body: chat + inspector side-by-side */}
+      <div className="flex-1 flex flex-row overflow-hidden min-h-0">
+        {/* Content Area */}
+        <div className="flex-1 overflow-hidden flex flex-col relative min-w-0">
+          {messages.length === 0 ? (
+            <EmptyState userName={getUserName(user)} onSelectPrompt={handleSelectPrompt} />
+          ) : (
+            <Conversation className="flex-1">
+              <ConversationContent className="max-w-5xl mx-auto gap-6 px-4 py-6 md:px-8">
+                {messages.map((msg, idx) => (
+                  <ChatMessageItem
+                    key={msg.id}
+                    message={msg}
+                    isStreaming={
+                      status === 'streaming' &&
+                      msg.role === 'assistant' &&
+                      idx === messages.length - 1
+                    }
+                    userImageUrl={userImageUrl}
+                  />
+                ))}
+              </ConversationContent>
+              <ConversationScrollButton />
+            </Conversation>
+          )}
 
-        {/* Error display */}
-        {error && (
-          <div className="shrink-0 px-4">
-            <div className="max-w-5xl mx-auto mb-2 px-3 py-2 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
-              {error.message || 'An error occurred while generating a response.'}
+          {/* Error display */}
+          {error && (
+            <div className="shrink-0 px-4">
+              <div className="max-w-5xl mx-auto mb-2 px-3 py-2 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
+                {error.message || 'An error occurred while generating a response.'}
+              </div>
+            </div>
+          )}
+
+          {/* Input Area */}
+          <div className="shrink-0 p-4 md:pb-6 border-t bg-background/80 backdrop-blur-sm">
+            <div className="max-w-5xl mx-auto space-y-3">
+              <PromptInput
+                onSubmit={handleSubmit}
+                className="rounded-xl border border-border/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 shadow-sm transition-all duration-200"
+              >
+                <PromptInputTextarea
+                  placeholder="Message ShipSec... (Type / for commands)"
+                  autoFocus
+                  value={pendingPrompt || undefined}
+                  onChange={() => {
+                    if (pendingPrompt) setPendingPrompt('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === '/' && e.currentTarget.value === '') {
+                      e.preventDefault();
+                      setCommandPaletteOpen(true);
+                    }
+                  }}
+                />
+                <PromptInputFooter>
+                  <div className="flex items-center gap-1">
+                    <PromptInputButton
+                      tooltip="Commands"
+                      onClick={() => setCommandPaletteOpen(true)}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z" />
+                      </svg>
+                    </PromptInputButton>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <PromptInputSubmit status={status} onStop={stop} />
+                  </div>
+                </PromptInputFooter>
+              </PromptInput>
+
+              {/* Disclaimer */}
+              <p className="text-center text-xs text-muted-foreground/70">
+                ShipSec can make mistakes. Please verify important information.
+              </p>
             </div>
           </div>
-        )}
-
-        {/* Input Area */}
-        <div className="shrink-0 p-4 md:pb-6 border-t bg-background/80 backdrop-blur-sm">
-          <div className="max-w-5xl mx-auto space-y-3">
-            <PromptInput
-              onSubmit={handleSubmit}
-              className="rounded-xl border border-border/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 shadow-sm transition-all duration-200"
-            >
-              <PromptInputTextarea
-                placeholder="Message ShipSec... (Type / for commands)"
-                autoFocus
-                value={pendingPrompt || undefined}
-                onChange={() => {
-                  if (pendingPrompt) setPendingPrompt('');
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === '/' && e.currentTarget.value === '') {
-                    e.preventDefault();
-                    setCommandPaletteOpen(true);
-                  }
-                }}
-              />
-              <PromptInputFooter>
-                <div className="flex items-center gap-1">
-                  <PromptInputButton tooltip="Commands" onClick={() => setCommandPaletteOpen(true)}>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z" />
-                    </svg>
-                  </PromptInputButton>
-                </div>
-                <div className="flex items-center gap-1">
-                  <PromptInputSubmit status={status} onStop={stop} />
-                </div>
-              </PromptInputFooter>
-            </PromptInput>
-
-            {/* Disclaimer */}
-            <p className="text-center text-xs text-muted-foreground/70">
-              ShipSec can make mistakes. Please verify important information.
-            </p>
-          </div>
         </div>
+        {/* end content+input column */}
+
+        {/* Run Inspector — inline sidebar column */}
+        <RunInspectorSidePanel />
       </div>
+      {/* end body flex-row */}
 
       {/* Command Palette */}
       <ChatCommandPalette onSelectPrompt={handleSelectPrompt} />

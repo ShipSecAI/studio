@@ -37,6 +37,8 @@ interface ChatState {
   isCommandPaletteOpen: boolean;
   isWorkflowPreviewOpen: boolean;
   selectedWorkflowId: string | null;
+  isRunInspectorOpen: boolean;
+  selectedRunId: string | null;
   isSidebarOpen: boolean;
 
   // Server-backed actions (async)
@@ -53,6 +55,9 @@ interface ChatState {
   toggleWorkflowPreview: () => void;
   setWorkflowPreviewOpen: (open: boolean) => void;
   setSelectedWorkflow: (id: string | null) => void;
+  toggleRunInspector: () => void;
+  setRunInspectorOpen: (open: boolean) => void;
+  setSelectedRun: (id: string | null) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
 
@@ -87,6 +92,8 @@ export const useChatStore = create<ChatState>()(
       isCommandPaletteOpen: false,
       isWorkflowPreviewOpen: false,
       selectedWorkflowId: null,
+      isRunInspectorOpen: false,
+      selectedRunId: null,
       isSidebarOpen: true,
 
       loadSessions: async () => {
@@ -172,6 +179,18 @@ export const useChatStore = create<ChatState>()(
 
       setSelectedWorkflow: (id) => {
         set({ selectedWorkflowId: id, isWorkflowPreviewOpen: id !== null });
+      },
+
+      toggleRunInspector: () => {
+        set((state) => ({ isRunInspectorOpen: !state.isRunInspectorOpen }));
+      },
+
+      setRunInspectorOpen: (open) => {
+        set({ isRunInspectorOpen: open });
+      },
+
+      setSelectedRun: (id) => {
+        set({ selectedRunId: id, isRunInspectorOpen: id !== null });
       },
 
       toggleSidebar: () => {
