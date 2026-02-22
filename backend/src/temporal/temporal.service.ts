@@ -23,7 +23,6 @@ import {
   mcpDiscoveryWorkflow,
   mcpGroupDiscoveryWorkflow,
   webhookParsingWorkflow,
-  chatAgentWorkflow,
 } from '@shipsec/studio-worker/workflows';
 import type { ExecutionTriggerMetadata, ScheduleOverlapPolicy } from '@shipsec/shared';
 
@@ -159,8 +158,6 @@ export class TemporalService implements OnModuleDestroy {
         return mcpGroupDiscoveryWorkflow;
       case 'webhookParsingWorkflow':
         return webhookParsingWorkflow;
-      case 'chatAgentWorkflow':
-        return chatAgentWorkflow;
       default:
         throw new Error(`Unknown workflow type: ${workflowType}`);
     }
@@ -229,67 +226,6 @@ export class TemporalService implements OnModuleDestroy {
   private async getWorkflowHandle(ref: WorkflowRunReference): Promise<WorkflowHandle<any>> {
     const client = await this.getClient();
     return client.getHandle(ref.workflowId, ref.runId);
-  }
-
-  // --- Chat Agent Workflow helpers ---
-
-  async startChatWorkflow(input: {
-    sessionId: string;
-    organizationId?: string | null;
-    systemPrompt: string;
-    initialMessages?: unknown[];
-  }): Promise<WorkflowStartResult> {
-    const workflowId = `chat-${input.sessionId}`;
-    return this.startWorkflow({
-      workflowType: 'chatAgentWorkflow',
-      workflowId,
-      args: [
-        {
-          sessionId: input.sessionId,
-          organizationId: input.organizationId,
-          systemPrompt: input.systemPrompt,
-          ...(input.initialMessages ? { initialMessages: input.initialMessages } : {}),
-        },
-      ],
-    });
-  }
-
-  async signalChatWorkflow(
-    sessionId: string,
-    message: { role: string; parts: unknown[] },
-  ): Promise<void> {
-    const workflowId = `chat-${sessionId}`;
-    await this.signalWorkflow({
-      workflowId,
-      signalName: 'userMessage',
-      args: message,
-    });
-  }
-
-  async queryChatMessages(sessionId: string): Promise<unknown[]> {
-    const workflowId = `chat-${sessionId}`;
-    return this.queryWorkflow<unknown[]>({
-      workflowId,
-      queryType: 'getMessages',
-    });
-  }
-
-  async queryChatStatus(sessionId: string): Promise<string> {
-    const workflowId = `chat-${sessionId}`;
-    return this.queryWorkflow<string>({
-      workflowId,
-      queryType: 'getStatus',
-    });
-  }
-
-  async terminateChatWorkflow(sessionId: string): Promise<void> {
-    const workflowId = `chat-${sessionId}`;
-    try {
-      await this.cancelWorkflow({ workflowId });
-    } catch (error) {
-      // Workflow may already be terminated
-      this.logger.warn(`Failed to terminate chat workflow ${workflowId}: ${error}`);
-    }
   }
 
   getDefaultTaskQueue(): string {

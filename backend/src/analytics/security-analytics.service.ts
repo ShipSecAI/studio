@@ -157,7 +157,6 @@ export class SecurityAnalyticsService {
       from?: number;
       aggs?: Record<string, any>;
       sort?: Record<string, any>[];
-      collapse?: Record<string, any>;
     },
   ): Promise<{
     total: number;
@@ -188,9 +187,6 @@ export class SecurityAnalyticsService {
           from: options.from ?? 0,
           ...(options.aggs && { aggs: options.aggs }),
           ...(options.sort && { sort: options.sort }),
-          ...(options.collapse && {
-            collapse: options.collapse as { field: string; [key: string]: unknown },
-          }),
         },
       });
 

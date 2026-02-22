@@ -566,7 +566,7 @@ function cloudSecurityScanTemplate(): SeedTemplate {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 8: Attack Surface Recon
-// Entry Point → Subfinder → DNSx → HTTPx → Dedupe+Enrich → Analytics
+// Entry Point → Subfinder → DNSx → [HTTPx, Naabu] → Nuclei → Normalize → [Analytics, Slack]
 // ──────────────────────────────────────────────────────────────────────────────
 function attackSurfaceReconTemplate(): SeedTemplate {
   resetCounter();
@@ -574,45 +574,45 @@ function attackSurfaceReconTemplate(): SeedTemplate {
   const subfinder = nid('node');
   const dnsx = nid('node');
   const httpx = nid('node');
-  const dedupe = nid('node');
+  const naabu = nid('node');
+  const nuclei = nid('node');
   const analytics = nid('node');
 
   return {
     name: 'Attack Surface Recon',
     slug: 'sys-attack-surface-recon',
     description:
-      'Recon pipeline: subdomain discovery, DNS resolution, HTTP probing, and deduplicated enrichment.',
+      'Full recon pipeline: subdomain discovery, DNS resolution, HTTP probing, port scanning, and vulnerability scanning.',
     category: 'attack-surface',
     icon: 'globe',
     isFeatured: true,
     isDefault: true,
     graph: {
       name: 'Attack Surface Recon',
-      description: 'Domain → Subdomains → DNS → HTTP → Dedupe',
+      description: 'Domain → Subdomains → Ports → Vulns',
       nodes: [
         makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
           runtimeInputs: [],
         }),
         makeNode(subfinder, 'shipsec.subfinder.run', 'Subfinder', 300, 0),
         makeNode(dnsx, 'shipsec.dnsx.run', 'DNSx', 600, 0),
-        makeNode(httpx, 'shipsec.httpx.scan', 'HTTPx', 900, -80, { techDetect: true }),
-        makeNode(dedupe, 'core.asm.recon-dedupe', 'Dedupe + Enrich', 1200, 0),
-        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1500, 0, {
-          dataInputs: [{ id: 'input1', label: 'Recon Assets', sourceTag: 'asm-recon' }],
-        }),
+        makeNode(httpx, 'shipsec.httpx.scan', 'HTTPx', 900, -100),
+        makeNode(naabu, 'shipsec.naabu.scan', 'Naabu', 900, 100),
+        makeNode(nuclei, 'shipsec.nuclei.scan', 'Nuclei', 1200, 0),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1500, 0),
       ],
       edges: [
         // Entry Point → Subfinder (domains injected at trigger time)
         makeEdge('e1', entryPoint, subfinder),
         // Subfinder → DNSx (pass discovered subdomains)
         makeEdge('e2', subfinder, dnsx, 'subdomains', 'domains'),
-        // DNSx → HTTPx (pass resolved hosts)
+        // DNSx → HTTPx + Naabu (pass resolved hosts)
         makeEdge('e3', dnsx, httpx, 'resolvedHosts', 'targets'),
-        // DNSx + HTTPx → Dedupe + Enrich
-        makeEdge('e4', dnsx, dedupe, 'results', 'dnsResults'),
-        makeEdge('e5', httpx, dedupe, 'results', 'httpResults'),
-        // Dedupe + Enrich → Analytics
-        makeEdge('e6', dedupe, analytics, 'results', 'input1'),
+        makeEdge('e4', dnsx, naabu, 'resolvedHosts', 'targets'),
+        // HTTPx → Nuclei (pass live hosts as targets)
+        makeEdge('e5', httpx, nuclei, 'responses', 'targets'),
+        // Nuclei → Analytics (use results port directly, bypass normalize)
+        makeEdge('e6', nuclei, analytics, 'results', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.6 },
     },

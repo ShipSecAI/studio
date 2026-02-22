@@ -9,7 +9,6 @@ export const organizationSettingsTable = pgTable('organization_settings', {
     .notNull()
     .default('free'),
   analyticsRetentionDays: integer('analytics_retention_days').notNull().default(30),
-  awsExternalId: varchar('aws_external_id', { length: 36 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

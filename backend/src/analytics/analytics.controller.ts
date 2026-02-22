@@ -116,7 +116,6 @@ export class AnalyticsController {
       from,
       aggs: queryDto.aggs,
       sort: queryDto.sort,
-      collapse: queryDto.collapse,
     });
   }
 

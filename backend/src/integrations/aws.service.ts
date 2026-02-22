@@ -56,12 +56,7 @@ export class AwsService implements OnModuleInit {
       }
     } catch (error) {
       this.logger.error('AWS platform identity verification failed', error);
-      if (process.env.SHIPSEC_AWS_STRICT_IDENTITY_CHECK === 'true') {
-        throw error; // Enforce hard-fail only when strict mode is enabled.
-      }
-      this.logger.warn(
-        'Continuing startup despite AWS identity verification failure (strict mode disabled)',
-      );
+      throw error; // Prevent app from starting with invalid AWS creds
     }
   }
 

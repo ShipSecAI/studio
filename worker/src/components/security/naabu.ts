@@ -16,8 +16,7 @@ import {
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
-// shipsec wrapper image currently exits with code 127 in local dev; use upstream image.
-const NAABU_IMAGE = 'projectdiscovery/naabu:v2.3.7';
+const NAABU_IMAGE = 'ghcr.io/shipsecai/naabu:latest';
 const INPUT_MOUNT_NAME = 'inputs';
 const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;
 const TARGETS_FILE_NAME = 'targets.txt';

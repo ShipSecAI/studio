@@ -72,14 +72,6 @@ export class KafkaTopicResolver {
   }
 
   /**
-   * Get asset events topic (for cloud resource discovery events)
-   */
-  getAssetEventsTopic(): string {
-    const baseTopic = process.env.ASSET_EVENT_KAFKA_TOPIC ?? 'asset.events';
-    return this.resolveTopic(baseTopic);
-  }
-
-  /**
    * Check if instance isolation is enabled
    */
   isInstanceIsolated(): boolean {
