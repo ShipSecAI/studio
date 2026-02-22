@@ -1,4 +1,4 @@
-import { ShieldAlert, ShieldCheck, ShieldX, Shield, Container, Globe } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, ShieldX, Shield } from 'lucide-react';
 
 export const PAGE_SIZE = 25;
 
@@ -6,8 +6,7 @@ export const SEVERITY_CONFIG = [
   { key: 'critical', label: 'Critical', color: 'bg-red-500', chartColor: '#ef4444', icon: ShieldX },
   { key: 'high', label: 'High', color: 'bg-orange-500', chartColor: '#f97316', icon: ShieldAlert },
   { key: 'medium', label: 'Medium', color: 'bg-yellow-500', chartColor: '#eab308', icon: Shield },
-  { key: 'low', label: 'Low', color: 'bg-slate-500', chartColor: '#64748b', icon: ShieldCheck },
-  { key: 'info', label: 'Info', color: 'bg-blue-500', chartColor: '#3b82f6', icon: ShieldCheck },
+  { key: 'low', label: 'Low', color: 'bg-blue-500', chartColor: '#3b82f6', icon: ShieldCheck },
 ] as const;
 
 export const TIME_RANGES = [
@@ -53,51 +52,3 @@ export const CODE_SCHEDULE_SCANS = [
     icon: ShieldCheck,
   },
 ];
-
-export const CLOUD_QUICK_SCANS = [
-  {
-    slug: 'cloud-security-scan',
-    templateSlug: 'sys-cloud-security-scan',
-    name: 'Misconfiguration Scan',
-    description: 'Prowler — CIS, GDPR, HIPAA benchmarks',
-    icon: Shield,
-  },
-  {
-    slug: 'container-image-scan',
-    templateSlug: 'sys-container-image-scan',
-    name: 'Container Image Scan',
-    description: 'Trivy — ECR image vulnerability scan',
-    icon: Container,
-  },
-];
-
-export const ASM_QUICK_SCANS = [
-  {
-    slug: 'attack-surface-recon',
-    templateSlug: 'sys-attack-surface-recon',
-    name: 'Full Surface Recon',
-    description: 'Subfinder + DNSX + httpx + Naabu + Nuclei',
-    icon: Globe,
-  },
-];
-
-interface SystemWorkflow {
-  id: string;
-  slug: string | null;
-}
-
-interface ScanDefinition {
-  templateSlug: string;
-  [key: string]: unknown;
-}
-
-export function resolveScansToWorkflows<T extends ScanDefinition>(
-  scans: T[],
-  systemWorkflows: SystemWorkflow[],
-): (T & { workflowId: string })[] {
-  return scans.flatMap((scan) => {
-    const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
-    if (!match) return [];
-    return [{ ...scan, workflowId: match.id }];
-  });
-}

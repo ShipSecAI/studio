@@ -2245,7 +2245,6 @@ export function McpLibraryPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              aria-label="Edit server"
                               onClick={() => handleEdit(server.id)}
                             >
                               <Edit3 className="h-4 w-4" />
@@ -2261,7 +2260,6 @@ export function McpLibraryPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              aria-label="Delete server"
                               onClick={() => {
                                 setServerToDelete(server.id);
                                 setDeleteDialogOpen(true);

@@ -12,7 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useSecurityViewStore } from '@/store/securityViewStore';
 import { useSecurityDashboardStore } from '@/store/securityDashboardStore';
-import { getBuiltInView, isValidViewId } from '@/config/securityViews';
+import { getBuiltInView } from '@/config/securityViews';
 
 export function SecurityTabBar() {
   const {
@@ -31,37 +31,22 @@ export function SecurityTabBar() {
   // not when other params (page, sort, etc.) change, to avoid resetting the page.
   const viewParam = searchParams.get('view');
   useEffect(() => {
-    // Validate: reject invalid or disabled view IDs
-    if (viewParam != null && (!isValidViewId(viewParam) || getBuiltInView(viewParam)?.disabled)) {
-      // Correct the URL to home, preserving all other params
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          next.delete('view');
-          return next;
-        },
-        { replace: true },
-      );
-      return;
-    }
-
     const targetViewId = viewParam ?? 'home';
-    if (!isValidViewId(targetViewId)) return;
-
     if (targetViewId !== activeViewId) {
       const view = getBuiltInView(targetViewId);
       if (view && !view.disabled) {
+        // If the tab was closed, reopen it (which also sets it active)
         if (!openViewIds.includes(targetViewId)) {
           reopenBuiltInView(targetViewId);
         } else {
           setActiveView(targetViewId);
         }
-        setViewFilter(view.baseFilter, view.uiConfig.filters);
+        setViewFilter(view.baseFilter);
       }
     } else {
       const view = getBuiltInView(activeViewId);
       if (view) {
-        setViewFilter(view.baseFilter, view.uiConfig.filters);
+        setViewFilter(view.baseFilter);
       }
     }
   }, [viewParam]);
@@ -85,36 +70,31 @@ export function SecurityTabBar() {
     const view = getBuiltInView(viewId);
     if (view?.disabled) return;
 
-    if (isValidViewId(viewId)) {
-      setActiveView(viewId);
-    }
+    setActiveView(viewId);
     if (view) {
-      setViewFilter(view.baseFilter, view.uiConfig.filters);
+      setViewFilter(view.baseFilter);
     }
     updateUrlParam(viewId);
   };
 
   const handleClose = (e: React.MouseEvent, viewId: string) => {
     e.stopPropagation();
-    if (isValidViewId(viewId)) {
-      closeView(viewId);
-    }
+    closeView(viewId);
 
+    // If we closed the active view, the store auto-switches; sync the view filter
     const newActiveId = useSecurityViewStore.getState().activeViewId;
     const newView = getBuiltInView(newActiveId);
     if (newView) {
-      setViewFilter(newView.baseFilter, newView.uiConfig.filters);
+      setViewFilter(newView.baseFilter);
       updateUrlParam(newActiveId);
     }
   };
 
   const handleReopen = (viewId: string) => {
-    if (isValidViewId(viewId)) {
-      reopenBuiltInView(viewId);
-    }
+    reopenBuiltInView(viewId);
     const view = getBuiltInView(viewId);
     if (view) {
-      setViewFilter(view.baseFilter, view.uiConfig.filters);
+      setViewFilter(view.baseFilter);
       updateUrlParam(viewId);
     }
   };
@@ -123,7 +103,7 @@ export function SecurityTabBar() {
     resetViews();
     const view = getBuiltInView('home');
     if (view) {
-      setViewFilter(view.baseFilter, view.uiConfig.filters);
+      setViewFilter(view.baseFilter);
       updateUrlParam('home');
     }
   };

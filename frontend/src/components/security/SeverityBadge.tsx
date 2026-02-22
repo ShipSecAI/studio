@@ -9,9 +9,7 @@ export function SeverityBadge({ severity }: { severity: string }) {
         ? 'warning'
         : s === 'medium'
           ? 'secondary'
-          : s === 'info'
-            ? 'info'
-            : 'outline';
+          : 'outline';
   return <Badge variant={variant}>{severity}</Badge>;
 }
 

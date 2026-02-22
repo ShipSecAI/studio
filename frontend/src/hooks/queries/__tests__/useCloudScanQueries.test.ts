@@ -45,7 +45,6 @@ describe('transformCloudScanFindingsResponse', () => {
       high: 2,
       medium: 1,
       low: 0,
-      info: 0,
     });
     expect(result.total).toBe(5);
     expect(result.isTruncated).toBe(true);

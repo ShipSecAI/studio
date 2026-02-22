@@ -1,37 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import { api, API_V1_URL } from '@/services/api';
-import { useAuthStore } from '@/store/authStore';
-import { getFreshClerkToken } from '@/utils/clerk-token';
-
-// ── Auth helpers ─────────────────────────────────────────────────────────────
-
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  const storeState = useAuthStore.getState();
-  let token = storeState.token;
-  const organizationId = storeState.provider === 'local' ? 'local-dev' : storeState.organizationId;
-
-  if (storeState.provider === 'clerk') {
-    try {
-      const freshToken = await getFreshClerkToken();
-      if (freshToken) {
-        token = freshToken;
-        storeState.setToken(freshToken);
-      }
-    } catch (_) {
-      // Fall back to store token
-    }
-  }
-
-  const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (organizationId) headers['x-organization-id'] = organizationId;
-  headers['Content-Type'] = 'application/json';
-  return headers;
-}
+import { api, API_V1_URL, getAuthHeaders } from '@/services/api';
 
 async function asmFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const headers = await getAuthHeaders();
+  if (options?.body) headers['Content-Type'] = 'application/json';
   const res = await fetch(`${API_V1_URL}/asm${path}`, {
     ...options,
     headers: { ...headers, ...(options?.headers as Record<string, string>) },

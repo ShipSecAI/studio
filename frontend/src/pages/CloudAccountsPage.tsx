@@ -18,6 +18,7 @@ import {
   ExternalLink,
   CheckCircle2,
   Loader2,
+  Container,
   MoreVertical,
   RefreshCw,
   Unlink,
@@ -88,7 +89,6 @@ import { CloudScanDetailPanel } from '@/components/scans/CloudScanDetailPanel';
 import type { ExecutionStatus } from '@/schemas/execution';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { CloudScanScheduleDialog } from '@/components/security/CloudScanScheduleDialog';
-import { CLOUD_QUICK_SCANS, resolveScansToWorkflows } from '@/components/security/constants';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -155,6 +155,23 @@ function CloudLoadingSkeleton() {
 
 // ── Cloud Scan Picker Modal ──────────────────────────────────────────────────
 
+const CLOUD_QUICK_SCANS = [
+  {
+    slug: 'cloud-security-scan',
+    templateSlug: 'sys-cloud-security-scan',
+    name: 'Misconfiguration Scan',
+    description: 'Prowler — CIS, GDPR, HIPAA benchmarks',
+    icon: Shield,
+  },
+  {
+    slug: 'container-image-scan',
+    templateSlug: 'sys-container-image-scan',
+    name: 'Container Image Scan',
+    description: 'Trivy — ECR image vulnerability scan',
+    icon: Container,
+  },
+];
+
 interface CloudScanPickerModalProps {
   open: boolean;
   onClose: () => void;
@@ -176,10 +193,13 @@ function CloudScanPickerModal({ open, onClose, connection }: CloudScanPickerModa
     if (open) fetchSystemWorkflows();
   }, [open, fetchSystemWorkflows]);
 
-  const resolvedScans = useMemo(
-    () => resolveScansToWorkflows(CLOUD_QUICK_SCANS, systemWorkflows),
-    [systemWorkflows],
-  );
+  const resolvedScans = useMemo(() => {
+    return CLOUD_QUICK_SCANS.flatMap((scan) => {
+      const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
+      if (!match) return [];
+      return [{ ...scan, workflowId: match.id }];
+    });
+  }, [systemWorkflows]);
 
   const quickScanIds = useMemo(
     () => new Set(resolvedScans.map((s) => s.workflowId)),
@@ -480,7 +500,7 @@ function AccountCard({
           </div>
           <Button variant="outline" size="sm" className="flex-1" asChild>
             <Link
-              to={`/?view=cloud-security&account=${encodeURIComponent(connection.displayName || '')}`}
+              to={`/dashboards/security?view=cloud-security&account=${encodeURIComponent(connection.displayName || '')}`}
             >
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
               View Findings
@@ -1407,7 +1427,7 @@ function ConnectAccountDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Connect AWS Account</DialogTitle>
           <DialogDescription>

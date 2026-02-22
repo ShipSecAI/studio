@@ -138,7 +138,7 @@ export const API_BASE_URL = resolveApiBaseUrl();
 export const API_V1_URL = `${API_BASE_URL}/api/v1`;
 
 // Helper function to get auth headers (reused by middleware and file operations)
-export async function getAuthHeaders(): Promise<Record<string, string>> {
+async function getAuthHeaders(): Promise<Record<string, string>> {
   const storeState = useAuthStore.getState();
   let token = storeState.token;
   // For local auth, always use 'local-dev' org ID
@@ -827,12 +827,15 @@ export const api = {
       const { FetchEventSource } = await import('@/utils/sse-client');
 
       const storeState = useAuthStore.getState();
+      let token = storeState.token;
+      const organizationId = storeState.organizationId;
 
       // For Clerk auth, fetch a fresh token
       if (storeState.provider === 'clerk') {
         try {
           const freshToken = await getFreshClerkToken();
           if (freshToken) {
+            token = freshToken;
             storeState.setToken(freshToken);
           }
         } catch (_error) {
@@ -849,8 +852,19 @@ export const api = {
       const query = params.toString();
       const url = `${API_V1_URL}/workflows/runs/${executionId}/stream${query ? `?${query}` : ''}`;
 
-      // Reuse shared auth header resolver so SSE org/auth headers stay consistent with REST calls.
-      const headers = await getAuthHeaders();
+      // Build auth headers
+      const headers: Record<string, string> = {};
+      // For local auth with admin credentials, use Basic Auth
+      if (storeState.provider === 'local' && storeState.adminUsername && storeState.adminPassword) {
+        const credentials = btoa(`${storeState.adminUsername}:${storeState.adminPassword}`);
+        headers['Authorization'] = `Basic ${credentials}`;
+      } else if (token && token.trim().length > 0) {
+        const headerValue = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+        headers['Authorization'] = headerValue;
+      }
+      if (organizationId && organizationId.trim().length > 0) {
+        headers['X-Organization-Id'] = organizationId;
+      }
 
       return new FetchEventSource(url, { headers });
     },
@@ -1116,7 +1130,6 @@ export const api = {
       from?: number;
       aggs?: Record<string, any>;
       sort?: Record<string, any>[];
-      collapse?: Record<string, any>;
     }) => {
       const headers = await getAuthHeaders();
       const response = await fetch(`${API_V1_URL}/analytics/query`, {

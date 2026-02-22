@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useRunActivity } from '@/hooks/queries/useRunQueries';
@@ -68,9 +68,9 @@ function computeThresholds(values: number[]): number[] {
 export function ActivityHeatmap() {
   const [mode, setMode] = useState<Mode>('findings');
 
-  const { data: scanData, isLoading: scansLoading } = useRunActivity(365);
+  const { data: scanData, isLoading: scansLoading } = useRunActivity(90);
   const { data: findingsData = [], isLoading: findingsLoading } =
-    useSecurityTimeSeriesForHeatmap(365);
+    useSecurityTimeSeriesForHeatmap(90);
 
   const isLoading = mode === 'findings' ? findingsLoading : scansLoading;
 
@@ -104,11 +104,11 @@ export function ActivityHeatmap() {
     return { findingsMap: fMap, scansMap: sMap };
   }, [findingsData, scanData]);
 
-  // Generate 365-day grid cells aligned to weeks
+  // Generate 90-day grid cells aligned to weeks
   const { cells, monthLabels, totalValue } = useMemo(() => {
     const today = new Date();
     const startDate = new Date(today);
-    startDate.setUTCDate(startDate.getUTCDate() - 364);
+    startDate.setUTCDate(startDate.getUTCDate() - 89);
 
     // Align to start of week (Sunday)
     const dayOfWeek = startDate.getUTCDay();
@@ -132,7 +132,7 @@ export function ActivityHeatmap() {
       if (current.getUTCDay() === 0 && current > startDate) weekIndex++;
 
       const dateStr = toUTCDateString(current);
-      const isInRange = current >= startDate && current <= today;
+      const isInRange = current >= new Date(today.getTime() - 89 * 86_400_000) && current <= today;
 
       let value = 0;
       let tooltip = '';
@@ -184,11 +184,6 @@ export function ActivityHeatmap() {
       if (current > today && current.getUTCDay() === 0) break;
     }
 
-    // Drop the first month label if it duplicates the last (year wrap-around)
-    if (months.length >= 2 && months[0].label === months[months.length - 1].label) {
-      months.shift();
-    }
-
     return { cells: gridCells, monthLabels: months, totalValue: total };
   }, [mode, findingsMap, scansMap]);
 
@@ -224,8 +219,8 @@ export function ActivityHeatmap() {
 
   const headerText =
     mode === 'findings'
-      ? `${totalValue} finding${totalValue !== 1 ? 's' : ''} in the last year`
-      : `${scansStats.total} scan${scansStats.total !== 1 ? 's' : ''} in the last year`;
+      ? `${totalValue} finding${totalValue !== 1 ? 's' : ''} in the last 90 days`
+      : `${scansStats.total} scan${scansStats.total !== 1 ? 's' : ''} in the last 90 days`;
 
   return (
     <Card className="h-full">
@@ -264,22 +259,19 @@ export function ActivityHeatmap() {
           <Skeleton className="h-[120px] w-full rounded-md" />
         ) : (
           <TooltipProvider delayDuration={100}>
-            <div className="min-w-0">
+            <div className="overflow-x-auto">
               {/* Month labels */}
               <div
-                className="grid gap-[2px] mb-1"
+                className="grid gap-[3px] mb-1"
                 style={{
-                  gridTemplateColumns: `24px repeat(${totalWeeks}, minmax(0, 1fr))`,
+                  gridTemplateColumns: `28px repeat(${totalWeeks}, 14px)`,
                 }}
               >
                 <div /> {/* Spacer for day labels */}
                 {Array.from({ length: totalWeeks }, (_, i) => {
                   const monthLabel = monthLabels.find((m) => m.weekIndex === i);
                   return (
-                    <div
-                      key={i}
-                      className="text-[10px] text-muted-foreground leading-none overflow-visible whitespace-nowrap"
-                    >
+                    <div key={i} className="text-[10px] text-muted-foreground leading-none">
                       {monthLabel?.label ?? ''}
                     </div>
                   );
@@ -288,16 +280,19 @@ export function ActivityHeatmap() {
 
               {/* Heatmap grid: 7 rows (days) x N columns (weeks) */}
               <div
-                className="grid gap-[2px]"
+                className="grid gap-[3px]"
                 style={{
-                  gridTemplateColumns: `24px repeat(${totalWeeks}, minmax(0, 1fr))`,
-                  gridTemplateRows: 'repeat(7, 12px)',
+                  gridTemplateColumns: `28px repeat(${totalWeeks}, 14px)`,
+                  gridTemplateRows: 'repeat(7, 14px)',
                 }}
               >
                 {Array.from({ length: 7 }, (_, dayIndex) => (
-                  <Fragment key={`day-${dayIndex}`}>
+                  <>
                     {/* Day label */}
-                    <div className="text-[10px] text-muted-foreground flex items-center">
+                    <div
+                      key={`label-${dayIndex}`}
+                      className="text-[10px] text-muted-foreground flex items-center"
+                    >
                       {DAY_LABELS[dayIndex]}
                     </div>
 
@@ -326,7 +321,7 @@ export function ActivityHeatmap() {
                         </Tooltip>
                       );
                     })}
-                  </Fragment>
+                  </>
                 ))}
               </div>
 

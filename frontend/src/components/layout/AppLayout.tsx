@@ -34,8 +34,6 @@ import {
   ScanSearch,
   LayoutTemplate,
   Cloud,
-  Server,
-  Radar,
   type LucideIcon,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -334,27 +332,29 @@ export function AppLayout({ children }: AppLayoutProps) {
       label: 'CODE SECURITY',
       items: [
         { name: 'Repositories', href: '/github/repositories', icon: Archive },
-        { name: 'Code Findings', href: '/github/scans', icon: ScanSearch },
-        { name: 'Trigger Rules', href: '/github/triggers', icon: GitPullRequest },
+        { name: 'Scan Results', href: '/github/scans', icon: ScanSearch },
+        {
+          name: 'PR Protection',
+          href: '/github/triggers',
+          icon: GitPullRequest,
+        },
       ],
     },
     {
       label: 'CLOUD SECURITY',
       items: [
         { name: 'Cloud Accounts', href: '/cloud/accounts', icon: Cloud },
-        { name: 'Cloud Inventory', href: '/cloud/inventory', icon: Server },
-        { name: 'Cloud Findings', href: '/?view=cloud-security', icon: ShieldCheck },
+        {
+          name: 'Cloud Findings',
+          href: '/dashboards/security?view=cloud-security',
+          icon: ShieldCheck,
+        },
         { name: 'Cloud Scans', href: '/cloud/scans', icon: ScanSearch },
       ],
     },
     {
       label: 'ATTACK SURFACE',
-      items: [
-        { name: 'Domains', href: '/asm/domains', icon: Globe },
-        { name: 'Assets', href: '/asm/assets', icon: Server },
-        { name: 'Surface Findings', href: '/?view=surface-security', icon: ShieldCheck },
-        { name: 'Scans', href: '/asm/scans', icon: Radar },
-      ],
+      items: [{ name: 'Recon', href: '/recon', icon: Globe }],
     },
     {
       label: 'WORKFLOWS',
@@ -410,6 +410,20 @@ export function AppLayout({ children }: AppLayoutProps) {
       : []),
   ];
 
+  // Collect all base paths that have query-param siblings (e.g. /dashboards/security has ?view=cloud-security)
+  const queryParamPaths = new Set<string>();
+  for (const group of navigationGroups) {
+    for (const item of group.items) {
+      if (item.href.includes('?')) {
+        queryParamPaths.add(item.href.split('?')[0]);
+      }
+    }
+  }
+  // Also check home-level query-param items
+  if (navigationGroups.some((g) => g.items.some((i) => i.href.startsWith('/?')))) {
+    queryParamPaths.add('/');
+  }
+
   const isActive = (path: string) => {
     if (path === '/') {
       return location.pathname === '/' && !location.search;
@@ -417,16 +431,24 @@ export function AppLayout({ children }: AppLayoutProps) {
     if (path === '/builder') {
       return location.pathname === '/builder' || location.pathname.startsWith('/workflows');
     }
-    // Handle query-param-based nav items like /?view=cloud-security
+    // Handle query-param-based nav items like /dashboards/security?view=cloud-security
     if (path.includes('?')) {
       const [basePath, queryString] = path.split('?');
       const queryParams = new URLSearchParams(queryString);
       const locationParams = new URLSearchParams(location.search);
+
+      // Base path must match
       if (location.pathname !== basePath) return false;
+
+      // All query params in the nav item must match location params
       for (const [key, value] of queryParams.entries()) {
         if (locationParams.get(key) !== value) return false;
       }
       return true;
+    }
+    // For paths that have query-param siblings, only match exact pathname (not startsWith)
+    if (queryParamPaths.has(path)) {
+      return location.pathname === path && !location.search;
     }
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
@@ -903,7 +925,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                 onSidebarToggle={handleToggle}
                 actions={getPageActions()}
                 afterTitle={
-                  location.pathname === '/' || location.pathname.startsWith('/security') ? (
+                  location.pathname === '/' ||
+                  location.pathname.startsWith('/security') ||
+                  location.pathname.startsWith('/dashboards/security') ? (
                     <SecurityTabBar />
                   ) : undefined
                 }
