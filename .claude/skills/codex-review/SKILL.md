@@ -6,7 +6,7 @@ user_invocable: true
 
 # Codex Plan Review (Iterative)
 
-Send the current implementation plan to OpenAI Codex for review. Claude revises the plan based on Codex's feedback and re-submits until Codex approves. Max 7 rounds.
+Send the current implementation plan to OpenAI Codex for review. Claude revises the plan based on Codex's feedback and re-submits until Codex approves. Max 5 rounds.
 
 ---
 
@@ -80,7 +80,7 @@ If changes are needed, end with exactly: VERDICT: REVISE"
    - If **VERDICT: APPROVED** → go to Step 7 (Done)
    - If **VERDICT: REVISE** → go to Step 5 (Revise & Re-submit)
    - If no clear verdict but feedback is all positive / no actionable items → treat as approved
-   - If max rounds (7) reached → go to Step 7 with a note that max rounds hit
+   - If max rounds (5) reached → go to Step 7 with a note that max rounds hit
 
 ### Step 5: Revise the Plan
 
@@ -137,7 +137,7 @@ If max rounds were reached without approval:
 ```
 ## Codex Review — Final (model: gpt-5.3-codex)
 
-**Status:** ⚠️ Max rounds (7) reached — not fully approved
+**Status:** ⚠️ Max rounds (5) reached — not fully approved
 
 **Remaining concerns:**
 [List unresolved issues from last review]
@@ -162,14 +162,14 @@ Round 2: Claude revises → Codex re-reviews (resume session) → REVISE?
 Round 3: Claude revises → Codex re-reviews (resume session) → APPROVED ✅
 ```
 
-Max 7 rounds. Each round preserves Codex's conversation context via session resume.
+Max 5 rounds. Each round preserves Codex's conversation context via session resume.
 
 ## Rules
 
 - Claude **actively revises the plan** based on Codex feedback between rounds — this is NOT just passing messages, Claude should make real improvements
 - Default model is `gpt-5.3-codex`. Accept model override from the user's arguments (e.g., `/codex-review o4-mini`)
 - Always use read-only sandbox mode — Codex should never write files
-- Max 7 review rounds to prevent infinite loops
+- Max 5 review rounds to prevent infinite loops
 - Show the user each round's feedback and revisions so they can follow along
 - If Codex CLI is not installed or fails, inform the user and suggest `npm install -g @openai/codex`
 - If a revision contradicts the user's explicit requirements, skip that revision and note it for the user

@@ -32,8 +32,6 @@ description: "Get ShipSec Studio running in 5 minutes"
   
   <Step title="Open ShipSec Studio">
     Navigate to [http://localhost](http://localhost) and sign in or create an account.
-
-    You'll land on the **Home page** with a Getting Started checklist that walks you through connecting integrations, running your first scan, and exploring templates.
   </Step>
 </Steps>
 
@@ -53,27 +51,9 @@ All services are accessible through nginx on port 80:
 
 ## Your First Workflow
 
-The fastest way to get started is with a **Workflow Template**:
-
-<Steps>
-  <Step title="Browse templates">
-    Navigate to the **Templates** page from the sidebar. Browse pre-built workflows like Attack Surface Recon, Cloud Security Scan, or Secret Scan.
-  </Step>
-
-  <Step title="Use a template">
-    Click **Use Template** on any template to create a workflow from it. Customize inputs as needed in the builder.
-  </Step>
-
-  <Step title="Run the workflow">
-    Click **Save**, then **Run**. Watch the execution unfold in real-time with streaming logs and terminal output.
-  </Step>
-</Steps>
-
-### Or build from scratch
-
 <Steps>
   <Step title="Create a new workflow">
-    Click **New Workflow** from the Workflows page. Name it "Subdomain Discovery".
+    Click **New Workflow** in the dashboard. Name it "Subdomain Discovery".
   </Step>
 
   <Step title="Add components">
@@ -83,7 +63,7 @@ The fastest way to get started is with a **Workflow Template**:
   </Step>
 
   <Step title="Run the workflow">
-    Click **Save**, then **Run**.
+    Click **Save**, then **Run**. Watch the execution unfold in real-time with streaming logs and terminal output.
   </Step>
 </Steps>
 
@@ -106,11 +86,11 @@ just dev stop && just dev
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Workflow Templates" icon="wand-magic-sparkles" href="/user-guide#workflow-templates">
-    Browse pre-built security workflows
+  <Card title="Full Installation" icon="download" href="/installation">
+    Detailed setup and configuration options
   </Card>
-  <Card title="Integrations" icon="plug" href="/integrations">
-    Connect AWS, GitHub, and Slack
+  <Card title="Command Reference" icon="terminal" href="/command-reference">
+    All available just commands
   </Card>
   <Card title="Components" icon="cube" href="/components/overview">
     Explore available components
