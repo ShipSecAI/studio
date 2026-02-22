@@ -29,6 +29,7 @@ function makeNode(
   x: number,
   y: number,
   config?: Record<string, unknown>,
+  inputOverrides?: Record<string, unknown>,
 ) {
   return {
     id,
@@ -38,7 +39,7 @@ function makeNode(
       label,
       config: {
         params: config ?? {},
-        inputOverrides: {},
+        inputOverrides: inputOverrides ?? {},
       },
     },
   };
@@ -232,6 +233,7 @@ function fullCodeSecurityTemplate(): SeedTemplate {
   const mdSecrets = nid('node');
   const mdSast = nid('node');
   const mdDeps = nid('node');
+  const reportArray = nid('node');
   const joiner = nid('node');
   const analytics = nid('node');
 
@@ -264,12 +266,13 @@ function fullCodeSecurityTemplate(): SeedTemplate {
         makeNode(mdSecrets, 'security.findings.markdown', 'Secrets Report', 1200, -200),
         makeNode(mdSast, 'security.findings.markdown', 'SAST Report', 1200, 0),
         makeNode(mdDeps, 'security.findings.markdown', 'Deps Report', 1200, 200),
+        makeNode(reportArray, 'core.array.pack', 'Pack Reports', 1400, -100),
         // Unified summary
-        makeNode(joiner, 'core.text.joiner', 'Combined Report', 1500, -100, {
+        makeNode(joiner, 'core.text.joiner', 'Combined Report', 1600, -100, {
           separator: '\n\n---\n\n',
         }),
         // Analytics sink (all scanner findings)
-        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1500, 150, {
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1600, 150, {
           dataInputs: [
             { id: 'input1', label: 'Secret Findings', sourceTag: 'trufflehog' },
             { id: 'input2', label: 'SAST Findings', sourceTag: 'opengrep' },
@@ -292,10 +295,11 @@ function fullCodeSecurityTemplate(): SeedTemplate {
         makeEdge('e8', normSecrets, mdSecrets, 'findings', 'findings'),
         makeEdge('e9', normSast, mdSast, 'findings', 'findings'),
         makeEdge('e10', normDeps, mdDeps, 'findings', 'findings'),
-        // Markdown → Joiner (combine all reports into one)
-        makeEdge('e11', mdSecrets, joiner, 'markdown', 'items'),
-        makeEdge('e12', mdSast, joiner, 'markdown', 'items'),
-        makeEdge('e13', mdDeps, joiner, 'markdown', 'items'),
+        // Markdown → Array Pack → Joiner (joiner expects list<text>)
+        makeEdge('e11', mdSecrets, reportArray, 'markdown', 'a'),
+        makeEdge('e12', mdSast, reportArray, 'markdown', 'b'),
+        makeEdge('e13', mdDeps, reportArray, 'markdown', 'c'),
+        makeEdge('e13a', reportArray, joiner, 'items', 'items'),
         // Scanners → Analytics (bypass normalize, use results port directly)
         makeEdge('e14', trufflehog, analytics, 'results', 'input1'),
         makeEdge('e15', opengrep, analytics, 'results', 'input2'),
@@ -314,6 +318,7 @@ function fullCodeSecurityTemplate(): SeedTemplate {
 // ──────────────────────────────────────────────────────────────────────────────
 function prSecurityGateTemplate(): SeedTemplate {
   resetCounter();
+  const entryPoint = nid('node');
   const prContext = nid('node');
   const cloneRepo = nid('node');
   const trufflehog = nid('node');
@@ -325,6 +330,7 @@ function prSecurityGateTemplate(): SeedTemplate {
   const mdSecrets = nid('node');
   const mdSast = nid('node');
   const mdDeps = nid('node');
+  const reportArray = nid('node');
   const joiner = nid('node');
   const prComment = nid('node');
   const checkRun = nid('node');
@@ -343,29 +349,44 @@ function prSecurityGateTemplate(): SeedTemplate {
       name: 'PR Security Gate',
       description: 'Auto-scan PRs and post results',
       nodes: [
-        makeNode(prContext, 'github.pr.context', 'PR Context', 0, 0),
-        makeNode(cloneRepo, 'github.repo.clone', 'Clone Repo', 300, 0),
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [
+            { id: 'installationId', label: 'Installation ID', type: 'number' },
+            { id: 'repository', label: 'Repository', type: 'text' },
+            { id: 'owner', label: 'Owner', type: 'text' },
+            { id: 'repo', label: 'Repository Name', type: 'text' },
+            { id: 'prNumber', label: 'PR Number', type: 'number' },
+          ],
+        }),
+        makeNode(prContext, 'github.pr.context', 'PR Context', 300, 0),
+        makeNode(cloneRepo, 'github.repo.clone', 'Clone Repo', 600, 0),
         // Scanners
-        makeNode(trufflehog, 'scanner.trufflehog', 'TruffleHog', 600, -200),
-        makeNode(opengrep, 'scanner.opengrep', 'OpenGrep', 600, 0),
-        makeNode(depScanner, 'scanner.dependency', 'Dependency Scanner', 600, 200),
+        makeNode(trufflehog, 'scanner.trufflehog', 'TruffleHog', 900, -200),
+        makeNode(opengrep, 'scanner.opengrep', 'OpenGrep', 900, 0),
+        makeNode(depScanner, 'scanner.dependency', 'Dependency Scanner', 900, 200),
         // Normalize per scanner
-        makeNode(normSecrets, 'security.findings.normalize', 'Normalize Secrets', 900, -200),
-        makeNode(normSast, 'security.findings.normalize', 'Normalize SAST', 900, 0),
-        makeNode(normDeps, 'security.findings.normalize', 'Normalize Deps', 900, 200),
+        makeNode(normSecrets, 'security.findings.normalize', 'Normalize Secrets', 1200, -200),
+        makeNode(normSast, 'security.findings.normalize', 'Normalize SAST', 1200, 0),
+        makeNode(normDeps, 'security.findings.normalize', 'Normalize Deps', 1200, 200),
         // Markdown per scanner
-        makeNode(mdSecrets, 'security.findings.markdown', 'Secrets Report', 1200, -200),
-        makeNode(mdSast, 'security.findings.markdown', 'SAST Report', 1200, 0),
-        makeNode(mdDeps, 'security.findings.markdown', 'Deps Report', 1200, 200),
+        makeNode(mdSecrets, 'security.findings.markdown', 'Secrets Report', 1500, -200),
+        makeNode(mdSast, 'security.findings.markdown', 'SAST Report', 1500, 0),
+        makeNode(mdDeps, 'security.findings.markdown', 'Deps Report', 1500, 200),
+        // Collect markdown outputs into list<text> for joiner
+        makeNode(reportArray, 'core.array.pack', 'Pack Reports', 1700, 0),
         // Unified summary
-        makeNode(joiner, 'core.text.joiner', 'Combined Report', 1500, 0, {
+        makeNode(joiner, 'core.text.joiner', 'Combined Report', 1900, 0, {
           separator: '\n\n---\n\n',
         }),
         // PR outputs
-        makeNode(prComment, 'github.pr.comment', 'PR Comment', 1800, -150),
-        makeNode(checkRun, 'github.check.create', 'Check Run', 1800, 0),
+        makeNode(prComment, 'github.pr.comment', 'PR Comment', 2200, -150),
+        makeNode(checkRun, 'github.check.create', 'Check Run', 2200, 0, undefined, {
+          name: 'Security Gate',
+          status: 'completed',
+          conclusion: 'neutral',
+        }),
         // Analytics sink (all scanner findings)
-        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1800, 150, {
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 2200, 150, {
           dataInputs: [
             { id: 'input1', label: 'Secret Findings', sourceTag: 'trufflehog' },
             { id: 'input2', label: 'SAST Findings', sourceTag: 'opengrep' },
@@ -374,35 +395,51 @@ function prSecurityGateTemplate(): SeedTemplate {
         }),
       ],
       edges: [
-        // PR Context → Clone (pass repo info)
-        makeEdge('e1', prContext, cloneRepo, 'cloneUrl', 'repository'),
+        // Entry Point → PR Context (required PR lookup inputs)
+        makeEdge('e1', entryPoint, prContext, 'installationId', 'installationId'),
+        makeEdge('e2', entryPoint, prContext, 'owner', 'owner'),
+        makeEdge('e3', entryPoint, prContext, 'repo', 'repo'),
+        makeEdge('e4', entryPoint, prContext, 'prNumber', 'pullNumber'),
+        // Entry Point + PR Context → Clone
+        makeEdge('e5', entryPoint, cloneRepo, 'installationId', 'installationId'),
+        makeEdge('e6', entryPoint, cloneRepo, 'repository', 'repository'),
+        makeEdge('e7', prContext, cloneRepo, 'headBranch', 'branch'),
+        makeEdge('e8', prContext, cloneRepo, 'headSha', 'ref'),
         // PR Context → Scanners (pass changed files for diff-only scanning)
-        makeEdge('e2a', prContext, trufflehog, 'changedFiles', 'changedFiles'),
-        makeEdge('e2b', prContext, opengrep, 'changedFiles', 'changedFiles'),
+        makeEdge('e9', prContext, trufflehog, 'changedFiles', 'changedFiles'),
+        makeEdge('e10', prContext, opengrep, 'changedFiles', 'changedFiles'),
         // Clone → Scanners
-        makeEdge('e3', cloneRepo, trufflehog, 'volumeName', 'volumeName'),
-        makeEdge('e4', cloneRepo, opengrep, 'volumeName', 'volumeName'),
-        makeEdge('e5', cloneRepo, depScanner, 'volumeName', 'volumeName'),
+        makeEdge('e11', cloneRepo, trufflehog, 'volumeName', 'volumeName'),
+        makeEdge('e12', cloneRepo, opengrep, 'volumeName', 'volumeName'),
+        makeEdge('e13', cloneRepo, depScanner, 'volumeName', 'volumeName'),
         // Scanners → Normalize
-        makeEdge('e6', trufflehog, normSecrets, 'findings', 'rawFindings'),
-        makeEdge('e7', opengrep, normSast, 'findings', 'rawFindings'),
-        makeEdge('e8', depScanner, normDeps, 'findings', 'rawFindings'),
+        makeEdge('e14', trufflehog, normSecrets, 'findings', 'rawFindings'),
+        makeEdge('e15', opengrep, normSast, 'findings', 'rawFindings'),
+        makeEdge('e16', depScanner, normDeps, 'findings', 'rawFindings'),
         // Normalize → Markdown
-        makeEdge('e9', normSecrets, mdSecrets, 'findings', 'findings'),
-        makeEdge('e10', normSast, mdSast, 'findings', 'findings'),
-        makeEdge('e11', normDeps, mdDeps, 'findings', 'findings'),
-        // Markdown → Joiner
-        makeEdge('e12', mdSecrets, joiner, 'markdown', 'items'),
-        makeEdge('e13', mdSast, joiner, 'markdown', 'items'),
-        makeEdge('e14', mdDeps, joiner, 'markdown', 'items'),
+        makeEdge('e17', normSecrets, mdSecrets, 'findings', 'findings'),
+        makeEdge('e18', normSast, mdSast, 'findings', 'findings'),
+        makeEdge('e19', normDeps, mdDeps, 'findings', 'findings'),
+        // Markdown → Array Pack → Joiner
+        makeEdge('e20', mdSecrets, reportArray, 'markdown', 'a'),
+        makeEdge('e21', mdSast, reportArray, 'markdown', 'b'),
+        makeEdge('e22', mdDeps, reportArray, 'markdown', 'c'),
+        makeEdge('e23', reportArray, joiner, 'items', 'items'),
         // Joiner → PR Comment
-        makeEdge('e15', joiner, prComment, 'text', 'body'),
-        // PR Context → Check Run (pass SHA and repo info)
-        makeEdge('e16', prContext, checkRun, 'headSha', 'headSha'),
+        makeEdge('e24', joiner, prComment, 'text', 'body'),
+        makeEdge('e25', entryPoint, prComment, 'installationId', 'installationId'),
+        makeEdge('e26', entryPoint, prComment, 'owner', 'owner'),
+        makeEdge('e27', entryPoint, prComment, 'repo', 'repo'),
+        makeEdge('e28', entryPoint, prComment, 'prNumber', 'prNumber'),
+        // PR Context + Entry Point → Check Run
+        makeEdge('e29', entryPoint, checkRun, 'installationId', 'installationId'),
+        makeEdge('e30', entryPoint, checkRun, 'owner', 'owner'),
+        makeEdge('e31', entryPoint, checkRun, 'repo', 'repo'),
+        makeEdge('e32', prContext, checkRun, 'headSha', 'headSha'),
         // Scanners → Analytics (bypass normalize, use results port directly)
-        makeEdge('e17', trufflehog, analytics, 'results', 'input1'),
-        makeEdge('e18', opengrep, analytics, 'results', 'input2'),
-        makeEdge('e19', depScanner, analytics, 'results', 'input3'),
+        makeEdge('e33', trufflehog, analytics, 'results', 'input1'),
+        makeEdge('e34', opengrep, analytics, 'results', 'input2'),
+        makeEdge('e35', depScanner, analytics, 'results', 'input3'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.45 },
     },
@@ -416,6 +453,7 @@ function prSecurityGateTemplate(): SeedTemplate {
 // ──────────────────────────────────────────────────────────────────────────────
 function aiCodeReviewTemplate(): SeedTemplate {
   resetCounter();
+  const entryPoint = nid('node');
   const prContext = nid('node');
   const cloneRepo = nid('node');
   const opengrep = nid('node');
@@ -427,6 +465,7 @@ function aiCodeReviewTemplate(): SeedTemplate {
   const mdSast = nid('node');
   const mdSecrets = nid('node');
   const mdDeps = nid('node');
+  const reportArray = nid('node');
   const joiner = nid('node');
   const aiAgent = nid('node');
   const prComment = nid('node');
@@ -445,27 +484,37 @@ function aiCodeReviewTemplate(): SeedTemplate {
       name: 'AI Code Review',
       description: 'AI-powered security analysis on PRs',
       nodes: [
-        makeNode(prContext, 'github.pr.context', 'PR Context', 0, 0),
-        makeNode(cloneRepo, 'github.repo.clone', 'Clone Repo', 300, 0),
-        makeNode(opengrep, 'scanner.opengrep', 'OpenGrep', 600, -200),
-        makeNode(trufflehog, 'scanner.trufflehog', 'TruffleHog', 600, 0),
-        makeNode(depScanner, 'scanner.dependency', 'Dependency Scanner', 600, 200),
-        makeNode(normSast, 'security.findings.normalize', 'Normalize SAST', 900, -200),
-        makeNode(normSecrets, 'security.findings.normalize', 'Normalize Secrets', 900, 0),
-        makeNode(normDeps, 'security.findings.normalize', 'Normalize Deps', 900, 200),
-        makeNode(mdSast, 'security.findings.markdown', 'SAST Report', 1200, -200),
-        makeNode(mdSecrets, 'security.findings.markdown', 'Secrets Report', 1200, 0),
-        makeNode(mdDeps, 'security.findings.markdown', 'Deps Report', 1200, 200),
-        makeNode(joiner, 'core.text.joiner', 'Combined Report', 1500, 0, {
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [
+            { id: 'installationId', label: 'Installation ID', type: 'number' },
+            { id: 'repository', label: 'Repository', type: 'text' },
+            { id: 'owner', label: 'Owner', type: 'text' },
+            { id: 'repo', label: 'Repository Name', type: 'text' },
+            { id: 'prNumber', label: 'PR Number', type: 'number' },
+          ],
+        }),
+        makeNode(prContext, 'github.pr.context', 'PR Context', 300, 0),
+        makeNode(cloneRepo, 'github.repo.clone', 'Clone Repo', 600, 0),
+        makeNode(opengrep, 'scanner.opengrep', 'OpenGrep', 900, -200),
+        makeNode(trufflehog, 'scanner.trufflehog', 'TruffleHog', 900, 0),
+        makeNode(depScanner, 'scanner.dependency', 'Dependency Scanner', 900, 200),
+        makeNode(normSast, 'security.findings.normalize', 'Normalize SAST', 1200, -200),
+        makeNode(normSecrets, 'security.findings.normalize', 'Normalize Secrets', 1200, 0),
+        makeNode(normDeps, 'security.findings.normalize', 'Normalize Deps', 1200, 200),
+        makeNode(mdSast, 'security.findings.markdown', 'SAST Report', 1500, -200),
+        makeNode(mdSecrets, 'security.findings.markdown', 'Secrets Report', 1500, 0),
+        makeNode(mdDeps, 'security.findings.markdown', 'Deps Report', 1500, 200),
+        makeNode(reportArray, 'core.array.pack', 'Pack Reports', 1700, 0),
+        makeNode(joiner, 'core.text.joiner', 'Combined Report', 1900, 0, {
           separator: '\n\n---\n\n',
         }),
-        makeNode(aiAgent, 'core.ai.agent', 'AI Agent', 1800, -100, {
+        makeNode(aiAgent, 'core.ai.agent', 'AI Agent', 2200, -100, {
           systemPrompt:
             'You are a security code reviewer. Analyze the following security scan report from a pull request. For each finding, assess whether it is actionable or a likely false positive. Provide clear remediation guidance and prioritize the most critical issues.',
         }),
-        makeNode(prComment, 'github.pr.comment', 'PR Comment', 2100, -100),
+        makeNode(prComment, 'github.pr.comment', 'PR Comment', 2500, -100),
         // Analytics sink (all scanner findings)
-        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1800, 150, {
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 2200, 150, {
           dataInputs: [
             { id: 'input1', label: 'SAST Findings', sourceTag: 'opengrep' },
             { id: 'input2', label: 'Secret Findings', sourceTag: 'trufflehog' },
@@ -474,35 +523,48 @@ function aiCodeReviewTemplate(): SeedTemplate {
         }),
       ],
       edges: [
-        // PR Context → Clone
-        makeEdge('e1', prContext, cloneRepo, 'cloneUrl', 'repository'),
+        // Entry Point → PR Context
+        makeEdge('e1', entryPoint, prContext, 'installationId', 'installationId'),
+        makeEdge('e2', entryPoint, prContext, 'owner', 'owner'),
+        makeEdge('e3', entryPoint, prContext, 'repo', 'repo'),
+        makeEdge('e4', entryPoint, prContext, 'prNumber', 'pullNumber'),
+        // Entry Point + PR Context → Clone
+        makeEdge('e5', entryPoint, cloneRepo, 'installationId', 'installationId'),
+        makeEdge('e6', entryPoint, cloneRepo, 'repository', 'repository'),
+        makeEdge('e7', prContext, cloneRepo, 'headBranch', 'branch'),
+        makeEdge('e8', prContext, cloneRepo, 'headSha', 'ref'),
         // PR Context → Scanners (changed files)
-        makeEdge('e1a', prContext, opengrep, 'changedFiles', 'changedFiles'),
-        makeEdge('e1b', prContext, trufflehog, 'changedFiles', 'changedFiles'),
+        makeEdge('e9', prContext, opengrep, 'changedFiles', 'changedFiles'),
+        makeEdge('e10', prContext, trufflehog, 'changedFiles', 'changedFiles'),
         // Clone → Scanners
-        makeEdge('e2', cloneRepo, opengrep, 'volumeName', 'volumeName'),
-        makeEdge('e3', cloneRepo, trufflehog, 'volumeName', 'volumeName'),
-        makeEdge('e4', cloneRepo, depScanner, 'volumeName', 'volumeName'),
+        makeEdge('e11', cloneRepo, opengrep, 'volumeName', 'volumeName'),
+        makeEdge('e12', cloneRepo, trufflehog, 'volumeName', 'volumeName'),
+        makeEdge('e13', cloneRepo, depScanner, 'volumeName', 'volumeName'),
         // Scanners → Normalize
-        makeEdge('e5', opengrep, normSast, 'findings', 'rawFindings'),
-        makeEdge('e6', trufflehog, normSecrets, 'findings', 'rawFindings'),
-        makeEdge('e7', depScanner, normDeps, 'findings', 'rawFindings'),
+        makeEdge('e14', opengrep, normSast, 'findings', 'rawFindings'),
+        makeEdge('e15', trufflehog, normSecrets, 'findings', 'rawFindings'),
+        makeEdge('e16', depScanner, normDeps, 'findings', 'rawFindings'),
         // Normalize → Markdown
-        makeEdge('e8', normSast, mdSast, 'findings', 'findings'),
-        makeEdge('e9', normSecrets, mdSecrets, 'findings', 'findings'),
-        makeEdge('e10', normDeps, mdDeps, 'findings', 'findings'),
-        // Markdown → Joiner
-        makeEdge('e11', mdSast, joiner, 'markdown', 'items'),
-        makeEdge('e12', mdSecrets, joiner, 'markdown', 'items'),
-        makeEdge('e13', mdDeps, joiner, 'markdown', 'items'),
+        makeEdge('e17', normSast, mdSast, 'findings', 'findings'),
+        makeEdge('e18', normSecrets, mdSecrets, 'findings', 'findings'),
+        makeEdge('e19', normDeps, mdDeps, 'findings', 'findings'),
+        // Markdown → Array Pack → Joiner
+        makeEdge('e20', mdSast, reportArray, 'markdown', 'a'),
+        makeEdge('e21', mdSecrets, reportArray, 'markdown', 'b'),
+        makeEdge('e22', mdDeps, reportArray, 'markdown', 'c'),
+        makeEdge('e23', reportArray, joiner, 'items', 'items'),
         // Joiner → AI Agent (combined report as user input)
-        makeEdge('e14', joiner, aiAgent, 'text', 'userInput'),
+        makeEdge('e24', joiner, aiAgent, 'text', 'userInput'),
         // AI Agent → PR Comment
-        makeEdge('e15', aiAgent, prComment, 'responseText', 'body'),
+        makeEdge('e25', aiAgent, prComment, 'responseText', 'body'),
+        makeEdge('e26', entryPoint, prComment, 'installationId', 'installationId'),
+        makeEdge('e27', entryPoint, prComment, 'owner', 'owner'),
+        makeEdge('e28', entryPoint, prComment, 'repo', 'repo'),
+        makeEdge('e29', entryPoint, prComment, 'prNumber', 'prNumber'),
         // Scanners → Analytics (bypass normalize, use results port directly)
-        makeEdge('e16', opengrep, analytics, 'results', 'input1'),
-        makeEdge('e17', trufflehog, analytics, 'results', 'input2'),
-        makeEdge('e18', depScanner, analytics, 'results', 'input3'),
+        makeEdge('e30', opengrep, analytics, 'results', 'input1'),
+        makeEdge('e31', trufflehog, analytics, 'results', 'input2'),
+        makeEdge('e32', depScanner, analytics, 'results', 'input3'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.4 },
     },
@@ -599,18 +661,20 @@ function attackSurfaceReconTemplate(): SeedTemplate {
         makeNode(httpx, 'shipsec.httpx.scan', 'HTTPx', 900, -100),
         makeNode(naabu, 'shipsec.naabu.scan', 'Naabu', 900, 100),
         makeNode(nuclei, 'shipsec.nuclei.scan', 'Nuclei', 1200, 0),
-        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1500, 0),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1500, 0, {
+          dataInputs: [{ id: 'input1', label: 'Nuclei Findings', sourceTag: 'nuclei' }],
+        }),
       ],
       edges: [
         // Entry Point → Subfinder (domains injected at trigger time)
         makeEdge('e1', entryPoint, subfinder),
         // Subfinder → DNSx (pass discovered subdomains)
         makeEdge('e2', subfinder, dnsx, 'subdomains', 'domains'),
-        // DNSx → HTTPx + Naabu (pass resolved hosts)
+        // DNSx → HTTPx + Naabu + Nuclei (pass resolved hosts)
         makeEdge('e3', dnsx, httpx, 'resolvedHosts', 'targets'),
         makeEdge('e4', dnsx, naabu, 'resolvedHosts', 'targets'),
-        // HTTPx → Nuclei (pass live hosts as targets)
-        makeEdge('e5', httpx, nuclei, 'responses', 'targets'),
+        // Nuclei expects list<text> targets; connect directly from DNSx resolved hosts.
+        makeEdge('e5', dnsx, nuclei, 'resolvedHosts', 'targets'),
         // Nuclei → Analytics (use results port directly, bypass normalize)
         makeEdge('e6', nuclei, analytics, 'results', 'input1'),
       ],

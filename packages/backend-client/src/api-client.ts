@@ -25,6 +25,9 @@ type UpdateSchedulePayload = components['schemas']['UpdateScheduleRequestDto'];
 type ScheduleStatus = 'active' | 'paused' | 'error';
 type CreateApiKeyPayload = components['schemas']['CreateApiKeyDto'];
 type UpdateApiKeyPayload = components['schemas']['UpdateApiKeyDto'];
+type CreateAsmDomainPayload = components['schemas']['CreateDomainDto'];
+type UpdateAsmDomainPayload = components['schemas']['UpdateDomainDto'];
+type TriggerCloudSyncPayload = components['schemas']['TriggerSyncDto'];
 
 /**
  * ShipSec API Client
@@ -580,6 +583,136 @@ export class ShipSecApiClient {
 
   async disconnectIntegrationConnection(id: string, _payload?: DisconnectConnectionPayload) {
     return this.client.DELETE('/api/v1/integrations/connections/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  // ===== ASM =====
+
+  async listAsmDomains(options?: { limit?: number; offset?: number }) {
+    return this.client.GET('/api/v1/asm/domains', {
+      params: {
+        query: {
+          limit: options?.limit,
+          offset: options?.offset,
+        },
+      },
+    });
+  }
+
+  async getAsmDomain(id: string) {
+    return this.client.GET('/api/v1/asm/domains/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async createAsmDomain(body: CreateAsmDomainPayload) {
+    return this.client.POST('/api/v1/asm/domains', {
+      body,
+    });
+  }
+
+  async updateAsmDomain(id: string, body: UpdateAsmDomainPayload) {
+    return this.client.PATCH('/api/v1/asm/domains/{id}', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  async deleteAsmDomain(id: string) {
+    return this.client.DELETE('/api/v1/asm/domains/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async triggerAsmDomainScan(id: string, body?: { templateSlug?: string }) {
+    return this.client.POST('/api/v1/asm/domains/{id}/scan', {
+      params: { path: { id } },
+      body: {
+        templateSlug: body?.templateSlug ?? 'sys-attack-surface-recon',
+      },
+    });
+  }
+
+  async listAsmScans(options?: {
+    limit?: number;
+    offset?: number;
+    status?: 'running' | 'completed' | 'failed' | 'timed_out';
+    domainId?: string;
+  }) {
+    return this.client.GET('/api/v1/asm/scans', {
+      params: {
+        query: {
+          limit: options?.limit,
+          offset: options?.offset,
+          status: options?.status,
+          domainId: options?.domainId,
+        },
+      },
+    });
+  }
+
+  async getAsmStats() {
+    return this.client.GET('/api/v1/asm/stats');
+  }
+
+  // ===== Asset Discovery =====
+
+  async listCloudAssets(options?: {
+    limit?: number;
+    offset?: number;
+    assetType?: string;
+    region?: string;
+    status?: 'active' | 'stale' | 'removed';
+    search?: string;
+    sortBy?: 'name' | 'lastSeenAt' | 'firstDiscoveredAt';
+    sortOrder?: 'asc' | 'desc';
+  }) {
+    return this.client.GET('/api/v1/asset-discovery/assets', {
+      params: {
+        query: {
+          limit: options?.limit,
+          offset: options?.offset,
+          assetType: options?.assetType,
+          region: options?.region,
+          status: options?.status,
+          search: options?.search,
+          sortBy: options?.sortBy,
+          sortOrder: options?.sortOrder,
+        },
+      },
+    });
+  }
+
+  async getCloudAssetSummary() {
+    return this.client.GET('/api/v1/asset-discovery/assets/summary');
+  }
+
+  async getCloudAsset(id: string) {
+    return this.client.GET('/api/v1/asset-discovery/assets/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async triggerCloudSync(body: TriggerCloudSyncPayload) {
+    return this.client.POST('/api/v1/asset-discovery/assets/sync', {
+      body,
+    });
+  }
+
+  async listCloudSyncRuns(options?: { limit?: number; offset?: number }) {
+    return this.client.GET('/api/v1/asset-discovery/sync-runs', {
+      params: {
+        query: {
+          limit: options?.limit,
+          offset: options?.offset,
+        },
+      },
+    });
+  }
+
+  async getCloudSyncRun(id: string) {
+    return this.client.GET('/api/v1/asset-discovery/sync-runs/{id}', {
       params: { path: { id } },
     });
   }

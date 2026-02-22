@@ -1,22 +1,6 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
-
-// ── Fetch helper ────────────────────────────────────────────────────────────
-
-async function inventoryFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const headers = await getApiAuthHeaders();
-  headers['Content-Type'] = 'application/json';
-  const res = await fetch(`${API_V1_URL}/asset-discovery${path}`, {
-    ...options,
-    headers: { ...headers, ...(options?.headers as Record<string, string>) },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Asset Discovery API error: ${res.status}`);
-  }
-  return res.json();
-}
+import { api } from '@/services/api';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,63 +58,58 @@ export function useCloudAssets(options?: {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }) {
-  const params = new URLSearchParams();
-  if (options?.limit) params.set('limit', String(options.limit));
-  if (options?.offset) params.set('offset', String(options.offset));
-  if (options?.assetType) params.set('assetType', options.assetType);
-  if (options?.region) params.set('region', options.region);
-  if (options?.status) params.set('status', options.status);
-  if (options?.search) params.set('search', options.search);
-  if (options?.sortBy) params.set('sortBy', options.sortBy);
-  if (options?.sortOrder) params.set('sortOrder', options.sortOrder);
-
   const filters = options ?? {};
-  return useQuery({
+  return useQuery<{ assets: CloudAsset[]; total: number; page?: number; limit?: number }>({
     queryKey: queryKeys.cloudInventory.assets(filters),
     queryFn: () =>
-      inventoryFetch<{ assets: CloudAsset[]; total: number }>(`/assets?${params.toString()}`),
+      api.cloudInventory.listAssets({
+        ...options,
+        status: (options?.status as 'active' | 'stale' | 'removed' | undefined) ?? undefined,
+        sortBy:
+          (options?.sortBy as 'name' | 'lastSeenAt' | 'firstDiscoveredAt' | undefined) ?? undefined,
+      }) as Promise<{ assets: CloudAsset[]; total: number; page?: number; limit?: number }>,
     staleTime: 30_000,
   });
 }
 
 export function useCloudAsset(id: string | null) {
-  return useQuery({
+  return useQuery<CloudAsset>({
     queryKey: queryKeys.cloudInventory.asset(id ?? ''),
-    queryFn: id ? () => inventoryFetch<CloudAsset>(`/assets/${id}`) : skipToken,
+    queryFn: id ? () => api.cloudInventory.getAsset(id) as Promise<CloudAsset> : skipToken,
     staleTime: 30_000,
     ...(!id && { gcTime: 0 }),
   });
 }
 
 export function useCloudAssetSummary() {
-  return useQuery({
+  return useQuery<CloudAssetSummary>({
     queryKey: queryKeys.cloudInventory.summary(),
-    queryFn: () => inventoryFetch<CloudAssetSummary>('/assets/summary'),
+    queryFn: () => api.cloudInventory.getSummary() as Promise<CloudAssetSummary>,
     staleTime: 60_000,
   });
 }
 
 // ── Sync Run Queries ─────────────────────────────────────────────────────────
 
-export function useCloudSyncRuns(options?: { limit?: number; offset?: number; status?: string }) {
-  const params = new URLSearchParams();
-  if (options?.limit) params.set('limit', String(options.limit));
-  if (options?.offset) params.set('offset', String(options.offset));
-  if (options?.status) params.set('status', options.status);
-
+export function useCloudSyncRuns(options?: { limit?: number; offset?: number }) {
   const filters = options ?? {};
-  return useQuery({
+  return useQuery<{ syncRuns: SyncRun[]; total: number; page?: number; limit?: number }>({
     queryKey: queryKeys.cloudInventory.syncRuns(filters),
     queryFn: () =>
-      inventoryFetch<{ syncRuns: SyncRun[]; total: number }>(`/sync-runs?${params.toString()}`),
+      api.cloudInventory.listSyncRuns(options) as Promise<{
+        syncRuns: SyncRun[];
+        total: number;
+        page?: number;
+        limit?: number;
+      }>,
     staleTime: 30_000,
   });
 }
 
 export function useCloudSyncRun(id: string | null) {
-  return useQuery({
+  return useQuery<SyncRun>({
     queryKey: queryKeys.cloudInventory.syncRun(id ?? ''),
-    queryFn: id ? () => inventoryFetch<SyncRun>(`/sync-runs/${id}`) : skipToken,
+    queryFn: id ? () => api.cloudInventory.getSyncRun(id) as Promise<SyncRun> : skipToken,
     staleTime: 30_000,
     ...(!id && { gcTime: 0 }),
   });
@@ -141,11 +120,7 @@ export function useCloudSyncRun(id: string | null) {
 export function useTriggerCloudSync() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (integrationId: string) =>
-      inventoryFetch<{ syncRunId: string; status: string }>('/assets/sync', {
-        method: 'POST',
-        body: JSON.stringify({ integrationId }),
-      }),
+    mutationFn: (integrationId: string) => api.cloudInventory.triggerSync(integrationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.cloudInventory.syncRuns() });
       queryClient.invalidateQueries({ queryKey: queryKeys.cloudInventory.assets() });

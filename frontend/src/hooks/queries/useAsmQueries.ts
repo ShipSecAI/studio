@@ -1,19 +1,6 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import { api, API_V1_URL, getApiAuthHeaders } from '@/services/api';
-
-async function asmFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const headers = await getApiAuthHeaders();
-  const res = await fetch(`${API_V1_URL}/asm${path}`, {
-    ...options,
-    headers: { ...headers, ...(options?.headers as Record<string, string>) },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `ASM API error: ${res.status}`);
-  }
-  return res.json();
-}
+import { api } from '@/services/api';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,18 +45,17 @@ export interface AsmStats {
 
 export function useAsmDomains(options?: { limit?: number; offset?: number }) {
   const filters = { limit: options?.limit ?? 50, offset: options?.offset ?? 0 };
-  return useQuery({
+  return useQuery<AsmDomain[]>({
     queryKey: queryKeys.asm.domains(filters),
-    queryFn: () =>
-      asmFetch<AsmDomain[]>(`/domains?limit=${filters.limit}&offset=${filters.offset}`),
+    queryFn: () => api.asm.listDomains(filters) as Promise<AsmDomain[]>,
     staleTime: 30_000,
   });
 }
 
 export function useAsmDomain(id: string | null) {
-  return useQuery({
+  return useQuery<AsmDomain>({
     queryKey: queryKeys.asm.domain(id ?? ''),
-    queryFn: id ? () => asmFetch<AsmDomain>(`/domains/${id}`) : skipToken,
+    queryFn: id ? () => api.asm.getDomain(id) as Promise<AsmDomain> : skipToken,
     staleTime: 30_000,
     ...(!id && { gcTime: 0 }),
   });
@@ -83,11 +69,7 @@ export function useCreateDomain() {
       scopeInclude?: string[];
       scopeExclude?: string[];
       scanNow?: boolean;
-    }) =>
-      asmFetch<AsmDomain & { runId?: string; scanTriggered?: boolean }>('/domains', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+    }) => api.asm.createDomain(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['asm'] });
     },
@@ -104,11 +86,7 @@ export function useUpdateDomain() {
       id: string;
       scopeInclude?: string[];
       scopeExclude?: string[];
-    }) =>
-      asmFetch<AsmDomain>(`/domains/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
+    }) => api.asm.updateDomain(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['asm'] });
     },
@@ -118,8 +96,7 @@ export function useUpdateDomain() {
 export function useDeleteDomain() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      asmFetch<{ success: boolean }>(`/domains/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => api.asm.deleteDomain(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['asm'] });
     },
@@ -129,11 +106,9 @@ export function useDeleteDomain() {
 export function useTriggerDomainScan() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ domainId, templateSlug }: { domainId: string; templateSlug?: string }) =>
-      asmFetch<{ runId: string; domain: string }>(`/domains/${domainId}/scan`, {
-        method: 'POST',
-        body: JSON.stringify({ templateSlug: templateSlug ?? 'sys-attack-surface-recon' }),
-      }),
+    mutationFn: ({ domainId, templateSlug }: { domainId: string; templateSlug?: string }) => {
+      return api.asm.triggerDomainScan(domainId, { templateSlug });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['asm'] });
     },
@@ -208,16 +183,10 @@ export function useAsmScans(options?: {
   status?: string;
   domainId?: string;
 }) {
-  const params = new URLSearchParams();
-  if (options?.limit) params.set('limit', String(options.limit));
-  if (options?.offset) params.set('offset', String(options.offset));
-  if (options?.status) params.set('status', options.status);
-  if (options?.domainId) params.set('domainId', options.domainId);
-
   const filters = options ?? {};
-  return useQuery({
+  return useQuery<{ runs: unknown[]; total?: number }>({
     queryKey: queryKeys.asm.scans(filters),
-    queryFn: () => asmFetch<{ runs: unknown[]; total?: number }>(`/scans?${params.toString()}`),
+    queryFn: () => api.asm.listScans(options) as Promise<{ runs: unknown[]; total?: number }>,
     staleTime: 30_000,
   });
 }
@@ -228,7 +197,7 @@ export function useAsmStats() {
   return useQuery({
     queryKey: queryKeys.asm.stats(),
     queryFn: async () => {
-      const pgStats = await asmFetch<AsmStats>('/stats');
+      const pgStats = await api.asm.getStats();
       const osResult = await api.analytics.query({
         query: { bool: { must: [{ terms: { 'scanner.keyword': ['dnsx', 'httpx'] } }] } },
         size: 0,

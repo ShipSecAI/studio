@@ -13,6 +13,7 @@ import { asmDomains, asmAssets } from '../database/schema/asm';
 import { eq, and, isNull, desc, asc, ilike, count } from 'drizzle-orm';
 import type { AuthContext } from '../auth/types';
 import { WorkflowsService } from '../workflows/workflows.service';
+import { SystemWorkflowsService } from '../workflows/system-workflows.service';
 import { WorkflowTemplatesService } from '../workflow-templates/workflow-templates.service';
 
 const MAX_DOMAINS_PER_ORG = 50;
@@ -29,6 +30,7 @@ export class AsmService {
     @Inject(DRIZZLE_TOKEN)
     private readonly db: NodePgDatabase<typeof schema>,
     private readonly workflowsService: WorkflowsService,
+    private readonly systemWorkflowsService: SystemWorkflowsService,
     private readonly workflowTemplatesService: WorkflowTemplatesService,
   ) {}
 
@@ -271,12 +273,12 @@ export class AsmService {
       throw new NotFoundException(`Template ${templateSlug} not found`);
     }
 
-    // Look up system workflows to find one instantiated from this template
+    // Ensure system workflows exist for this org, then select by templateId only.
+    // Using slug-based matching here can pick stale/legacy workflows that no
+    // longer match the template graph and fail compile-time validation.
     const organizationId = this.requireOrganizationId(auth);
-    const workflows = await this.workflowsService.list(auth);
-    const systemWorkflow = workflows.find(
-      (w: any) => w.templateId === template.id || w.slug === templateSlug,
-    );
+    const systemWorkflows = await this.systemWorkflowsService.ensureSystemWorkflows(organizationId);
+    const systemWorkflow = systemWorkflows.find((w) => w.templateId === template.id);
 
     if (systemWorkflow) {
       return systemWorkflow.id;

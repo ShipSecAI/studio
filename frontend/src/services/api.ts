@@ -1123,6 +1123,137 @@ export const api = {
     },
   },
 
+  asm: {
+    listDomains: async (options?: { limit?: number; offset?: number }) => {
+      const response = await apiClient.listAsmDomains(options);
+      if (response.error) throw new Error('Failed to fetch ASM domains');
+      return response.data || [];
+    },
+
+    getDomain: async (id: string) => {
+      const response = await apiClient.getAsmDomain(id);
+      if (response.error) throw new Error('Failed to fetch ASM domain');
+      if (!response.data) throw new Error('ASM domain not found');
+      return response.data;
+    },
+
+    createDomain: async (body: {
+      domain: string;
+      scopeInclude?: string[];
+      scopeExclude?: string[];
+      scanNow?: boolean;
+    }) => {
+      const response = await apiClient.createAsmDomain({
+        ...body,
+        scanNow: body.scanNow ?? false,
+      });
+      if (response.error) throw new Error('Failed to create ASM domain');
+      if (!response.data) throw new Error('ASM domain creation failed');
+      return response.data;
+    },
+
+    updateDomain: async (
+      id: string,
+      body: {
+        scopeInclude?: string[];
+        scopeExclude?: string[];
+      },
+    ) => {
+      const response = await apiClient.updateAsmDomain(id, body);
+      if (response.error) throw new Error('Failed to update ASM domain');
+      if (!response.data) throw new Error('ASM domain update failed');
+      return response.data;
+    },
+
+    deleteDomain: async (id: string) => {
+      const response = await apiClient.deleteAsmDomain(id);
+      if (response.error) throw new Error('Failed to delete ASM domain');
+      if (!response.data) throw new Error('ASM domain deletion failed');
+      return response.data;
+    },
+
+    triggerDomainScan: async (id: string, body?: { templateSlug?: string }) => {
+      const response = await apiClient.triggerAsmDomainScan(id, {
+        templateSlug: body?.templateSlug ?? 'sys-attack-surface-recon',
+      });
+      if (response.error) throw new Error('Failed to trigger ASM domain scan');
+      if (!response.data) throw new Error('ASM scan trigger failed');
+      return response.data;
+    },
+
+    listScans: async (options?: {
+      limit?: number;
+      offset?: number;
+      status?: string;
+      domainId?: string;
+    }) => {
+      const response = await apiClient.listAsmScans({
+        ...options,
+        status: options?.status as 'running' | 'completed' | 'failed' | 'timed_out' | undefined,
+      });
+      if (response.error) throw new Error('Failed to fetch ASM scans');
+      return response.data || { runs: [], total: 0 };
+    },
+
+    getStats: async () => {
+      const response = await apiClient.getAsmStats();
+      if (response.error) throw new Error('Failed to fetch ASM stats');
+      if (!response.data) throw new Error('ASM stats not found');
+      return response.data;
+    },
+  },
+
+  cloudInventory: {
+    listAssets: async (options?: {
+      limit?: number;
+      offset?: number;
+      assetType?: string;
+      region?: string;
+      status?: 'active' | 'stale' | 'removed';
+      search?: string;
+      sortBy?: 'name' | 'lastSeenAt' | 'firstDiscoveredAt';
+      sortOrder?: 'asc' | 'desc';
+    }) => {
+      const response = await apiClient.listCloudAssets(options);
+      if (response.error) throw new Error('Failed to fetch cloud assets');
+      return response.data || { assets: [], total: 0, page: 1, limit: options?.limit ?? 50 };
+    },
+
+    getSummary: async () => {
+      const response = await apiClient.getCloudAssetSummary();
+      if (response.error) throw new Error('Failed to fetch cloud asset summary');
+      if (!response.data) throw new Error('Cloud asset summary not found');
+      return response.data;
+    },
+
+    getAsset: async (id: string) => {
+      const response = await apiClient.getCloudAsset(id);
+      if (response.error) throw new Error('Failed to fetch cloud asset');
+      if (!response.data) throw new Error('Cloud asset not found');
+      return response.data;
+    },
+
+    triggerSync: async (integrationId: string) => {
+      const response = await apiClient.triggerCloudSync({ integrationId });
+      if (response.error) throw new Error('Failed to trigger cloud sync');
+      if (!response.data) throw new Error('Cloud sync trigger failed');
+      return response.data;
+    },
+
+    listSyncRuns: async (options?: { limit?: number; offset?: number }) => {
+      const response = await apiClient.listCloudSyncRuns(options);
+      if (response.error) throw new Error('Failed to fetch cloud sync runs');
+      return response.data || { syncRuns: [], total: 0, page: 1, limit: options?.limit ?? 20 };
+    },
+
+    getSyncRun: async (id: string) => {
+      const response = await apiClient.getCloudSyncRun(id);
+      if (response.error) throw new Error('Failed to fetch cloud sync run');
+      if (!response.data) throw new Error('Cloud sync run not found');
+      return response.data;
+    },
+  },
+
   analytics: {
     query: async (body: {
       query?: Record<string, any>;
