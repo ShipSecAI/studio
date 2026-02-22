@@ -101,9 +101,9 @@ dev action="start":
                 echo "🚀  Starting infrastructure with OpenSearch Security..."
                 docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-secure.yml -f docker/docker-compose.dev-ports.yml up -d
 
-                # Wait for Postgres
+                # Wait for Postgres to be fully ready (not just accepting connections, but able to execute queries)
                 echo "⏳  Waiting for infrastructure..."
-                timeout 30s bash -c 'until docker exec shipsec-postgres pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done' || true
+                timeout 60s bash -c 'until docker exec shipsec-postgres psql -U shipsec -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
 
                 # Wait for OpenSearch to be healthy (security init takes longer)
                 echo "⏳  Waiting for OpenSearch security initialization..."
@@ -138,9 +138,9 @@ dev action="start":
                 # Start infrastructure (no security, with dev ports for analytics)
                 docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml up -d
 
-                # Wait for Postgres
+                # Wait for Postgres to be fully ready (not just accepting connections, but able to execute queries)
                 echo "⏳  Waiting for infrastructure..."
-                timeout 30s bash -c 'until docker exec shipsec-postgres pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done' || true
+                timeout 60s bash -c 'until docker exec shipsec-postgres psql -U shipsec -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
 
                 # Apply committed migrations before PM2 startup
                 echo "🗄️  Running database migrations..."
