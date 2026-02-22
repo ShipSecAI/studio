@@ -268,15 +268,78 @@ function inferScanner(source: Record<string, any>): string {
   return 'unknown';
 }
 
+const OPENGREP_ACRONYMS: Record<string, string> = {
+  api: 'API',
+  cors: 'CORS',
+  csrf: 'CSRF',
+  db: 'DB',
+  dns: 'DNS',
+  gcp: 'GCP',
+  html: 'HTML',
+  http: 'HTTP',
+  https: 'HTTPS',
+  iam: 'IAM',
+  ip: 'IP',
+  jwt: 'JWT',
+  ldap: 'LDAP',
+  md5: 'MD5',
+  oidc: 'OIDC',
+  os: 'OS',
+  rce: 'RCE',
+  rsa: 'RSA',
+  saml: 'SAML',
+  sast: 'SAST',
+  sql: 'SQL',
+  ssh: 'SSH',
+  ssrf: 'SSRF',
+  ssl: 'SSL',
+  tls: 'TLS',
+  url: 'URL',
+  xml: 'XML',
+  xss: 'XSS',
+};
+
+function humanizeOpenGrepRuleId(ruleId: string): string {
+  const parts = ruleId.split('.').filter(Boolean);
+  const slug = parts[parts.length - 1] || ruleId;
+  return slug
+    .replace(/[-_]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => {
+      const lower = word.toLowerCase();
+      return OPENGREP_ACRONYMS[lower] ?? `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+    })
+    .join(' ');
+}
+
+function deriveFindingTitle(source: Record<string, any>, scanner: string): string | null {
+  const rawTitle =
+    typeof source.title === 'string' && source.title.trim().length > 0 ? source.title.trim() : null;
+  const ruleId =
+    typeof source.rule_id === 'string' && source.rule_id.trim().length > 0
+      ? source.rule_id.trim()
+      : null;
+
+  // OpenGrep findings are often indexed with title === rule_id, which is not user-friendly.
+  if (scanner === 'opengrep' && ruleId && (!rawTitle || rawTitle === ruleId)) {
+    return humanizeOpenGrepRuleId(ruleId);
+  }
+
+  return rawTitle;
+}
+
 /** Parse a hit from the analytics API into a SecurityFinding */
 export function parseFinding(hit: any): SecurityFinding {
+  const scanner = inferScanner(hit._source);
   return {
     _id: hit._id,
-    scanner: inferScanner(hit._source),
+    scanner,
     finding_hash: hit._source.finding_hash ?? '',
     severity: hit._source.severity ?? 'unknown',
     status: hit._source.status ?? 'UNKNOWN',
-    title: hit._source.title ?? null,
+    title: deriveFindingTitle(hit._source, scanner),
     description: hit._source.description ?? null,
     region: hit._source.region ?? null,
     asset_key: hit._source.asset_key ?? null,
