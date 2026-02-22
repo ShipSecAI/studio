@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils';
 import { BookIcon, ChevronDownIcon } from 'lucide-react';
 
-export type SourcesProps = ComponentProps<'div'>;
+export type SourcesProps = ComponentProps<typeof Collapsible>;
 
 export const Sources = ({ className, ...props }: SourcesProps) => (
   <Collapsible className={cn('not-prose mb-4 text-primary text-xs', className)} {...props} />

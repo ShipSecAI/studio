@@ -397,6 +397,7 @@ export class StudioMcpService {
           this.monitorWorkflowRun(
             handle.runId,
             handle.temporalRunId,
+            args.workflowId,
             task.taskId,
             extra.taskStore,
             server,
@@ -633,6 +634,7 @@ export class StudioMcpService {
   private async monitorWorkflowRun(
     runId: string,
     temporalRunId: string | undefined,
+    workflowId: string,
     taskId: string,
     taskStore: any,
     server: McpServer,
@@ -684,8 +686,18 @@ export class StudioMcpService {
             resultData = runStatusPayload.failure || { reason: runStatusPayload.status };
           }
 
+          // Wrap result with run metadata so the chat UI can show a live status card.
           const resultPayload = {
-            content: [{ type: 'text', text: JSON.stringify(resultData, null, 2) }],
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  { runId, workflowId, status: runStatusPayload.status, result: resultData },
+                  null,
+                  2,
+                ),
+              },
+            ],
           };
 
           const storeStatus = taskState === 'completed' ? 'completed' : 'failed';

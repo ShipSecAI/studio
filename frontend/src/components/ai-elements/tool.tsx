@@ -41,9 +41,7 @@ export type ToolHeaderProps = {
     }
 );
 
-const statusLabels: Record<ToolPart['state'], string> = {
-  'approval-requested': 'Awaiting Approval',
-  'approval-responded': 'Responded',
+const statusLabels: Partial<Record<ToolPart['state'], string>> = {
   'input-available': 'Running',
   'input-streaming': 'Pending',
   'output-available': 'Completed',
@@ -51,9 +49,7 @@ const statusLabels: Record<ToolPart['state'], string> = {
   'output-error': 'Error',
 };
 
-const statusIcons: Record<ToolPart['state'], ReactNode> = {
-  'approval-requested': <ClockIcon className="size-4 text-yellow-600" />,
-  'approval-responded': <CheckCircleIcon className="size-4 text-blue-600" />,
+const statusIcons: Partial<Record<ToolPart['state'], ReactNode>> = {
   'input-available': <ClockIcon className="size-4 animate-pulse" />,
   'input-streaming': <CircleIcon className="size-4" />,
   'output-available': <CheckCircleIcon className="size-4 text-green-600" />,

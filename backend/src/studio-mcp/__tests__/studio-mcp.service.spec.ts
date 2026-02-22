@@ -515,6 +515,7 @@ describe('StudioMcpService Unit Tests', () => {
       const mockServer = {} as McpServer;
       const taskId = 'test-task-id';
       const runId = 'test-run-id';
+      const workflowId = 'test-workflow-id';
 
       // Mock getRunStatus to return RUNNING first, then COMPLETED
       let callCount = 0;
@@ -537,6 +538,7 @@ describe('StudioMcpService Unit Tests', () => {
         await (service as any).monitorWorkflowRun(
           runId,
           undefined,
+          workflowId,
           taskId,
           mockTaskStore,
           mockServer,
@@ -557,7 +559,21 @@ describe('StudioMcpService Unit Tests', () => {
       );
       expect(workflowsService.getRunResult).toHaveBeenCalledWith(runId, undefined, mockAuthContext);
       expect(mockTaskStore.storeTaskResult).toHaveBeenCalledWith(taskId, 'completed', {
-        content: [{ type: 'text', text: JSON.stringify({ output: 'test-output' }, null, 2) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                runId: 'test-run-id',
+                workflowId: 'test-workflow-id',
+                status: 'COMPLETED',
+                result: { output: 'test-output' },
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       });
     });
 
@@ -569,6 +585,7 @@ describe('StudioMcpService Unit Tests', () => {
 
       const taskId = 'test-task-id';
       const runId = 'test-run-id';
+      const workflowId = 'test-workflow-id';
 
       (workflowsService.getRunStatus as jest.Mock).mockResolvedValue({
         status: 'FAILED',
@@ -578,6 +595,7 @@ describe('StudioMcpService Unit Tests', () => {
       await (service as any).monitorWorkflowRun(
         runId,
         undefined,
+        workflowId,
         taskId,
         mockTaskStore,
         {} as McpServer,
@@ -587,7 +605,21 @@ describe('StudioMcpService Unit Tests', () => {
       // updateTaskStatus is NOT called for terminal states — storeTaskResult handles it.
       expect(mockTaskStore.updateTaskStatus).not.toHaveBeenCalled();
       expect(mockTaskStore.storeTaskResult).toHaveBeenCalledWith(taskId, 'failed', {
-        content: [{ type: 'text', text: JSON.stringify({ message: 'boom' }, null, 2) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                runId: 'test-run-id',
+                workflowId: 'test-workflow-id',
+                status: 'FAILED',
+                result: { message: 'boom' },
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       });
     });
   });

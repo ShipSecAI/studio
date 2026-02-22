@@ -36,6 +36,10 @@ import {
   ToolInput,
   ToolOutput,
 } from '@/components/ai-elements/tool';
+import {
+  WorkflowRunStatusCard,
+  parseWorkflowRunOutput,
+} from '@/components/ai-elements/workflow-run-status-card';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
 import {
   PromptInput,
@@ -140,22 +144,30 @@ function ChatMessageItem({ message, isStreaming, userImageUrl }: ChatMessageProp
                       part.preliminary === true
                         ? 'input-available'
                         : part.state;
+                    const partToolName = 'toolName' in part ? (part.toolName as string) : undefined;
+
+                    // Detect run_workflow completed output to show a live status card
+                    const workflowRun =
+                      partToolName === 'run_workflow' &&
+                      part.state === 'output-available' &&
+                      'output' in part
+                        ? parseWorkflowRunOutput((part as any).output)
+                        : null;
                     return (
                       <Tool key={toolId}>
                         <ToolHeader
                           type={part.type as 'tool-invocation'}
                           state={displayState}
-                          title={
-                            'toolName' in part
-                              ? (part.toolName as string)
-                              : part.type.split('-').slice(1).join('-')
-                          }
+                          title={partToolName ?? part.type.split('-').slice(1).join('-')}
                         />
                         <ToolContent>
                           {'input' in part && part.input !== undefined && (
                             <ToolInput input={part.input} />
                           )}
-                          {(part.state === 'output-available' || part.state === 'output-error') &&
+                          {workflowRun ? (
+                            <WorkflowRunStatusCard run={workflowRun} />
+                          ) : (
+                            (part.state === 'output-available' || part.state === 'output-error') &&
                             'output' in part && (
                               <ToolOutput
                                 output={part.output}
@@ -163,7 +175,8 @@ function ChatMessageItem({ message, isStreaming, userImageUrl }: ChatMessageProp
                                   'errorText' in part ? (part.errorText as string) : undefined
                                 }
                               />
-                            )}
+                            )
+                          )}
                         </ToolContent>
                       </Tool>
                     );
