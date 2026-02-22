@@ -36,7 +36,7 @@ export class ShipSecApiClient {
   private baseUrl: string;
 
   constructor(config: ClientConfig = {}) {
-    this.baseUrl = config.baseUrl ?? 'http://localhost:3211';
+    this.baseUrl = config.baseUrl || 'http://localhost:3211';
     
     this.client = createClient<paths>({
       baseUrl: this.baseUrl,
@@ -62,7 +62,6 @@ export class ShipSecApiClient {
 
   buildUrl(path: string): string {
     const normalized = path.startsWith('/') ? path : `/${path}`;
-    if (!this.baseUrl) return normalized;
     return new URL(normalized, this.baseUrl).toString();
   }
 

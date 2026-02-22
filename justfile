@@ -85,11 +85,6 @@ dev action="start":
                 exit 1
             fi
 
-            # Auto-init instance env files if missing (never overwrites)
-            if [ "$INST" != "0" ] || [ ! -d ".instances/instance-0" ]; then
-                ./scripts/instance-env.sh init "$INST"
-            fi
-
             if [ "$SECURE_MODE" = "true" ]; then
                 echo "🔐  Starting development environment (Clerk auth, instance ${INST})..."
 
@@ -113,6 +108,11 @@ dev action="start":
                 # Wait for OpenSearch to be healthy (security init takes longer)
                 echo "⏳  Waiting for OpenSearch security initialization..."
                 timeout 120s bash -c 'until docker exec shipsec-opensearch curl -sf -u admin:${OPENSEARCH_ADMIN_PASSWORD:-admin} --cacert /usr/share/opensearch/config/certs/root-ca.pem https://localhost:9200/_cluster/health >/dev/null 2>&1; do sleep 2; done' || true
+
+                # Run database migrations interactively (before PM2, so prompts work)
+                echo "🗄️  Running database migrations..."
+                DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/shipsec_instance_${INST}" \
+                    bun --cwd=backend run migration:push
 
                 # Update git SHA and start PM2 with security enabled
                 ./scripts/set-git-sha.sh || true
@@ -141,6 +141,11 @@ dev action="start":
                 # Wait for Postgres
                 echo "⏳  Waiting for infrastructure..."
                 timeout 30s bash -c 'until docker exec shipsec-postgres pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done' || true
+
+                # Run database migrations interactively (before PM2, so prompts work)
+                echo "🗄️  Running database migrations..."
+                DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/shipsec_instance_${INST}" \
+                    bun --cwd=backend run migration:push
 
                 # Update git SHA and start PM2
                 ./scripts/set-git-sha.sh || true
@@ -546,46 +551,6 @@ build:
     docker compose -f docker/docker-compose.full.yml build
     echo "✅  Images built"
 
-# Manage active multi-instance selection
-instance action="show" value="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    case "{{action}}" in
-        show)
-            ./scripts/active-instance.sh get
-            ;;
-        use)
-            if [ -z "{{value}}" ]; then
-                echo "Usage: just instance use <0-9>"
-                exit 1
-            fi
-            ./scripts/active-instance.sh set "{{value}}"
-            ;;
-        *)
-            echo "Usage: just instance [show|use <0-9>]"
-            exit 1
-            ;;
-    esac
-
-# === Instance Environment ===
-
-# Initialize instance env files (creates from .env or .env.example, never overwrites)
-instance-init instance="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    INST="{{instance}}"
-    if [ -z "$INST" ]; then
-        INST="$(./scripts/active-instance.sh get)"
-    fi
-    ./scripts/instance-env.sh init "$INST"
-
-# Manage instance env files (init, update, copy, show)
-instance-env +args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    ./scripts/instance-env.sh {{args}}
-
 # === Help ===
 
 help:
@@ -620,15 +585,6 @@ help:
     @echo "  just infra down    Stop infrastructure"
     @echo "  just infra logs    View infrastructure logs"
     @echo "  just infra clean   Remove infrastructure data"
-    @echo ""
-    @echo "Multi-Instance:"
-    @echo "  just instance show                  Show active instance"
-    @echo "  just instance use N                 Persist active instance in .shipsec-instance"
-    @echo "  just instance-init [N]               Init env files for instance N"
-    @echo "  just instance-env init [N] [--force]  Generate env files"
-    @echo "  just instance-env update [N]          Patch instance-specific vars"
-    @echo "  just instance-env copy SRC DEST       Copy env between instances"
-    @echo "  just instance-env show [N]            Show instance config"
     @echo ""
     @echo "Utilities:"
     @echo "  just status        Show status of all services"
