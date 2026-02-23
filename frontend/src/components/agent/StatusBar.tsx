@@ -500,6 +500,12 @@ interface StatusBarProps {
 
 export function StatusBar({ className }: StatusBarProps) {
   const showPlaceholderIntegrations = false;
+  const showPlaceholderStatus = false;
+
+  if (!showPlaceholderStatus) {
+    return null;
+  }
+
   const totalFindings =
     findingsSummary.critical + findingsSummary.high + findingsSummary.medium + findingsSummary.low;
   const totalRepos = githubOrgs.reduce((sum, org) => sum + org.repos, 0);
