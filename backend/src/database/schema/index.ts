@@ -13,6 +13,7 @@ export * from './integrations';
 export * from './workflow-schedules';
 export * from './human-input-requests';
 export * from './webhooks';
+export * from './audit-logs';
 
 export * from './terminal-records';
 export * from './agent-trace-events';
@@ -20,8 +21,8 @@ export * from './mcp-servers';
 
 export * from './node-io';
 export * from './organization-settings';
+
+export * from './chat-sessions';
+export * from './chat-messages';
+export * from './chat-partial-responses';
 export * from './github-app';
-export * from './workflow-templates';
-export * from './user-settings';
-export * from './asm';
-export * from './asset-discovery';

@@ -1,8 +1,9 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger, NotFoundException } from '@nestjs/common';
 import type { UIMessage } from 'ai';
 import type { ServerResponse } from 'node:http';
 
 import { ChatSessionRepository } from './chat-session.repository';
+import { ChatPartialRepository } from './chat-partial.repository';
 import { ChatStreamService } from './chat-stream.service';
 import { TemporalService } from '../temporal/temporal.service';
 import type { AuthContext } from '../auth/types';
@@ -22,6 +23,7 @@ export class ChatService implements OnModuleInit {
 
   constructor(
     private readonly sessionRepository: ChatSessionRepository,
+    private readonly partialRepository: ChatPartialRepository,
     private readonly chatStreamService: ChatStreamService,
     private readonly temporalService: TemporalService,
   ) {}
@@ -58,6 +60,7 @@ export class ChatService implements OnModuleInit {
       id: session.id,
       title: session.title,
       status: session.status,
+      processingStatus: session.processingStatus,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
     };
@@ -72,6 +75,7 @@ export class ChatService implements OnModuleInit {
       id: s.id,
       title: s.title,
       status: s.status,
+      processingStatus: s.processingStatus,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
     }));
@@ -86,6 +90,7 @@ export class ChatService implements OnModuleInit {
       id: session.id,
       title: session.title,
       status: session.status,
+      processingStatus: session.processingStatus,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
     };
@@ -100,6 +105,7 @@ export class ChatService implements OnModuleInit {
       id: session.id,
       title: session.title,
       status: session.status,
+      processingStatus: session.processingStatus,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
     };
@@ -126,7 +132,7 @@ export class ChatService implements OnModuleInit {
     });
 
     const messages = await this.sessionRepository.getMessages(sessionId);
-    return messages.map((m) => ({
+    return messages.map((m: any) => ({
       id: m.id,
       role: m.role,
       parts: m.parts,
@@ -155,6 +161,125 @@ export class ChatService implements OnModuleInit {
     res.end();
   }
 
+  // ---------------------------------------------------------------------------
+  // Detachable session support
+  // ---------------------------------------------------------------------------
+
+  async getProcessingStatus(sessionId: string, auth: AuthContext) {
+    const session = await this.sessionRepository.getSession(sessionId, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+    return { processingStatus: session.processingStatus };
+  }
+
+  async getPartialResponse(sessionId: string, auth: AuthContext) {
+    await this.sessionRepository.getSession(sessionId, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+    const partial = await this.partialRepository.get(sessionId);
+    if (!partial) {
+      throw new NotFoundException('No partial response in progress');
+    }
+    return { parts: partial.parts, updatedAt: partial.updatedAt };
+  }
+
+  /** Internal: called by worker to flush accumulated partial response */
+  async upsertPartialResponse(sessionId: string, parts: unknown[]) {
+    await this.partialRepository.upsert(sessionId, parts);
+  }
+
+  /** Internal: called by worker on completion/error to clean up */
+  async clearPartialResponse(sessionId: string) {
+    await this.partialRepository.delete(sessionId);
+    await this.sessionRepository.setProcessingStatus(sessionId, 'idle');
+  }
+
+  /** Stream live pub/sub events to an SSE or NDJSON HTTP response */
+  async streamLiveToResponse(
+    sessionId: string,
+    format: 'sse' | 'ndjson',
+    auth: AuthContext,
+    res: ServerResponse,
+  ): Promise<void> {
+    const session = await this.sessionRepository.getSession(sessionId, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+
+    const contentType = format === 'ndjson' ? 'application/x-ndjson' : 'text/event-stream';
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    // If session is not processing, return immediately
+    if (session.processingStatus !== 'processing') {
+      if (format === 'ndjson') {
+        res.write(JSON.stringify({ type: 'status', status: 'idle' }) + '\n');
+      } else {
+        res.write(`data: ${JSON.stringify({ type: 'status', status: 'idle' })}\n\n`);
+        res.write('data: [DONE]\n\n');
+      }
+      res.end();
+      return;
+    }
+
+    const writeEvent = (data: string) => {
+      if (format === 'ndjson') {
+        res.write(data + '\n');
+      } else {
+        res.write(`data: ${data}\n\n`);
+      }
+    };
+
+    const subscription = this.chatStreamService.subscribe(sessionId, {
+      onEvent: (event) => {
+        try {
+          writeEvent(JSON.stringify(event));
+        } catch {
+          // Best-effort streaming
+        }
+      },
+      onComplete: () => {
+        if (format === 'sse') {
+          res.write('data: [DONE]\n\n');
+        }
+        res.end();
+      },
+      onError: (err) => {
+        this.logger.error(`Live stream error for session ${sessionId}:`, err);
+        writeEvent(JSON.stringify({ type: 'error', errorText: String(err) }));
+        if (format === 'sse') {
+          res.write('data: [DONE]\n\n');
+        }
+        res.end();
+      },
+    });
+
+    // Timeout: if no completion in 5 minutes, end the stream
+    const timer = setTimeout(() => {
+      subscription.unsubscribe();
+      writeEvent(JSON.stringify({ type: 'status', status: 'timeout' }));
+      if (format === 'sse') {
+        res.write('data: [DONE]\n\n');
+      }
+      res.end();
+    }, 300_000);
+
+    res.on('close', () => {
+      clearTimeout(timer);
+      subscription.unsubscribe();
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Streaming chat (Temporal-backed, original active-tab flow)
+  // ---------------------------------------------------------------------------
+
   async streamChatToResponse(
     sessionId: string,
     messages: UIMessage[],
@@ -166,6 +291,9 @@ export class ChatService implements OnModuleInit {
       userId: auth.userId ?? 'anonymous',
       organizationId: auth.organizationId,
     });
+
+    // Mark session as processing
+    await this.sessionRepository.setProcessingStatus(sessionId, 'processing');
 
     // Save the user message to DB
     const lastMessage = messages[messages.length - 1];

@@ -25,6 +25,7 @@ import type { UIMessage } from 'ai';
 import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
 import { StatusBar } from '@/components/agent/StatusBar';
 import { useToast } from '@/components/ui/use-toast';
+import { useChatReconnect } from '@/hooks/useChatReconnect';
 
 // AI Elements
 import {
@@ -451,6 +452,29 @@ export function ChatInterface() {
     messages: initialMessages,
   });
 
+  // Reconnect to in-progress streams on refresh / second tab
+  const { partialMessage, isReconnecting, hasPartial } = useChatReconnect(
+    // Only reconnect when the user hasn't just sent a message (status would be 'streaming')
+    status === 'streaming' ? null : currentSessionId,
+  );
+
+  // Merge messages: normal useChat messages + any reconnected partial
+  const displayMessages = useMemo(() => {
+    if (!partialMessage || status === 'streaming') return messages;
+    // If the last message from the server matches the partial's accumulated text,
+    // skip appending (the server has already persisted it).
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.role === 'assistant' && lastMsg.id !== partialMessage.id) {
+      return [...messages, partialMessage];
+    }
+    if (messages.length === 0 && partialMessage) {
+      return [partialMessage];
+    }
+    return messages;
+  }, [messages, partialMessage, status]);
+
+  const effectiveStatus = isReconnecting ? 'streaming' : status;
+
   // Reload sessions when streaming finishes to pick up AI-generated title
   const prevStatusRef = useRef(status);
   useEffect(() => {
@@ -617,19 +641,19 @@ export function ChatInterface() {
       <div className="flex-1 flex flex-row overflow-hidden min-h-0">
         {/* Content Area */}
         <div className="flex-1 overflow-hidden flex flex-col relative min-w-0">
-          {messages.length === 0 ? (
+          {displayMessages.length === 0 && !hasPartial ? (
             <EmptyState userName={getUserName(user)} onSelectPrompt={handleSelectPrompt} />
           ) : (
             <Conversation className="flex-1">
               <ConversationContent className="max-w-5xl mx-auto gap-6 px-4 py-6 md:px-8">
-                {messages.map((msg, idx) => (
+                {displayMessages.map((msg, idx) => (
                   <ChatMessageItem
                     key={msg.id}
                     message={msg}
                     isStreaming={
-                      status === 'streaming' &&
+                      effectiveStatus === 'streaming' &&
                       msg.role === 'assistant' &&
-                      idx === messages.length - 1
+                      idx === displayMessages.length - 1
                     }
                     userImageUrl={userImageUrl}
                   />
@@ -691,7 +715,7 @@ export function ChatInterface() {
                     </PromptInputButton>
                   </div>
                   <div className="flex items-center gap-1">
-                    <PromptInputSubmit status={status} onStop={stop} />
+                    <PromptInputSubmit status={effectiveStatus} onStop={stop} />
                   </div>
                 </PromptInputFooter>
               </PromptInput>

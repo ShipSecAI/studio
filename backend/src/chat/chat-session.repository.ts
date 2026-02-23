@@ -133,6 +133,13 @@ export class ChatSessionRepository {
       .where(eq(chatSessionsTable.id, id));
   }
 
+  async setProcessingStatus(id: string, status: 'idle' | 'processing'): Promise<void> {
+    await this.db
+      .update(chatSessionsTable)
+      .set({ processingStatus: status, updatedAt: sql`now()` })
+      .where(eq(chatSessionsTable.id, id));
+  }
+
   async saveMessage(
     sessionId: string,
     message: { role: string; parts: unknown[] },

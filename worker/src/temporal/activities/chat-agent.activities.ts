@@ -101,6 +101,45 @@ function publishStreamChunk(sessionId: string, chunk: string): void {
   }
 }
 
+/**
+ * Flush the accumulated partial response parts to the backend so that
+ * reconnecting clients (refresh / second tab / CLI) can read the progress.
+ */
+async function flushPartialResponse(sessionId: string, parts: unknown[]): Promise<void> {
+  if (!globalBackendUrl) return;
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
+  try {
+    await fetch(`${globalBackendUrl}/api/v1/chat/sessions/${sessionId}/partial`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-token': internalToken,
+      },
+      body: JSON.stringify({ parts }),
+    });
+  } catch {
+    // Best-effort flush — don't fail the activity
+  }
+}
+
+/** Notify the backend that streaming is complete so it clears partial and resets status. */
+async function notifySessionComplete(sessionId: string): Promise<void> {
+  if (!globalBackendUrl) return;
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
+  try {
+    await fetch(`${globalBackendUrl}/api/v1/chat/sessions/${sessionId}/complete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-token': internalToken,
+      },
+      body: '{}',
+    });
+  } catch {
+    // Best-effort
+  }
+}
+
 /** Create an MCP client connected to the backend's Studio MCP server */
 async function createStudioMcpClient(organizationId?: string) {
   if (!globalBackendUrl) throw new Error('Backend URL not initialized for chat agent activities');
@@ -203,23 +242,40 @@ export async function runChatAgentStepActivity(
     const pendingTaskEvents = new Map<string, TaskToolEvent[]>();
     const startedToolCalls = new Set<string>();
 
+    // Accumulate parts for periodic flush to Postgres
+    const accumulatedParts: any[] = [];
+    let lastFlushTime = Date.now();
+    const FLUSH_INTERVAL_MS = 500;
+
     const publishTaskEvent = (event: TaskToolEvent) => {
+      const output = {
+        source: 'mcp-task' as const,
+        eventType: event.type,
+        taskId: event.taskId,
+        status: event.status,
+        statusMessage: event.statusMessage,
+        pollInterval: event.pollInterval,
+      };
+
       publishStreamChunk(
         sessionId,
         JSON.stringify({
           type: 'tool-progress',
           toolCallId: event.toolCallId,
           toolName: event.toolName,
-          output: {
-            source: 'mcp-task',
-            eventType: event.type,
-            taskId: event.taskId,
-            status: event.status,
-            statusMessage: event.statusMessage,
-            pollInterval: event.pollInterval,
-          },
+          output,
         }),
       );
+
+      // Update the matching tool invocation part in accumulated history so DB has the newest state
+      const toolPart = accumulatedParts.find(
+        (p: any) => p.type === 'tool-invocation' && p.toolCallId === event.toolCallId,
+      );
+      if (toolPart) {
+        toolPart.state = 'output-available';
+        toolPart.output = output;
+        toolPart.preliminary = true;
+      }
     };
 
     const flushPendingTaskEvents = (toolCallId: string) => {
@@ -353,12 +409,21 @@ export async function runChatAgentStepActivity(
 
       // Stream UIMessage chunks to Redis in real-time.
       // These chunks use the same format the frontend SSE expects.
+      // We already have accumulatedParts from the top level.
+
       for await (const chunk of uiStream) {
         Context.current().heartbeat('stream-chunk');
         const c = chunk as any;
 
         if (c.type === 'text-delta') {
           publishStreamChunk(sessionId, JSON.stringify({ type: 'text-delta', text: c.delta }));
+          // Accumulate text delta into accumulated parts
+          const lastPart = accumulatedParts[accumulatedParts.length - 1] as any;
+          if (lastPart?.type === 'text') {
+            lastPart.text += c.delta;
+          } else {
+            accumulatedParts.push({ type: 'text', text: c.delta });
+          }
         } else if (c.type === 'tool-input-start') {
           markToolCallStarted(c.toolCallId);
           publishStreamChunk(
@@ -380,6 +445,13 @@ export async function runChatAgentStepActivity(
               args: c.input,
             }),
           );
+          accumulatedParts.push({
+            type: 'tool-invocation',
+            toolCallId: c.toolCallId,
+            toolName: c.toolName,
+            state: 'input-available',
+            input: c.input,
+          });
         } else if (c.type === 'tool-output-available') {
           publishStreamChunk(
             sessionId,
@@ -390,6 +462,15 @@ export async function runChatAgentStepActivity(
               preliminary: c.preliminary,
             }),
           );
+          // Update the matching tool invocation part
+          const toolPart = accumulatedParts.find(
+            (p: any) => p.type === 'tool-invocation' && p.toolCallId === c.toolCallId,
+          ) as any;
+          if (toolPart) {
+            toolPart.state = 'output-available';
+            toolPart.output = c.output;
+            toolPart.preliminary = c.preliminary === true;
+          }
         } else if (c.type === 'tool-output-error') {
           publishStreamChunk(
             sessionId,
@@ -399,11 +480,31 @@ export async function runChatAgentStepActivity(
               errorText: c.errorText,
             }),
           );
+          const toolPart = accumulatedParts.find(
+            (p: any) => p.type === 'tool-invocation' && p.toolCallId === c.toolCallId,
+          ) as any;
+          if (toolPart) {
+            toolPart.state = 'output-error';
+            toolPart.errorText = c.errorText;
+          }
+        }
+
+        // Periodic flush to Postgres
+        const now = Date.now();
+        if (now - lastFlushTime >= FLUSH_INTERVAL_MS && accumulatedParts.length > 0) {
+          flushPartialResponse(sessionId, accumulatedParts).catch(() => {});
+          lastFlushTime = now;
         }
       }
 
-      // Publish completion
+      // Final flush of accumulated parts
+      if (accumulatedParts.length > 0) {
+        await flushPartialResponse(sessionId, accumulatedParts);
+      }
+
+      // Publish completion and notify backend
       publishStreamChunk(sessionId, JSON.stringify({ type: 'status', status: 'idle' }));
+      await notifySessionComplete(sessionId);
 
       // Use the SDK-provided responseMessage (properly formatted UIMessage with dynamic-tool parts)
       const assistantMessages: ChatUIMessage[] = [];
@@ -435,8 +536,9 @@ export async function runChatAgentStepActivity(
           error.message,
         );
 
-        // Publish completion even on error
+        // Publish completion even on error and notify backend
         publishStreamChunk(sessionId, JSON.stringify({ type: 'status', status: 'idle' }));
+        await notifySessionComplete(sessionId);
 
         // Return a friendly error message to the user
         return {

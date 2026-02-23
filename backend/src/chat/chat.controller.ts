@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Delete, Body, Param, Res } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Delete, Body, Param, Query, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ZodValidationPipe } from 'nestjs-zod';
 import type { Response } from 'express';
@@ -66,5 +66,44 @@ export class ChatController {
     @Res() res: Response,
   ) {
     await this.chatService.streamChatToResponse(id, body.messages, auth, res);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Detachable session endpoints
+  // ---------------------------------------------------------------------------
+
+  @Get(':id/status')
+  async getProcessingStatus(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
+    return this.chatService.getProcessingStatus(id, auth);
+  }
+
+  @Get(':id/partial')
+  async getPartialResponse(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
+    return this.chatService.getPartialResponse(id, auth);
+  }
+
+  @Get(':id/stream')
+  async streamLive(
+    @Param('id') id: string,
+    @Query('format') format: string | undefined,
+    @CurrentAuth() auth: AuthContext,
+    @Res() res: Response,
+  ) {
+    const fmt = format === 'ndjson' ? 'ndjson' : 'sse';
+    await this.chatService.streamLiveToResponse(id, fmt, auth, res);
+  }
+
+  /** Internal endpoint: worker flushes partial response during streaming */
+  @Post(':id/partial')
+  async upsertPartialResponse(@Param('id') id: string, @Body() body: { parts: unknown[] }) {
+    await this.chatService.upsertPartialResponse(id, body.parts);
+    return { success: true };
+  }
+
+  /** Internal endpoint: worker signals completion and cleans up partial */
+  @Post(':id/complete')
+  async completeSession(@Param('id') id: string) {
+    await this.chatService.clearPartialResponse(id);
+    return { success: true };
   }
 }

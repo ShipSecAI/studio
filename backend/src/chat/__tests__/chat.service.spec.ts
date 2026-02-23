@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, jest } from 'bun:test';
 import { ChatService } from '../chat.service';
 import type { ChatSessionRepository } from '../chat-session.repository';
+import type { ChatPartialRepository } from '../chat-partial.repository';
 import type { ChatStreamService } from '../chat-stream.service';
 import type { TemporalService } from '../../temporal/temporal.service';
 import type { AuthContext } from '../../auth/types';
@@ -8,6 +9,7 @@ import type { AuthContext } from '../../auth/types';
 describe('ChatService Unit Tests', () => {
   let service: ChatService;
   let sessionRepository: ChatSessionRepository;
+  let partialRepository: ChatPartialRepository;
   let chatStreamService: ChatStreamService;
   let temporalService: TemporalService;
 
@@ -57,6 +59,12 @@ describe('ChatService Unit Tests', () => {
       setTemporalWorkflowId: jest.fn().mockResolvedValue(undefined),
     } as unknown as ChatSessionRepository;
 
+    partialRepository = {
+      upsert: jest.fn().mockResolvedValue(undefined),
+      get: jest.fn().mockResolvedValue(null),
+      delete: jest.fn().mockResolvedValue(undefined),
+    } as unknown as ChatPartialRepository;
+
     chatStreamService = {
       subscribe: jest.fn().mockReturnValue({ unsubscribe: jest.fn() }),
     } as unknown as ChatStreamService;
@@ -70,7 +78,12 @@ describe('ChatService Unit Tests', () => {
       terminateChatWorkflow: jest.fn().mockResolvedValue(undefined),
     } as unknown as TemporalService;
 
-    service = new ChatService(sessionRepository, chatStreamService, temporalService);
+    service = new ChatService(
+      sessionRepository,
+      partialRepository,
+      chatStreamService,
+      temporalService,
+    );
   });
 
   it('should be defined', () => {
