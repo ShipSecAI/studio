@@ -182,6 +182,108 @@ interface ComponentMetadataSnapshot {
   inputs?: ComponentInputMetadata[];
 }
 
+function getNestedValue(source: unknown, path: string[]): unknown {
+  if (path.length === 0) return source;
+  let current: unknown = source;
+  for (const segment of path) {
+    if (!segment) return undefined;
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[segment];
+    if (current === undefined) return undefined;
+  }
+  return current;
+}
+
+function resolveTemplateExpression(
+  expression: string,
+  results: Map<string, unknown>,
+): { resolved: boolean; value: unknown } {
+  const segments = expression
+    .split('.')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+  if (segments.length === 0) {
+    return { resolved: false, value: undefined };
+  }
+
+  const [sourceRef, ...path] = segments;
+  if (!results.has(sourceRef)) {
+    return { resolved: false, value: undefined };
+  }
+
+  const sourceOutput = results.get(sourceRef);
+  let value = getNestedValue(sourceOutput, path);
+
+  // Back-compat: older compiled graphs reference entry.runtimeInputs.<id>, while
+  // current entrypoint outputs are flattened as entry.<id>.
+  if (
+    value === undefined &&
+    path.length >= 2 &&
+    path[0] === 'runtimeInputs' &&
+    sourceOutput &&
+    typeof sourceOutput === 'object' &&
+    !Array.isArray(sourceOutput) &&
+    !Object.prototype.hasOwnProperty.call(sourceOutput, 'runtimeInputs')
+  ) {
+    value = getNestedValue(sourceOutput, path.slice(1));
+  }
+
+  return { resolved: true, value };
+}
+
+function resolveTemplatesInValue(value: unknown, results: Map<string, unknown>): unknown {
+  if (typeof value === 'string') {
+    const matches = Array.from(value.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g));
+    if (matches.length === 0) {
+      return value;
+    }
+
+    const first = matches[0];
+    const isSingleTemplate = first[0].length === value.length && first.index === 0;
+    if (isSingleTemplate) {
+      const resolved = resolveTemplateExpression(first[1], results);
+      if (resolved.resolved) {
+        return resolved.value;
+      }
+      return value;
+    }
+
+    let resolvedAny = false;
+    const replaced = value.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (fullMatch, rawExpr) => {
+      const resolved = resolveTemplateExpression(rawExpr, results);
+      if (!resolved.resolved) {
+        return fullMatch;
+      }
+      resolvedAny = true;
+      if (resolved.value === null || resolved.value === undefined) {
+        return '';
+      }
+      if (typeof resolved.value === 'string') {
+        return resolved.value;
+      }
+      return JSON.stringify(resolved.value);
+    });
+
+    return resolvedAny ? replaced : value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveTemplatesInValue(item, results));
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+      key,
+      resolveTemplatesInValue(item, results),
+    ]);
+    return Object.fromEntries(entries);
+  }
+
+  return value;
+}
+
 export function buildActionPayload(
   action: WorkflowAction,
   results: Map<string, unknown>,
@@ -244,5 +346,8 @@ export function buildActionPayload(
     }
   }
 
-  return { inputs, params, warnings, manualOverrides };
+  const resolvedInputs = resolveTemplatesInValue(inputs, results) as Record<string, unknown>;
+  const resolvedParams = resolveTemplatesInValue(params, results) as Record<string, unknown>;
+
+  return { inputs: resolvedInputs, params: resolvedParams, warnings, manualOverrides };
 }
