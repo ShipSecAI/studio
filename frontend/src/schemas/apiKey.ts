@@ -13,6 +13,9 @@ export const CreateApiKeyInputSchema = z.object({
       read: z.boolean().default(false),
       cancel: z.boolean().default(false),
     }),
+    audit: z.object({
+      read: z.boolean().default(false),
+    }),
   }),
   expiresAt: z.string().optional(), // ISO date string
   rateLimit: z.number().int().positive().optional(),
@@ -34,6 +37,11 @@ export const UpdateApiKeyInputSchema = z.object({
         read: z.boolean().optional(),
         cancel: z.boolean().optional(),
       }),
+      audit: z
+        .object({
+          read: z.boolean().optional(),
+        })
+        .optional(),
     })
     .optional(),
   isActive: z.boolean().optional(),

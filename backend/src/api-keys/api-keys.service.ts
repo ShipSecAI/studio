@@ -14,6 +14,7 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import type { CreateApiKeyDto, ListApiKeysQueryDto, UpdateApiKeyDto } from './dto/api-key.dto';
 import type { AuthContext } from '../auth/types';
+import { AuditLogService } from '../audit/audit-log.service';
 
 const KEY_PREFIX = 'sk_live_';
 
@@ -24,6 +25,7 @@ export class ApiKeysService {
   constructor(
     @Inject(DRIZZLE_TOKEN)
     private readonly db: NodePgDatabase<typeof schema>,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async create(auth: AuthContext, dto: CreateApiKeyDto) {
@@ -50,6 +52,17 @@ export class ApiKeysService {
         isActive: true,
       })
       .returning();
+
+    this.auditLogService.record(auth, {
+      action: 'api_key.create',
+      resourceType: 'api_key',
+      resourceId: apiKey.id,
+      resourceName: apiKey.name,
+      metadata: {
+        isActive: apiKey.isActive,
+        expiresAt: apiKey.expiresAt?.toISOString() ?? null,
+      },
+    });
 
     return { apiKey, plainKey };
   }
@@ -109,6 +122,23 @@ export class ApiKeysService {
       throw new NotFoundException('API key not found');
     }
 
+    const action =
+      dto.isActive === false
+        ? 'api_key.revoke'
+        : dto.isActive === true
+          ? 'api_key.reactivate'
+          : 'api_key.update';
+    this.auditLogService.record(auth, {
+      action,
+      resourceType: 'api_key',
+      resourceId: apiKey.id,
+      resourceName: apiKey.name,
+      metadata: {
+        updatedFields: Object.keys(dto),
+        isActive: apiKey.isActive,
+      },
+    });
+
     return apiKey;
   }
 
@@ -117,6 +147,13 @@ export class ApiKeysService {
       throw new NotFoundException('API key not found');
     }
 
+    const existing = await this.db
+      .select()
+      .from(apiKeys)
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.organizationId, auth.organizationId)))
+      .limit(1)
+      .then((rows) => rows[0] ?? null);
+
     const result = await this.db
       .delete(apiKeys)
       .where(and(eq(apiKeys.id, id), eq(apiKeys.organizationId, auth.organizationId)));
@@ -124,6 +161,13 @@ export class ApiKeysService {
     if (result.rowCount === 0) {
       throw new NotFoundException('API key not found');
     }
+
+    this.auditLogService.record(auth, {
+      action: 'api_key.delete',
+      resourceType: 'api_key',
+      resourceId: id,
+      resourceName: existing?.name ?? null,
+    });
   }
 
   async validateKey(plainKey: string): Promise<ApiKey | null> {

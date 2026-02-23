@@ -118,13 +118,32 @@ export class AuthGuard implements CanActivate {
       return null;
     }
 
+    const permissions = (apiKey.permissions ?? {}) as any;
+    const normalizedPermissions = {
+      workflows: {
+        run: Boolean(permissions.workflows?.run),
+        list: Boolean(permissions.workflows?.list),
+        read: Boolean(permissions.workflows?.read),
+        create: Boolean(permissions.workflows?.create),
+        update: Boolean(permissions.workflows?.update),
+        delete: Boolean(permissions.workflows?.delete),
+      },
+      runs: {
+        read: Boolean(permissions.runs?.read),
+        cancel: Boolean(permissions.runs?.cancel),
+      },
+      audit: {
+        read: Boolean(permissions.audit?.read),
+      },
+    };
+
     return {
       userId: apiKey.id,
       organizationId: apiKey.organizationId,
       roles: ['MEMBER'], // API keys have MEMBER role by default
       isAuthenticated: true,
       provider: 'api-key',
-      apiKeyPermissions: apiKey.permissions,
+      apiKeyPermissions: normalizedPermissions,
     };
   }
 }

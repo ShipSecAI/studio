@@ -10,6 +10,7 @@ import {
   Post,
   ParseUUIDPipe,
   Query,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
@@ -84,21 +85,21 @@ export class McpGroupsController {
   @ApiOperation({ summary: 'Create a new MCP group (admin only)' })
   @ApiCreatedResponse({ type: McpGroupResponse })
   async createGroup(
-    @CurrentAuth() _auth: AuthContext | null,
+    @CurrentAuth() auth: AuthContext | null,
     @Body() body: CreateMcpGroupDto,
   ): Promise<McpGroupResponse> {
-    return this.mcpGroupsService.createGroup(body);
+    return this.mcpGroupsService.createGroup(auth, body);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update an MCP group' })
   @ApiOkResponse({ type: McpGroupResponse })
   async updateGroup(
-    @CurrentAuth() _auth: AuthContext | null,
+    @CurrentAuth() auth: AuthContext | null,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: UpdateMcpGroupDto,
   ): Promise<McpGroupResponse> {
-    return this.mcpGroupsService.updateGroup(id, body);
+    return this.mcpGroupsService.updateGroup(auth, id, body);
   }
 
   @Delete(':id')
@@ -107,10 +108,10 @@ export class McpGroupsController {
   @ApiOperation({ summary: 'Delete an MCP group (admin only)' })
   @ApiNoContentResponse()
   async deleteGroup(
-    @CurrentAuth() _auth: AuthContext | null,
+    @CurrentAuth() auth: AuthContext | null,
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<void> {
-    await this.mcpGroupsService.deleteGroup(id);
+    await this.mcpGroupsService.deleteGroup(auth, id);
   }
 
   // Group-Server relationship endpoints
@@ -177,10 +178,13 @@ export class McpGroupsController {
   @ApiOperation({ summary: 'Import a group template (admin only)' })
   @ApiOkResponse({ type: ImportGroupTemplateResponse })
   async importTemplate(
-    @CurrentAuth() _auth: AuthContext | null,
+    @CurrentAuth() auth: AuthContext | null,
     @Param('slug') slug: string,
     @Body() body: ImportTemplateRequestDto,
   ): Promise<ImportGroupTemplateResponse> {
-    return this.mcpGroupsService.importTemplate(slug, body);
+    if (!auth?.organizationId) {
+      throw new UnauthorizedException('Organization context is required to import a template');
+    }
+    return this.mcpGroupsService.importTemplate(slug, auth.organizationId, body, auth);
   }
 }

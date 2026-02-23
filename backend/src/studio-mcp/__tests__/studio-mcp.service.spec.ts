@@ -4,9 +4,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AuthContext } from '../../auth/types';
 import type { WorkflowsService } from '../../workflows/workflows.service';
 
-// Helper to access private _registeredTools on McpServer (plain object at runtime)
-type ToolHandler = (...args: unknown[]) => unknown;
-type RegisteredToolsMap = Record<string, { handler: ToolHandler }>;
+// Helper to access private _registeredTools and experimental tasks on McpServer (plain object at runtime)
+type RegisteredToolsMap = Record<string, any>;
+
 function getRegisteredTools(server: McpServer): RegisteredToolsMap {
   return (server as unknown as { _registeredTools: RegisteredToolsMap })._registeredTools;
 }
@@ -27,6 +27,26 @@ describe('StudioMcpService Unit Tests', () => {
     workflowsService = {
       list: jest.fn().mockResolvedValue([]),
       findById: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({
+        id: 'created-workflow-id',
+        name: 'Created Workflow',
+        description: null,
+        currentVersion: 1,
+        currentVersionId: 'created-version-id',
+      }),
+      update: jest.fn().mockResolvedValue({
+        id: 'updated-workflow-id',
+        name: 'Updated Workflow',
+        description: 'Updated description',
+        currentVersion: 2,
+        currentVersionId: 'updated-version-id',
+      }),
+      updateMetadata: jest.fn().mockResolvedValue({
+        id: 'updated-workflow-id',
+        name: 'Updated Workflow',
+        description: 'Updated description',
+      }),
+      delete: jest.fn().mockResolvedValue(undefined),
       run: jest.fn().mockResolvedValue({
         runId: 'test-run-id',
         workflowId: 'test-workflow-id',
@@ -60,16 +80,17 @@ describe('StudioMcpService Unit Tests', () => {
       expect(server).toBeInstanceOf(McpServer);
     });
 
-    it('registers all 9 expected tools', () => {
+    it('registers all expected tools and tasks', () => {
       const server = service.createServer(mockAuthContext);
       const registeredTools = getRegisteredTools(server);
 
       expect(registeredTools).toBeDefined();
-      expect(Object.keys(registeredTools).length).toBe(9);
 
       const toolNames = Object.keys(registeredTools).sort();
       expect(toolNames).toEqual([
         'cancel_run',
+        'create_workflow',
+        'delete_workflow',
         'get_component',
         'get_run_result',
         'get_run_status',
@@ -78,6 +99,8 @@ describe('StudioMcpService Unit Tests', () => {
         'list_runs',
         'list_workflows',
         'run_workflow',
+        'update_workflow',
+        'update_workflow_metadata',
       ]);
     });
 
@@ -110,16 +133,79 @@ describe('StudioMcpService Unit Tests', () => {
       expect(workflowsService.findById).toHaveBeenCalledWith(workflowId, mockAuthContext);
     });
 
-    it('run_workflow tool uses auth context passed at creation time', async () => {
+    it('create_workflow tool uses auth context passed at creation time', async () => {
+      const server = service.createServer(mockAuthContext);
+      const registeredTools = getRegisteredTools(server);
+      const createWorkflowTool = registeredTools['create_workflow'];
+
+      expect(createWorkflowTool).toBeDefined();
+      await createWorkflowTool.handler({
+        name: 'New Workflow',
+        nodes: [
+          {
+            id: 'entry-1',
+            type: 'core.workflow.entrypoint',
+            position: { x: 10, y: 20 },
+            data: { label: 'Start', config: {} },
+          },
+        ],
+        edges: [],
+      });
+
+      expect(workflowsService.create).toHaveBeenCalledWith(
+        {
+          name: 'New Workflow',
+          description: undefined,
+          nodes: [
+            {
+              id: 'entry-1',
+              type: 'core.workflow.entrypoint',
+              position: { x: 10, y: 20 },
+              data: { label: 'Start', config: {} },
+            },
+          ],
+          edges: [],
+          viewport: { x: 0, y: 0, zoom: 1 },
+        },
+        mockAuthContext,
+      );
+    });
+
+    it('delete_workflow tool uses auth context passed at creation time', async () => {
+      const server = service.createServer(mockAuthContext);
+      const registeredTools = getRegisteredTools(server);
+      const deleteWorkflowTool = registeredTools['delete_workflow'];
+
+      expect(deleteWorkflowTool).toBeDefined();
+      await deleteWorkflowTool.handler({ workflowId: '11111111-1111-4111-8111-111111111111' });
+
+      expect(workflowsService.delete).toHaveBeenCalledWith(
+        '11111111-1111-4111-8111-111111111111',
+        mockAuthContext,
+      );
+    });
+
+    it('run_workflow task uses auth context passed at creation time', async () => {
       const workflowId = '11111111-1111-4111-8111-111111111111';
       const inputs = { key: 'value' };
 
       const server = service.createServer(mockAuthContext);
       const registeredTools = getRegisteredTools(server);
-      const runWorkflowTool = registeredTools['run_workflow'];
+      const runWorkflowTask = registeredTools['run_workflow'];
 
-      expect(runWorkflowTool).toBeDefined();
-      await runWorkflowTool.handler({ workflowId, inputs });
+      expect(runWorkflowTask).toBeDefined();
+
+      // Need to mock the extra params for the experimental tasks
+      const mockExtra = {
+        taskStore: {
+          createTask: jest.fn().mockResolvedValue({ taskId: 'mockTaskId', status: 'working' }),
+          getTask: jest.fn().mockResolvedValue({ taskId: 'mockTaskId', status: 'working' }),
+          updateTaskStatus: jest.fn().mockResolvedValue(true),
+          storeTaskResult: jest.fn().mockResolvedValue(true),
+        },
+      };
+
+      await runWorkflowTask.handler.createTask({ workflowId, inputs }, mockExtra);
 
       expect(workflowsService.run).toHaveBeenCalledWith(
         workflowId,
@@ -129,7 +215,7 @@ describe('StudioMcpService Unit Tests', () => {
           trigger: {
             type: 'api',
             sourceId: mockAuthContext.userId,
-            label: 'Studio MCP',
+            label: 'Studio MCP Task',
           },
         },
       );
@@ -217,6 +303,7 @@ describe('StudioMcpService Unit Tests', () => {
         apiKeyPermissions: {
           workflows: { run: false, list: true, read: true },
           runs: { read: true, cancel: false },
+          audit: { read: false },
         },
       };
 
@@ -229,12 +316,33 @@ describe('StudioMcpService Unit Tests', () => {
 
       it('denies run_workflow when workflows.run is false', async () => {
         const server = service.createServer(restrictedAuth);
+        const tasks = getRegisteredTools(server);
+
+        let errorThrown = false;
+        try {
+          await tasks['run_workflow'].handler.createTask(
+            {
+              workflowId: '11111111-1111-4111-8111-111111111111',
+            },
+            {} as any,
+          );
+        } catch (_e: any) {
+          errorThrown = true;
+          expect(_e.message).toContain('workflows.run');
+        }
+        expect(errorThrown).toBe(true);
+      });
+
+      it('denies create_workflow when workflows.create is missing', async () => {
+        const server = service.createServer(restrictedAuth);
         const tools = getRegisteredTools(server);
-        const result = (await tools['run_workflow'].handler({
-          workflowId: '11111111-1111-4111-8111-111111111111',
+        const result = (await tools['create_workflow'].handler({
+          name: 'Denied Create',
+          nodes: [],
+          edges: [],
         })) as { isError?: boolean; content: { text: string }[] };
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('workflows.run');
+        expect(result.content[0].text).toContain('workflows.create');
       });
 
       it('denies cancel_run when runs.cancel is false', async () => {
@@ -259,15 +367,28 @@ describe('StudioMcpService Unit Tests', () => {
       it('allows all tools when no apiKeyPermissions (non-API-key auth)', async () => {
         const server = service.createServer(mockAuthContext); // no apiKeyPermissions
         const tools = getRegisteredTools(server);
+        const tasks = getRegisteredTools(server);
 
         // All workflow/run tools should work without permission errors
         const listResult = (await tools['list_workflows'].handler({})) as { isError?: boolean };
         expect(listResult.isError).toBeUndefined();
 
-        const runResult = (await tools['run_workflow'].handler({
-          workflowId: '11111111-1111-4111-8111-111111111111',
-        })) as { isError?: boolean };
-        expect(runResult.isError).toBeUndefined();
+        const mockExtra = {
+          taskStore: {
+            createTask: jest.fn().mockResolvedValue({ taskId: 'mock', status: 'working' }),
+            getTask: jest.fn().mockResolvedValue({ taskId: 'mock', status: 'working' }),
+            updateTaskStatus: jest.fn().mockResolvedValue(true),
+            storeTaskResult: jest.fn().mockResolvedValue(true),
+          },
+        };
+
+        const runResult = await tasks['run_workflow'].handler.createTask(
+          {
+            workflowId: '11111111-1111-4111-8111-111111111111',
+          },
+          mockExtra,
+        );
+        expect(runResult.task.taskId).toEqual('mock');
 
         const cancelResult = (await tools['cancel_run'].handler({
           runId: 'test-run-id',
@@ -281,6 +402,7 @@ describe('StudioMcpService Unit Tests', () => {
           apiKeyPermissions: {
             workflows: { run: false, list: false, read: false },
             runs: { read: false, cancel: false },
+            audit: { read: false },
           },
         };
         const server = service.createServer(noPermsAuth);
@@ -295,21 +417,26 @@ describe('StudioMcpService Unit Tests', () => {
         expect(getResult.isError).toBeUndefined();
       });
 
-      it('denies all 7 gated tools when all permissions are false', async () => {
+      it('denies all gated non-task tools when all permissions are false', async () => {
         const noPermsAuth: AuthContext = {
           ...restrictedAuth,
           apiKeyPermissions: {
             workflows: { run: false, list: false, read: false },
             runs: { read: false, cancel: false },
+            audit: { read: false },
           },
         };
         const server = service.createServer(noPermsAuth);
         const tools = getRegisteredTools(server);
+        const tasks = getRegisteredTools(server);
 
         const gatedTools = [
           'list_workflows',
           'get_workflow',
-          'run_workflow',
+          'create_workflow',
+          'update_workflow',
+          'update_workflow_metadata',
+          'delete_workflow',
           'list_runs',
           'get_run_status',
           'get_run_result',
@@ -323,6 +450,20 @@ describe('StudioMcpService Unit Tests', () => {
           })) as { isError?: boolean };
           expect(result.isError).toBe(true);
         }
+
+        // Test run_workflow separately since it's a task now
+        let errorThrown = false;
+        try {
+          await tasks['run_workflow'].handler.createTask(
+            {
+              workflowId: '11111111-1111-4111-8111-111111111111',
+            },
+            {} as any,
+          );
+        } catch (_e: any) {
+          errorThrown = true;
+        }
+        expect(errorThrown).toBe(true);
       });
     });
 
@@ -361,6 +502,93 @@ describe('StudioMcpService Unit Tests', () => {
       expect(workflowsService.list).toHaveBeenCalledTimes(2);
       expect(workflowsService.list).toHaveBeenNthCalledWith(1, authContext1);
       expect(workflowsService.list).toHaveBeenNthCalledWith(2, authContext2);
+    });
+  });
+
+  describe('monitorWorkflowRun', () => {
+    it('polls status and saves result on completion', async () => {
+      const mockTaskStore = {
+        updateTaskStatus: jest.fn().mockResolvedValue(true),
+        storeTaskResult: jest.fn().mockResolvedValue(true),
+      };
+
+      const mockServer = {} as McpServer;
+      const taskId = 'test-task-id';
+      const runId = 'test-run-id';
+
+      // Mock getRunStatus to return RUNNING first, then COMPLETED
+      let callCount = 0;
+      (workflowsService.getRunStatus as jest.Mock).mockImplementation(() => {
+        callCount++;
+        return Promise.resolve({
+          status: callCount === 1 ? 'RUNNING' : 'COMPLETED',
+        });
+      });
+
+      (workflowsService.getRunResult as jest.Mock).mockResolvedValue({
+        output: 'test-output',
+      });
+
+      // We overwrite the 2000ms timeout temporarily for the test to avoid slow running loop
+      const originalSetTimeout = global.setTimeout;
+      (global as any).setTimeout = (fn: any) => originalSetTimeout(fn, 1);
+
+      try {
+        await (service as any).monitorWorkflowRun(
+          runId,
+          undefined,
+          taskId,
+          mockTaskStore,
+          mockServer,
+          mockAuthContext,
+        );
+      } finally {
+        global.setTimeout = originalSetTimeout as any;
+      }
+
+      // updateTaskStatus is only called for non-terminal states (RUNNING → working).
+      // For COMPLETED, storeTaskResult handles the terminal transition directly.
+      expect(mockTaskStore.updateTaskStatus).toHaveBeenCalledTimes(1);
+      expect(mockTaskStore.updateTaskStatus).toHaveBeenCalledWith(taskId, 'working', 'RUNNING');
+      expect(mockTaskStore.updateTaskStatus).not.toHaveBeenCalledWith(
+        taskId,
+        'completed',
+        'COMPLETED',
+      );
+      expect(workflowsService.getRunResult).toHaveBeenCalledWith(runId, undefined, mockAuthContext);
+      expect(mockTaskStore.storeTaskResult).toHaveBeenCalledWith(taskId, 'completed', {
+        content: [{ type: 'text', text: JSON.stringify({ output: 'test-output' }, null, 2) }],
+      });
+    });
+
+    it('handles failures by storing the failure reason', async () => {
+      const mockTaskStore = {
+        updateTaskStatus: jest.fn().mockResolvedValue(true),
+        storeTaskResult: jest.fn().mockResolvedValue(true),
+      };
+
+      const taskId = 'test-task-id';
+      const runId = 'test-run-id';
+
+      (workflowsService.getRunStatus as jest.Mock).mockResolvedValue({
+        status: 'FAILED',
+        failure: { message: 'boom' },
+      });
+
+      await (service as any).monitorWorkflowRun(
+        runId,
+        undefined,
+        taskId,
+        mockTaskStore,
+        {} as McpServer,
+        mockAuthContext,
+      );
+
+      // updateTaskStatus is NOT called for terminal states — storeTaskResult handles it.
+      expect(mockTaskStore.updateTaskStatus).not.toHaveBeenCalled();
+      expect(mockTaskStore.storeTaskResult).toHaveBeenCalledWith(taskId, 'failed', {
+        content: [{ type: 'text', text: JSON.stringify({ message: 'boom' }, null, 2) }],
+      });
     });
   });
 });

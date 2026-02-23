@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Loader2, Plus, ExternalLink, X, Pause, Play, Zap, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { WorkflowSchedule } from '@shipsec/shared';
 import { formatScheduleTimestamp, scheduleStatusVariant } from './schedules-utils';
 
@@ -199,12 +200,21 @@ export function WorkflowSchedulesSidebar({
             return (
               <div key={schedule.id} className="space-y-2 rounded-lg border bg-muted/30 px-3 py-2">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">{schedule.name}</span>
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-sm font-semibold truncate min-w-0">
+                              {schedule.name}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">{schedule.name}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <Badge
                         variant={scheduleStatusVariant[schedule.status]}
-                        className="text-[11px] capitalize"
+                        className="text-[11px] capitalize flex-shrink-0"
                       >
                         {schedule.status}
                       </Badge>

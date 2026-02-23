@@ -8,10 +8,16 @@ export const ApiKeyPermissionsSchema = z.object({
     run: z.boolean(),
     list: z.boolean(),
     read: z.boolean(),
+    create: z.boolean().optional(),
+    update: z.boolean().optional(),
+    delete: z.boolean().optional(),
   }),
   runs: z.object({
     read: z.boolean(),
     cancel: z.boolean(),
+  }),
+  audit: z.object({
+    read: z.boolean(),
   }),
 });
 

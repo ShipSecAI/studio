@@ -8,15 +8,15 @@ ShipSec Studio supports running multiple isolated dev instances (0-9) on one mac
 # Instance 0 (default) — works exactly as before
 just dev
 
-# Instance 1 — runs on offset ports (frontend :5273, backend :3311)
-SHIPSEC_INSTANCE=1 just dev
+# Check active instance for this workspace
+just instance show
 
-# Or persist the choice for this workspace
-echo 1 > .shipsec-instance
-just dev          # now uses instance 1
+# Persist instance 1 for this workspace
+just instance use 1
+just dev          # now starts instance 1
 
 # Stop your instance
-SHIPSEC_INSTANCE=1 just dev stop
+just dev stop
 ```
 
 ## How It Works
@@ -41,8 +41,35 @@ The instance is resolved in this order:
 SHIPSEC_INSTANCE=2 just dev
 
 # Per-workspace (persistent)
-echo 2 > .shipsec-instance
+just instance use 2
+just dev
 ```
+
+## Instance Env Files
+
+PM2 can read per-instance env files from:
+
+- `.instances/instance-N/backend.env`
+- `.instances/instance-N/worker.env`
+- `.instances/instance-N/frontend.env`
+
+Use `just instance-env` to manage them:
+
+```bash
+# Create env files for an instance (uses app/.env, or falls back to app/.env.example)
+just instance-env init 2
+
+# Re-apply only instance-scoped values (ports, DB, Temporal namespace)
+just instance-env update 2
+
+# Copy env files between instances and rescope values
+just instance-env copy 2 5
+
+# Show file presence + computed values
+just instance-env show 5
+```
+
+`just dev` auto-initializes env files for the active instance when missing (without overwriting existing files).
 
 ## Port Map
 
@@ -82,23 +109,29 @@ The Vite dev server proxies `/api` calls to the correct backend port automatical
 
 ## Commands
 
-All commands respect `SHIPSEC_INSTANCE`:
+All commands respect `SHIPSEC_INSTANCE` (or the active instance selected by `just instance use N`):
 
 ```bash
+# Select instance once per workspace
+just instance use 1
+
 # Start
-SHIPSEC_INSTANCE=1 just dev
+just dev
 
 # Stop (only stops PM2 apps; infra stays running for other instances)
-SHIPSEC_INSTANCE=1 just dev stop
+just dev stop
 
 # Logs (filtered to your instance's PM2 apps)
-SHIPSEC_INSTANCE=1 just dev logs
+just dev logs
 
 # Status
-SHIPSEC_INSTANCE=1 just dev status
+just dev status
 
 # Clean (stops PM2 apps; only tears down infra if instance 0)
-SHIPSEC_INSTANCE=1 just dev clean
+just dev clean
+
+# One-off override without changing active workspace instance
+SHIPSEC_INSTANCE=3 just dev
 ```
 
 When stopping/cleaning instance 0, Docker infra is also torn down. For non-zero instances, only the PM2 apps are stopped (since other instances may still need the shared infra).
@@ -128,9 +161,10 @@ lsof -i :3311   # backend instance 1
 ### Instance is unhealthy but infra is fine
 
 ```bash
-SHIPSEC_INSTANCE=1 just dev logs
-SHIPSEC_INSTANCE=1 just dev stop
-SHIPSEC_INSTANCE=1 just dev
+just instance use 1
+just dev logs
+just dev stop
+just dev
 ```
 
 ### Infra conflicts / stuck containers

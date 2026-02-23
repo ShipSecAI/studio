@@ -3,6 +3,7 @@ import { ForbiddenException, Injectable, ServiceUnavailableException } from '@ne
 import { LogStreamRepository } from './log-stream.repository';
 import type { WorkflowLogStreamRecord } from '../database/schema';
 import type { AuthContext } from '../auth/types';
+import { redactSensitiveData } from '../logging/redact-sensitive';
 
 interface FetchLogsOptions {
   nodeRef?: string;
@@ -215,7 +216,7 @@ export class LogStreamService {
       for (const [timestamp, message] of result.values ?? []) {
         entries.push({
           timestamp: this.fromNanoseconds(timestamp),
-          message,
+          message: this.sanitizeMessage(message),
         });
       }
     }
@@ -265,7 +266,7 @@ export class LogStreamService {
       for (const [timestamp, message] of result.values ?? []) {
         entries.push({
           timestamp: this.fromNanoseconds(timestamp),
-          message,
+          message: this.sanitizeMessage(message),
           level: streamLabels.level,
           nodeId: streamLabels.node,
         });
@@ -336,7 +337,7 @@ export class LogStreamService {
       for (const [timestamp, message] of result.values ?? []) {
         entries.push({
           timestamp: this.fromNanoseconds(timestamp),
-          message,
+          message: this.sanitizeMessage(message),
           level: streamLabels.level,
           nodeId: streamLabels.node,
         });
@@ -419,6 +420,10 @@ export class LogStreamService {
     }
     const millis = Number(parsed / 1000000n);
     return new Date(millis).toISOString();
+  }
+
+  private sanitizeMessage(message: string): string {
+    return redactSensitiveData(message);
   }
 
   private requireOrganizationId(auth: AuthContext | null): string {

@@ -386,6 +386,7 @@ describe('WorkflowsController', () => {
       traceRepositoryStub as any,
       temporalStub as TemporalService,
       analyticsServiceMock as any,
+      { record: vi.fn() } as any,
     );
     const traceService = new TraceService({
       listByRunId: async () => [],
