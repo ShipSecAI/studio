@@ -304,6 +304,7 @@ export function ChatInterface() {
     loadSessions,
     setCurrentSession,
     selectedRunId,
+    isRunInspectorOpen,
   } = useChatStore();
   const { data: selectedRunData } = useExecutionRun(selectedRunId);
 
@@ -663,6 +664,13 @@ export function ChatInterface() {
     });
   }, [selectedRunId, selectedRunData?.workflowId]);
 
+  // Graph panel is tethered to the Run Inspector lifecycle.
+  useEffect(() => {
+    if (!isRunInspectorOpen) {
+      setIsGraphPanelOpen(false);
+    }
+  }, [isRunInspectorOpen]);
+
   // Handle submit from PromptInput — lazily creates a session if needed
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
@@ -820,10 +828,12 @@ export function ChatInterface() {
           {/* Top slide-over graph reveal panel */}
           <div
             className={`pointer-events-none absolute inset-x-0 top-0 z-20 transition-all duration-300 ease-out ${
-              isGraphPanelOpen ? 'translate-y-0 opacity-100' : '-translate-y-[105%] opacity-0'
+              isGraphPanelOpen && isRunInspectorOpen
+                ? 'translate-y-0 opacity-100'
+                : '-translate-y-[105%] opacity-0'
             }`}
           >
-            {graphPanelRun && (
+            {graphPanelRun && isRunInspectorOpen && (
               <div className="relative ml-auto mr-0 h-[52vh] w-[min(100%,72rem)] rounded-b-none rounded-bl-xl border border-t-0 border-r-0 bg-background/95 shadow-lg backdrop-blur-sm">
                 <div className="flex h-full flex-col px-3 py-2 md:px-4 pointer-events-auto">
                   <div className="mb-2 flex items-center justify-between gap-2">
@@ -854,7 +864,7 @@ export function ChatInterface() {
           </div>
 
           {/* Single graph toggle tab: slides with the panel and docks to sidebar edge */}
-          {graphPanelRun && (
+          {graphPanelRun && isRunInspectorOpen && (
             <button
               onClick={() => setIsGraphPanelOpen((open) => !open)}
               className={`absolute right-0 top-0 z-30 -translate-x-px inline-flex h-10 items-center gap-1.5 whitespace-nowrap border-y border-l border-r-0 bg-background px-2.5 text-xs font-medium transition-all duration-300 ease-out hover:bg-muted ${
