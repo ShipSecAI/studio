@@ -87,15 +87,15 @@ export class GitHubSyncService implements OnModuleInit, OnModuleDestroy {
       `GitHub API auth: ${hasToken ? 'token configured (5000 req/hr)' : 'unauthenticated (60 req/hr)'}`,
     );
     this.logger.log('Starting automatic template sync...');
-    try {
-      const result = await this.syncTemplates();
-      this.logger.log(
-        `Startup sync complete: ${result.synced.length} synced, ${result.failed.length} failed`,
-      );
-    } catch (err) {
-      this.logger.error('Startup sync failed', err);
-      // Don't throw - allow the application to start even if sync fails
-    }
+    this.syncTemplates()
+      .then((result) => {
+        this.logger.log(
+          `Startup sync complete: ${result.synced.length} synced, ${result.failed.length} failed`,
+        );
+      })
+      .catch((err) => {
+        this.logger.error('Startup sync failed', err);
+      });
 
     // Schedule recurring sync every 30 minutes
     this.syncInterval = setInterval(() => {
@@ -150,7 +150,7 @@ export class GitHubSyncService implements OnModuleInit, OnModuleDestroy {
   private getRepoConfig(): { owner: string; repo: string; branch: string } {
     const repo = this.configService.get<string>(
       'GITHUB_TEMPLATE_REPO',
-      'krishna9358/workflow-templates',
+      'shipsecai/workflow-templates',
     );
     const branch = this.configService.get<string>('GITHUB_TEMPLATE_BRANCH', 'main');
     const [owner, repoName] = repo.split('/');
@@ -176,7 +176,7 @@ export class GitHubSyncService implements OnModuleInit, OnModuleDestroy {
       headers['If-None-Match'] = cached.etag;
     }
 
-    const response = await fetch(url, { headers });
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
 
     // 304 Not Modified — use cached data, zero rate limit cost
     if (response.status === 304 && cached) {
@@ -230,7 +230,7 @@ export class GitHubSyncService implements OnModuleInit, OnModuleDestroy {
       headers['If-None-Match'] = cached.etag;
     }
 
-    const response = await fetch(url, { headers });
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
 
     // 304 Not Modified — use cached content, zero rate limit cost
     if (response.status === 304 && cached) {
@@ -256,7 +256,7 @@ export class GitHubSyncService implements OnModuleInit, OnModuleDestroy {
     if (data.content && data.encoding === 'base64') {
       content = Buffer.from(data.content, 'base64').toString('utf-8');
     } else if (data.download_url) {
-      const dlResponse = await fetch(data.download_url);
+      const dlResponse = await fetch(data.download_url, { signal: AbortSignal.timeout(15_000) });
       content = await dlResponse.text();
     }
 

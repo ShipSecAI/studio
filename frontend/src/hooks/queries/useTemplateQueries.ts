@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { queryKeys } from '@/lib/queryKeys';
-import type { Template, TemplateCategory } from '@/store/templateStore';
+import type { Template, TemplateCategory } from '@/types/templates';
 
-export type { Template, TemplateCategory } from '@/store/templateStore';
+export type { Template, TemplateCategory } from '@/types/templates';
 
 export function useTemplates(filters?: { category?: string; search?: string; tags?: string[] }) {
   return useQuery<Template[]>({

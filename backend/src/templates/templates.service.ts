@@ -113,7 +113,7 @@ export class TemplateService {
     // 3. Build the workflow graph from the template, overriding the name
     //    Templates may lack node positions (stripped during publish to reduce size)
     //    so we add default positions in a grid layout before schema validation.
-    const graphData: Record<string, unknown> = {
+    let graphData: Record<string, unknown> = {
       ...template.graph,
       name: params.workflowName,
     };
@@ -125,6 +125,14 @@ export class TemplateService {
         }
         return node;
       });
+    }
+
+    if (params.secretMappings && template.requiredSecrets && template.requiredSecrets.length > 0) {
+      graphData = this.applySecretMappings(
+        graphData,
+        params.secretMappings,
+        template.requiredSecrets,
+      );
     }
 
     // Parse through the WorkflowGraphSchema to ensure it conforms to the
@@ -165,5 +173,74 @@ export class TemplateService {
    */
   async getSubmissions(userId: string) {
     return await this.templatesRepository.findSubmissionsByUser(userId);
+  }
+
+  private applySecretMappings(
+    graph: Record<string, unknown>,
+    secretMappings: Record<string, string>,
+    requiredSecrets: { name: string; type: string; description?: string; placeholder?: string }[],
+  ): Record<string, unknown> {
+    if (!secretMappings || Object.keys(secretMappings).length === 0) {
+      return graph;
+    }
+
+    const json = JSON.stringify(graph);
+
+    if (requiredSecrets.length === 1 && secretMappings[requiredSecrets[0].name]) {
+      const replaced = json.replace(
+        /\{\{SECRET_PLACEHOLDER\}\}/g,
+        secretMappings[requiredSecrets[0].name],
+      );
+      return JSON.parse(replaced);
+    }
+
+    const result = JSON.parse(json);
+    this.traverseAndApplySecrets(result, secretMappings);
+    return result;
+  }
+
+  private traverseAndApplySecrets(obj: unknown, secretMappings: Record<string, string>): void {
+    if (typeof obj !== 'object' || obj === null) return;
+
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        this.traverseAndApplySecrets(item, secretMappings);
+      }
+      return;
+    }
+
+    const record = obj as Record<string, unknown>;
+
+    const secretKeys = ['secretId', 'secret_name', 'secretName', 'secretRef', 'secret_ref'];
+    for (const key of secretKeys) {
+      if (record[key] === '{{SECRET_PLACEHOLDER}}') {
+        const possibleNameKeys = ['label', 'name', 'key', 'displayName'];
+        for (const nameKey of possibleNameKeys) {
+          const nameValue = record[nameKey];
+          if (typeof nameValue === 'string' && secretMappings[nameValue]) {
+            record[key] = secretMappings[nameValue];
+            break;
+          }
+        }
+
+        if (record[key] === '{{SECRET_PLACEHOLDER}}') {
+          const firstAvailable = Object.values(secretMappings)[0];
+          if (firstAvailable) {
+            record[key] = firstAvailable;
+          }
+        }
+      }
+    }
+
+    for (const [key, value] of Object.entries(record)) {
+      if (typeof value === 'string' && value.includes('{{SECRET_PLACEHOLDER}}')) {
+        const firstAvailable = Object.values(secretMappings)[0];
+        if (firstAvailable) {
+          record[key] = value.replace(/\{\{SECRET_PLACEHOLDER\}\}/g, firstAvailable);
+        }
+      } else if (typeof value === 'object' && value !== null) {
+        this.traverseAndApplySecrets(value, secretMappings);
+      }
+    }
   }
 }

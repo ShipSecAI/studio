@@ -944,7 +944,10 @@ export function TemplateLibraryPage() {
         <UseTemplateModal
           template={selectedTemplate}
           open={isUseModalOpen}
-          onOpenChange={setIsUseModalOpen}
+          onOpenChange={(open) => {
+            setIsUseModalOpen(open);
+            if (!open) setSelectedTemplate(null);
+          }}
           onSuccess={handleTemplateUseSuccess}
         />
       )}

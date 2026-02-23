@@ -40,9 +40,9 @@ interface PublishTemplateModalProps {
   onSuccess?: () => void;
 }
 
-// Fallback GitHub repository configuration (overridden by backend /templates/repo-info)
-const DEFAULT_GITHUB_TEMPLATE_REPO = 'krishna9358/workflow-templates';
-const DEFAULT_GITHUB_BRANCH = 'main';
+const DEFAULT_GITHUB_TEMPLATE_REPO =
+  import.meta.env.VITE_GITHUB_TEMPLATE_REPO || 'shipsecai/workflow-templates';
+const DEFAULT_GITHUB_BRANCH = import.meta.env.VITE_GITHUB_TEMPLATE_BRANCH || 'main';
 
 const TEMPLATE_CATEGORIES = [
   'Security',
@@ -274,6 +274,7 @@ export function PublishTemplateModal({
   const [success, setSuccess] = useState(false);
   const [generatedTemplateJson, setGeneratedTemplateJson] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [repoUrl, setRepoUrl] = useState(`https://github.com/${DEFAULT_GITHUB_TEMPLATE_REPO}`);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -353,7 +354,10 @@ export function PublishTemplateModal({
         } catch {
           [owner, repo] = DEFAULT_GITHUB_TEMPLATE_REPO.split('/');
           branch = DEFAULT_GITHUB_BRANCH;
+          setRepoUrl(`https://github.com/${DEFAULT_GITHUB_TEMPLATE_REPO}`);
         }
+
+        setRepoUrl(`https://github.com/${owner}/${repo}`);
 
         // Generate GitHub URL without content (avoids long URL errors)
         const githubUrl = generateGitHubUrl(owner, repo, branch, filename, name.trim());
@@ -405,6 +409,7 @@ export function PublishTemplateModal({
         setSuccess(false);
         setGeneratedTemplateJson('');
         setCopied(false);
+        setRepoUrl(`https://github.com/${DEFAULT_GITHUB_TEMPLATE_REPO}`);
       }, 200);
     }
   };
@@ -492,7 +497,7 @@ export function PublishTemplateModal({
                   before it&apos;s added to the library.
                 </div>
                 <a
-                  href={`https://github.com/${DEFAULT_GITHUB_TEMPLATE_REPO}`}
+                  href={repoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline flex items-center gap-1"

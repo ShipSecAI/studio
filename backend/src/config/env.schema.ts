@@ -79,7 +79,7 @@ export const backendEnvSchema = z
     GITHUB_TEMPLATE_REPO: z
       .string()
       .optional()
-      .default('krishna9358/workflow-templates')
+      .default('shipsecai/workflow-templates')
       .refine((v) => v.includes('/'), {
         message: 'GITHUB_TEMPLATE_REPO must be in owner/repo format',
       }),
