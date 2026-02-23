@@ -146,7 +146,8 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
       const latestCommitted = messages[messages.length - 1];
       const incomingSignature = partsSignature(msg.parts);
       const isDuplicatePendingTail =
-        pendingTail?.role === 'user' && partsSignature(pendingTail.parts) === incomingSignature;
+        pendingTail?.message.role === 'user' &&
+        partsSignature(pendingTail.message.parts) === incomingSignature;
       const isImmediateRetryWhileProcessing =
         status === 'processing' &&
         pendingUserMessages.length === 0 &&

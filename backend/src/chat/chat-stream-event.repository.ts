@@ -56,4 +56,17 @@ export class ChatStreamEventRepository {
       .orderBy(chatStreamEventsTable.seq)
       .limit(limit);
   }
+
+  async getRunStartedAt(sessionId: string, runId: string): Promise<Date | null> {
+    const [row] = await this.db
+      .select({ createdAt: chatStreamEventsTable.createdAt })
+      .from(chatStreamEventsTable)
+      .where(
+        and(eq(chatStreamEventsTable.sessionId, sessionId), eq(chatStreamEventsTable.runId, runId)),
+      )
+      .orderBy(chatStreamEventsTable.seq)
+      .limit(1);
+
+    return row?.createdAt ?? null;
+  }
 }

@@ -111,9 +111,13 @@ export function ChatSidebar({ className }: ChatSidebarProps) {
     updateSessionTitle,
   } = useChatStore();
 
-  const filteredSessions = sessions.filter((session) =>
-    session.title.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const filteredSessions = sessions
+    .filter((session) => session.title.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      const aTime = new Date(a.updatedAt).getTime();
+      const bTime = new Date(b.updatedAt).getTime();
+      return bTime - aTime;
+    });
 
   // Group sessions by date
   const groupedSessions = filteredSessions.reduce(

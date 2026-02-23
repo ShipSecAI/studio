@@ -9,6 +9,7 @@ import {
 
 interface MockTool {
   execute: (input: unknown, options: ToolExecutionOptions) => Promise<unknown>;
+  [key: string]: unknown;
 }
 
 function createTaskClient(messages: unknown[]): TaskAwareMcpClient {

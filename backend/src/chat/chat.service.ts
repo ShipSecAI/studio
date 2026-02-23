@@ -173,7 +173,16 @@ export class ChatService implements OnModuleInit {
       userId: auth.userId ?? 'anonymous',
       organizationId: auth.organizationId,
     });
-    return { processingStatus: session.processingStatus, activeRunId: session.activeRunId ?? null };
+    const activeRunId = session.activeRunId ?? null;
+    const activeRunStartedAt =
+      session.processingStatus === 'processing' && activeRunId
+        ? await this.streamEventRepository.getRunStartedAt(sessionId, activeRunId)
+        : null;
+    return {
+      processingStatus: session.processingStatus,
+      activeRunId,
+      activeRunStartedAt: activeRunStartedAt ? activeRunStartedAt.toISOString() : null,
+    };
   }
 
   async getRunEvents(sessionId: string, runId: string, afterSeq: number, auth: AuthContext) {
@@ -220,182 +229,35 @@ export class ChatService implements OnModuleInit {
     await this.sessionRepository.completeRun(sessionId, runId);
   }
 
-  /** Stream live pub/sub events to an SSE or NDJSON HTTP response */
-  async streamLiveToResponse(
-    sessionId: string,
-    format: 'sse' | 'ndjson',
-    auth: AuthContext,
-    res: ServerResponse,
-    options: { runId?: string; afterSeq?: number } = {},
-  ): Promise<void> {
-    const session = await this.sessionRepository.getSession(sessionId, {
-      userId: auth.userId ?? 'anonymous',
-      organizationId: auth.organizationId,
-    });
-    const targetRunId = options.runId ?? session.activeRunId ?? null;
-    const initialAfterSeq = Math.max(0, options.afterSeq ?? 0);
-
-    const contentType = format === 'ndjson' ? 'application/x-ndjson' : 'text/event-stream';
-    res.writeHead(200, {
-      'Content-Type': contentType,
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    });
-
-    if (!targetRunId) {
-      if (format === 'ndjson') {
-        res.write(JSON.stringify({ type: 'status', status: 'idle' }) + '\n');
-      } else {
-        res.write(`data: ${JSON.stringify({ type: 'status', status: 'idle' })}\n\n`);
-        res.write('data: [DONE]\n\n');
-      }
-      res.end();
-      return;
-    }
-
-    const writeEvent = (data: string) => {
-      if (format === 'ndjson') {
-        res.write(data + '\n');
-      } else {
-        res.write(`data: ${data}\n\n`);
-      }
-    };
-
-    let lastSeq = initialAfterSeq;
-    let replaying = true;
-    let closed = false;
-    const bufferedLiveEvents: Record<string, unknown>[] = [];
-
-    const closeStream = () => {
-      if (closed) return;
-      closed = true;
-      if (format === 'sse') {
-        res.write('data: [DONE]\n\n');
-      }
-      res.end();
-    };
-
-    const maybeEmitEvent = (event: Record<string, unknown>) => {
-      if (event.runId !== targetRunId) {
-        return;
-      }
-      const seq = typeof event.seq === 'number' ? event.seq : undefined;
-      if (typeof seq === 'number' && seq <= lastSeq) {
-        return;
-      }
-      if (typeof seq === 'number') {
-        lastSeq = seq;
-      }
-      writeEvent(JSON.stringify(event));
-      if (event.type === 'status' && event.status === 'idle') {
-        closeStream();
-      }
-    };
-
-    const subscription = this.chatStreamService.subscribe(sessionId, {
-      onEvent: (event) => {
-        try {
-          if (replaying) {
-            bufferedLiveEvents.push(event as Record<string, unknown>);
-            return;
-          }
-          maybeEmitEvent(event as Record<string, unknown>);
-        } catch {
-          // Best-effort streaming
-        }
-      },
-      onComplete: () => {
-        closeStream();
-      },
-      onError: (err) => {
-        this.logger.error(`Live stream error for session ${sessionId}:`, err);
-        writeEvent(JSON.stringify({ type: 'error', errorText: String(err) }));
-        closeStream();
-      },
-    });
-
-    try {
-      const replay = await this.streamEventRepository.listAfter(sessionId, targetRunId, lastSeq);
-      for (const row of replay) {
-        maybeEmitEvent({
-          ...(row.event as Record<string, unknown>),
-          runId: targetRunId,
-          seq: row.seq,
-        });
-        if (closed) {
-          subscription.unsubscribe();
-          return;
-        }
-      }
-    } catch (err) {
-      this.logger.error(`Failed replay for session ${sessionId} run ${targetRunId}:`, err);
-      writeEvent(JSON.stringify({ type: 'error', errorText: 'Failed to replay run events' }));
-      closeStream();
-      subscription.unsubscribe();
-      return;
-    }
-
-    bufferedLiveEvents.sort((a, b) => {
-      const aSeq = typeof a.seq === 'number' ? a.seq : Number.MAX_SAFE_INTEGER;
-      const bSeq = typeof b.seq === 'number' ? b.seq : Number.MAX_SAFE_INTEGER;
-      return aSeq - bSeq;
-    });
-    replaying = false;
-    for (const event of bufferedLiveEvents) {
-      maybeEmitEvent(event);
-      if (closed) {
-        subscription.unsubscribe();
-        return;
-      }
-    }
-
-    if (session.processingStatus !== 'processing' || session.activeRunId !== targetRunId) {
-      writeEvent(JSON.stringify({ type: 'status', status: 'idle', runId: targetRunId }));
-      closeStream();
-      subscription.unsubscribe();
-      return;
-    }
-
-    // Timeout: if no completion in 5 minutes, end the stream
-    const timer = setTimeout(() => {
-      subscription.unsubscribe();
-      writeEvent(JSON.stringify({ type: 'status', status: 'timeout' }));
-      closeStream();
-    }, 300_000);
-
-    res.on('close', () => {
-      clearTimeout(timer);
-      subscription.unsubscribe();
-    });
-  }
-
   // ---------------------------------------------------------------------------
-  // Streaming chat (Temporal-backed, original active-tab flow)
+  // Message sending (non-streaming - returns runId)
   // ---------------------------------------------------------------------------
 
-  async streamChatToResponse(
+  /**
+   * Send a message and return the runId.
+   * The actual streaming happens via GET /stream endpoint.
+   * This allows multiple clients to attach to the same stream.
+   */
+  async sendMessage(
     sessionId: string,
-    messages: UIMessage[],
+    message: UIMessage,
     auth: AuthContext,
-    res: ServerResponse,
-  ): Promise<void> {
+  ): Promise<{ runId: string }> {
     // Verify session ownership
     await this.sessionRepository.getSession(sessionId, {
       userId: auth.userId ?? 'anonymous',
       organizationId: auth.organizationId,
     });
 
-    // Start a new durable run for this message and expose the run ID to all clients.
+    // Start a new durable run for this message
     const runId = randomUUID();
     await this.sessionRepository.startRun(sessionId, runId);
 
     // Save the user message to DB
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage && lastMessage.role === 'user') {
+    if (message && message.role === 'user') {
       await this.sessionRepository.saveMessage(sessionId, {
-        role: lastMessage.role,
-        parts: lastMessage.parts,
+        role: message.role,
+        parts: message.parts,
       });
     }
 
@@ -405,9 +267,9 @@ export class ChatService implements OnModuleInit {
       await this.temporalService.signalChatWorkflow(
         sessionId,
         {
-          id: lastMessage.id,
-          role: lastMessage.role,
-          parts: lastMessage.parts,
+          id: message.id,
+          role: message.role,
+          parts: message.parts,
         },
         runId,
       );
@@ -440,13 +302,46 @@ export class ChatService implements OnModuleInit {
       await this.temporalService.signalChatWorkflow(
         sessionId,
         {
-          id: lastMessage.id,
-          role: lastMessage.role,
-          parts: lastMessage.parts,
+          id: message.id,
+          role: message.role,
+          parts: message.parts,
         },
         runId,
       );
     }
+
+    return { runId };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Unified streaming endpoint (AI SDK v6 UIMessageChunk format)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Stream events to SSE response in AI SDK v6 UIMessageChunk format.
+   *
+   * This is the unified streaming path used by:
+   * - Tab 1 after sending a message (via DurableChatTransport.sendMessages)
+   * - Tab 2+ joining mid-stream (via DurableChatTransport.reconnectToStream)
+   * - Any tab after refresh (via DurableChatTransport.reconnectToStream)
+   *
+   * All clients receive identical events from:
+   * 1. PostgreSQL replay (historical events)
+   * 2. Redis pub/sub (live events)
+   */
+  async streamToResponse(
+    sessionId: string,
+    auth: AuthContext,
+    res: ServerResponse,
+    options: { runId?: string; afterSeq?: number } = {},
+  ): Promise<void> {
+    const session = await this.sessionRepository.getSession(sessionId, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+
+    const targetRunId = options.runId ?? session.activeRunId ?? null;
+    const initialAfterSeq = Math.max(0, options.afterSeq ?? 0);
 
     // Set up AI SDK v6 UI Message Stream headers
     res.writeHead(200, {
@@ -455,12 +350,17 @@ export class ChatService implements OnModuleInit {
       Connection: 'keep-alive',
       'X-Vercel-AI-UI-Message-Stream': 'v1',
       'X-Accel-Buffering': 'no',
-      'X-Chat-Run-Id': runId,
+      'X-Chat-Run-Id': targetRunId ?? '',
     });
 
-    // Track state for text part interleaving with tools.
-    // Each text segment between tool calls gets its own text part ID so
-    // the AI SDK renders them inline in the correct order.
+    // If no active run, return idle immediately
+    if (!targetRunId) {
+      this.writeSseEvent(res, { type: 'status', status: 'idle' });
+      this.endSseStream(res);
+      return;
+    }
+
+    // Track text part IDs for proper streaming (AI SDK expects text-start/text-end pairs)
     let textPartCounter = 0;
     let currentTextId: string | null = null;
 
@@ -478,99 +378,188 @@ export class ChatService implements OnModuleInit {
       }
     };
 
-    // Subscribe to Redis pub/sub for real-time streaming
-    const timer = { id: undefined as ReturnType<typeof setTimeout> | undefined };
+    let lastSeq = initialAfterSeq;
+    let closed = false;
+    const bufferedLiveEvents: Record<string, unknown>[] = [];
 
+    const closeStream = () => {
+      if (closed) return;
+      closed = true;
+      endTextPart();
+      this.endSseStream(res);
+    };
+
+    /**
+     * Convert a worker event to AI SDK UIMessageChunk format and write to SSE.
+     */
+    const emitEvent = (event: Record<string, unknown>): boolean => {
+      if (closed) return true;
+
+      // Filter by runId
+      if (event.runId !== targetRunId) {
+        return false;
+      }
+
+      // Skip already-seen events
+      const seq = typeof event.seq === 'number' ? event.seq : undefined;
+      if (typeof seq === 'number' && seq <= lastSeq) {
+        return false;
+      }
+      if (typeof seq === 'number') {
+        lastSeq = seq;
+      }
+
+      // Convert to AI SDK format
+      if (event.type === 'text-delta' && typeof event.text === 'string') {
+        if (!currentTextId) startTextPart();
+        this.writeSseEvent(res, {
+          type: 'text-delta',
+          id: currentTextId,
+          delta: event.text,
+        });
+      } else if (event.type === 'tool-call') {
+        endTextPart();
+        const toolCallId = (event.toolCallId as string) ?? `call-${Date.now()}`;
+        this.writeSseEvent(res, {
+          type: 'tool-input-start',
+          toolCallId,
+          toolName: event.toolName,
+        });
+        this.writeSseEvent(res, {
+          type: 'tool-input-available',
+          toolCallId,
+          toolName: event.toolName,
+          input: event.args ?? {},
+        });
+      } else if (event.type === 'tool-result') {
+        const toolCallId = (event.toolCallId as string) ?? `call-${Date.now()}`;
+        this.writeSseEvent(res, {
+          type: 'tool-output-available',
+          toolCallId,
+          output: event.result ?? {},
+          preliminary: event.preliminary === true,
+        });
+      } else if (event.type === 'tool-progress') {
+        const toolCallId = event.toolCallId as string | undefined;
+        if (!toolCallId) return false;
+        this.writeSseEvent(res, {
+          type: 'tool-output-available',
+          toolCallId,
+          output: event.output ?? {},
+          preliminary: true,
+        });
+      } else if (event.type === 'tool-error') {
+        const toolCallId = event.toolCallId as string | undefined;
+        if (!toolCallId) return false;
+        this.writeSseEvent(res, {
+          type: 'tool-output-error',
+          toolCallId,
+          errorText:
+            typeof event.errorText === 'string' ? event.errorText : 'Tool execution failed',
+        });
+      } else if (event.type === 'status' && event.status === 'idle') {
+        endTextPart();
+        this.writeSseEvent(res, { type: 'status', status: 'idle' });
+        return true; // Signal to close
+      }
+
+      return false;
+    };
+
+    // Subscribe to Redis for live events (buffered during replay)
+    let replaying = true;
     const subscription = this.chatStreamService.subscribe(sessionId, {
       onEvent: (event) => {
         try {
-          if ((event as any).runId !== runId) {
+          if (replaying) {
+            bufferedLiveEvents.push(event as Record<string, unknown>);
             return;
           }
-          if (event.type === 'text-delta' && typeof event.text === 'string') {
-            if (!currentTextId) startTextPart();
-            this.writeSseEvent(res, { type: 'text-delta', id: currentTextId, delta: event.text });
-          } else if (event.type === 'tool-call') {
-            // End any open text part so the tool renders inline after the text
-            endTextPart();
-            const toolCallId = event.toolCallId ?? `call-${Date.now()}`;
-            this.writeSseEvent(res, {
-              type: 'tool-input-start',
-              toolCallId,
-              toolName: event.toolName,
-            });
-            this.writeSseEvent(res, {
-              type: 'tool-input-available',
-              toolCallId,
-              toolName: event.toolName,
-              input: event.args ?? {},
-            });
-          } else if (event.type === 'tool-result') {
-            const toolCallId = event.toolCallId ?? `call-${Date.now()}`;
-            this.writeSseEvent(res, {
-              type: 'tool-output-available',
-              toolCallId,
-              output: event.result ?? {},
-              preliminary: event.preliminary === true,
-            });
-          } else if (event.type === 'tool-progress') {
-            const toolCallId = event.toolCallId;
-            if (typeof toolCallId !== 'string') return;
-            this.writeSseEvent(res, {
-              type: 'tool-output-available',
-              toolCallId,
-              output: event.output ?? {},
-              preliminary: true,
-            });
-          } else if (event.type === 'tool-error') {
-            const toolCallId = event.toolCallId;
-            if (typeof toolCallId !== 'string') return;
-            this.writeSseEvent(res, {
-              type: 'tool-output-error',
-              toolCallId,
-              errorText:
-                typeof event.errorText === 'string' ? event.errorText : 'Tool execution failed',
-            });
-          } else if (event.type === 'title-update' && typeof event.title === 'string') {
-            // Title updates are saved to DB by the worker activity.
-            // Don't send via SSE — 'metadata' is not a valid AI SDK v6 stream part type.
-            // The frontend refreshes the session list to pick up title changes.
+          const shouldClose = emitEvent(event as Record<string, unknown>);
+          if (shouldClose) {
+            closeStream();
+            subscription.unsubscribe();
           }
         } catch {
           // Best-effort streaming
         }
       },
       onComplete: () => {
-        if (timer.id) clearTimeout(timer.id);
-        endTextPart();
-        this.endSseStream(res);
+        closeStream();
       },
       onError: (err) => {
-        if (timer.id) clearTimeout(timer.id);
-        this.logger.error(`Stream error for session ${sessionId}:`, err);
+        this.logger.error(`Live stream error for session ${sessionId}:`, err);
+        endTextPart();
         this.writeSseEvent(res, { type: 'error', errorText: String(err) });
-        this.endSseStream(res);
+        closeStream();
       },
-      shouldComplete: (event) =>
-        event.type === 'status' && event.status === 'idle' && (event as any).runId === runId,
     });
 
-    // Timeout: if no completion in 2 minutes, end the stream
-    timer.id = setTimeout(() => {
-      subscription.unsubscribe();
-      const timeoutId = currentTextId ?? startTextPart();
-      this.writeSseEvent(res, {
-        type: 'text-delta',
-        id: timeoutId,
-        delta: '[Response timed out]',
-      });
+    // Replay historical events from PostgreSQL
+    try {
+      const replay = await this.streamEventRepository.listAfter(
+        sessionId,
+        targetRunId,
+        initialAfterSeq,
+      );
+
+      for (const row of replay) {
+        const event = {
+          ...(row.event as Record<string, unknown>),
+          runId: targetRunId,
+          seq: row.seq,
+        };
+        const shouldClose = emitEvent(event);
+        if (shouldClose) {
+          subscription.unsubscribe();
+          return;
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Failed replay for session ${sessionId} run ${targetRunId}:`, err);
       endTextPart();
-      this.endSseStream(res);
-    }, 120_000);
+      this.writeSseEvent(res, { type: 'error', errorText: 'Failed to replay run events' });
+      closeStream();
+      subscription.unsubscribe();
+      return;
+    }
+
+    // Process buffered live events (sorted by seq)
+    bufferedLiveEvents.sort((a, b) => {
+      const aSeq = typeof a.seq === 'number' ? a.seq : Number.MAX_SAFE_INTEGER;
+      const bSeq = typeof b.seq === 'number' ? b.seq : Number.MAX_SAFE_INTEGER;
+      return aSeq - bSeq;
+    });
+    replaying = false;
+
+    for (const event of bufferedLiveEvents) {
+      const shouldClose = emitEvent(event);
+      if (shouldClose) {
+        subscription.unsubscribe();
+        return;
+      }
+    }
+
+    // Check if run is already complete
+    if (session.processingStatus !== 'processing' || session.activeRunId !== targetRunId) {
+      endTextPart();
+      this.writeSseEvent(res, { type: 'status', status: 'idle', runId: targetRunId });
+      closeStream();
+      subscription.unsubscribe();
+      return;
+    }
+
+    // Timeout: if no completion in 5 minutes, end the stream
+    const timer = setTimeout(() => {
+      subscription.unsubscribe();
+      endTextPart();
+      this.writeSseEvent(res, { type: 'status', status: 'timeout' });
+      closeStream();
+    }, 300_000);
 
     // Handle client disconnect
     res.on('close', () => {
-      if (timer.id) clearTimeout(timer.id);
+      clearTimeout(timer);
       subscription.unsubscribe();
     });
   }

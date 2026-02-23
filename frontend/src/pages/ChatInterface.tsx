@@ -374,7 +374,9 @@ export function ChatInterface() {
   );
   const [messagesLoaded, setMessagesLoaded] = useState(false);
   const [sessionProcessing, setSessionProcessing] = useState(false);
-  const [sessionActiveRunId, setSessionActiveRunId] = useState<string | null>(null);
+  const [sessionProcessingStartedAtMs, setSessionProcessingStartedAtMs] = useState<number | null>(
+    null,
+  );
 
   const { messages, sendMessage, status, error, stop, setMessages } = useChat({
     transport: chatTransport,
@@ -416,7 +418,7 @@ export function ChatInterface() {
       setMessages([]);
       setMessagesLoaded(true);
       setSessionProcessing(false);
-      setSessionActiveRunId(null);
+      setSessionProcessingStartedAtMs(null);
       return;
     }
 
@@ -472,6 +474,41 @@ export function ChatInterface() {
   const displayMessages = messages;
   const effectiveStatus = status;
   const isAgentWorking = effectiveStatus === 'streaming' || sessionProcessing;
+  const [workingStartedAtMs, setWorkingStartedAtMs] = useState<number | null>(null);
+  const [workingElapsedSeconds, setWorkingElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!isAgentWorking) {
+      setWorkingStartedAtMs(null);
+      setWorkingElapsedSeconds(0);
+      return;
+    }
+
+    setWorkingStartedAtMs((prev) => {
+      if (sessionProcessingStartedAtMs) {
+        return sessionProcessingStartedAtMs;
+      }
+      return prev ?? Date.now();
+    });
+  }, [isAgentWorking, sessionProcessingStartedAtMs]);
+
+  useEffect(() => {
+    if (!isAgentWorking || workingStartedAtMs === null) return;
+
+    const updateElapsed = () => {
+      setWorkingElapsedSeconds(Math.max(0, Math.floor((Date.now() - workingStartedAtMs) / 1000)));
+    };
+
+    updateElapsed();
+    const intervalId = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [isAgentWorking, workingStartedAtMs]);
+
+  const workingElapsedLabel = useMemo(() => {
+    const minutes = Math.floor(workingElapsedSeconds / 60);
+    const seconds = workingElapsedSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  }, [workingElapsedSeconds]);
 
   useEffect(() => {
     if (!currentSessionId || !messagesLoaded) return;
@@ -534,17 +571,20 @@ export function ChatInterface() {
         const body = (await res.json()) as {
           processingStatus: 'idle' | 'processing';
           activeRunId?: string | null;
+          activeRunStartedAt?: string | null;
         };
 
         if (body.processingStatus === 'processing' && body.activeRunId) {
           setSessionProcessing(true);
-          setSessionActiveRunId(body.activeRunId);
+          setSessionProcessingStartedAtMs(
+            body.activeRunStartedAt ? new Date(body.activeRunStartedAt).getTime() : null,
+          );
           void attachPassiveStream(body.activeRunId);
           return;
         }
 
         setSessionProcessing(false);
-        setSessionActiveRunId(null);
+        setSessionProcessingStartedAtMs(null);
         if (activePassiveRunId) {
           closePassiveStream();
           await hydrateMessagesForSession(currentSessionId);
@@ -564,7 +604,7 @@ export function ChatInterface() {
       window.clearInterval(intervalId);
       closePassiveStream();
       setSessionProcessing(false);
-      setSessionActiveRunId(null);
+      setSessionProcessingStartedAtMs(null);
     };
   }, [
     currentSessionId,
@@ -745,20 +785,6 @@ export function ChatInterface() {
         <div className="flex-1" />
         <StatusBar className="border-b-0" />
       </div>
-      {isAgentWorking ? (
-        <div className="border-b bg-amber-50/60 px-4 py-2">
-          <div className="mx-auto flex max-w-5xl items-center gap-2 text-sm text-amber-900">
-            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-700 border-t-transparent" />
-            <span className="font-medium">AI Agent is working...</span>
-            {sessionActiveRunId ? (
-              <span className="font-mono text-xs text-amber-800/80">
-                run {sessionActiveRunId.slice(-8)}
-              </span>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
       {/* Body: chat + inspector side-by-side */}
       <div className="flex-1 flex flex-row overflow-hidden min-h-0">
         {/* Content Area */}
@@ -767,7 +793,7 @@ export function ChatInterface() {
             <EmptyState userName={getUserName(user)} onSelectPrompt={handleSelectPrompt} />
           ) : (
             <Conversation className="flex-1">
-              <ConversationContent className="max-w-5xl mx-auto gap-6 px-4 py-6 md:px-8">
+              <ConversationContent className="max-w-5xl mx-auto gap-4 px-4 py-4 md:px-6">
                 {displayMessages.map((msg, idx) => (
                   <ChatMessageItem
                     key={msg.id}
@@ -795,8 +821,29 @@ export function ChatInterface() {
           )}
 
           {/* Input Area */}
-          <div className="shrink-0 p-4 md:pb-6 border-t bg-background/80 backdrop-blur-sm">
-            <div className="max-w-5xl mx-auto space-y-3">
+          <div className="shrink-0 border-t bg-background/85 px-3 py-2 backdrop-blur-sm md:px-4 md:py-3">
+            <div className="mx-auto max-w-5xl space-y-2">
+              <div className="min-h-5">
+                {isAgentWorking ? (
+                  <div className="flex justify-start">
+                    <div className="relative overflow-hidden rounded-full border border-border/70 bg-muted/70 px-3 py-1 text-xs text-muted-foreground">
+                      <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shipsec-shimmer_1.8s_linear_infinite]" />
+                      <div className="relative flex items-center">
+                        <span className="font-medium text-foreground/80">Working</span>
+                        <span className="mx-1.5">•</span>
+                        <span className="font-mono">{workingElapsedLabel}</span>
+                        <span className="ml-2 inline-flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-pulse" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-pulse [animation-delay:140ms]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-pulse [animation-delay:280ms]" />
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div aria-hidden className="h-6" />
+                )}
+              </div>
               <PromptInput
                 onSubmit={handleSubmit}
                 className="rounded-xl border border-border/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 shadow-sm transition-all duration-200"
@@ -841,11 +888,6 @@ export function ChatInterface() {
                   </div>
                 </PromptInputFooter>
               </PromptInput>
-
-              {/* Disclaimer */}
-              <p className="text-center text-xs text-muted-foreground/70">
-                ShipSec can make mistakes. Please verify important information.
-              </p>
             </div>
           </div>
         </div>

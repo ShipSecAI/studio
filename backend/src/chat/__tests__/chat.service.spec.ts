@@ -23,6 +23,18 @@ describe('ChatService Unit Tests', () => {
     provider: 'test',
   };
 
+  const mockSession = {
+    id: 'session-1',
+    title: 'Test',
+    status: 'active',
+    processingStatus: 'idle',
+    activeRunId: null,
+    nextEventSeq: 1,
+    temporalWorkflowId: 'chat-session-1',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
   beforeEach(() => {
     sessionRepository = {
       createSession: jest.fn().mockResolvedValue({
@@ -171,29 +183,17 @@ describe('ChatService Unit Tests', () => {
     });
   });
 
-  describe('streamChatToResponse', () => {
-    it('saves user message and signals Temporal workflow', async () => {
-      const messages = [
-        {
-          id: 'msg-1',
-          role: 'user' as const,
-          parts: [{ type: 'text', text: 'Hello' }],
-        },
-      ];
+  describe('sendMessage', () => {
+    it('saves user message, signals Temporal workflow, and returns runId', async () => {
+      const message = {
+        id: 'msg-1',
+        role: 'user' as const,
+        parts: [{ type: 'text', text: 'Hello' }],
+      };
 
-      const mockResponse = {
-        writeHead: jest.fn(),
-        write: jest.fn(),
-        end: jest.fn(),
-        on: jest.fn(),
-      } as any;
+      const result = await service.sendMessage('session-1', message as any, mockAuthContext);
 
-      // Don't await - the stream stays open waiting for Redis events
-      service.streamChatToResponse('session-1', messages as any, mockAuthContext, mockResponse);
-
-      // Give it a tick to process
-      await new Promise((r) => setTimeout(r, 50));
-
+      expect(result.runId).toBeDefined();
       expect(sessionRepository.saveMessage).toHaveBeenCalledWith('session-1', {
         role: 'user',
         parts: [{ type: 'text', text: 'Hello' }],
@@ -207,16 +207,37 @@ describe('ChatService Unit Tests', () => {
         },
         expect.any(String),
       );
+    });
+  });
+
+  describe('streamToResponse', () => {
+    it('returns idle status when no active run', async () => {
+      (sessionRepository.getSession as jest.Mock).mockResolvedValue({
+        ...mockSession,
+        processingStatus: 'idle',
+        activeRunId: null,
+      });
+
+      const mockResponse = {
+        writeHead: jest.fn(),
+        write: jest.fn(),
+        end: jest.fn(),
+        on: jest.fn(),
+      } as any;
+
+      await service.streamToResponse('session-1', mockAuthContext, mockResponse);
+
       expect(mockResponse.writeHead).toHaveBeenCalledWith(
         200,
         expect.objectContaining({
           'Content-Type': 'text/event-stream',
           'X-Vercel-AI-UI-Message-Stream': 'v1',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
-          'X-Accel-Buffering': 'no',
         }),
       );
+      const writes = (mockResponse.write as jest.Mock).mock.calls.map((call) => String(call[0]));
+      expect(
+        writes.some((line) => line.includes('"type":"status"') && line.includes('"status":"idle"')),
+      ).toBe(true);
     });
 
     it('streams task progress updates as preliminary tool outputs', async () => {
@@ -233,13 +254,13 @@ describe('ChatService Unit Tests', () => {
         return { unsubscribe: jest.fn() };
       });
 
-      const messages = [
-        {
-          id: 'msg-1',
-          role: 'user' as const,
-          parts: [{ type: 'text', text: 'Run workflow' }],
-        },
-      ];
+      (sessionRepository.getSession as jest.Mock).mockResolvedValue({
+        ...mockSession,
+        processingStatus: 'processing',
+        activeRunId: 'run-1',
+      });
+
+      (streamEventRepository.listAfter as jest.Mock).mockResolvedValue([]);
 
       const mockResponse = {
         writeHead: jest.fn(),
@@ -248,12 +269,14 @@ describe('ChatService Unit Tests', () => {
         on: jest.fn(),
       } as any;
 
-      service.streamChatToResponse('session-1', messages as any, mockAuthContext, mockResponse);
+      // Don't await - the stream stays open
+      service.streamToResponse('session-1', mockAuthContext, mockResponse, { runId: 'run-1' });
       await new Promise((r) => setTimeout(r, 20));
 
       streamCallbacks?.onEvent({
         type: 'tool-progress',
         toolCallId: 'call-1',
+        runId: 'run-1',
         output: { status: 'working', statusMessage: 'RUNNING' },
       });
       streamCallbacks?.onComplete();
@@ -284,13 +307,13 @@ describe('ChatService Unit Tests', () => {
         return { unsubscribe: jest.fn() };
       });
 
-      const messages = [
-        {
-          id: 'msg-1',
-          role: 'user' as const,
-          parts: [{ type: 'text', text: 'Run workflow' }],
-        },
-      ];
+      (sessionRepository.getSession as jest.Mock).mockResolvedValue({
+        ...mockSession,
+        processingStatus: 'processing',
+        activeRunId: 'run-1',
+      });
+
+      (streamEventRepository.listAfter as jest.Mock).mockResolvedValue([]);
 
       const mockResponse = {
         writeHead: jest.fn(),
@@ -299,12 +322,13 @@ describe('ChatService Unit Tests', () => {
         on: jest.fn(),
       } as any;
 
-      service.streamChatToResponse('session-1', messages as any, mockAuthContext, mockResponse);
+      service.streamToResponse('session-1', mockAuthContext, mockResponse, { runId: 'run-1' });
       await new Promise((r) => setTimeout(r, 20));
 
       streamCallbacks?.onEvent({
         type: 'tool-error',
         toolCallId: 'call-err-1',
+        runId: 'run-1',
         errorText: 'HTTP 429 Too Many Requests',
       });
       streamCallbacks?.onComplete();
