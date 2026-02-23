@@ -35,11 +35,6 @@ import { useToast } from '@/components/ui/use-toast';
 import { DurableChatTransport } from '@/lib/durable-chat-transport';
 
 // AI Elements
-import {
-  Conversation,
-  ConversationContent,
-  ConversationScrollButton,
-} from '@/components/ai-elements/conversation';
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
 import {
   Tool,
@@ -303,6 +298,7 @@ export function ChatInterface() {
     setCommandPaletteOpen,
     loadSessions,
     setCurrentSession,
+    newConversationToken,
     selectedRunId,
     isRunInspectorOpen,
   } = useChatStore();
@@ -313,6 +309,11 @@ export function ChatInterface() {
   // Ref to always have the latest sessionId available in the transport callback
   const sessionIdRef = useRef(currentSessionId);
   sessionIdRef.current = currentSessionId;
+  // Route is canonical for which session should currently render.
+  const routeSessionIdRef = useRef<string | null>(
+    routeSessionId && routeSessionId !== 'new' ? routeSessionId : null,
+  );
+  routeSessionIdRef.current = routeSessionId && routeSessionId !== 'new' ? routeSessionId : null;
   // Track which session was lazily created so we skip message-loading for it
   const lazyCreatedSessionRef = useRef<string | null>(null);
   // Queue first message until useChat is bound to the durable session id.
@@ -327,8 +328,8 @@ export function ChatInterface() {
   // Route is canonical for selecting a conversation when present.
   useEffect(() => {
     if (routeSessionId === 'new') {
-      // Respect explicit draft route, but don't clear immediately after we lazily
-      // created a session from the first user message.
+      // Keep /chat/new as a clean draft, except during the brief handoff
+      // when a draft has just been materialized into a persisted session.
       if (
         currentSessionId &&
         !isCreatingSessionRef.current &&
@@ -344,27 +345,11 @@ export function ChatInterface() {
     }
   }, [routeSessionId, currentSessionId, setCurrentSession, startNewConversation]);
 
-  // Keep URL synced with active conversation selection.
+  // Route is the source of truth. Only normalize root "/" to a chat URL.
   useEffect(() => {
-    if (routeSessionId === 'new') {
-      // Stay on draft URL unless this draft just materialized into a real session.
-      if (currentSessionId && currentSessionId === lazyCreatedSessionRef.current) {
-        navigate(`/chat/${currentSessionId}`, { replace: true });
-      }
-      return;
-    }
-
-    if (routeSessionId && routeSessionId !== 'new' && currentSessionId !== routeSessionId) {
-      return;
-    }
-
-    const targetPath = currentSessionId ? `/chat/${currentSessionId}` : '/chat/new';
-    const currentPath = routeSessionId ? `/chat/${routeSessionId}` : '/';
-
-    if (targetPath !== currentPath) {
-      navigate(targetPath, { replace: true });
-    }
-  }, [currentSessionId, routeSessionId, navigate]);
+    if (routeSessionId !== undefined) return;
+    navigate(currentSessionId ? `/chat/${currentSessionId}` : '/chat/new', { replace: true });
+  }, [routeSessionId, currentSessionId, navigate]);
 
   // Create DurableChatTransport - handles both sending and reconnection
   const chatTransport = useMemo(
@@ -394,7 +379,7 @@ export function ChatInterface() {
     resume: messagesLoaded, // Only auto-reconnect after messages are loaded
   });
 
-  const hydrateMessagesForSession = useCallback(
+  const fetchMessagesForSession = useCallback(
     async (sessionId: string): Promise<UIMessage[] | null> => {
       try {
         const authHeaders = await getApiAuthHeaders();
@@ -409,17 +394,42 @@ export function ChatInterface() {
           parts: m.parts,
           createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
         }));
-        setInitialMessages(hydratedMessages);
-        setMessages(hydratedMessages);
         return hydratedMessages;
       } catch {
         return null;
       }
     },
-    [setMessages],
+    [],
   );
 
   useEffect(() => {
+    if (newConversationToken > 0 && !currentSessionId) {
+      setChatId(`new-${Date.now()}`);
+      setInitialMessages([]);
+      setMessages([]);
+      setMessagesLoaded(true);
+      setSessionProcessing(false);
+      setSessionProcessingStartedAtMs(null);
+      pendingFirstMessageRef.current = null;
+      isCreatingSessionRef.current = false;
+    }
+  }, [newConversationToken, currentSessionId, setMessages]);
+
+  useEffect(() => {
+    if (routeSessionId === 'new') {
+      // Ensure local chat state is always reset when landing on the new draft route.
+      setChatId(`new-${Date.now()}`);
+      setInitialMessages([]);
+      setMessages([]);
+      setMessagesLoaded(true);
+      setSessionProcessing(false);
+      setSessionProcessingStartedAtMs(null);
+      pendingFirstMessageRef.current = null;
+      isCreatingSessionRef.current = false;
+      sessionIdRef.current = null;
+      return;
+    }
+
     if (!currentSessionId) {
       // User clicked "New Conversation" — reset chat to empty state
       setChatId(`new-${Date.now()}`);
@@ -441,26 +451,36 @@ export function ChatInterface() {
     }
 
     // Session switch — load messages from server and reset useChat
+    const targetSessionId = currentSessionId;
     let cancelled = false;
+    setChatId(targetSessionId);
+    setInitialMessages([]);
+    setMessages([]);
+    setMessagesLoaded(false);
+    setSessionProcessing(false);
+    setSessionProcessingStartedAtMs(null);
 
     (async () => {
-      const hydrated = await hydrateMessagesForSession(currentSessionId);
-      if (!cancelled && hydrated) {
-        setChatId(currentSessionId);
-        setMessagesLoaded(true);
+      const hydrated = await fetchMessagesForSession(targetSessionId);
+      if (cancelled || routeSessionIdRef.current !== targetSessionId) {
         return;
       }
-      // Keep resume enabled even if initial hydration fails.
-      if (!cancelled) {
-        setChatId(currentSessionId);
-        setMessagesLoaded(true);
+
+      if (hydrated) {
+        setInitialMessages(hydrated);
+        setMessages(hydrated);
+      } else {
+        setInitialMessages([]);
+        setMessages([]);
       }
+
+      setMessagesLoaded(true);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [currentSessionId, routeSessionId, hydrateMessagesForSession]);
+  }, [currentSessionId, routeSessionId, fetchMessagesForSession, setMessages]);
 
   // Once the user switches away from the just-created session, clear the
   // marker so future visits hydrate from backend as usual.
@@ -532,6 +552,16 @@ export function ChatInterface() {
       activePassiveRunId = null;
     };
 
+    const hydrateActiveSessionSafely = async () => {
+      const hydrated = await fetchMessagesForSession(currentSessionId);
+      if (cancelled || routeSessionIdRef.current !== currentSessionId || !hydrated) {
+        return null;
+      }
+      setInitialMessages(hydrated);
+      setMessages(hydrated);
+      return hydrated;
+    };
+
     const attachPassiveStream = async (runId: string) => {
       if (cancelled) return;
       if (status === 'streaming') return; // local tab already owns an active stream
@@ -542,7 +572,7 @@ export function ChatInterface() {
       streamAbortController = new AbortController();
 
       // Pull latest persisted messages first so remote user messages show immediately.
-      await hydrateMessagesForSession(currentSessionId);
+      await hydrateActiveSessionSafely();
 
       const stream = await chatTransport.reconnectToStream({ chatId: currentSessionId });
       if (!stream || cancelled) return;
@@ -551,6 +581,7 @@ export function ChatInterface() {
         const iterator = readUIMessageStream({ stream });
         for await (const snapshot of iterator) {
           if (cancelled || activePassiveRunId !== runId) break;
+          if (routeSessionIdRef.current !== currentSessionId) break;
           const current = messagesRef.current;
           const existingIndex = current.findIndex((message) => message.id === snapshot.id);
           if (existingIndex >= 0) {
@@ -596,7 +627,7 @@ export function ChatInterface() {
         setSessionProcessingStartedAtMs(null);
         if (activePassiveRunId) {
           closePassiveStream();
-          await hydrateMessagesForSession(currentSessionId);
+          await hydrateActiveSessionSafely();
         }
       } catch {
         // Ignore transient polling errors
@@ -620,7 +651,7 @@ export function ChatInterface() {
     messagesLoaded,
     status,
     chatTransport,
-    hydrateMessagesForSession,
+    fetchMessagesForSession,
     setMessages,
   ]);
 
@@ -887,8 +918,8 @@ export function ChatInterface() {
           {displayMessages.length === 0 ? (
             <EmptyState userName={getUserName(user)} onSelectPrompt={handleSelectPrompt} />
           ) : (
-            <Conversation className="flex-1">
-              <ConversationContent className="max-w-5xl mx-auto gap-4 px-4 py-4 md:px-6">
+            <div className="flex-1 overflow-y-auto">
+              <div className="mx-auto flex min-h-full max-w-5xl flex-col justify-end gap-4 px-4 py-4 md:px-6">
                 {displayMessages.map((msg, idx) => (
                   <ChatMessageItem
                     key={msg.id}
@@ -901,9 +932,8 @@ export function ChatInterface() {
                     userImageUrl={userImageUrl}
                   />
                 ))}
-              </ConversationContent>
-              <ConversationScrollButton />
-            </Conversation>
+              </div>
+            </div>
           )}
 
           {/* Error display */}

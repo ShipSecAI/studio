@@ -32,6 +32,7 @@ interface ChatState {
   sessions: ChatSession[];
   currentSessionId: string | null;
   isLoadingSessions: boolean;
+  newConversationToken: number;
 
   // UI State
   isCommandPaletteOpen: boolean;
@@ -89,6 +90,7 @@ export const useChatStore = create<ChatState>()(
       sessions: [],
       currentSessionId: null,
       isLoadingSessions: false,
+      newConversationToken: 0,
       isCommandPaletteOpen: false,
       isWorkflowPreviewOpen: false,
       selectedWorkflowId: null,
@@ -146,7 +148,12 @@ export const useChatStore = create<ChatState>()(
       },
 
       startNewConversation: () => {
-        set({ currentSessionId: null });
+        set((state) => ({
+          currentSessionId: null,
+          newConversationToken: state.newConversationToken + 1,
+          selectedRunId: null,
+          isRunInspectorOpen: false,
+        }));
       },
 
       updateSessionTitle: async (sessionId, title) => {

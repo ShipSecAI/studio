@@ -96,9 +96,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   const openCommandPalette = useCommandPaletteStore((state) => state.open);
 
   // Chat store for history in sidebar
-  const { sessions, currentSessionId, setCurrentSession, startNewConversation, deleteSession } =
-    useChatStore();
+  const { sessions, currentSessionId, deleteSession, loadSessions } = useChatStore();
   const [isChatHistoryExpanded, setIsChatHistoryExpanded] = useState(true);
+
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
 
   // Get git SHA for version display (monorepo - same for frontend and backend)
   const gitSha = env.VITE_GIT_SHA;
@@ -382,7 +385,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       return (
         <Button
           onClick={() => {
-            startNewConversation();
             navigate('/chat/new');
           }}
           size={isMobile ? 'sm' : 'default'}
@@ -446,7 +448,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          <SidebarHeader className="flex items-center justify-between p-4 border-b">
+          <SidebarHeader className="h-14 md:h-14 py-0 px-4 flex items-center justify-between border-b">
             <Link
               to="/"
               className="flex items-center gap-2"
@@ -466,7 +468,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               </div>
               <span
                 className={cn(
-                  'font-bold text-xl transition-all duration-300 whitespace-nowrap overflow-hidden',
+                  'font-bold text-lg transition-all duration-300 whitespace-nowrap overflow-hidden',
                   sidebarOpen ? 'opacity-100 max-w-48' : 'opacity-0 max-w-0',
                 )}
                 style={{
@@ -483,25 +485,6 @@ export function AppLayout({ children }: AppLayoutProps) {
             {/* Top Actions - Fixed */}
             {sidebarOpen && (
               <div className="px-3 pt-3 pb-2 space-y-2 shrink-0">
-                {/* New Chat Button */}
-                <button
-                  onClick={() => {
-                    startNewConversation();
-                    navigate('/chat/new');
-                    if (isMobile) {
-                      setSidebarOpen(false);
-                    }
-                  }}
-                  className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-all duration-200',
-                    'bg-primary text-primary-foreground hover:bg-primary/90',
-                    'shadow-sm hover:shadow-md',
-                  )}
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>New Conversation</span>
-                </button>
-
                 {/* Search Button */}
                 <button
                   onClick={openCommandPalette}
@@ -628,50 +611,71 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
 
             {/* Chat History Section - Scrollable */}
-            {sidebarOpen && sessions.length > 0 && (
-              <div className="flex-1 flex flex-col min-h-0 px-2 pt-2">
-                <button
-                  onClick={() => setIsChatHistoryExpanded(!isChatHistoryExpanded)}
-                  className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full shrink-0"
-                >
-                  {isChatHistoryExpanded ? (
-                    <ChevronDown className="h-3 w-3" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3" />
-                  )}
-                  RECENT CHATS
-                </button>
+            {sidebarOpen && (
+              <>
+                <div className="mx-2 my-2 border-t border-border/60" />
+                <div className="flex-1 flex flex-col min-h-0 px-2 pt-2 space-y-2 mt-1">
+                  <button
+                    onClick={() => {
+                      navigate('/chat/new');
+                      if (isMobile) {
+                        setSidebarOpen(false);
+                      }
+                    }}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-all duration-200',
+                      'text-primary bg-primary/8 hover:bg-primary/12 hover:border-primary',
+                      'border border-transparent',
+                    )}
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>New Conversation</span>
+                  </button>
 
-                {isChatHistoryExpanded && (
-                  <div className="flex-1 overflow-y-auto mt-1 scrollbar-thin scrollbar-thumb-border">
-                    <ChatHistoryList
-                      sessions={sessions}
-                      currentSessionId={currentSessionId}
-                      maxItems={20}
-                      onSelectSession={(id) => {
-                        setCurrentSession(id);
-                        if (location.pathname !== `/chat/${id}`) {
-                          navigate(`/chat/${id}`);
-                        }
-                        if (isMobile) {
-                          setSidebarOpen(false);
-                        }
-                      }}
-                      onDeleteSession={(id) => {
-                        const session = sessions.find((s) => s.id === id);
-                        if (
-                          session &&
-                          confirm(
-                            `Are you sure you want to delete "${session.title}"? This action cannot be undone.`,
-                          )
-                        ) {
-                          deleteSession(id);
-                        }
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
+                  {sessions.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => setIsChatHistoryExpanded(!isChatHistoryExpanded)}
+                        className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full shrink-0"
+                      >
+                        {isChatHistoryExpanded ? (
+                          <ChevronDown className="h-3 w-3" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3" />
+                        )}
+                        RECENT CHATS
+                      </button>
+
+                      {isChatHistoryExpanded && (
+                        <div className="flex-1 overflow-y-auto mt-1 scrollbar-thin scrollbar-thumb-border">
+                          <ChatHistoryList
+                            sessions={sessions}
+                            currentSessionId={currentSessionId}
+                            maxItems={20}
+                            onSelectSession={(id) => {
+                              navigate(`/chat/${id}`);
+                              if (isMobile) {
+                                setSidebarOpen(false);
+                              }
+                            }}
+                            onDeleteSession={(id) => {
+                              const session = sessions.find((s) => s.id === id);
+                              if (
+                                session &&
+                                confirm(
+                                  `Are you sure you want to delete "${session.title}"? This action cannot be undone.`,
+                                )
+                              ) {
+                                deleteSession(id);
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </>
             )}
 
             {/* Manage Collapsible Section */}
