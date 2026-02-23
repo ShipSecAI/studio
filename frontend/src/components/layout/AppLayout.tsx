@@ -659,15 +659,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                               }
                             }}
                             onDeleteSession={(id) => {
-                              const session = sessions.find((s) => s.id === id);
-                              if (
-                                session &&
-                                confirm(
-                                  `Are you sure you want to delete "${session.title}"? This action cannot be undone.`,
-                                )
-                              ) {
-                                deleteSession(id);
-                              }
+                              deleteSession(id);
                             }}
                           />
                         </div>
