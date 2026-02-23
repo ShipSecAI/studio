@@ -63,11 +63,12 @@ export function ChatHistoryList({
         const isActive = session.id === currentSessionId;
 
         return (
-          <div key={session.id} className="flex items-center gap-1 group">
+          <div key={session.id} className="group relative">
             <button
+              type="button"
               onClick={() => onSelectSession(session.id)}
               className={cn(
-                'flex-1 flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors text-left min-w-0',
+                'w-full flex items-center gap-2 px-3 py-2 pr-9 text-sm rounded-lg transition-colors text-left min-w-0',
                 variant === 'default' &&
                   (isActive
                     ? 'bg-accent text-accent-foreground font-medium'
@@ -88,7 +89,7 @@ export function ChatHistoryList({
                 <span className="block truncate flex-1">{session.title}</span>
                 <span
                   className={cn(
-                    'shrink-0 text-[10px]',
+                    'shrink-0 text-[10px] transition-transform duration-200 group-hover:-translate-x-5',
                     variant === 'default' &&
                       (isActive
                         ? 'text-accent-foreground/70'
@@ -103,12 +104,14 @@ export function ChatHistoryList({
               </div>
             </button>
             <button
+              type="button"
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 onDeleteSession(session.id);
               }}
               className={cn(
-                'opacity-0 group-hover:opacity-100 p-1.5 rounded-md transition-all',
+                'absolute right-2 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto p-1.5 rounded-md transition-all duration-200',
                 variant === 'default'
                   ? 'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
                   : 'text-[#888] hover:text-red-400 hover:bg-red-500/20',
