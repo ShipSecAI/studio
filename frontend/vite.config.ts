@@ -29,7 +29,12 @@ export default defineConfig({
     port: frontendPort,
     strictPort: true,
     open: false,
-    allowedHosts: ['studio.shipsec.ai', 'studio-next.shipsec.ai', 'frontend'],
+    allowedHosts: [
+      'studio.shipsec.ai',
+      'studio-next.shipsec.ai',
+      'studio-staging.shipsec.ai',
+      'frontend',
+    ],
     proxy: {
       '/api/': {
         target: `http://localhost:${backendPort}`,
@@ -44,7 +49,12 @@ export default defineConfig({
     },
   },
   preview: {
-    allowedHosts: ['studio.shipsec.ai', 'studio-next.shipsec.ai', 'frontend'],
+    allowedHosts: [
+      'studio.shipsec.ai',
+      'studio-next.shipsec.ai',
+      'studio-staging.shipsec.ai',
+      'frontend',
+    ],
   },
   build: {
     rollupOptions: {
