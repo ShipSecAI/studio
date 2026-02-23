@@ -21,6 +21,7 @@ import { useAuth } from '@/auth/auth-context';
 import { useSidebar } from '@/components/layout/sidebar-context';
 import { useChat } from '@ai-sdk/react';
 import { isToolOrDynamicToolUIPart } from 'ai';
+import { readUIMessageStream } from 'ai';
 import type { UIMessage } from 'ai';
 import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
 import { StatusBar } from '@/components/agent/StatusBar';
@@ -380,6 +381,31 @@ export function ChatInterface() {
     resume: messagesLoaded, // Only auto-reconnect after messages are loaded
   });
 
+  const hydrateMessagesForSession = useCallback(
+    async (sessionId: string): Promise<UIMessage[] | null> => {
+      try {
+        const authHeaders = await getApiAuthHeaders();
+        const res = await fetch(`${API_V1_URL}/chat/sessions/${sessionId}/messages`, {
+          headers: { ...authHeaders },
+        });
+        if (!res.ok) return null;
+        const msgs = await res.json();
+        const hydratedMessages = msgs.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          parts: m.parts,
+          createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
+        }));
+        setInitialMessages(hydratedMessages);
+        setMessages(hydratedMessages);
+        return hydratedMessages;
+      } catch {
+        return null;
+      }
+    },
+    [setMessages],
+  );
+
   useEffect(() => {
     if (!currentSessionId) {
       // User clicked "New Conversation" — reset chat to empty state
@@ -403,39 +429,23 @@ export function ChatInterface() {
     let cancelled = false;
 
     (async () => {
-      try {
-        const authHeaders = await getApiAuthHeaders();
-        const res = await fetch(`${API_V1_URL}/chat/sessions/${currentSessionId}/messages`, {
-          headers: { ...authHeaders },
-        });
-        if (!res.ok || cancelled) return;
-        const msgs = await res.json();
-        if (!cancelled) {
-          const hydratedMessages = msgs.map((m: any) => ({
-            id: m.id,
-            role: m.role,
-            parts: m.parts,
-            createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
-          }));
-          setInitialMessages(hydratedMessages);
-          // Ensure same-chat fresh tabs hydrate the AI SDK state even when chatId is unchanged.
-          setMessages(hydratedMessages);
-          setChatId(currentSessionId);
-          setMessagesLoaded(true);
-        }
-      } catch {
-        // Keep resume enabled even if initial hydration fails.
-        if (!cancelled) {
-          setChatId(currentSessionId);
-          setMessagesLoaded(true);
-        }
+      const hydrated = await hydrateMessagesForSession(currentSessionId);
+      if (!cancelled && hydrated) {
+        setChatId(currentSessionId);
+        setMessagesLoaded(true);
+        return;
+      }
+      // Keep resume enabled even if initial hydration fails.
+      if (!cancelled) {
+        setChatId(currentSessionId);
+        setMessagesLoaded(true);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [currentSessionId, routeSessionId, setMessages]);
+  }, [currentSessionId, routeSessionId, hydrateMessagesForSession]);
 
   // Once the user switches away from the just-created session, clear the
   // marker so future visits hydrate from backend as usual.
@@ -457,6 +467,107 @@ export function ChatInterface() {
   // No more useChatReconnect hook - useChat with resume: true handles everything
   const displayMessages = messages;
   const effectiveStatus = status;
+
+  useEffect(() => {
+    if (!currentSessionId || !messagesLoaded) return;
+
+    let cancelled = false;
+    let streamAbortController: AbortController | null = null;
+    let activePassiveRunId: string | null = null;
+
+    const closePassiveStream = () => {
+      streamAbortController?.abort();
+      streamAbortController = null;
+      activePassiveRunId = null;
+    };
+
+    const attachPassiveStream = async (runId: string) => {
+      if (cancelled) return;
+      if (status === 'streaming') return; // local tab already owns an active stream
+      if (activePassiveRunId === runId) return;
+
+      closePassiveStream();
+      activePassiveRunId = runId;
+      streamAbortController = new AbortController();
+
+      // Pull latest persisted messages first so remote user messages show immediately.
+      await hydrateMessagesForSession(currentSessionId);
+
+      const stream = await chatTransport.reconnectToStream({ chatId: currentSessionId });
+      if (!stream || cancelled) return;
+
+      try {
+        const iterator = readUIMessageStream({ stream });
+        for await (const snapshot of iterator) {
+          if (cancelled || activePassiveRunId !== runId) break;
+          const current = messagesRef.current;
+          const existingIndex = current.findIndex((message) => message.id === snapshot.id);
+          if (existingIndex >= 0) {
+            const next = [...current];
+            next[existingIndex] = snapshot;
+            setMessages(next);
+          } else {
+            setMessages([...current, snapshot]);
+          }
+        }
+      } catch {
+        // Best-effort passive stream
+      } finally {
+        closePassiveStream();
+      }
+    };
+
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const authHeaders = await getApiAuthHeaders();
+        const res = await fetch(`${API_V1_URL}/chat/sessions/${currentSessionId}/status`, {
+          headers: { ...authHeaders },
+        });
+        if (!res.ok || cancelled) return;
+
+        const body = (await res.json()) as {
+          processingStatus: 'idle' | 'processing';
+          activeRunId?: string | null;
+        };
+
+        if (body.processingStatus === 'processing' && body.activeRunId) {
+          void attachPassiveStream(body.activeRunId);
+          return;
+        }
+
+        if (activePassiveRunId) {
+          closePassiveStream();
+          await hydrateMessagesForSession(currentSessionId);
+        }
+      } catch {
+        // Ignore transient polling errors
+      }
+    };
+
+    void poll();
+    const intervalId = window.setInterval(() => {
+      void poll();
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      closePassiveStream();
+    };
+  }, [
+    currentSessionId,
+    messagesLoaded,
+    status,
+    chatTransport,
+    hydrateMessagesForSession,
+    setMessages,
+  ]);
+
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   // Reload sessions when streaming finishes to pick up AI-generated title
   const prevStatusRef = useRef(status);
