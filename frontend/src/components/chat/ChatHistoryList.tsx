@@ -11,6 +11,39 @@ interface ChatHistoryListProps {
   variant?: 'default' | 'compact';
 }
 
+function formatRelativeUpdatedAt(value: string): string {
+  const updatedAtMs = new Date(value).getTime();
+  if (Number.isNaN(updatedAtMs)) return 'just now';
+
+  const diffMs = Date.now() - updatedAtMs;
+  const diffSec = Math.max(0, Math.floor(diffMs / 1000));
+  if (diffSec < 60) return 'just now';
+
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffWeeks < 5) return `${diffWeeks}w ago`;
+
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12) return `${diffMonths}mo ago`;
+
+  const diffYears = Math.floor(diffDays / 365);
+  return `${diffYears}y ago`;
+}
+
+function formatAbsoluteUpdatedAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString();
+}
+
 export function ChatHistoryList({
   sessions,
   currentSessionId,
@@ -23,47 +56,70 @@ export function ChatHistoryList({
 
   return (
     <div className="space-y-0.5">
-      {displaySessions.map((session) => (
-        <div key={session.id} className="flex items-center gap-1 group">
-          <button
-            onClick={() => onSelectSession(session.id)}
-            className={cn(
-              'flex-1 flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors text-left truncate',
-              variant === 'default' &&
-                (session.id === currentSessionId
-                  ? 'bg-accent text-accent-foreground font-medium'
-                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'),
-              variant === 'compact' &&
-                (session.id === currentSessionId
-                  ? 'bg-white/10 text-white'
-                  : 'text-[#a3a3a3] hover:bg-white/5 hover:text-white'),
-            )}
-          >
-            <MessageSquare
+      {displaySessions.map((session) => {
+        const timestamp = session.updatedAt || session.createdAt;
+        const updatedAtRelative = formatRelativeUpdatedAt(timestamp);
+        const updatedAtAbsolute = formatAbsoluteUpdatedAt(timestamp);
+        const isActive = session.id === currentSessionId;
+
+        return (
+          <div key={session.id} className="flex items-center gap-1 group">
+            <button
+              onClick={() => onSelectSession(session.id)}
               className={cn(
-                'shrink-0 opacity-70',
-                variant === 'compact' ? 'h-4 w-4' : 'h-3.5 w-3.5',
+                'flex-1 flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors text-left min-w-0',
+                variant === 'default' &&
+                  (isActive
+                    ? 'bg-accent text-accent-foreground font-medium'
+                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'),
+                variant === 'compact' &&
+                  (isActive
+                    ? 'bg-white/10 text-white'
+                    : 'text-[#a3a3a3] hover:bg-white/5 hover:text-white'),
               )}
-            />
-            <span className="truncate">{session.title}</span>
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDeleteSession(session.id);
-            }}
-            className={cn(
-              'opacity-0 group-hover:opacity-100 p-1.5 rounded-md transition-all',
-              variant === 'default'
-                ? 'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
-                : 'text-[#888] hover:text-red-400 hover:bg-red-500/20',
-            )}
-            aria-label="Delete chat"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      ))}
+            >
+              <MessageSquare
+                className={cn(
+                  'shrink-0 opacity-70',
+                  variant === 'compact' ? 'h-4 w-4' : 'h-3.5 w-3.5',
+                )}
+              />
+              <div className="min-w-0 flex-1 flex items-center gap-2">
+                <span className="block truncate flex-1">{session.title}</span>
+                <span
+                  className={cn(
+                    'shrink-0 text-[10px]',
+                    variant === 'default' &&
+                      (isActive
+                        ? 'text-accent-foreground/70'
+                        : 'text-muted-foreground/75 group-hover:text-foreground/70'),
+                    variant === 'compact' &&
+                      (isActive ? 'text-white/70' : 'text-[#8a8a8a] group-hover:text-[#b3b3b3]'),
+                  )}
+                  title={updatedAtAbsolute || timestamp}
+                >
+                  {updatedAtRelative}
+                </span>
+              </div>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteSession(session.id);
+              }}
+              className={cn(
+                'opacity-0 group-hover:opacity-100 p-1.5 rounded-md transition-all',
+                variant === 'default'
+                  ? 'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
+                  : 'text-[#888] hover:text-red-400 hover:bg-red-500/20',
+              )}
+              aria-label="Delete chat"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
