@@ -551,7 +551,15 @@ describe('StudioMcpService Unit Tests', () => {
       // updateTaskStatus is only called for non-terminal states (RUNNING → working).
       // For COMPLETED, storeTaskResult handles the terminal transition directly.
       expect(mockTaskStore.updateTaskStatus).toHaveBeenCalledTimes(1);
-      expect(mockTaskStore.updateTaskStatus).toHaveBeenCalledWith(taskId, 'working', 'RUNNING');
+      expect(mockTaskStore.updateTaskStatus).toHaveBeenCalledWith(
+        taskId,
+        'working',
+        JSON.stringify({
+          runId: 'test-run-id',
+          workflowId: 'test-workflow-id',
+          executionStatus: 'RUNNING',
+        }),
+      );
       expect(mockTaskStore.updateTaskStatus).not.toHaveBeenCalledWith(
         taskId,
         'completed',
