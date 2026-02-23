@@ -257,12 +257,13 @@ export class TemporalService implements OnModuleDestroy {
   async signalChatWorkflow(
     sessionId: string,
     message: { id?: string; role: string; parts: unknown[] },
+    runId: string,
   ): Promise<void> {
     const workflowId = `chat-${sessionId}`;
     await this.signalWorkflow({
       workflowId,
       signalName: 'userMessage',
-      args: message,
+      args: { message, runId },
     });
   }
 

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, jest } from 'bun:test';
 import { ChatService } from '../chat.service';
 import type { ChatSessionRepository } from '../chat-session.repository';
 import type { ChatPartialRepository } from '../chat-partial.repository';
+import type { ChatStreamEventRepository } from '../chat-stream-event.repository';
 import type { ChatStreamService } from '../chat-stream.service';
 import type { TemporalService } from '../../temporal/temporal.service';
 import type { AuthContext } from '../../auth/types';
@@ -10,6 +11,7 @@ describe('ChatService Unit Tests', () => {
   let service: ChatService;
   let sessionRepository: ChatSessionRepository;
   let partialRepository: ChatPartialRepository;
+  let streamEventRepository: ChatStreamEventRepository;
   let chatStreamService: ChatStreamService;
   let temporalService: TemporalService;
 
@@ -27,6 +29,9 @@ describe('ChatService Unit Tests', () => {
         id: 'session-1',
         title: 'New Conversation',
         status: 'active',
+        processingStatus: 'idle',
+        activeRunId: null,
+        nextEventSeq: 1,
         createdAt: new Date(),
         updatedAt: new Date(),
       }),
@@ -35,6 +40,9 @@ describe('ChatService Unit Tests', () => {
         id: 'session-1',
         title: 'Test',
         status: 'active',
+        processingStatus: 'idle',
+        activeRunId: null,
+        nextEventSeq: 1,
         temporalWorkflowId: 'chat-session-1',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -43,6 +51,9 @@ describe('ChatService Unit Tests', () => {
         id: 'session-1',
         title: 'Updated',
         status: 'active',
+        processingStatus: 'idle',
+        activeRunId: null,
+        nextEventSeq: 1,
         createdAt: new Date(),
         updatedAt: new Date(),
       }),
@@ -57,6 +68,8 @@ describe('ChatService Unit Tests', () => {
       }),
       getMessages: jest.fn().mockResolvedValue([]),
       setTemporalWorkflowId: jest.fn().mockResolvedValue(undefined),
+      startRun: jest.fn().mockResolvedValue(undefined),
+      completeRun: jest.fn().mockResolvedValue(undefined),
     } as unknown as ChatSessionRepository;
 
     partialRepository = {
@@ -64,6 +77,11 @@ describe('ChatService Unit Tests', () => {
       get: jest.fn().mockResolvedValue(null),
       delete: jest.fn().mockResolvedValue(undefined),
     } as unknown as ChatPartialRepository;
+
+    streamEventRepository = {
+      append: jest.fn().mockResolvedValue(1),
+      listAfter: jest.fn().mockResolvedValue([]),
+    } as unknown as ChatStreamEventRepository;
 
     chatStreamService = {
       subscribe: jest.fn().mockReturnValue({ unsubscribe: jest.fn() }),
@@ -81,6 +99,7 @@ describe('ChatService Unit Tests', () => {
     service = new ChatService(
       sessionRepository,
       partialRepository,
+      streamEventRepository,
       chatStreamService,
       temporalService,
     );
@@ -179,11 +198,15 @@ describe('ChatService Unit Tests', () => {
         role: 'user',
         parts: [{ type: 'text', text: 'Hello' }],
       });
-      expect(temporalService.signalChatWorkflow).toHaveBeenCalledWith('session-1', {
-        id: 'msg-1',
-        role: 'user',
-        parts: [{ type: 'text', text: 'Hello' }],
-      });
+      expect(temporalService.signalChatWorkflow).toHaveBeenCalledWith(
+        'session-1',
+        {
+          id: 'msg-1',
+          role: 'user',
+          parts: [{ type: 'text', text: 'Hello' }],
+        },
+        expect.any(String),
+      );
       expect(mockResponse.writeHead).toHaveBeenCalledWith(
         200,
         expect.objectContaining({

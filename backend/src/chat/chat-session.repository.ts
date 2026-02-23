@@ -140,6 +140,33 @@ export class ChatSessionRepository {
       .where(eq(chatSessionsTable.id, id));
   }
 
+  async startRun(id: string, runId: string): Promise<void> {
+    await this.db
+      .update(chatSessionsTable)
+      .set({
+        processingStatus: 'processing',
+        activeRunId: runId,
+        nextEventSeq: 1,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(chatSessionsTable.id, id));
+  }
+
+  async completeRun(id: string, runId?: string): Promise<void> {
+    const conditions: SQL[] = [eq(chatSessionsTable.id, id)];
+    if (runId) {
+      conditions.push(eq(chatSessionsTable.activeRunId, runId));
+    }
+    await this.db
+      .update(chatSessionsTable)
+      .set({
+        processingStatus: 'idle',
+        activeRunId: null,
+        updatedAt: sql`now()`,
+      })
+      .where(and(...conditions));
+  }
+
   async saveMessage(
     sessionId: string,
     message: { role: string; parts: unknown[] },

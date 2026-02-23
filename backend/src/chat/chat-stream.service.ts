@@ -17,16 +17,13 @@ export class ChatStreamService {
   private subscriber: Redis | null = null;
 
   constructor(@Optional() @Inject(TERMINAL_REDIS) private readonly redis: Redis | null) {
-    console.log('[ChatStreamService] Constructor called, redis:', !!this.redis);
     if (this.redis) {
       // Create a duplicate connection for subscribing (Redis requires separate connections
       // for pub/sub subscribers vs regular commands)
       this.subscriber = this.redis.duplicate();
       this.logger.log('Chat stream service initialized with Redis pub/sub');
-      console.log('[ChatStreamService] Subscriber created');
     } else {
       this.logger.warn('Chat stream service: Redis not available, streaming disabled');
-      console.log('[ChatStreamService] No Redis - streaming disabled');
     }
   }
 
@@ -41,6 +38,7 @@ export class ChatStreamService {
       onEvent: (event: ChatStreamEvent) => void;
       onComplete: () => void;
       onError: (err: Error) => void;
+      shouldComplete?: (event: ChatStreamEvent) => boolean;
     },
   ): ChatStreamSubscription {
     if (!this.subscriber) {
@@ -66,8 +64,7 @@ export class ChatStreamService {
         const event = JSON.parse(message) as ChatStreamEvent;
         callbacks.onEvent(event);
 
-        // Auto-complete when we get an idle status (agent finished processing)
-        if (event.type === 'status' && event.status === 'idle') {
+        if (callbacks.shouldComplete?.(event)) {
           setTimeout(() => {
             cleanup();
             callbacks.onComplete();

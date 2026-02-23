@@ -33,6 +33,7 @@ interface ChatUIMessage {
 
 interface ChatAgentStepInput {
   sessionId: string;
+  runId: string;
   organizationId?: string;
   systemPrompt: string;
   messages: ChatUIMessage[];
@@ -101,6 +102,46 @@ function publishStreamChunk(sessionId: string, chunk: string): void {
   }
 }
 
+async function appendStreamEvent(
+  sessionId: string,
+  runId: string,
+  event: Record<string, unknown>,
+): Promise<number | null> {
+  if (!globalBackendUrl) return null;
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
+  try {
+    const res = await fetch(`${globalBackendUrl}/api/v1/chat/sessions/${sessionId}/events`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-token': internalToken,
+      },
+      body: JSON.stringify({ runId, event }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { seq?: number };
+    return typeof data.seq === 'number' ? data.seq : null;
+  } catch {
+    return null;
+  }
+}
+
+async function emitStreamEvent(
+  sessionId: string,
+  runId: string,
+  event: Record<string, unknown>,
+): Promise<void> {
+  const seq = await appendStreamEvent(sessionId, runId, event);
+  publishStreamChunk(
+    sessionId,
+    JSON.stringify({
+      ...event,
+      runId,
+      ...(typeof seq === 'number' ? { seq } : {}),
+    }),
+  );
+}
+
 /**
  * Flush the accumulated partial response parts to the backend so that
  * reconnecting clients (refresh / second tab / CLI) can read the progress.
@@ -123,7 +164,7 @@ async function flushPartialResponse(sessionId: string, parts: unknown[]): Promis
 }
 
 /** Notify the backend that streaming is complete so it clears partial and resets status. */
-async function notifySessionComplete(sessionId: string): Promise<void> {
+async function notifySessionComplete(sessionId: string, runId: string): Promise<void> {
   if (!globalBackendUrl) return;
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
   try {
@@ -133,7 +174,7 @@ async function notifySessionComplete(sessionId: string): Promise<void> {
         'Content-Type': 'application/json',
         'x-internal-token': internalToken,
       },
-      body: '{}',
+      body: JSON.stringify({ runId }),
     });
   } catch {
     // Best-effort
@@ -228,10 +269,10 @@ async function toAISDKMessages(messages: ChatUIMessage[]) {
 export async function runChatAgentStepActivity(
   input: ChatAgentStepInput,
 ): Promise<ChatAgentStepOutput> {
-  const { sessionId, organizationId, systemPrompt, messages, maxSteps } = input;
+  const { sessionId, runId, organizationId, systemPrompt, messages, maxSteps } = input;
 
   // Publish "processing" status
-  publishStreamChunk(sessionId, JSON.stringify({ type: 'status', status: 'processing' }));
+  await emitStreamEvent(sessionId, runId, { type: 'status', status: 'processing' });
 
   // Connect to the backend's MCP servers for tool discovery + execution
   const mcpClient = await createStudioMcpClient(organizationId);
@@ -257,15 +298,12 @@ export async function runChatAgentStepActivity(
         pollInterval: event.pollInterval,
       };
 
-      publishStreamChunk(
-        sessionId,
-        JSON.stringify({
-          type: 'tool-progress',
-          toolCallId: event.toolCallId,
-          toolName: event.toolName,
-          output,
-        }),
-      );
+      void emitStreamEvent(sessionId, runId, {
+        type: 'tool-progress',
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        output,
+      });
 
       // Update the matching tool invocation part in accumulated history so DB has the newest state
       const toolPart = accumulatedParts.find(
@@ -416,7 +454,7 @@ export async function runChatAgentStepActivity(
         const c = chunk as any;
 
         if (c.type === 'text-delta') {
-          publishStreamChunk(sessionId, JSON.stringify({ type: 'text-delta', text: c.delta }));
+          await emitStreamEvent(sessionId, runId, { type: 'text-delta', text: c.delta });
           // Accumulate text delta into accumulated parts
           const lastPart = accumulatedParts[accumulatedParts.length - 1] as any;
           if (lastPart?.type === 'text') {
@@ -426,25 +464,19 @@ export async function runChatAgentStepActivity(
           }
         } else if (c.type === 'tool-input-start') {
           markToolCallStarted(c.toolCallId);
-          publishStreamChunk(
-            sessionId,
-            JSON.stringify({
-              type: 'tool-call',
-              toolCallId: c.toolCallId,
-              toolName: c.toolName,
-            }),
-          );
+          await emitStreamEvent(sessionId, runId, {
+            type: 'tool-call',
+            toolCallId: c.toolCallId,
+            toolName: c.toolName,
+          });
         } else if (c.type === 'tool-input-available') {
           markToolCallStarted(c.toolCallId);
-          publishStreamChunk(
-            sessionId,
-            JSON.stringify({
-              type: 'tool-call',
-              toolCallId: c.toolCallId,
-              toolName: c.toolName,
-              args: c.input,
-            }),
-          );
+          await emitStreamEvent(sessionId, runId, {
+            type: 'tool-call',
+            toolCallId: c.toolCallId,
+            toolName: c.toolName,
+            args: c.input,
+          });
           accumulatedParts.push({
             type: 'tool-invocation',
             toolCallId: c.toolCallId,
@@ -453,15 +485,12 @@ export async function runChatAgentStepActivity(
             input: c.input,
           });
         } else if (c.type === 'tool-output-available') {
-          publishStreamChunk(
-            sessionId,
-            JSON.stringify({
-              type: 'tool-result',
-              toolCallId: c.toolCallId,
-              result: c.output,
-              preliminary: c.preliminary,
-            }),
-          );
+          await emitStreamEvent(sessionId, runId, {
+            type: 'tool-result',
+            toolCallId: c.toolCallId,
+            result: c.output,
+            preliminary: c.preliminary,
+          });
           // Update the matching tool invocation part
           const toolPart = accumulatedParts.find(
             (p: any) => p.type === 'tool-invocation' && p.toolCallId === c.toolCallId,
@@ -472,14 +501,11 @@ export async function runChatAgentStepActivity(
             toolPart.preliminary = c.preliminary === true;
           }
         } else if (c.type === 'tool-output-error') {
-          publishStreamChunk(
-            sessionId,
-            JSON.stringify({
-              type: 'tool-error',
-              toolCallId: c.toolCallId,
-              errorText: c.errorText,
-            }),
-          );
+          await emitStreamEvent(sessionId, runId, {
+            type: 'tool-error',
+            toolCallId: c.toolCallId,
+            errorText: c.errorText,
+          });
           const toolPart = accumulatedParts.find(
             (p: any) => p.type === 'tool-invocation' && p.toolCallId === c.toolCallId,
           ) as any;
@@ -503,8 +529,8 @@ export async function runChatAgentStepActivity(
       }
 
       // Publish completion and notify backend
-      publishStreamChunk(sessionId, JSON.stringify({ type: 'status', status: 'idle' }));
-      await notifySessionComplete(sessionId);
+      await emitStreamEvent(sessionId, runId, { type: 'status', status: 'idle' });
+      await notifySessionComplete(sessionId, runId);
 
       // Use the SDK-provided responseMessage (properly formatted UIMessage with dynamic-tool parts)
       const assistantMessages: ChatUIMessage[] = [];
@@ -537,8 +563,8 @@ export async function runChatAgentStepActivity(
         );
 
         // Publish completion even on error and notify backend
-        publishStreamChunk(sessionId, JSON.stringify({ type: 'status', status: 'idle' }));
-        await notifySessionComplete(sessionId);
+        await emitStreamEvent(sessionId, runId, { type: 'status', status: 'idle' });
+        await notifySessionComplete(sessionId, runId);
 
         // Return a friendly error message to the user
         return {

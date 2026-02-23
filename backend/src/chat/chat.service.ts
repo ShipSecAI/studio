@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable, OnModuleInit, Logger, NotFoundException } from '@nestjs/common';
 import type { UIMessage } from 'ai';
 import type { ServerResponse } from 'node:http';
 
 import { ChatSessionRepository } from './chat-session.repository';
 import { ChatPartialRepository } from './chat-partial.repository';
+import { ChatStreamEventRepository } from './chat-stream-event.repository';
 import { ChatStreamService } from './chat-stream.service';
 import { TemporalService } from '../temporal/temporal.service';
 import type { AuthContext } from '../auth/types';
@@ -24,6 +26,7 @@ export class ChatService implements OnModuleInit {
   constructor(
     private readonly sessionRepository: ChatSessionRepository,
     private readonly partialRepository: ChatPartialRepository,
+    private readonly streamEventRepository: ChatStreamEventRepository,
     private readonly chatStreamService: ChatStreamService,
     private readonly temporalService: TemporalService,
   ) {}
@@ -170,7 +173,23 @@ export class ChatService implements OnModuleInit {
       userId: auth.userId ?? 'anonymous',
       organizationId: auth.organizationId,
     });
-    return { processingStatus: session.processingStatus };
+    return { processingStatus: session.processingStatus, activeRunId: session.activeRunId ?? null };
+  }
+
+  async getRunEvents(sessionId: string, runId: string, afterSeq: number, auth: AuthContext) {
+    await this.sessionRepository.getSession(sessionId, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+    const rows = await this.streamEventRepository.listAfter(sessionId, runId, afterSeq);
+    return {
+      runId,
+      events: rows.map((row) => ({
+        ...(row.event as Record<string, unknown>),
+        runId,
+        seq: row.seq,
+      })),
+    };
   }
 
   async getPartialResponse(sessionId: string, auth: AuthContext) {
@@ -190,10 +209,15 @@ export class ChatService implements OnModuleInit {
     await this.partialRepository.upsert(sessionId, parts);
   }
 
+  /** Internal: called by worker for each durable stream event */
+  async appendStreamEvent(sessionId: string, runId: string, event: Record<string, unknown>) {
+    return this.streamEventRepository.append(sessionId, runId, event);
+  }
+
   /** Internal: called by worker on completion/error to clean up */
-  async clearPartialResponse(sessionId: string) {
+  async clearPartialResponse(sessionId: string, runId?: string) {
     await this.partialRepository.delete(sessionId);
-    await this.sessionRepository.setProcessingStatus(sessionId, 'idle');
+    await this.sessionRepository.completeRun(sessionId, runId);
   }
 
   /** Stream live pub/sub events to an SSE or NDJSON HTTP response */
@@ -202,11 +226,14 @@ export class ChatService implements OnModuleInit {
     format: 'sse' | 'ndjson',
     auth: AuthContext,
     res: ServerResponse,
+    options: { runId?: string; afterSeq?: number } = {},
   ): Promise<void> {
     const session = await this.sessionRepository.getSession(sessionId, {
       userId: auth.userId ?? 'anonymous',
       organizationId: auth.organizationId,
     });
+    const targetRunId = options.runId ?? session.activeRunId ?? null;
+    const initialAfterSeq = Math.max(0, options.afterSeq ?? 0);
 
     const contentType = format === 'ndjson' ? 'application/x-ndjson' : 'text/event-stream';
     res.writeHead(200, {
@@ -216,8 +243,7 @@ export class ChatService implements OnModuleInit {
       'X-Accel-Buffering': 'no',
     });
 
-    // If session is not processing, return immediately
-    if (session.processingStatus !== 'processing') {
+    if (!targetRunId) {
       if (format === 'ndjson') {
         res.write(JSON.stringify({ type: 'status', status: 'idle' }) + '\n');
       } else {
@@ -236,38 +262,106 @@ export class ChatService implements OnModuleInit {
       }
     };
 
+    let lastSeq = initialAfterSeq;
+    let replaying = true;
+    let closed = false;
+    const bufferedLiveEvents: Record<string, unknown>[] = [];
+
+    const closeStream = () => {
+      if (closed) return;
+      closed = true;
+      if (format === 'sse') {
+        res.write('data: [DONE]\n\n');
+      }
+      res.end();
+    };
+
+    const maybeEmitEvent = (event: Record<string, unknown>) => {
+      if (event.runId !== targetRunId) {
+        return;
+      }
+      const seq = typeof event.seq === 'number' ? event.seq : undefined;
+      if (typeof seq === 'number' && seq <= lastSeq) {
+        return;
+      }
+      if (typeof seq === 'number') {
+        lastSeq = seq;
+      }
+      writeEvent(JSON.stringify(event));
+      if (event.type === 'status' && event.status === 'idle') {
+        closeStream();
+      }
+    };
+
     const subscription = this.chatStreamService.subscribe(sessionId, {
       onEvent: (event) => {
         try {
-          writeEvent(JSON.stringify(event));
+          if (replaying) {
+            bufferedLiveEvents.push(event as Record<string, unknown>);
+            return;
+          }
+          maybeEmitEvent(event as Record<string, unknown>);
         } catch {
           // Best-effort streaming
         }
       },
       onComplete: () => {
-        if (format === 'sse') {
-          res.write('data: [DONE]\n\n');
-        }
-        res.end();
+        closeStream();
       },
       onError: (err) => {
         this.logger.error(`Live stream error for session ${sessionId}:`, err);
         writeEvent(JSON.stringify({ type: 'error', errorText: String(err) }));
-        if (format === 'sse') {
-          res.write('data: [DONE]\n\n');
-        }
-        res.end();
+        closeStream();
       },
     });
+
+    try {
+      const replay = await this.streamEventRepository.listAfter(sessionId, targetRunId, lastSeq);
+      for (const row of replay) {
+        maybeEmitEvent({
+          ...(row.event as Record<string, unknown>),
+          runId: targetRunId,
+          seq: row.seq,
+        });
+        if (closed) {
+          subscription.unsubscribe();
+          return;
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Failed replay for session ${sessionId} run ${targetRunId}:`, err);
+      writeEvent(JSON.stringify({ type: 'error', errorText: 'Failed to replay run events' }));
+      closeStream();
+      subscription.unsubscribe();
+      return;
+    }
+
+    bufferedLiveEvents.sort((a, b) => {
+      const aSeq = typeof a.seq === 'number' ? a.seq : Number.MAX_SAFE_INTEGER;
+      const bSeq = typeof b.seq === 'number' ? b.seq : Number.MAX_SAFE_INTEGER;
+      return aSeq - bSeq;
+    });
+    replaying = false;
+    for (const event of bufferedLiveEvents) {
+      maybeEmitEvent(event);
+      if (closed) {
+        subscription.unsubscribe();
+        return;
+      }
+    }
+
+    if (session.processingStatus !== 'processing' || session.activeRunId !== targetRunId) {
+      writeEvent(JSON.stringify({ type: 'status', status: 'idle', runId: targetRunId }));
+      closeStream();
+      subscription.unsubscribe();
+      return;
+    }
 
     // Timeout: if no completion in 5 minutes, end the stream
     const timer = setTimeout(() => {
       subscription.unsubscribe();
       writeEvent(JSON.stringify({ type: 'status', status: 'timeout' }));
-      if (format === 'sse') {
-        res.write('data: [DONE]\n\n');
-      }
-      res.end();
+      closeStream();
     }, 300_000);
 
     res.on('close', () => {
@@ -292,8 +386,9 @@ export class ChatService implements OnModuleInit {
       organizationId: auth.organizationId,
     });
 
-    // Mark session as processing
-    await this.sessionRepository.setProcessingStatus(sessionId, 'processing');
+    // Start a new durable run for this message and expose the run ID to all clients.
+    const runId = randomUUID();
+    await this.sessionRepository.startRun(sessionId, runId);
 
     // Save the user message to DB
     const lastMessage = messages[messages.length - 1];
@@ -307,11 +402,15 @@ export class ChatService implements OnModuleInit {
     // Signal the Temporal workflow with the new message.
     // If the workflow timed out (idle 30 min), restart it with history from DB.
     try {
-      await this.temporalService.signalChatWorkflow(sessionId, {
-        id: lastMessage.id,
-        role: lastMessage.role,
-        parts: lastMessage.parts,
-      });
+      await this.temporalService.signalChatWorkflow(
+        sessionId,
+        {
+          id: lastMessage.id,
+          role: lastMessage.role,
+          parts: lastMessage.parts,
+        },
+        runId,
+      );
     } catch (signalError) {
       this.logger.warn(
         `Signal failed for session ${sessionId}, workflow may have timed out. Restarting...`,
@@ -338,11 +437,15 @@ export class ChatService implements OnModuleInit {
       );
 
       // Now signal the newly started workflow
-      await this.temporalService.signalChatWorkflow(sessionId, {
-        id: lastMessage.id,
-        role: lastMessage.role,
-        parts: lastMessage.parts,
-      });
+      await this.temporalService.signalChatWorkflow(
+        sessionId,
+        {
+          id: lastMessage.id,
+          role: lastMessage.role,
+          parts: lastMessage.parts,
+        },
+        runId,
+      );
     }
 
     // Set up AI SDK v6 UI Message Stream headers
@@ -352,6 +455,7 @@ export class ChatService implements OnModuleInit {
       Connection: 'keep-alive',
       'X-Vercel-AI-UI-Message-Stream': 'v1',
       'X-Accel-Buffering': 'no',
+      'X-Chat-Run-Id': runId,
     });
 
     // Track state for text part interleaving with tools.
@@ -380,6 +484,9 @@ export class ChatService implements OnModuleInit {
     const subscription = this.chatStreamService.subscribe(sessionId, {
       onEvent: (event) => {
         try {
+          if ((event as any).runId !== runId) {
+            return;
+          }
           if (event.type === 'text-delta' && typeof event.text === 'string') {
             if (!currentTextId) startTextPart();
             this.writeSseEvent(res, { type: 'text-delta', id: currentTextId, delta: event.text });
@@ -444,6 +551,8 @@ export class ChatService implements OnModuleInit {
         this.writeSseEvent(res, { type: 'error', errorText: String(err) });
         this.endSseStream(res);
       },
+      shouldComplete: (event) =>
+        event.type === 'status' && event.status === 'idle' && (event as any).runId === runId,
     });
 
     // Timeout: if no completion in 2 minutes, end the stream

@@ -26,6 +26,7 @@ export interface ChatUIMessage {
 
 interface ChatAgentStepInput {
   sessionId: string;
+  runId: string;
   organizationId?: string;
   systemPrompt: string;
   messages: ChatUIMessage[];
@@ -65,11 +66,16 @@ const { generateSessionTitleActivity } = proxyActivities<{
   startToCloseTimeout: '30 seconds',
 });
 
+interface ChatUserTurn {
+  message: ChatUIMessage;
+  runId: string;
+}
+
 // ---------------------------------------------------------------------------
 // Signals & Queries
 // ---------------------------------------------------------------------------
 
-export const userMessageSignal = defineSignal<[ChatUIMessage]>('userMessage');
+export const userMessageSignal = defineSignal<[ChatUserTurn]>('userMessage');
 export const endChatSignal = defineSignal('endChat');
 
 export const getMessagesQuery = defineQuery<ChatUIMessage[]>('getMessages');
@@ -114,7 +120,7 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
   let status: 'idle' | 'processing' | 'done' = 'idle';
   let chatEnded = false;
   let titleGenerated = (input.initialMessages?.length ?? 0) > 0; // skip if continuing
-  const pendingUserMessages: ChatUIMessage[] = [];
+  const pendingUserMessages: ChatUserTurn[] = [];
   const seenUserMessageIds = new Set(
     messages
       .filter((message) => message.role === 'user')
@@ -123,7 +129,8 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
   );
 
   // ---- Signal handlers ----
-  setHandler(userMessageSignal, (msg: ChatUIMessage) => {
+  setHandler(userMessageSignal, (turn: ChatUserTurn) => {
+    const msg = turn.message;
     // Defensive dedupe for transport retries / duplicate signal delivery.
     if (msg.role !== 'user') {
       return;
@@ -153,7 +160,7 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     if (messageId) {
       seenUserMessageIds.add(messageId);
     }
-    pendingUserMessages.push(msg);
+    pendingUserMessages.push(turn);
   });
 
   setHandler(endChatSignal, () => {
@@ -179,7 +186,9 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     if (chatEnded) break;
 
     // Process the next pending user message
-    const userMsg = pendingUserMessages.shift()!;
+    const userTurn = pendingUserMessages.shift()!;
+    const userMsg = userTurn.message;
+    const runId = userTurn.runId;
     messages.push(userMsg);
     status = 'processing';
 
@@ -187,6 +196,7 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
       // Run the AI agent step (LLM calls + tool execution)
       const result = await runChatAgentStepActivity({
         sessionId,
+        runId,
         organizationId: organizationId ?? undefined,
         systemPrompt,
         messages,

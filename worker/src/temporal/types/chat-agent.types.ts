@@ -19,6 +19,7 @@ export type ChatMessagePart =
 /** Input for the runChatAgentStep activity */
 export interface ChatAgentStepInput {
   sessionId: string;
+  runId: string;
   organizationId?: string;
   systemPrompt: string;
   messages: ChatUIMessage[];
