@@ -20,12 +20,12 @@ import { useChatStore } from '@/store/chatStore';
 import { useAuth } from '@/auth/auth-context';
 import { useSidebar } from '@/components/layout/sidebar-context';
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport, isToolOrDynamicToolUIPart } from 'ai';
+import { isToolOrDynamicToolUIPart } from 'ai';
 import type { UIMessage } from 'ai';
 import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
 import { StatusBar } from '@/components/agent/StatusBar';
 import { useToast } from '@/components/ui/use-toast';
-import { useChatReconnect } from '@/hooks/useChatReconnect';
+import { DurableChatTransport } from '@/lib/durable-chat-transport';
 
 // AI Elements
 import {
@@ -68,20 +68,6 @@ function getMessageText(message: UIMessage): string {
     .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
     .map((p) => p.text)
     .join('');
-}
-
-// Helper to convert HeadersInit to Record<string, string>
-function headersInitToRecord(headers?: HeadersInit): Record<string, string> {
-  if (!headers) return {};
-  if (headers instanceof Headers) {
-    const record: Record<string, string> = {};
-    headers.forEach((value, key) => {
-      record[key] = value;
-    });
-    return record;
-  }
-  if (Array.isArray(headers)) return Object.fromEntries(headers);
-  return headers as Record<string, string>;
 }
 
 // Message component using AI Elements
@@ -319,6 +305,8 @@ export function ChatInterface() {
   sessionIdRef.current = currentSessionId;
   // Track which session was lazily created so we skip message-loading for it
   const lazyCreatedSessionRef = useRef<string | null>(null);
+  // Queue first message until useChat is bound to the durable session id.
+  const pendingFirstMessageRef = useRef<string | null>(null);
   const isCreatingSessionRef = useRef(false);
 
   // Load sessions from server on mount
@@ -368,34 +356,37 @@ export function ChatInterface() {
     }
   }, [currentSessionId, routeSessionId, navigate]);
 
-  // Create transport with auth headers — uses ref so it always reads the latest session ID
+  // Create DurableChatTransport - handles both sending and reconnection
   const chatTransport = useMemo(
     () =>
-      new DefaultChatTransport({
-        prepareSendMessagesRequest: async ({ body, headers, messages: msgs, id }) => {
-          const authHeaders = await getApiAuthHeaders();
-          return {
-            api: `${API_V1_URL}/chat/sessions/${sessionIdRef.current}/messages`,
-            body: { ...body, id, messages: msgs },
-            headers: { ...headersInitToRecord(headers), ...authHeaders },
-          };
-        },
+      new DurableChatTransport({
+        apiBase: API_V1_URL,
+        getAuthHeaders: getApiAuthHeaders,
       }),
-
     [],
   );
 
   // Load messages for current session
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [chatId, setChatId] = useState(() =>
-    currentSessionId ? `${currentSessionId}-0` : `chat-${Date.now()}`,
+    currentSessionId ? currentSessionId : `chat-${Date.now()}`,
   );
+  const [messagesLoaded, setMessagesLoaded] = useState(false);
+
+  const { messages, sendMessage, status, error, stop, setMessages } = useChat({
+    transport: chatTransport,
+    id: chatId,
+    messages: initialMessages,
+    resume: messagesLoaded, // Only auto-reconnect after messages are loaded
+  });
 
   useEffect(() => {
     if (!currentSessionId) {
       // User clicked "New Conversation" — reset chat to empty state
       setChatId(`new-${Date.now()}`);
       setInitialMessages([]);
+      setMessages([]);
+      setMessagesLoaded(true);
       return;
     }
 
@@ -403,6 +394,8 @@ export function ChatInterface() {
     // We already have local in-memory transcript (user + streaming assistant),
     // and re-hydrating too early can reset the chat to a partial server snapshot.
     if (lazyCreatedSessionRef.current === currentSessionId) {
+      setChatId(currentSessionId);
+      setMessagesLoaded(true);
       return;
     }
 
@@ -418,25 +411,31 @@ export function ChatInterface() {
         if (!res.ok || cancelled) return;
         const msgs = await res.json();
         if (!cancelled) {
-          setInitialMessages(
-            msgs.map((m: any) => ({
-              id: m.id,
-              role: m.role,
-              parts: m.parts,
-              createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
-            })),
-          );
-          setChatId(`${currentSessionId}-${Date.now()}`);
+          const hydratedMessages = msgs.map((m: any) => ({
+            id: m.id,
+            role: m.role,
+            parts: m.parts,
+            createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
+          }));
+          setInitialMessages(hydratedMessages);
+          // Ensure same-chat fresh tabs hydrate the AI SDK state even when chatId is unchanged.
+          setMessages(hydratedMessages);
+          setChatId(currentSessionId);
+          setMessagesLoaded(true);
         }
       } catch {
-        // ignore fetch errors
+        // Keep resume enabled even if initial hydration fails.
+        if (!cancelled) {
+          setChatId(currentSessionId);
+          setMessagesLoaded(true);
+        }
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [currentSessionId, routeSessionId]);
+  }, [currentSessionId, routeSessionId, setMessages]);
 
   // Once the user switches away from the just-created session, clear the
   // marker so future visits hydrate from backend as usual.
@@ -446,34 +445,18 @@ export function ChatInterface() {
     }
   }, [currentSessionId]);
 
-  const { messages, sendMessage, status, error, stop } = useChat({
-    transport: chatTransport,
-    id: chatId,
-    messages: initialMessages,
-  });
+  useEffect(() => {
+    const pendingMessage = pendingFirstMessageRef.current;
+    if (!pendingMessage || !currentSessionId) return;
+    if (chatId !== currentSessionId) return;
 
-  // Reconnect to in-progress streams on refresh / second tab
-  const { partialMessage, isReconnecting, hasPartial } = useChatReconnect(
-    // Only reconnect when the user hasn't just sent a message (status would be 'streaming')
-    status === 'streaming' ? null : currentSessionId,
-  );
+    pendingFirstMessageRef.current = null;
+    sendMessage({ text: pendingMessage });
+  }, [chatId, currentSessionId, sendMessage]);
 
-  // Merge messages: normal useChat messages + any reconnected partial
-  const displayMessages = useMemo(() => {
-    if (!partialMessage || status === 'streaming') return messages;
-    // If the last message from the server matches the partial's accumulated text,
-    // skip appending (the server has already persisted it).
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg?.role === 'assistant' && lastMsg.id !== partialMessage.id) {
-      return [...messages, partialMessage];
-    }
-    if (messages.length === 0 && partialMessage) {
-      return [partialMessage];
-    }
-    return messages;
-  }, [messages, partialMessage, status]);
-
-  const effectiveStatus = isReconnecting ? 'streaming' : status;
+  // No more useChatReconnect hook - useChat with resume: true handles everything
+  const displayMessages = messages;
+  const effectiveStatus = status;
 
   // Reload sessions when streaming finishes to pick up AI-generated title
   const prevStatusRef = useRef(status);
@@ -505,8 +488,12 @@ export function ChatInterface() {
           const newSessionId = await createSession(title);
           lazyCreatedSessionRef.current = newSessionId;
           sessionIdRef.current = newSessionId;
+          setChatId(newSessionId);
+          setMessagesLoaded(true);
+          pendingFirstMessageRef.current = text;
           // Route transition is explicit to avoid relying on effect timing.
           navigate(`/chat/${newSessionId}`, { replace: true });
+          return;
         } finally {
           isCreatingSessionRef.current = false;
         }
@@ -641,7 +628,7 @@ export function ChatInterface() {
       <div className="flex-1 flex flex-row overflow-hidden min-h-0">
         {/* Content Area */}
         <div className="flex-1 overflow-hidden flex flex-col relative min-w-0">
-          {displayMessages.length === 0 && !hasPartial ? (
+          {displayMessages.length === 0 ? (
             <EmptyState userName={getUserName(user)} onSelectPrompt={handleSelectPrompt} />
           ) : (
             <Conversation className="flex-1">

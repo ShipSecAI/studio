@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Patch, Delete, Body, Param, Query, Res } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { ZodValidationPipe } from 'nestjs-zod';
 import type { Response } from 'express';
 
@@ -57,15 +57,24 @@ export class ChatController {
     return this.chatService.getMessages(id, auth);
   }
 
+  /**
+   * Send a message and return the runId.
+   * The actual streaming happens via GET /:id/stream endpoint.
+   * This allows multiple clients to attach to the same stream.
+   */
   @Post(':id/messages')
-  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Throttle({ default: { limit: 200, ttl: 60000 } })
   async sendMessage(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(SendMessageSchema)) body: SendMessageDto,
     @CurrentAuth() auth: AuthContext,
-    @Res() res: Response,
   ) {
-    await this.chatService.streamChatToResponse(id, body.messages, auth, res);
+    // body.messages contains an array, we only care about the last message
+    const lastMessage = body.messages[body.messages.length - 1];
+    if (!lastMessage) {
+      return { error: 'No message provided' };
+    }
+    return this.chatService.sendMessage(id, lastMessage, auth);
   }
 
   // ---------------------------------------------------------------------------
@@ -82,22 +91,31 @@ export class ChatController {
     return this.chatService.getPartialResponse(id, auth);
   }
 
+  /**
+   * Unified streaming endpoint for AI SDK v6 UIMessageChunk format.
+   *
+   * Used by:
+   * - DurableChatTransport.sendMessages (after POST returns runId)
+   * - DurableChatTransport.reconnectToStream (for late-joining tabs or refresh)
+   *
+   * All clients receive identical events from PostgreSQL replay + Redis pub/sub.
+   */
   @Get(':id/stream')
+  @Throttle({ default: { limit: 2000, ttl: 60000 } })
   async streamLive(
     @Param('id') id: string,
-    @Query('format') format: string | undefined,
     @Query('runId') runId: string | undefined,
     @Query('afterSeq') afterSeqRaw: string | undefined,
     @CurrentAuth() auth: AuthContext,
     @Res() res: Response,
   ) {
-    const fmt = format === 'ndjson' ? 'ndjson' : 'sse';
     const parsedAfterSeq = Number(afterSeqRaw ?? '0');
     const afterSeq = Number.isFinite(parsedAfterSeq) && parsedAfterSeq > 0 ? parsedAfterSeq : 0;
-    await this.chatService.streamLiveToResponse(id, fmt, auth, res, { runId, afterSeq });
+    await this.chatService.streamToResponse(id, auth, res, { runId, afterSeq });
   }
 
   @Get(':id/events')
+  @Throttle({ default: { limit: 2000, ttl: 60000 } })
   async listRunEvents(
     @Param('id') id: string,
     @Query('runId') runId: string | undefined,
@@ -114,6 +132,7 @@ export class ChatController {
 
   /** Internal endpoint: worker flushes partial response during streaming */
   @Post(':id/partial')
+  @SkipThrottle()
   async upsertPartialResponse(@Param('id') id: string, @Body() body: { parts: unknown[] }) {
     await this.chatService.upsertPartialResponse(id, body.parts);
     return { success: true };
@@ -121,6 +140,7 @@ export class ChatController {
 
   /** Internal endpoint: worker appends durable stream events */
   @Post(':id/events')
+  @SkipThrottle()
   async appendRunEvent(
     @Param('id') id: string,
     @Body() body: { runId: string; event: Record<string, unknown> },
@@ -131,6 +151,7 @@ export class ChatController {
 
   /** Internal endpoint: worker signals completion and cleans up partial */
   @Post(':id/complete')
+  @SkipThrottle()
   async completeSession(@Param('id') id: string, @Body() body: { runId?: string }) {
     await this.chatService.clearPartialResponse(id, body?.runId);
     return { success: true };
