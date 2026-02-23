@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery, skipToken } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { useExecutionStatus, useExecutionRun } from '@/hooks/queries/useExecutionQueries';
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
 import { useChatStore } from '@/store/chatStore';
 import { TERMINAL_STATUSES, type ExecutionStatus } from '@shipsec/shared';
 import { cn } from '@/lib/utils';
+import { executionEventsOptions } from '@/lib/executionQueryOptions';
+import { queryKeys } from '@/lib/queryKeys';
+import type { ExecutionLog } from '@/schemas/execution';
 import {
   CheckCircle2,
   Clock3,
@@ -207,15 +211,43 @@ export function WorkflowRunStatusCard({ run }: { run: ParsedWorkflowRunOutput })
   const progressPercent =
     total > 0 ? Math.min(100, (completed / total) * 100) : isTerminal ? 100 : 0;
 
-  // ── Mini event feed (last 5 events from this run)
-  const recentEvents = useMemo(() => {
-    if (storeRunId !== effectiveRunId) return [];
-    // Show last 5 events, newest last
-    return allEvents.slice(-5);
-  }, [allEvents, storeRunId, effectiveRunId]);
-
   // ── Collapsible events section
-  const [eventsExpanded, setEventsExpanded] = useState(true);
+  const [eventsExpanded, setEventsExpanded] = useState(false);
+
+  const cardEventsQuery = useQuery({
+    ...(effectiveRunId ? executionEventsOptions(effectiveRunId) : {}),
+    queryKey: queryKeys.executions.events(effectiveRunId ?? ''),
+    queryFn: effectiveRunId ? executionEventsOptions(effectiveRunId).queryFn : skipToken,
+    enabled: false,
+    refetchInterval: eventsExpanded && effectiveRunId && !isTerminal ? 2000 : false,
+  });
+
+  useEffect(() => {
+    if (!eventsExpanded || !effectiveRunId) return;
+    if (cardEventsQuery.isFetching || cardEventsQuery.data !== undefined) return;
+    void cardEventsQuery.refetch();
+  }, [
+    eventsExpanded,
+    effectiveRunId,
+    cardEventsQuery.isFetching,
+    cardEventsQuery.data,
+    cardEventsQuery.refetch,
+  ]);
+
+  const fetchedEventsEnvelope = cardEventsQuery.data as { events?: ExecutionLog[] } | undefined;
+  const fetchedEvents = fetchedEventsEnvelope?.events ?? [];
+
+  const recentEvents = useMemo(() => {
+    // Prefer live timeline events when this run is actively selected in inspector.
+    if (storeRunId === effectiveRunId && allEvents.length > 0) {
+      return allEvents.slice(-5);
+    }
+
+    const fetched = fetchedEvents
+      .slice()
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return fetched.slice(-5);
+  }, [allEvents, storeRunId, effectiveRunId, fetchedEvents]);
 
   const handleInspect = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -307,14 +339,28 @@ export function WorkflowRunStatusCard({ run }: { run: ParsedWorkflowRunOutput })
       </div>
 
       {/* Mini Event Feed */}
-      {recentEvents.length > 0 && (
+      {effectiveRunId && (
         <div className="mt-2.5">
           <button
-            onClick={() => setEventsExpanded((v) => !v)}
+            onClick={() => {
+              setEventsExpanded((v) => {
+                const next = !v;
+                if (next && !cardEventsQuery.data && !cardEventsQuery.isFetching) {
+                  void cardEventsQuery.refetch();
+                }
+                return next;
+              });
+            }}
             className="flex items-center gap-1.5 w-full px-3.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
             <Activity className="h-3 w-3" />
-            <span>{recentEvents.length} recent events</span>
+            <span>
+              {recentEvents.length > 0
+                ? `${recentEvents.length} recent events`
+                : cardEventsQuery.isFetching
+                  ? 'Loading events...'
+                  : 'Show events'}
+            </span>
             {eventsExpanded ? (
               <ChevronUp className="h-3 w-3 ml-auto" />
             ) : (
@@ -352,6 +398,9 @@ export function WorkflowRunStatusCard({ run }: { run: ParsedWorkflowRunOutput })
                   </li>
                 );
               })}
+              {!cardEventsQuery.isFetching && recentEvents.length === 0 && (
+                <li className="px-2 py-1 text-[11px] text-muted-foreground">No events yet.</li>
+              )}
             </ul>
           )}
         </div>
