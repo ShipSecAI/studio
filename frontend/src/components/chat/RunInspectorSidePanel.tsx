@@ -36,9 +36,9 @@ export function RunInspectorSidePanel() {
   if (!isRunInspectorOpen || !selectedRunId) return null;
 
   return (
-    <div className="w-[420px] shrink-0 h-full bg-background border-l flex flex-col animate-in slide-in-from-right duration-300">
+    <div className="relative w-[420px] shrink-0 h-full bg-background border-l flex flex-col animate-in slide-in-from-right duration-300">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+      <div className="relative flex items-center justify-between px-4 py-3 border-b bg-muted/30">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
             <Activity className="h-5 w-5 text-primary" />

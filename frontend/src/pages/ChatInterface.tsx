@@ -10,12 +10,18 @@ import {
   Pencil,
   Check,
   Link2,
+  ExternalLink,
+  Workflow,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ChatCommandPalette, WorkflowPreviewPanel } from '@/components/chat';
 import { RunInspectorSidePanel } from '@/components/chat/RunInspectorSidePanel';
+import { EmbeddedRunGraph } from '@/components/chat/EmbeddedRunGraph';
+import { useExecutionRun } from '@/hooks/queries/useExecutionQueries';
 import { useChatStore } from '@/store/chatStore';
 import { useAuth } from '@/auth/auth-context';
 import { useSidebar } from '@/components/layout/sidebar-context';
@@ -297,7 +303,9 @@ export function ChatInterface() {
     setCommandPaletteOpen,
     loadSessions,
     setCurrentSession,
+    selectedRunId,
   } = useChatStore();
+  const { data: selectedRunData } = useExecutionRun(selectedRunId);
 
   const currentSession = getCurrentSession();
 
@@ -631,9 +639,29 @@ export function ChatInterface() {
 
   // Handle prompt selection — set the textarea value via ref
   const [pendingPrompt, setPendingPrompt] = useState('');
+  const [graphPanelRun, setGraphPanelRun] = useState<{ runId: string; workflowId: string } | null>(
+    null,
+  );
+  const [isGraphPanelOpen, setIsGraphPanelOpen] = useState(false);
   const handleSelectPrompt = useCallback((prompt: string) => {
     setPendingPrompt(prompt + ' ');
   }, []);
+
+  const graphPanelUrl = useMemo(() => {
+    if (!graphPanelRun) return '';
+    return `/workflows/${graphPanelRun.workflowId}/runs/${graphPanelRun.runId}`;
+  }, [graphPanelRun]);
+
+  useEffect(() => {
+    const runWorkflowId = selectedRunData?.workflowId;
+    if (!selectedRunId || !runWorkflowId) return;
+    setGraphPanelRun((prev) => {
+      if (prev && prev.runId === selectedRunId && prev.workflowId === runWorkflowId) {
+        return prev;
+      }
+      return { runId: selectedRunId, workflowId: runWorkflowId };
+    });
+  }, [selectedRunId, selectedRunData?.workflowId]);
 
   // Handle submit from PromptInput — lazily creates a session if needed
   const handleSubmit = useCallback(
@@ -789,6 +817,63 @@ export function ChatInterface() {
       <div className="flex-1 flex flex-row overflow-hidden min-h-0">
         {/* Content Area */}
         <div className="flex-1 overflow-hidden flex flex-col relative min-w-0">
+          {/* Top slide-over graph reveal panel */}
+          <div
+            className={`pointer-events-none absolute inset-x-0 top-0 z-20 transition-all duration-300 ease-out ${
+              isGraphPanelOpen ? 'translate-y-0 opacity-100' : '-translate-y-[105%] opacity-0'
+            }`}
+          >
+            {graphPanelRun && (
+              <div className="relative ml-auto mr-0 h-[52vh] w-[min(100%,72rem)] rounded-b-none rounded-bl-xl border border-t-0 border-r-0 bg-background/95 shadow-lg backdrop-blur-sm">
+                <div className="flex h-full flex-col px-3 py-2 md:px-4 pointer-events-auto">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Execution Graph</p>
+                      <p className="truncate text-xs text-muted-foreground font-mono">
+                        {graphPanelRun.runId}
+                      </p>
+                    </div>
+                    <div className="flex items-center">
+                      <Button variant="outline" size="sm" asChild className="h-8 gap-1.5">
+                        <a href={graphPanelUrl} target="_blank" rel="noreferrer">
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Open Full Page
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card">
+                    <EmbeddedRunGraph
+                      workflowId={graphPanelRun.workflowId}
+                      runId={graphPanelRun.runId}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Single graph toggle tab: slides with the panel and docks to sidebar edge */}
+          {graphPanelRun && (
+            <button
+              onClick={() => setIsGraphPanelOpen((open) => !open)}
+              className={`absolute right-0 top-0 z-30 -translate-x-px inline-flex h-10 items-center gap-1.5 whitespace-nowrap border-y border-l border-r-0 bg-background px-2.5 text-xs font-medium transition-all duration-300 ease-out hover:bg-muted ${
+                isGraphPanelOpen ? 'translate-y-[calc(52vh-1px)]' : 'translate-y-0'
+              }`}
+              title={isGraphPanelOpen ? 'Hide workflow graph' : 'Show workflow graph'}
+            >
+              <Workflow className="h-3.5 w-3.5 text-primary" />
+              <span className="tracking-wide">
+                {isGraphPanelOpen ? 'Close Graph' : 'Open Graph'}
+              </span>
+              {isGraphPanelOpen ? (
+                <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+            </button>
+          )}
+
           {displayMessages.length === 0 ? (
             <EmptyState userName={getUserName(user)} onSelectPrompt={handleSelectPrompt} />
           ) : (
