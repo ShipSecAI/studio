@@ -373,6 +373,8 @@ export function ChatInterface() {
     currentSessionId ? currentSessionId : `chat-${Date.now()}`,
   );
   const [messagesLoaded, setMessagesLoaded] = useState(false);
+  const [sessionProcessing, setSessionProcessing] = useState(false);
+  const [sessionActiveRunId, setSessionActiveRunId] = useState<string | null>(null);
 
   const { messages, sendMessage, status, error, stop, setMessages } = useChat({
     transport: chatTransport,
@@ -413,6 +415,8 @@ export function ChatInterface() {
       setInitialMessages([]);
       setMessages([]);
       setMessagesLoaded(true);
+      setSessionProcessing(false);
+      setSessionActiveRunId(null);
       return;
     }
 
@@ -467,6 +471,7 @@ export function ChatInterface() {
   // No more useChatReconnect hook - useChat with resume: true handles everything
   const displayMessages = messages;
   const effectiveStatus = status;
+  const isAgentWorking = effectiveStatus === 'streaming' || sessionProcessing;
 
   useEffect(() => {
     if (!currentSessionId || !messagesLoaded) return;
@@ -532,10 +537,14 @@ export function ChatInterface() {
         };
 
         if (body.processingStatus === 'processing' && body.activeRunId) {
+          setSessionProcessing(true);
+          setSessionActiveRunId(body.activeRunId);
           void attachPassiveStream(body.activeRunId);
           return;
         }
 
+        setSessionProcessing(false);
+        setSessionActiveRunId(null);
         if (activePassiveRunId) {
           closePassiveStream();
           await hydrateMessagesForSession(currentSessionId);
@@ -554,6 +563,8 @@ export function ChatInterface() {
       cancelled = true;
       window.clearInterval(intervalId);
       closePassiveStream();
+      setSessionProcessing(false);
+      setSessionActiveRunId(null);
     };
   }, [
     currentSessionId,
@@ -734,6 +745,19 @@ export function ChatInterface() {
         <div className="flex-1" />
         <StatusBar className="border-b-0" />
       </div>
+      {isAgentWorking ? (
+        <div className="border-b bg-amber-50/60 px-4 py-2">
+          <div className="mx-auto flex max-w-5xl items-center gap-2 text-sm text-amber-900">
+            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-700 border-t-transparent" />
+            <span className="font-medium">AI Agent is working...</span>
+            {sessionActiveRunId ? (
+              <span className="font-mono text-xs text-amber-800/80">
+                run {sessionActiveRunId.slice(-8)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {/* Body: chat + inspector side-by-side */}
       <div className="flex-1 flex flex-row overflow-hidden min-h-0">
