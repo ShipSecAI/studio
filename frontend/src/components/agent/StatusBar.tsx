@@ -499,6 +499,7 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ className }: StatusBarProps) {
+  const showPlaceholderIntegrations = false;
   const totalFindings =
     findingsSummary.critical + findingsSummary.high + findingsSummary.medium + findingsSummary.low;
   const totalRepos = githubOrgs.reduce((sum, org) => sum + org.repos, 0);
@@ -508,23 +509,27 @@ export function StatusBar({ className }: StatusBarProps) {
   return (
     <div className={cn('flex items-center border-b bg-background/60 backdrop-blur-sm', className)}>
       <div className="flex items-center gap-0.5 px-3 py-1 overflow-x-auto scrollbar-none">
-        <StatusPill
-          icon={Cloud}
-          label="AWS"
-          value={`${awsAccounts.length}`}
-          dotColor="green"
-          popoverContent={<AwsPopoverContent />}
-          popoverAlign="start"
-        />
-        <div className="w-px h-4 bg-border mx-1 hidden sm:block" />
-        <StatusPill
-          icon={GitHubIcon}
-          label="GitHub"
-          value={`${totalRepos}`}
-          dotColor="green"
-          popoverContent={<GitHubPopoverContent />}
-        />
-        <div className="w-px h-4 bg-border mx-1 hidden sm:block" />
+        {showPlaceholderIntegrations && (
+          <>
+            <StatusPill
+              icon={Cloud}
+              label="AWS"
+              value={`${awsAccounts.length}`}
+              dotColor="green"
+              popoverContent={<AwsPopoverContent />}
+              popoverAlign="start"
+            />
+            <div className="w-px h-4 bg-border mx-1 hidden sm:block" />
+            <StatusPill
+              icon={GitHubIcon}
+              label="GitHub"
+              value={`${totalRepos}`}
+              dotColor="green"
+              popoverContent={<GitHubPopoverContent />}
+            />
+            <div className="w-px h-4 bg-border mx-1 hidden sm:block" />
+          </>
+        )}
         <StatusPill
           icon={Shield}
           label="Scanners"
@@ -540,26 +545,32 @@ export function StatusBar({ className }: StatusBarProps) {
           dotColor="blue"
           popoverContent={<McpToolsPopoverContent />}
         />
-        <div className="w-px h-4 bg-border mx-1 hidden sm:block" />
-        <StatusPill
-          icon={AlertTriangle}
-          label="Findings"
-          value={`${totalFindings}`}
-          dotColor="amber"
-          popoverContent={<FindingsPopoverContent />}
-          className="text-amber-600 dark:text-amber-400"
-        />
+        {showPlaceholderIntegrations && (
+          <>
+            <div className="w-px h-4 bg-border mx-1 hidden sm:block" />
+            <StatusPill
+              icon={AlertTriangle}
+              label="Findings"
+              value={`${totalFindings}`}
+              dotColor="amber"
+              popoverContent={<FindingsPopoverContent />}
+              className="text-amber-600 dark:text-amber-400"
+            />
+          </>
+        )}
         <div className="flex-1" />
-        <HoverPopover content={<LivePopoverContent />} align="end">
-          <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-accent transition-all duration-200 cursor-default select-none">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
-            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Live</span>
-            <span className="text-muted-foreground hidden sm:inline">&middot; 2m ago</span>
-          </button>
-        </HoverPopover>
+        {showPlaceholderIntegrations && (
+          <HoverPopover content={<LivePopoverContent />} align="end">
+            <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-accent transition-all duration-200 cursor-default select-none">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Live</span>
+              <span className="text-muted-foreground hidden sm:inline">&middot; 2m ago</span>
+            </button>
+          </HoverPopover>
+        )}
       </div>
     </div>
   );
