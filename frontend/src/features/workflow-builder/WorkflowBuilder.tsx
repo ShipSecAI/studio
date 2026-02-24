@@ -571,6 +571,8 @@ function WorkflowBuilderContent() {
           setLastSavedMetadata({
             name: baseMetadata.name,
             description: baseMetadata.description ?? '',
+            icon: baseMetadata.icon ?? null,
+            iconColor: baseMetadata.iconColor ?? null,
           });
 
           // Initialize undo/redo history with the initial state
@@ -591,8 +593,11 @@ function WorkflowBuilderContent() {
           id: workflow.id,
           name: workflow.name,
           description: workflow.description ?? '',
+          icon: (workflow as any).icon ?? null,
+          iconColor: (workflow as any).iconColor ?? null,
           currentVersionId: workflow.currentVersionId ?? null,
           currentVersion: workflow.currentVersion ?? null,
+          isSystem: (workflow as Record<string, unknown>).isSystem === true,
         });
 
         const hasRunContext = Boolean(routeRunId || selectedRunId);
@@ -638,6 +643,8 @@ function WorkflowBuilderContent() {
         setLastSavedMetadata({
           name: workflow.name,
           description: workflow.description ?? '',
+          icon: workflow.icon ?? null,
+          iconColor: workflow.iconColor ?? null,
         });
 
         // Initialize undo/redo history with the loaded workflow
@@ -969,6 +976,7 @@ function WorkflowBuilderContent() {
       isNew={isNewWorkflow}
       onRun={handleRun}
       onSave={handleSave}
+      onAutoSave={() => handleSave(false)}
       onImport={handleImportWorkflow}
       onExport={handleExportWorkflow}
       canManageWorkflows={canManageWorkflows}

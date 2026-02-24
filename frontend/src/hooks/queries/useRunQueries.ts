@@ -35,14 +35,14 @@ export interface ExecutionRun {
 const INITIAL_LIMIT = 5;
 const LOAD_MORE_LIMIT = 20;
 
-const TRIGGER_LABELS: Record<ExecutionTriggerType, string> = {
+export const TRIGGER_LABELS: Record<ExecutionTriggerType, string> = {
   manual: 'Manual run',
   schedule: 'Scheduled run',
   api: 'API run',
   webhook: 'Webhook trigger',
 };
 
-const normalizeRun = (run: any): ExecutionRun => {
+export const normalizeRun = (run: any): ExecutionRun => {
   const startTime = typeof run.startTime === 'string' ? run.startTime : new Date().toISOString();
   const rawEndTime = typeof run.endTime === 'string' ? run.endTime : undefined;
   const status = (
@@ -146,6 +146,30 @@ export async function fetchMoreRuns(workflowId: string | null | undefined) {
       runs: sortRuns([...old.runs, ...newRuns]),
       hasMore: rawRuns.length >= LOAD_MORE_LIMIT,
     };
+  });
+}
+
+/**
+ * Fetch recent workflow runs across all workflows (for dashboard).
+ * Excludes child runs (parentRunId != null) to avoid clutter.
+ */
+export function useRecentRuns(limit = 10) {
+  return useQuery({
+    queryKey: [...queryKeys.runs.global(), 'recent', limit] as const,
+    queryFn: async (): Promise<ExecutionRun[]> => {
+      const response = await api.executions.listRuns({ limit });
+      const rawRuns = response.runs ?? [];
+      return sortRuns(rawRuns.map(normalizeRun)).filter((r) => !r.parentRunId);
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useRunActivity(days = 90) {
+  return useQuery({
+    queryKey: queryKeys.runs.activity({ days }),
+    queryFn: () => api.executions.getRunActivity({ days }),
+    staleTime: 5 * 60 * 1000,
   });
 }
 

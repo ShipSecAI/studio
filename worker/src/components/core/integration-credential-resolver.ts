@@ -128,6 +128,11 @@ const definition = defineComponent({
     // Regions: prefer explicit input, fall back to the connection's default region
     const resolvedRegions = (inputs.regions || payload.region || '').trim();
 
+    // Contribute context for downstream components
+    context.contributeRunContext?.('provider', payload.provider);
+    if (payload.accountId) context.contributeRunContext?.('accountId', payload.accountId);
+    if (payload.displayName) context.contributeRunContext?.('connectionName', payload.displayName);
+
     return outputSchema.parse({
       credentialType: payload.credentialType,
       provider: payload.provider,
@@ -148,6 +153,7 @@ async function fetchConnectionCredentials(
   data: Record<string, unknown>;
   accountId?: string;
   region?: string;
+  displayName?: string;
 }> {
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
 
@@ -204,6 +210,7 @@ async function fetchConnectionCredentials(
     data?: Record<string, unknown>;
     accountId?: string;
     region?: string;
+    displayName?: string;
   };
 
   if (!payload.credentialType || !payload.provider) {
@@ -222,6 +229,7 @@ async function fetchConnectionCredentials(
     data: payload.data ?? {},
     accountId: payload.accountId,
     region: payload.region,
+    displayName: payload.displayName,
   };
 }
 

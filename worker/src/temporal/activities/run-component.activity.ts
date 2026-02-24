@@ -5,6 +5,7 @@ import * as crypto from 'node:crypto';
 import {
   componentRegistry,
   createExecutionContext,
+  getRunContextContributions,
   NotFoundError,
   ValidationError,
   TEMPORAL_SPILL_THRESHOLD_BYTES,
@@ -157,6 +158,9 @@ export async function runComponentActivity(
     workflowId: input.workflowId,
     workflowName: input.workflowName,
     organizationId: input.organizationId ?? null,
+    triggerType: input.triggerType ?? null,
+    triggerSource: input.triggerSource ?? null,
+    runContext: input.runContext,
     metadata: {
       activityId: activityInfo.activityId,
       attempt: activityInfo.attempt,
@@ -540,7 +544,11 @@ export async function runComponentActivity(
       });
     }
 
-    return { output, activeOutputPorts };
+    return {
+      output,
+      activeOutputPorts,
+      runContextContributions: getRunContextContributions(context),
+    };
   } catch (error) {
     const rawErrorMsg = getErrorMessage(error);
     const errorMsg = truncateText(rawErrorMsg, ERROR_LOG_LIMIT);

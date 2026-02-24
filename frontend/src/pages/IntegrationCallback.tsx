@@ -5,7 +5,6 @@ import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 
 import type { components } from '@shipsec/backend-client';
 import { api } from '@/services/api';
-import { env } from '@/config/env';
 
 type IntegrationConnection = components['schemas']['IntegrationConnectionResponse'];
 
@@ -53,7 +52,7 @@ export function IntegrationCallback() {
     }
     exchangeStartedRef.current = true;
 
-    const redirectUri = `${env.VITE_APP_URL}/integrations/callback/${providerId}`;
+    const redirectUri = `${window.location.origin}/integrations/callback/${providerId}`;
 
     async function exchangeCode() {
       try {
@@ -67,8 +66,11 @@ export function IntegrationCallback() {
         setStatus('success');
         setMessage(`Connected to ${connection.providerName}. Redirecting…`);
         setTimeout(() => {
-          const target = env.VITE_ENABLE_CONNECTIONS ? `/integrations/${connection.provider}` : '/';
-          navigate(target, { replace: true });
+          const dest =
+            connection.provider === 'github'
+              ? '/github/repositories'
+              : `/integrations/${connection.provider}`;
+          navigate(dest, { replace: true });
         }, 1200);
       } catch (error) {
         const description =
@@ -98,10 +100,10 @@ export function IntegrationCallback() {
           <Button
             variant="outline"
             onClick={() =>
-              navigate(env.VITE_ENABLE_CONNECTIONS ? `/integrations/${provider}` : '/')
+              navigate(provider === 'github' ? '/github/repositories' : `/integrations/${provider}`)
             }
           >
-            {env.VITE_ENABLE_CONNECTIONS ? 'Return to connections' : 'Return home'}
+            Return to connections
           </Button>
         )}
       </div>

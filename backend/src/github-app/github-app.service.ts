@@ -24,6 +24,10 @@ import type {
   GitHubPushEvent,
 } from './dto/github-app.dto';
 import { WorkflowsService } from '../workflows/workflows.service';
+import {
+  SystemWorkflowsService,
+  type SystemWorkflowDto,
+} from '../workflows/system-workflows.service';
 
 interface InstallationTokenCache {
   token: string;
@@ -41,6 +45,8 @@ export class GitHubAppService implements OnModuleInit {
     private readonly repository: GitHubAppRepository,
     @Inject(forwardRef(() => WorkflowsService))
     private readonly workflowsService: WorkflowsService,
+    @Inject(forwardRef(() => SystemWorkflowsService))
+    private readonly systemWorkflowsService: SystemWorkflowsService,
   ) {
     this.config = this.configService.get<GitHubAppConfig>('githubApp')!;
   }
@@ -1184,7 +1190,7 @@ export class GitHubAppService implements OnModuleInit {
     workflowId: string,
     branch: string | undefined,
     auth: AuthContext,
-  ): Promise<string> {
+  ): Promise<{ scanId: string; runId: string }> {
     const organizationId = this.requireOrganizationId(auth);
 
     // Fetch repository record and verify organization ownership
@@ -1251,7 +1257,7 @@ export class GitHubAppService implements OnModuleInit {
         `Started scan ${scanResult.id} for repository ${repository.fullName} (branch: ${targetBranch}, workflowRunId: ${runHandle.runId})`,
       );
 
-      return scanResult.id;
+      return { scanId: scanResult.id, runId: runHandle.runId };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to start scan workflow: ${errorMessage}`);
@@ -1453,6 +1459,11 @@ export class GitHubAppService implements OnModuleInit {
       'github.check.create': inputs,
       'github.check.update': inputs,
     };
+  }
+
+  async getQuickScanWorkflows(auth: AuthContext): Promise<SystemWorkflowDto[]> {
+    const organizationId = this.requireOrganizationId(auth);
+    return this.systemWorkflowsService.ensureSystemWorkflows(organizationId);
   }
 
   private requireOrganizationId(auth: AuthContext | null): string {

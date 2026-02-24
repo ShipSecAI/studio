@@ -49,6 +49,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import type { GitHubScanResult, GitHubRepo, TriggerRule } from '@/store/githubStore';
+import { useGitHubStore } from '@/store/githubStore';
 import {
   useTriggerScan,
   useGitHubScanResult,
@@ -116,32 +117,32 @@ function buildWorkflowCompatibility(runtimeInputs: unknown[]): WorkflowCompatibi
 const QUICK_SCANS = [
   {
     slug: 'secret-detection',
+    templateSlug: 'sys-secret-scan',
     name: 'Secret Detection',
     description: 'Scan for exposed secrets and credentials',
     icon: ShieldAlert,
-    matchPattern: /secret|trufflehog/i,
   },
   {
     slug: 'sast-opengrep',
+    templateSlug: 'sys-sast-scan',
     name: 'SAST (OpenGrep)',
     description: 'Static application security testing',
     icon: Search,
-    matchPattern: /sast|opengrep|semgrep/i,
   },
   {
     slug: 'dependency-audit',
+    templateSlug: 'sys-dependency-scan',
     name: 'Dependency Audit',
     description: 'Check for vulnerable dependencies',
     icon: Package,
-    matchPattern: /dependency|audit/i,
   },
 ];
 
 function resolveQuickScans(
-  workflows: WorkflowOption[],
+  systemWorkflows: { id: string; slug: string | null }[],
 ): { slug: string; workflowId: string; name: string; description: string; icon: typeof Shield }[] {
   return QUICK_SCANS.flatMap((scan) => {
-    const match = workflows.find((w) => scan.matchPattern.test(w.name));
+    const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
     if (!match) return [];
     return [
       {
@@ -175,6 +176,8 @@ function RerunScanModal({
 }: RerunScanModalProps) {
   const { mutateAsync: triggerScan } = useTriggerScan();
   const { toast } = useToast();
+  const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
+  const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([]);
   const [workflowCompatibility, setWorkflowCompatibility] = useState<
     Record<string, WorkflowCompatibility>
@@ -183,6 +186,10 @@ function RerunScanModal({
   const [selectedWorkflow, setSelectedWorkflow] = useState<string>('');
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [triggering, setTriggering] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) fetchSystemWorkflows();
+  }, [open, fetchSystemWorkflows]);
 
   useEffect(() => {
     if (open) {
@@ -252,10 +259,21 @@ function RerunScanModal({
     }
     setTriggering(workflowId);
     try {
-      await triggerScan({ repoId: repository.id, workflowId, branch: selectedBranch || undefined });
+      const result = await triggerScan({
+        repoId: repository.id,
+        workflowId,
+        branch: selectedBranch || undefined,
+      });
       toast({
         title: 'Scan started',
-        description: `Security scan started for ${repository.fullName}`,
+        description: (
+          <span>
+            Security scan started for {repository.fullName}.{' '}
+            <Link to={`/runs/${result.runId}`} className="font-medium text-primary hover:underline">
+              Open Run &rarr;
+            </Link>
+          </span>
+        ),
       });
       onClose();
       onSuccess();
@@ -301,7 +319,7 @@ function RerunScanModal({
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground">Quick Scans</h4>
             <div className="grid gap-2">
-              {resolveQuickScans(workflows).map((scan) => {
+              {resolveQuickScans(systemWorkflows).map((scan) => {
                 const Icon = scan.icon;
                 return (
                   <Button
@@ -404,7 +422,7 @@ function ScanDetailHeader({
     <div className="border-b pb-6">
       <div className="mb-4">
         <Link
-          to="/github?tab=scans"
+          to="/github/scans"
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -679,7 +697,7 @@ export function ScanResultPage() {
   const [showRerunModal, setShowRerunModal] = useState(false);
 
   const handleRerunSuccess = () => {
-    navigate('/github?tab=scans');
+    navigate('/github/scans');
   };
 
   const handleExportJson = () => {
@@ -706,7 +724,7 @@ export function ScanResultPage() {
             {error || 'The scan result could not be loaded.'}
           </p>
           <Button asChild variant="outline">
-            <Link to="/github?tab=scans">
+            <Link to="/github/scans">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Scans
             </Link>

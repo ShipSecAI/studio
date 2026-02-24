@@ -44,6 +44,12 @@ export class AnalyticsQueryRequestDto {
     required: false,
   })
   sort?: Record<string, any>[];
+
+  @ApiProperty({
+    description: 'Field collapsing specification for deduplication',
+    required: false,
+  })
+  collapse?: Record<string, any>;
 }
 
 export class AnalyticsQueryResponseDto {

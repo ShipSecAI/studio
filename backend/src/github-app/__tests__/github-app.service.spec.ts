@@ -90,6 +90,7 @@ describe('GitHubAppService', () => {
       } as any,
       repository as any,
       {} as any,
+      {} as any,
     );
   });
 

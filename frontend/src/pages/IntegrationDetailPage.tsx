@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   Plus,
   Trash2,
   RefreshCcw,
@@ -22,12 +21,20 @@ import {
   Eye,
 } from 'lucide-react';
 
-import { env } from '@/config/env';
-import { useIntegrationStore } from '@/store/integrationStore';
 import { api } from '@/services/api';
 import type { IntegrationCatalogEntry, IntegrationConnection } from '@/services/api';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
+import {
+  useIntegrationCatalog,
+  useIntegrationConnections,
+  useAwsSetupInfo,
+  useCreateAwsConnection,
+  useCreateSlackWebhookConnection,
+  useValidateAwsConnection,
+  useTestSlackConnection,
+  useDisconnectIntegration,
+} from '@/hooks/queries/useIntegrationQueries';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -65,11 +72,16 @@ function formatTimestamp(iso: string | null | undefined): string {
   }
 }
 
-const PROVIDER_VISUALS: Record<string, { logo: string; gradient: string; borderAccent: string }> = {
+const PROVIDER_VISUALS: Record<
+  string,
+  { logo: string; darkLogo?: string; gradient: string; borderAccent: string; darkBg?: boolean }
+> = {
   aws: {
-    logo: '/icons/aws.png',
+    logo: '/icons/aws.svg',
+    darkLogo: '/icons/aws-dark.svg',
     gradient: '',
     borderAccent: 'border-orange-200 dark:border-orange-800',
+    darkBg: true,
   },
   slack: {
     logo: '/icons/slack.svg',
@@ -143,19 +155,12 @@ interface AwsFormProps {
 }
 
 function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
-  const store = useIntegrationStore();
   const { toast } = useToast();
+  const { data: setupInfo, isLoading: loadingSetup, error: setupError } = useAwsSetupInfo();
+  const createAwsMutation = useCreateAwsConnection();
+
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
-  const [loadingSetup, setLoadingSetup] = useState(true);
-  const [setupInfo, setSetupInfo] = useState<{
-    platformRoleArn: string;
-    externalId: string;
-    setupToken: string;
-    trustPolicyTemplate: string;
-    externalIdDisplay?: string;
-  } | null>(null);
   const [copied, setCopied] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
 
@@ -163,20 +168,6 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
   const [displayName, setDisplayName] = useState('');
   const [roleArn, setRoleArn] = useState('');
   const [region, setRegion] = useState('');
-
-  useEffect(() => {
-    store
-      .getAwsSetupInfo()
-      .then(setSetupInfo)
-      .catch((err) =>
-        setResult({
-          ok: false,
-          message:
-            err instanceof Error ? err.message : 'Failed to load setup info. Please try again.',
-        }),
-      )
-      .finally(() => setLoadingSetup(false));
-  }, []);
 
   const handleCopyPolicy = async () => {
     if (!setupInfo) return;
@@ -200,10 +191,9 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
       setResult({ ok: false, message: 'Display Name and Role ARN are required.' });
       return;
     }
-    setSubmitting(true);
     setResult(null);
     try {
-      await store.createAwsConnection({
+      await createAwsMutation.mutateAsync({
         displayName: displayName.trim(),
         roleArn: roleArn.trim(),
         region: region.trim() || undefined,
@@ -217,8 +207,6 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
         ok: false,
         message: err instanceof Error ? err.message : 'Failed to create connection.',
       });
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -235,12 +223,14 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
   if (!setupInfo) {
     return (
       <div className="space-y-4">
-        {result && (
-          <div className="flex items-start gap-2 rounded-md border p-3 text-sm border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-            <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
-            <span>{result.message}</span>
-          </div>
-        )}
+        <div className="flex items-start gap-2 rounded-md border p-3 text-sm border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            {setupError instanceof Error
+              ? setupError.message
+              : 'Failed to load setup info. Please try again.'}
+          </span>
+        </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
@@ -306,7 +296,7 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
         </button>
       </div>
 
-      {/* ── Step 1: Trust Policy ── */}
+      {/* Step 1: Trust Policy */}
       {step === 1 && (
         <div className="space-y-4">
           <div className="space-y-3">
@@ -415,7 +405,7 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
         </div>
       )}
 
-      {/* ── Step 2: Attach Permissions ── */}
+      {/* Step 2: Attach Permissions */}
       {step === 2 && (
         <div className="space-y-4">
           <div className="space-y-3">
@@ -504,7 +494,7 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
         </div>
       )}
 
-      {/* ── Step 3: Connection Details ── */}
+      {/* Step 3: Connection Details */}
       {step === 3 && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-3">
@@ -518,7 +508,7 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="e.g. Production AWS Account"
-                disabled={submitting}
+                disabled={createAwsMutation.isPending}
               />
             </div>
             <div className="space-y-2">
@@ -528,7 +518,7 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
                 value={roleArn}
                 onChange={(e) => setRoleArn(e.target.value)}
                 placeholder="arn:aws:iam::123456789012:role/ShipSecAuditRole"
-                disabled={submitting}
+                disabled={createAwsMutation.isPending}
               />
             </div>
             <div className="space-y-2">
@@ -538,7 +528,7 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
                 placeholder="e.g. us-east-1"
-                disabled={submitting}
+                disabled={createAwsMutation.isPending}
               />
             </div>
           </div>
@@ -568,12 +558,12 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
                 setStep(2);
                 setResult(null);
               }}
-              disabled={submitting}
+              disabled={createAwsMutation.isPending}
             >
               Back
             </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? (
+            <Button type="submit" disabled={createAwsMutation.isPending}>
+              {createAwsMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Creating...
@@ -599,8 +589,10 @@ interface SlackFormProps {
 }
 
 function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
-  const store = useIntegrationStore();
   const { toast } = useToast();
+  const createSlackMutation = useCreateSlackWebhookConnection();
+  const testSlackMutation = useTestSlackConnection();
+
   const [tab, setTab] = useState<string>('oauth');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -627,14 +619,14 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
         return;
       }
 
-      const conn = await store.createSlackWebhookConnection({
+      const conn = await createSlackMutation.mutateAsync({
         displayName: whDisplayName.trim(),
         webhookUrl: whWebhookUrl.trim(),
       });
 
       // Auto-test
       try {
-        const testResult = await store.testSlackConnection(conn.id);
+        const testResult = await testSlackMutation.mutateAsync({ id: conn.id });
         if (testResult.ok) {
           setResult({
             ok: true,
@@ -671,7 +663,7 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
     setSubmitting(true);
     setResult(null);
     try {
-      const redirectUri = `${env.VITE_APP_URL}/integrations/callback/slack`;
+      const redirectUri = `${window.location.origin}/integrations/callback/slack`;
       const response = await api.integrations.startOAuth('slack', { redirectUri });
       window.location.href = response.authorizationUrl;
     } catch (err) {
@@ -897,48 +889,19 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
 
 export function IntegrationDetailPage() {
   const { provider } = useParams<{ provider: string }>();
-  const navigate = useNavigate();
   const { toast } = useToast();
 
-  const store = useIntegrationStore();
-  const {
-    catalog,
-    orgConnections,
-    loadingOrgConnections,
-    loadingCatalog,
-    fetchOrgConnections,
-    fetchCatalog,
-    validateAwsConnection,
-    testSlackConnection,
-    disconnect,
-    error,
-    resetError,
-  } = store;
+  const { data: catalog = [], isLoading: loadingCatalog } = useIntegrationCatalog();
+  const { data: orgConnections = [], isLoading: loadingOrgConnections } =
+    useIntegrationConnections();
+  const validateAwsMutation = useValidateAwsConnection();
+  const testSlackMutation = useTestSlackConnection();
+  const disconnectMutation = useDisconnectIntegration();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<IntegrationConnection | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const [validatingId, setValidatingId] = useState<string | null>(null);
-
-  // Fetch catalog and connections on mount
-  useEffect(() => {
-    fetchCatalog();
-  }, [fetchCatalog]);
-
-  useEffect(() => {
-    if (provider) {
-      fetchOrgConnections(undefined, true);
-    }
-  }, [provider, fetchOrgConnections]);
-
-  // Show store errors as toasts
-  useEffect(() => {
-    if (error) {
-      toast({ title: 'Error', description: error, variant: 'destructive' });
-      resetError();
-    }
-  }, [error, toast, resetError]);
 
   const catalogEntry: IntegrationCatalogEntry | undefined = useMemo(() => {
     return catalog.find((c) => c.id === provider);
@@ -964,7 +927,7 @@ export function IntegrationDetailPage() {
     setValidatingId(connection.id);
     try {
       if (provider === 'aws') {
-        const result = await validateAwsConnection(connection.id);
+        const result = await validateAwsMutation.mutateAsync({ id: connection.id });
         if (result.valid) {
           toast({
             title: 'Validation passed',
@@ -978,7 +941,7 @@ export function IntegrationDetailPage() {
           });
         }
       } else if (provider === 'slack') {
-        const result = await testSlackConnection(connection.id);
+        const result = await testSlackMutation.mutateAsync({ id: connection.id });
         if (result.ok) {
           toast({
             title: 'Test passed',
@@ -992,8 +955,6 @@ export function IntegrationDetailPage() {
           });
         }
       }
-      // Refresh the connections list to pick up updated lastValidationStatus
-      fetchOrgConnections(undefined, true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Validation request failed.';
       toast({ title: 'Error', description: message, variant: 'destructive' });
@@ -1009,27 +970,22 @@ export function IntegrationDetailPage() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    setDeleting(true);
     try {
-      await disconnect(deleteTarget.id);
+      await disconnectMutation.mutateAsync({ id: deleteTarget.id });
       toast({
         title: 'Connection removed',
         description: `${deleteTarget.displayName} has been deleted.`,
       });
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
-      fetchOrgConnections(undefined, true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete connection.';
       toast({ title: 'Delete failed', description: message, variant: 'destructive' });
-    } finally {
-      setDeleting(false);
     }
   };
 
   const handleConnectionCreated = () => {
     setDialogOpen(false);
-    fetchOrgConnections(undefined, true);
   };
 
   // ---- Loading state ----
@@ -1053,10 +1009,6 @@ export function IntegrationDetailPage() {
     return (
       <div className="flex-1 bg-background">
         <div className="container mx-auto py-8 px-4">
-          <Button variant="ghost" className="gap-2 mb-6" onClick={() => navigate('/integrations')}>
-            <ArrowLeft className="h-4 w-4" />
-            Back to Integrations
-          </Button>
           <Card>
             <CardContent className="py-12 text-center">
               <XCircle className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
@@ -1079,13 +1031,7 @@ export function IntegrationDetailPage() {
   return (
     <div className="flex-1 bg-background">
       <div className="container mx-auto py-8 px-4 max-w-6xl space-y-8">
-        {/* Navigation */}
-        <Button variant="ghost" className="gap-2" onClick={() => navigate('/integrations')}>
-          <ArrowLeft className="h-4 w-4" />
-          Back to Integrations
-        </Button>
-
-        {/* ── Provider Header ── */}
+        {/* Provider Header */}
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-center gap-4">
             {visuals ? (
@@ -1098,6 +1044,14 @@ export function IntegrationDetailPage() {
                 >
                   <img
                     src={visuals.logo}
+                    alt={catalogEntry?.name ?? provider ?? ''}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              ) : visuals.darkBg ? (
+                <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-[#232F3E] flex-shrink-0 p-3">
+                  <img
+                    src={visuals.darkLogo ?? visuals.logo}
                     alt={catalogEntry?.name ?? provider ?? ''}
                     className="h-full w-full object-contain"
                   />
@@ -1178,7 +1132,7 @@ export function IntegrationDetailPage() {
           </div>
         </div>
 
-        {/* ── Connection Cards ── */}
+        {/* Connection Cards */}
         <div>
           <h2 className="text-lg font-semibold mb-4">
             Connections
@@ -1240,11 +1194,21 @@ export function IntegrationDetailPage() {
                             className="h-10 w-10 rounded-lg flex-shrink-0 object-cover"
                           />
                         ) : connVisuals?.logo ? (
-                          <img
-                            src={connVisuals.logo}
-                            alt={conn.provider}
-                            className="h-10 w-10 rounded-lg flex-shrink-0 object-contain bg-muted p-1"
-                          />
+                          connVisuals.darkBg ? (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-[#232F3E] p-1.5">
+                              <img
+                                src={connVisuals.darkLogo ?? connVisuals.logo}
+                                alt={conn.provider}
+                                className="h-full w-full object-contain"
+                              />
+                            </div>
+                          ) : (
+                            <img
+                              src={connVisuals.logo}
+                              alt={conn.provider}
+                              className="h-10 w-10 rounded-lg flex-shrink-0 object-contain bg-muted p-1"
+                            />
+                          )
                         ) : (
                           <div className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-muted text-muted-foreground font-semibold text-sm">
                             {(teamName ?? '?').slice(0, 2).toUpperCase()}
@@ -1319,7 +1283,7 @@ export function IntegrationDetailPage() {
           )}
         </div>
 
-        {/* ── Two-column bottom: Setup Instructions + Info Sidebar ── */}
+        {/* Two-column bottom: Setup Instructions + Info Sidebar */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Left column: Setup Instructions */}
           {hasSetupSections && (
@@ -1445,12 +1409,16 @@ export function IntegrationDetailPage() {
             <Button
               variant="outline"
               onClick={() => setDeleteDialogOpen(false)}
-              disabled={deleting}
+              disabled={disconnectMutation.isPending}
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? (
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={disconnectMutation.isPending}
+            >
+              {disconnectMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Deleting...

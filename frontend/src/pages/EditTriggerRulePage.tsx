@@ -97,7 +97,7 @@ export default function EditTriggerRulePage() {
     } else if (triggerRules.length > 0) {
       // Rules loaded but rule not found
       toast({ title: 'Error', description: 'Trigger rule not found', variant: 'destructive' });
-      navigate('/github?tab=triggers');
+      navigate('/github/triggers');
     }
   }, [id, triggerRules, toast, navigate]);
 
@@ -167,7 +167,7 @@ export default function EditTriggerRulePage() {
         },
       });
       toast({ title: 'Success', description: 'Trigger rule updated' });
-      navigate('/github?tab=triggers');
+      navigate('/github/triggers');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update trigger rule';
       toast({ title: 'Error', description: message, variant: 'destructive' });
@@ -200,7 +200,7 @@ export default function EditTriggerRulePage() {
   return (
     <div className="container max-w-6xl py-8">
       <div className="mb-6">
-        <Button variant="ghost" onClick={() => navigate('/github?tab=triggers')}>
+        <Button variant="ghost" onClick={() => navigate('/github/triggers')}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to GitHub
         </Button>
@@ -447,11 +447,7 @@ export default function EditTriggerRulePage() {
                 {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Save Changes
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate('/github?tab=triggers')}
-              >
+              <Button type="button" variant="outline" onClick={() => navigate('/github/triggers')}>
                 Cancel
               </Button>
             </div>
