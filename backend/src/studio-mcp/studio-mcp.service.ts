@@ -89,7 +89,11 @@ export class StudioMcpService {
       {
         capabilities: {
           logging: {},
-          tasks: { requests: { tools: { call: {} } } },
+          tasks: {
+            list: {},
+            cancel: {},
+            requests: { tools: { call: {} } },
+          },
         },
         taskStore: this.taskStore,
         taskMessageQueue: this.taskMessageQueue,
@@ -406,7 +410,21 @@ export class StudioMcpService {
             this.logger.error(`Error monitoring workflow run task for run ${handle.runId}: ${err}`);
           });
 
-          return { task };
+          const immediateResponse =
+            `Started workflow run ${handle.runId} in the background (taskId: ${task.taskId}). ` +
+            `Do not call run_workflow again for the same request while this task is active. ` +
+            `Use task status checks (or get_run_status with runId ${handle.runId}) to monitor progress.`;
+
+          // Set statusMessage on the task object so it flows through callToolStream
+          // (SDK bug: _meta from CreateTaskResult is not yielded to stream consumers)
+          task.statusMessage = immediateResponse;
+
+          return {
+            task,
+            _meta: {
+              'io.modelcontextprotocol/model-immediate-response': immediateResponse,
+            },
+          } as any;
         },
         getTask: async (args, extra) => {
           const gate = this.checkPermission(auth, 'runs.read');

@@ -327,6 +327,9 @@ export async function runChatAgentStepActivity(
     };
 
     const enqueueTaskEvent = (event: TaskToolEvent) => {
+      // Heartbeat on every task poll so Temporal knows we're alive during long-running tool calls
+      Context.current().heartbeat(`task-poll:${event.taskId}:${event.status}`);
+
       if (startedToolCalls.has(event.toolCallId)) {
         publishTaskEvent(event);
         return;
@@ -349,6 +352,9 @@ export async function runChatAgentStepActivity(
       toolNames: ['run_workflow'],
       // Never auto-fallback for workflow runs; fallback can trigger duplicate executions.
       fallbackToOriginal: false,
+      // Block until the task completes and return the final CallToolResult to the model.
+      // The client polls tasks/get in the background (spec-correct behavior).
+      returnOnTaskCreated: false,
       onTaskEvent: enqueueTaskEvent,
       onDebug: (message) => console.debug(`[chat-agent] ${message}`),
     });

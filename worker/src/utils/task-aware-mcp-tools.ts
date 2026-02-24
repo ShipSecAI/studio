@@ -8,7 +8,7 @@ interface TaskState {
 }
 
 type TaskStreamMessage =
-  | { type: 'taskCreated'; task: unknown }
+  | { type: 'taskCreated'; task: unknown; _meta?: Record<string, unknown> }
   | { type: 'taskStatus'; task: unknown }
   | { type: 'result'; result: unknown }
   | { type: 'error'; error: unknown };
@@ -46,6 +46,7 @@ export interface TaskAwareMcpToolsOptions<TTools extends ToolSetLike> {
   taskClient: TaskAwareMcpClient;
   toolNames?: string[];
   fallbackToOriginal?: boolean;
+  returnOnTaskCreated?: boolean;
   onTaskEvent?: (event: TaskToolEvent) => void | Promise<void>;
   onDebug?: (message: string) => void;
 }
@@ -67,6 +68,24 @@ function normalizeTaskState(rawTask: unknown): TaskState | null {
   };
 }
 
+function getModelImmediateResponse(rawMessage: unknown): string | undefined {
+  if (!isRecord(rawMessage)) return undefined;
+
+  const directMeta = isRecord(rawMessage._meta) ? rawMessage._meta : undefined;
+  const taskMeta =
+    isRecord(rawMessage.task) && isRecord(rawMessage.task._meta)
+      ? (rawMessage.task._meta as Record<string, unknown>)
+      : undefined;
+
+  const fromDirect = directMeta?.['io.modelcontextprotocol/model-immediate-response'];
+  if (typeof fromDirect === 'string' && fromDirect.length > 0) return fromDirect;
+
+  const fromTask = taskMeta?.['io.modelcontextprotocol/model-immediate-response'];
+  if (typeof fromTask === 'string' && fromTask.length > 0) return fromTask;
+
+  return undefined;
+}
+
 function formatTaskError(error: unknown): Error {
   if (error instanceof Error) return error;
 
@@ -83,12 +102,14 @@ async function runTaskTool({
   input,
   options,
   onTaskEvent,
+  returnOnTaskCreated,
 }: {
   taskClient: TaskAwareMcpClient;
   toolName: string;
   input: unknown;
   options: ToolExecutionOptions;
   onTaskEvent?: (event: TaskToolEvent) => void | Promise<void>;
+  returnOnTaskCreated?: boolean;
 }): Promise<unknown> {
   const args = isRecord(input) ? input : {};
   let finalResult: unknown;
@@ -115,6 +136,19 @@ async function runTaskTool({
         statusMessage: state.statusMessage,
         pollInterval: state.pollInterval,
       });
+
+      if (returnOnTaskCreated && message.type === 'taskCreated') {
+        // Prefer _meta model-immediate-response (spec-correct), fall back to statusMessage
+        // (workaround for SDK bug where _meta is dropped from callToolStream taskCreated events)
+        const immediate = getModelImmediateResponse(message);
+        const responseText =
+          immediate ||
+          state.statusMessage ||
+          `Background task started (taskId: ${state.taskId}, status: ${state.status}). Continue and poll task status for updates.`;
+        return {
+          content: [{ type: 'text' as const, text: responseText }],
+        };
+      }
       continue;
     }
 
@@ -141,6 +175,7 @@ export function withTaskAwareMcpTools<TTools extends ToolSetLike>({
   taskClient,
   toolNames = ['run_workflow'],
   fallbackToOriginal = true,
+  returnOnTaskCreated = false,
   onTaskEvent,
   onDebug,
 }: TaskAwareMcpToolsOptions<TTools>): TTools {
@@ -168,6 +203,7 @@ export function withTaskAwareMcpTools<TTools extends ToolSetLike>({
             input,
             options,
             onTaskEvent,
+            returnOnTaskCreated,
           });
         } catch (error) {
           if (!fallbackToOriginal) {
