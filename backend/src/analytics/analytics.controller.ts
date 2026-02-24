@@ -109,6 +109,19 @@ export class AnalyticsController {
       throw new BadRequestException(`Invalid from: maximum is ${MAX_QUERY_FROM}`);
     }
 
+    // Validate collapse shape: only allow { field: string }, block inner_hits
+    if (queryDto.collapse) {
+      if (typeof queryDto.collapse !== 'object') {
+        throw new BadRequestException('Invalid collapse: must be an object');
+      }
+      if ('inner_hits' in queryDto.collapse) {
+        throw new BadRequestException('Invalid collapse: inner_hits is not allowed');
+      }
+      if (typeof queryDto.collapse.field !== 'string') {
+        throw new BadRequestException('Invalid collapse: must contain a "field" string');
+      }
+    }
+
     // Call the service to execute the query
     return this.securityAnalyticsService.query(auth.organizationId, {
       query: queryDto.query,
@@ -116,6 +129,7 @@ export class AnalyticsController {
       from,
       aggs: queryDto.aggs,
       sort: queryDto.sort,
+      collapse: queryDto.collapse,
     });
   }
 

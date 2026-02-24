@@ -118,6 +118,7 @@ describeHttpx('httpx component', () => {
         statusCodes: null,
         threads: null,
         path: null,
+        techDetect: false,
       },
     };
 

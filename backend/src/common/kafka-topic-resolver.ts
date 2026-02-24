@@ -10,6 +10,7 @@
  * - EVENT_KAFKA_TOPIC: Base topic for events (default: telemetry.events)
  * - AGENT_TRACE_KAFKA_TOPIC: Base topic for agent traces (default: telemetry.agent-trace)
  * - NODE_IO_KAFKA_TOPIC: Base topic for node I/O (default: telemetry.node-io)
+ * - ASSET_EVENT_KAFKA_TOPIC: Base topic for asset events (default: asset.events)
  */
 
 export interface TopicResolverConfig {
@@ -68,6 +69,14 @@ export class KafkaTopicResolver {
    */
   getNodeIOTopic(): string {
     const baseTopic = process.env.NODE_IO_KAFKA_TOPIC ?? 'telemetry.node-io';
+    return this.resolveTopic(baseTopic);
+  }
+
+  /**
+   * Get asset events topic (for cloud resource discovery events)
+   */
+  getAssetEventsTopic(): string {
+    const baseTopic = process.env.ASSET_EVENT_KAFKA_TOPIC ?? 'asset.events';
     return this.resolveTopic(baseTopic);
   }
 

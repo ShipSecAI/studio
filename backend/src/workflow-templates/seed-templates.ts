@@ -227,28 +227,21 @@ function fullCodeSecurityTemplate(): SeedTemplate {
   const trufflehog = nid('node');
   const opengrep = nid('node');
   const depScanner = nid('node');
-  const normSecrets = nid('node');
-  const normSast = nid('node');
-  const normDeps = nid('node');
-  const mdSecrets = nid('node');
-  const mdSast = nid('node');
-  const mdDeps = nid('node');
-  const reportArray = nid('node');
-  const joiner = nid('node');
+  const dedupe = nid('node');
   const analytics = nid('node');
 
   return {
     name: 'Full Code Security',
     slug: 'sys-full-code-security',
     description:
-      'Multi-scanner analysis: secrets, SAST, and dependency vulnerabilities in parallel.',
+      'Multi-scanner analysis: secrets, SAST, and dependency vulnerabilities in parallel with cross-scanner deduplication.',
     category: 'code-security',
     icon: 'shield-check',
     isFeatured: true,
     isDefault: true,
     graph: {
       name: 'Full Code Security',
-      description: 'Secrets + SAST + Dependencies in parallel',
+      description: 'Secrets + SAST + Dependencies in parallel, deduped',
       nodes: [
         makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
           runtimeInputs: [],
@@ -258,25 +251,12 @@ function fullCodeSecurityTemplate(): SeedTemplate {
         makeNode(trufflehog, 'scanner.trufflehog', 'TruffleHog', 600, -200),
         makeNode(opengrep, 'scanner.opengrep', 'OpenGrep', 600, 0),
         makeNode(depScanner, 'scanner.dependency', 'Dependency Scanner', 600, 200),
-        // Normalize per scanner
-        makeNode(normSecrets, 'security.findings.normalize', 'Normalize Secrets', 900, -200),
-        makeNode(normSast, 'security.findings.normalize', 'Normalize SAST', 900, 0),
-        makeNode(normDeps, 'security.findings.normalize', 'Normalize Deps', 900, 200),
-        // Markdown per scanner
-        makeNode(mdSecrets, 'security.findings.markdown', 'Secrets Report', 1200, -200),
-        makeNode(mdSast, 'security.findings.markdown', 'SAST Report', 1200, 0),
-        makeNode(mdDeps, 'security.findings.markdown', 'Deps Report', 1200, 200),
-        makeNode(reportArray, 'core.array.pack', 'Pack Reports', 1400, -100),
-        // Unified summary
-        makeNode(joiner, 'core.text.joiner', 'Combined Report', 1600, -100, {
-          separator: '\n\n---\n\n',
-        }),
-        // Analytics sink (all scanner findings)
-        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1600, 150, {
+        // Cross-scanner deduplication
+        makeNode(dedupe, 'core.security.findings-dedupe', 'Findings Dedupe', 900, 0),
+        // Analytics sink (deduped findings)
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1200, 0, {
           dataInputs: [
-            { id: 'input1', label: 'Secret Findings', sourceTag: 'trufflehog' },
-            { id: 'input2', label: 'SAST Findings', sourceTag: 'opengrep' },
-            { id: 'input3', label: 'Dependency Findings', sourceTag: 'dependency' },
+            { id: 'input1', label: 'All Findings (Deduped)', sourceTag: 'code-security' },
           ],
         }),
       ],
@@ -287,23 +267,12 @@ function fullCodeSecurityTemplate(): SeedTemplate {
         makeEdge('e2', cloneRepo, trufflehog, 'volumeName', 'volumeName'),
         makeEdge('e3', cloneRepo, opengrep, 'volumeName', 'volumeName'),
         makeEdge('e4', cloneRepo, depScanner, 'volumeName', 'volumeName'),
-        // Scanners → Normalize
-        makeEdge('e5', trufflehog, normSecrets, 'findings', 'rawFindings'),
-        makeEdge('e6', opengrep, normSast, 'findings', 'rawFindings'),
-        makeEdge('e7', depScanner, normDeps, 'findings', 'rawFindings'),
-        // Normalize → Markdown
-        makeEdge('e8', normSecrets, mdSecrets, 'findings', 'findings'),
-        makeEdge('e9', normSast, mdSast, 'findings', 'findings'),
-        makeEdge('e10', normDeps, mdDeps, 'findings', 'findings'),
-        // Markdown → Array Pack → Joiner (joiner expects list<text>)
-        makeEdge('e11', mdSecrets, reportArray, 'markdown', 'a'),
-        makeEdge('e12', mdSast, reportArray, 'markdown', 'b'),
-        makeEdge('e13', mdDeps, reportArray, 'markdown', 'c'),
-        makeEdge('e13a', reportArray, joiner, 'items', 'items'),
-        // Scanners → Analytics (bypass normalize, use results port directly)
-        makeEdge('e14', trufflehog, analytics, 'results', 'input1'),
-        makeEdge('e15', opengrep, analytics, 'results', 'input2'),
-        makeEdge('e16', depScanner, analytics, 'results', 'input3'),
+        // Scanners → Dedupe (results ports)
+        makeEdge('e5', trufflehog, dedupe, 'results', 'secretResults'),
+        makeEdge('e6', opengrep, dedupe, 'results', 'sastResults'),
+        makeEdge('e7', depScanner, dedupe, 'results', 'depResults'),
+        // Dedupe → Analytics Sink
+        makeEdge('e8', dedupe, analytics, 'results', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.5 },
     },
@@ -628,7 +597,7 @@ function cloudSecurityScanTemplate(): SeedTemplate {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 8: Attack Surface Recon
-// Entry Point → Subfinder → DNSx → [HTTPx, Naabu] → Nuclei → Normalize → [Analytics, Slack]
+// Entry Point → Subfinder → DNSx → HTTPx → Dedupe+Enrich → Analytics
 // ──────────────────────────────────────────────────────────────────────────────
 function attackSurfaceReconTemplate(): SeedTemplate {
   resetCounter();
@@ -636,33 +605,31 @@ function attackSurfaceReconTemplate(): SeedTemplate {
   const subfinder = nid('node');
   const dnsx = nid('node');
   const httpx = nid('node');
-  const naabu = nid('node');
-  const nuclei = nid('node');
+  const dedupe = nid('node');
   const analytics = nid('node');
 
   return {
     name: 'Attack Surface Recon',
     slug: 'sys-attack-surface-recon',
     description:
-      'Full recon pipeline: subdomain discovery, DNS resolution, HTTP probing, port scanning, and vulnerability scanning.',
+      'Recon pipeline: subdomain discovery, DNS resolution, HTTP probing, and deduplicated enrichment.',
     category: 'attack-surface',
     icon: 'globe',
     isFeatured: true,
     isDefault: true,
     graph: {
       name: 'Attack Surface Recon',
-      description: 'Domain → Subdomains → Ports → Vulns',
+      description: 'Domain → Subdomains → DNS → HTTP → Dedupe',
       nodes: [
         makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
           runtimeInputs: [],
         }),
         makeNode(subfinder, 'shipsec.subfinder.run', 'Subfinder', 300, 0),
         makeNode(dnsx, 'shipsec.dnsx.run', 'DNSx', 600, 0),
-        makeNode(httpx, 'shipsec.httpx.scan', 'HTTPx', 900, -100),
-        makeNode(naabu, 'shipsec.naabu.scan', 'Naabu', 900, 100),
-        makeNode(nuclei, 'shipsec.nuclei.scan', 'Nuclei', 1200, 0),
+        makeNode(httpx, 'shipsec.httpx.scan', 'HTTPx', 900, -80, { techDetect: true }),
+        makeNode(dedupe, 'core.asm.recon-dedupe', 'Dedupe + Enrich', 1200, 0),
         makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1500, 0, {
-          dataInputs: [{ id: 'input1', label: 'Nuclei Findings', sourceTag: 'nuclei' }],
+          dataInputs: [{ id: 'input1', label: 'Recon Assets', sourceTag: 'asm-recon' }],
         }),
       ],
       edges: [
@@ -670,13 +637,13 @@ function attackSurfaceReconTemplate(): SeedTemplate {
         makeEdge('e1', entryPoint, subfinder),
         // Subfinder → DNSx (pass discovered subdomains)
         makeEdge('e2', subfinder, dnsx, 'subdomains', 'domains'),
-        // DNSx → HTTPx + Naabu + Nuclei (pass resolved hosts)
+        // DNSx → HTTPx (pass resolved hosts)
         makeEdge('e3', dnsx, httpx, 'resolvedHosts', 'targets'),
-        makeEdge('e4', dnsx, naabu, 'resolvedHosts', 'targets'),
-        // Nuclei expects list<text> targets; connect directly from DNSx resolved hosts.
-        makeEdge('e5', dnsx, nuclei, 'resolvedHosts', 'targets'),
-        // Nuclei → Analytics (use results port directly, bypass normalize)
-        makeEdge('e6', nuclei, analytics, 'results', 'input1'),
+        // DNSx + HTTPx → Dedupe + Enrich
+        makeEdge('e4', dnsx, dedupe, 'results', 'dnsResults'),
+        makeEdge('e5', httpx, dedupe, 'results', 'httpResults'),
+        // Dedupe + Enrich → Analytics
+        makeEdge('e6', dedupe, analytics, 'results', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.6 },
     },

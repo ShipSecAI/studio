@@ -315,6 +315,9 @@ export class OpenSearchTenantService {
             region: { type: 'keyword' },
             service_name: { type: 'keyword' },
             account_id: { type: 'keyword' },
+            check_name: { type: 'keyword' },
+            rule_id: { type: 'text', fields: { keyword: { type: 'keyword', ignore_above: 512 } } },
+            file: { type: 'text', fields: { keyword: { type: 'keyword', ignore_above: 512 } } },
             shipsec: {
               properties: {
                 organization_id: { type: 'keyword' },
@@ -393,6 +396,12 @@ export class OpenSearchTenantService {
               region: { type: 'keyword' },
               service_name: { type: 'keyword' },
               account_id: { type: 'keyword' },
+              check_name: { type: 'keyword' },
+              rule_id: {
+                type: 'text',
+                fields: { keyword: { type: 'keyword', ignore_above: 512 } },
+              },
+              file: { type: 'text', fields: { keyword: { type: 'keyword', ignore_above: 512 } } },
               shipsec: {
                 properties: {
                   organization_id: { type: 'keyword' },

@@ -319,6 +319,14 @@
                         "type": "string",
                         "nullable": true
                       },
+                      "icon": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "iconColor": {
+                        "type": "string",
+                        "nullable": true
+                      },
                       "isSystem": {
                         "type": "boolean"
                       },
@@ -358,6 +366,47 @@
         ]
       }
     },
+    "/api/v1/workflows/runs/activity": {
+      "get": {
+        "operationId": "WorkflowsController_getRunActivity",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Aggregated run counts per day",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalRuns": {
+                      "type": "number"
+                    },
+                    "activity": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "count": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
     "/api/v1/workflows/runs": {
       "get": {
         "operationId": "WorkflowsController_listRuns",
@@ -372,10 +421,37 @@
             }
           },
           {
+            "name": "workflowIds",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
             "name": "status",
             "required": false,
             "in": "query",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "triggerType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 200,
               "type": "string"
             }
           },
@@ -2678,6 +2754,81 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AnalyticsSettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/batch-run-summaries": {
+      "post": {
+        "operationId": "AnalyticsController_batchRunSummaries",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Get severity counts for multiple run IDs"
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/storage-usage": {
+      "get": {
+        "operationId": "AnalyticsController_getStorageUsage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Get OpenSearch storage usage for the authenticated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "usedBytes": {
+                      "type": "number"
+                    },
+                    "documentCount": {
+                      "type": "number"
+                    },
+                    "indexCount": {
+                      "type": "number"
+                    },
+                    "opensearchEnabled": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/data": {
+      "delete": {
+        "operationId": "AnalyticsController_purgeData",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Purge all analytics data for the authenticated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deletedIndices": {
+                      "type": "number"
+                    }
+                  }
                 }
               }
             }
@@ -6608,6 +6759,20 @@
         ]
       }
     },
+    "/api/v1/github/quick-scan-workflows": {
+      "get": {
+        "operationId": "GitHubAppController_getQuickScanWorkflows",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "GitHubApp"
+        ]
+      }
+    },
     "/api/v1/github/repos/{id}/scan": {
       "post": {
         "operationId": "GitHubAppController_triggerScan",
@@ -6975,56 +7140,310 @@
         ]
       }
     },
-    "/api/v1/audit-logs": {
+    "/api/v1/workflow-templates": {
       "get": {
-        "operationId": "AuditLogsController_list",
+        "operationId": "WorkflowTemplatesController_list",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "List audit log events for the authenticated organization",
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      },
+      "post": {
+        "operationId": "WorkflowTemplatesController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      }
+    },
+    "/api/v1/workflow-templates/{id}": {
+      "get": {
+        "operationId": "WorkflowTemplatesController_getById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      },
+      "delete": {
+        "operationId": "WorkflowTemplatesController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      }
+    },
+    "/api/v1/workflow-templates/{id}/instantiate": {
+      "post": {
+        "operationId": "WorkflowTemplatesController_instantiate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Creates a new workflow from the template"
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      }
+    },
+    "/api/v1/asm/domains": {
+      "get": {
+        "operationId": "AsmController_listDomains",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Max items to return (default 50)",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "50",
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Items to skip (default 0)",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "0",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of ASM domains",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ListAuditLogsResponseDto"
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "organizationId": {
+                        "type": "string"
+                      },
+                      "domain": {
+                        "type": "string"
+                      },
+                      "scopeInclude": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "nullable": true
+                      },
+                      "scopeExclude": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "nullable": true
+                      },
+                      "monitoringEnabled": {
+                        "type": "boolean"
+                      },
+                      "frequency": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "lastScanAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                      },
+                      "deletedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "assetCount": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "organizationId",
+                      "domain",
+                      "monitoringEnabled",
+                      "createdAt",
+                      "updatedAt",
+                      "assetCount"
+                    ]
+                  }
                 }
               }
             }
           }
         },
         "tags": [
-          "audit-logs"
-        ]
-      }
-    },
-    "/api/v1/chat/sessions": {
-      "post": {
-        "operationId": "ChatController_createSession",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Chat"
+          "asm"
         ]
       },
-      "get": {
-        "operationId": "ChatController_listSessions",
+      "post": {
+        "operationId": "AsmController_createDomain",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDomainDto"
+              }
+            }
+          }
+        },
         "responses": {
-          "200": {
-            "description": ""
+          "201": {
+            "description": "Newly created ASM domain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "organizationId": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "scopeInclude": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "scopeExclude": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "monitoringEnabled": {
+                      "type": "boolean"
+                    },
+                    "frequency": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "lastScanAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "deletedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "assetCount": {
+                      "type": "number"
+                    },
+                    "scanTriggered": {
+                      "type": "boolean"
+                    },
+                    "runId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "organizationId",
+                    "domain",
+                    "monitoringEnabled",
+                    "createdAt",
+                    "updatedAt",
+                    "assetCount"
+                  ]
+                }
+              }
+            }
           }
         },
         "tags": [
-          "Chat"
+          "asm"
         ]
       }
     },
-    "/api/v1/chat/sessions/{id}": {
+    "/api/v1/asm/domains/{id}": {
       "get": {
-        "operationId": "ChatController_getSession",
+        "operationId": "AsmController_getDomain",
         "parameters": [
           {
             "name": "id",
@@ -7037,15 +7456,81 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Single ASM domain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "organizationId": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "scopeInclude": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "scopeExclude": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "monitoringEnabled": {
+                      "type": "boolean"
+                    },
+                    "frequency": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "lastScanAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "deletedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "organizationId",
+                    "domain",
+                    "monitoringEnabled",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
           }
         },
         "tags": [
-          "Chat"
+          "asm"
         ]
       },
       "patch": {
-        "operationId": "ChatController_updateSession",
+        "operationId": "AsmController_updateDomain",
         "parameters": [
           {
             "name": "id",
@@ -7056,17 +7541,93 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDomainDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": ""
+            "description": "Updated ASM domain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "organizationId": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "scopeInclude": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "scopeExclude": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "monitoringEnabled": {
+                      "type": "boolean"
+                    },
+                    "frequency": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "lastScanAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "deletedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "organizationId",
+                    "domain",
+                    "monitoringEnabled",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
           }
         },
         "tags": [
-          "Chat"
+          "asm"
         ]
       },
       "delete": {
-        "operationId": "ChatController_deleteSession",
+        "operationId": "AsmController_deleteDomain",
         "parameters": [
           {
             "name": "id",
@@ -7079,17 +7640,32 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Domain deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
           }
         },
         "tags": [
-          "Chat"
+          "asm"
         ]
       }
     },
-    "/api/v1/chat/sessions/{id}/messages": {
-      "get": {
-        "operationId": "ChatController_getMessages",
+    "/api/v1/asm/domains/{id}/scan": {
+      "post": {
+        "operationId": "AsmController_triggerScan",
         "parameters": [
           {
             "name": "id",
@@ -7100,119 +7676,636 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "description": ""
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerScanDto"
+              }
+            }
           }
         },
-        "tags": [
-          "Chat"
-        ]
-      },
-      "post": {
-        "operationId": "ChatController_sendMessage",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "201": {
-            "description": ""
+            "description": "Scan triggered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "runId",
+                    "domain"
+                  ]
+                }
+              }
+            }
           }
         },
         "tags": [
-          "Chat"
+          "asm"
         ]
       }
     },
-    "/api/v1/chat/sessions/{id}/status": {
+    "/api/v1/asm/assets": {
       "get": {
-        "operationId": "ChatController_getProcessingStatus",
+        "operationId": "AsmController_listAssets",
         "parameters": [
           {
-            "name": "id",
-            "required": true,
-            "in": "path",
+            "name": "limit",
+            "required": false,
+            "in": "query",
             "schema": {
+              "pattern": "^\\d+$",
+              "default": "25",
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "0",
+              "type": "number"
+            }
+          },
+          {
+            "name": "domainId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "type": "string"
             }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Chat"
-        ]
-      }
-    },
-    "/api/v1/chat/sessions/{id}/partial": {
-      "get": {
-        "operationId": "ChatController_getPartialResponse",
-        "parameters": [
+          },
           {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Chat"
-        ]
-      },
-      "post": {
-        "operationId": "ChatController_upsertPartialResponse",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Chat"
-        ]
-      }
-    },
-    "/api/v1/chat/sessions/{id}/stream": {
-      "get": {
-        "operationId": "ChatController_streamLive",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
+            "name": "type",
+            "required": false,
+            "in": "query",
             "schema": {
               "type": "string"
             }
           },
           {
-            "name": "format",
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "hostname",
+                "type",
+                "riskScore",
+                "firstSeen",
+                "lastSeen"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of ASM assets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "organizationId": {
+                            "type": "string"
+                          },
+                          "domainId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "hostname": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "ipAddresses": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "nullable": true
+                          },
+                          "techStack": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "nullable": true
+                          },
+                          "ports": {
+                            "type": "array",
+                            "nullable": true,
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "port": {
+                                  "type": "number"
+                                },
+                                "protocol": {
+                                  "type": "string"
+                                },
+                                "service": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "port",
+                                "protocol",
+                                "service"
+                              ]
+                            }
+                          },
+                          "riskScore": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "dnsRecords": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "nullable": true
+                          },
+                          "tlsInfo": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "nullable": true
+                          },
+                          "firstSeen": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "lastSeen": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "organizationId",
+                          "domainId",
+                          "hostname",
+                          "type",
+                          "firstSeen",
+                          "lastSeen"
+                        ]
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "assets",
+                    "total"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/asm/assets/{id}": {
+      "get": {
+        "operationId": "AsmController_getAsset",
+        "parameters": [
+          {
+            "name": "id",
             "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Single ASM asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "organizationId": {
+                      "type": "string"
+                    },
+                    "domainId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "hostname": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "ipAddresses": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "techStack": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "ports": {
+                      "type": "array",
+                      "nullable": true,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "port": {
+                            "type": "number"
+                          },
+                          "protocol": {
+                            "type": "string"
+                          },
+                          "service": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "port",
+                          "protocol",
+                          "service"
+                        ]
+                      }
+                    },
+                    "riskScore": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "dnsRecords": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    },
+                    "tlsInfo": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    },
+                    "firstSeen": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "lastSeen": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "organizationId",
+                    "domainId",
+                    "hostname",
+                    "type",
+                    "firstSeen",
+                    "lastSeen"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/asm/assets/{id}/scan": {
+      "post": {
+        "operationId": "AsmController_triggerAssetScan",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerScanDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Asset scan triggered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "runId",
+                    "domain"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/asm/scans": {
+      "get": {
+        "operationId": "AsmController_listScans",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "25",
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "0",
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "running",
+                "completed",
+                "failed",
+                "timed_out"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "domainId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of ASM scans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "runs"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/asm/stats": {
+      "get": {
+        "operationId": "AsmController_getDashboardStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ASM dashboard statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domains": {
+                      "type": "number"
+                    },
+                    "assets": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "domains",
+                    "assets"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/assets": {
+      "get": {
+        "operationId": "AssetDiscoveryController_listAssets",
+        "parameters": [
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "name",
+                "lastSeenAt",
+                "firstDiscoveredAt"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "integrationId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "active",
+                "stale",
+                "removed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assetType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "provider",
+            "required": false,
             "in": "query",
             "schema": {
               "type": "string"
@@ -7221,17 +8314,204 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Cloud assets with pagination metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "organizationId": {
+                            "type": "string"
+                          },
+                          "integrationId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "accountIdentifier": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "assetType": {
+                            "type": "string"
+                          },
+                          "externalId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "region": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "nullable": true
+                          },
+                          "firstDiscoveredAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "lastSeenAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "organizationId",
+                          "provider",
+                          "assetType",
+                          "externalId",
+                          "status",
+                          "firstDiscoveredAt",
+                          "lastSeenAt",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "limit": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "assets",
+                    "total",
+                    "page",
+                    "limit"
+                  ]
+                }
+              }
+            }
           }
         },
         "tags": [
-          "Chat"
+          "asset-discovery"
         ]
       }
     },
-    "/api/v1/chat/sessions/{id}/complete": {
-      "post": {
-        "operationId": "ChatController_completeSession",
+    "/api/v1/asset-discovery/assets/summary": {
+      "get": {
+        "operationId": "AssetDiscoveryController_getAssetSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Cloud asset summary aggregates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalAssets": {
+                      "type": "number"
+                    },
+                    "byType": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "assetType": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "assetType",
+                          "count"
+                        ]
+                      }
+                    },
+                    "byRegion": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "region": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "region",
+                          "count"
+                        ]
+                      }
+                    },
+                    "byStatus": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "count"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "totalAssets",
+                    "byType",
+                    "byRegion",
+                    "byStatus"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asset-discovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/assets/{id}": {
+      "get": {
+        "operationId": "AssetDiscoveryController_getAsset",
         "parameters": [
           {
             "name": "id",
@@ -7243,12 +8523,418 @@
           }
         ],
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "Single cloud asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "organizationId": {
+                      "type": "string"
+                    },
+                    "integrationId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "provider": {
+                      "type": "string"
+                    },
+                    "accountIdentifier": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "assetType": {
+                      "type": "string"
+                    },
+                    "externalId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "region": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "nullable": true
+                    },
+                    "firstDiscoveredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "lastSeenAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "organizationId",
+                    "provider",
+                    "assetType",
+                    "externalId",
+                    "status",
+                    "firstDiscoveredAt",
+                    "lastSeenAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
           }
         },
         "tags": [
-          "Chat"
+          "asset-discovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/assets/sync": {
+      "post": {
+        "operationId": "AssetDiscoveryController_triggerSync",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerSyncDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Cloud sync accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workflowId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "workflowId"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asset-discovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/sync-runs": {
+      "get": {
+        "operationId": "AssetDiscoveryController_listSyncRuns",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "integrationId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cloud sync runs with pagination metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "syncRuns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "organizationId": {
+                            "type": "string"
+                          },
+                          "integrationId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "accountIdentifier": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "temporalWorkflowId": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "temporalRunId": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "coveredRegions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "nullable": true
+                          },
+                          "assetsDiscovered": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "assetsCreated": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "assetsUpdated": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "assetsStale": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "errors": {
+                            "type": "array",
+                            "nullable": true,
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "message": {
+                                  "type": "string"
+                                },
+                                "timestamp": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "message",
+                                "timestamp"
+                              ]
+                            }
+                          },
+                          "startedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "completedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "organizationId",
+                          "integrationId",
+                          "status",
+                          "startedAt",
+                          "createdAt"
+                        ]
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "limit": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "syncRuns",
+                    "total",
+                    "page",
+                    "limit"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asset-discovery"
+        ]
+      }
+    },
+    "/api/v1/asset-discovery/sync-runs/{id}": {
+      "get": {
+        "operationId": "AssetDiscoveryController_getSyncRun",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Single cloud sync run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "organizationId": {
+                      "type": "string"
+                    },
+                    "integrationId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "accountIdentifier": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "temporalWorkflowId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "temporalRunId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "coveredRegions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "assetsDiscovered": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "assetsCreated": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "assetsUpdated": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "assetsStale": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "errors": {
+                      "type": "array",
+                      "nullable": true,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string"
+                          },
+                          "timestamp": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "message",
+                          "timestamp"
+                        ]
+                      }
+                    },
+                    "startedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "completedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "organizationId",
+                    "integrationId",
+                    "status",
+                    "startedAt",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asset-discovery"
         ]
       }
     },
@@ -7828,6 +9514,23 @@
           "compiledDefinition": {
             "nullable": true
           },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "iconColor": {
+            "type": "string",
+            "nullable": true
+          },
+          "isSystem": {
+            "type": "boolean"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
+          },
           "lastRun": {
             "type": "string",
             "nullable": true
@@ -7861,6 +9564,10 @@
           "name",
           "graph",
           "compiledDefinition",
+          "icon",
+          "iconColor",
+          "isSystem",
+          "templateId",
           "lastRun",
           "runCount",
           "createdAt",
@@ -8102,6 +9809,17 @@
           },
           "description": {
             "type": "string",
+            "nullable": true
+          },
+          "icon": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50,
+            "nullable": true
+          },
+          "iconColor": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$",
             "nullable": true
           }
         },
@@ -9008,6 +10726,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "collapse": {
+            "type": "object",
+            "description": "Field collapsing specification for deduplication"
           }
         }
       },
@@ -9140,15 +10862,6 @@
                   },
                   "read": {
                     "type": "boolean"
-                  },
-                  "create": {
-                    "type": "boolean"
-                  },
-                  "update": {
-                    "type": "boolean"
-                  },
-                  "delete": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -9171,23 +10884,11 @@
                   "read",
                   "cancel"
                 ]
-              },
-              "audit": {
-                "type": "object",
-                "properties": {
-                  "read": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "read"
-                ]
               }
             },
             "required": [
               "workflows",
-              "runs",
-              "audit"
+              "runs"
             ]
           },
           "isActive": {
@@ -9259,15 +10960,6 @@
                   },
                   "read": {
                     "type": "boolean"
-                  },
-                  "create": {
-                    "type": "boolean"
-                  },
-                  "update": {
-                    "type": "boolean"
-                  },
-                  "delete": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -9290,23 +10982,11 @@
                   "read",
                   "cancel"
                 ]
-              },
-              "audit": {
-                "type": "object",
-                "properties": {
-                  "read": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "read"
-                ]
               }
             },
             "required": [
               "workflows",
-              "runs",
-              "audit"
+              "runs"
             ]
           },
           "expiresAt": {
@@ -9361,15 +11041,6 @@
                   },
                   "read": {
                     "type": "boolean"
-                  },
-                  "create": {
-                    "type": "boolean"
-                  },
-                  "update": {
-                    "type": "boolean"
-                  },
-                  "delete": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -9392,23 +11063,11 @@
                   "read",
                   "cancel"
                 ]
-              },
-              "audit": {
-                "type": "object",
-                "properties": {
-                  "read": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "read"
-                ]
               }
             },
             "required": [
               "workflows",
-              "runs",
-              "audit"
+              "runs"
             ]
           },
           "isActive": {
@@ -9485,15 +11144,6 @@
                   },
                   "read": {
                     "type": "boolean"
-                  },
-                  "create": {
-                    "type": "boolean"
-                  },
-                  "update": {
-                    "type": "boolean"
-                  },
-                  "delete": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -9516,23 +11166,11 @@
                   "read",
                   "cancel"
                 ]
-              },
-              "audit": {
-                "type": "object",
-                "properties": {
-                  "read": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "read"
-                ]
               }
             },
             "required": [
               "workflows",
-              "runs",
-              "audit"
+              "runs"
             ]
           },
           "isActive": {
@@ -12180,113 +13818,79 @@
           "status"
         ]
       },
-      "ListAuditLogsResponseDto": {
+      "CreateDomainDto": {
         "type": "object",
         "properties": {
-          "items": {
+          "domain": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "scopeInclude": {
+            "maxItems": 100,
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "organizationId": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "actorId": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "actorType": {
-                  "type": "string",
-                  "enum": [
-                    "user",
-                    "api-key",
-                    "internal",
-                    "unknown"
-                  ]
-                },
-                "actorDisplay": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "action": {
-                  "type": "string"
-                },
-                "resourceType": {
-                  "type": "string",
-                  "enum": [
-                    "workflow",
-                    "secret",
-                    "api_key",
-                    "webhook",
-                    "artifact",
-                    "analytics",
-                    "schedule",
-                    "mcp_server",
-                    "mcp_group",
-                    "human_input"
-                  ]
-                },
-                "resourceId": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "resourceName": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "metadata": {
-                  "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {},
-                  "nullable": true
-                },
-                "ip": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "userAgent": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "createdAt": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-                }
-              },
-              "required": [
-                "id",
-                "organizationId",
-                "actorId",
-                "actorType",
-                "actorDisplay",
-                "action",
-                "resourceType",
-                "resourceId",
-                "resourceName",
-                "metadata",
-                "ip",
-                "userAgent",
-                "createdAt"
-              ]
+              "type": "string",
+              "maxLength": 500
             }
           },
-          "nextCursor": {
-            "type": "string",
-            "nullable": true
+          "scopeExclude": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "scanNow": {
+            "default": false,
+            "type": "boolean"
           }
         },
         "required": [
-          "items",
-          "nextCursor"
+          "domain"
+        ]
+      },
+      "UpdateDomainDto": {
+        "type": "object",
+        "properties": {
+          "scopeInclude": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "scopeExclude": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        }
+      },
+      "TriggerScanDto": {
+        "type": "object",
+        "properties": {
+          "templateSlug": {
+            "default": "sys-attack-surface-recon",
+            "type": "string"
+          }
+        }
+      },
+      "TriggerSyncDto": {
+        "type": "object",
+        "properties": {
+          "integrationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "integrationId"
         ]
       }
     }

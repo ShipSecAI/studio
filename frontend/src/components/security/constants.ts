@@ -6,7 +6,8 @@ export const SEVERITY_CONFIG = [
   { key: 'critical', label: 'Critical', color: 'bg-red-500', chartColor: '#ef4444', icon: ShieldX },
   { key: 'high', label: 'High', color: 'bg-orange-500', chartColor: '#f97316', icon: ShieldAlert },
   { key: 'medium', label: 'Medium', color: 'bg-yellow-500', chartColor: '#eab308', icon: Shield },
-  { key: 'low', label: 'Low', color: 'bg-blue-500', chartColor: '#3b82f6', icon: ShieldCheck },
+  { key: 'low', label: 'Low', color: 'bg-slate-500', chartColor: '#64748b', icon: ShieldCheck },
+  { key: 'info', label: 'Info', color: 'bg-blue-500', chartColor: '#3b82f6', icon: ShieldCheck },
 ] as const;
 
 export const TIME_RANGES = [
@@ -50,5 +51,15 @@ export const CODE_SCHEDULE_SCANS = [
     name: 'Full Code Security',
     description: 'Secret Detection + SAST + Dependency Audit',
     icon: ShieldCheck,
+  },
+];
+
+export const ASM_SCHEDULE_SCANS = [
+  {
+    id: 'attack-surface-recon',
+    templateSlug: 'sys-attack-surface-recon',
+    name: 'Attack Surface Recon',
+    description: 'Subdomain discovery, DNS resolution, HTTP probing & enrichment',
+    icon: Shield,
   },
 ];

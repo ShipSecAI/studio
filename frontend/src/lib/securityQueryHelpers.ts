@@ -67,6 +67,7 @@ export interface SeverityCounts {
   high: number;
   medium: number;
   low: number;
+  info: number;
 }
 
 export interface TimeSeriesBucket {
@@ -75,6 +76,7 @@ export interface TimeSeriesBucket {
   high: number;
   medium: number;
   low: number;
+  info: number;
 }
 
 export interface AggBucket {
@@ -133,6 +135,7 @@ export const INITIAL_SEVERITY_COUNTS: SeverityCounts = {
   high: 0,
   medium: 0,
   low: 0,
+  info: 0,
 };
 
 // --- Helpers ---

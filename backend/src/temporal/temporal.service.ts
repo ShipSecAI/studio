@@ -23,7 +23,7 @@ import {
   mcpDiscoveryWorkflow,
   mcpGroupDiscoveryWorkflow,
   webhookParsingWorkflow,
-  chatAgentWorkflow,
+  assetSyncWorkflow,
 } from '@shipsec/studio-worker/workflows';
 import type { ExecutionTriggerMetadata, ScheduleOverlapPolicy } from '@shipsec/shared';
 
@@ -159,8 +159,8 @@ export class TemporalService implements OnModuleDestroy {
         return mcpGroupDiscoveryWorkflow;
       case 'webhookParsingWorkflow':
         return webhookParsingWorkflow;
-      case 'chatAgentWorkflow':
-        return chatAgentWorkflow;
+      case 'assetSyncWorkflow':
+        return assetSyncWorkflow;
       default:
         throw new Error(`Unknown workflow type: ${workflowType}`);
     }
@@ -229,68 +229,6 @@ export class TemporalService implements OnModuleDestroy {
   private async getWorkflowHandle(ref: WorkflowRunReference): Promise<WorkflowHandle<any>> {
     const client = await this.getClient();
     return client.getHandle(ref.workflowId, ref.runId);
-  }
-
-  // --- Chat Agent Workflow helpers ---
-
-  async startChatWorkflow(input: {
-    sessionId: string;
-    organizationId?: string | null;
-    systemPrompt: string;
-    initialMessages?: unknown[];
-  }): Promise<WorkflowStartResult> {
-    const workflowId = `chat-${input.sessionId}`;
-    return this.startWorkflow({
-      workflowType: 'chatAgentWorkflow',
-      workflowId,
-      args: [
-        {
-          sessionId: input.sessionId,
-          organizationId: input.organizationId,
-          systemPrompt: input.systemPrompt,
-          ...(input.initialMessages ? { initialMessages: input.initialMessages } : {}),
-        },
-      ],
-    });
-  }
-
-  async signalChatWorkflow(
-    sessionId: string,
-    message: { id?: string; role: string; parts: unknown[] },
-    runId: string,
-  ): Promise<void> {
-    const workflowId = `chat-${sessionId}`;
-    await this.signalWorkflow({
-      workflowId,
-      signalName: 'userMessage',
-      args: { message, runId },
-    });
-  }
-
-  async queryChatMessages(sessionId: string): Promise<unknown[]> {
-    const workflowId = `chat-${sessionId}`;
-    return this.queryWorkflow<unknown[]>({
-      workflowId,
-      queryType: 'getMessages',
-    });
-  }
-
-  async queryChatStatus(sessionId: string): Promise<string> {
-    const workflowId = `chat-${sessionId}`;
-    return this.queryWorkflow<string>({
-      workflowId,
-      queryType: 'getStatus',
-    });
-  }
-
-  async terminateChatWorkflow(sessionId: string): Promise<void> {
-    const workflowId = `chat-${sessionId}`;
-    try {
-      await this.cancelWorkflow({ workflowId });
-    } catch (error) {
-      // Workflow may already be terminated
-      this.logger.warn(`Failed to terminate chat workflow ${workflowId}: ${error}`);
-    }
   }
 
   getDefaultTaskQueue(): string {
@@ -438,6 +376,32 @@ export class TemporalService implements OnModuleDestroy {
         catchupWindow: options.catchupWindowSeconds
           ? options.catchupWindowSeconds * 1000
           : undefined,
+      },
+    });
+  }
+
+  async createCustomSchedule(options: {
+    scheduleId: string;
+    cronExpression: string;
+    workflowType: string;
+    workflowId: string;
+    args: unknown[];
+    overlapPolicy?: ScheduleOverlapPolicy;
+  }): Promise<void> {
+    const client = await this.getScheduleClient();
+    const workflowFn = this.getWorkflowFunction(options.workflowType);
+    await client.create({
+      scheduleId: options.scheduleId,
+      spec: { cronExpressions: [options.cronExpression] },
+      action: {
+        type: 'startWorkflow',
+        workflowType: workflowFn,
+        taskQueue: this.defaultTaskQueue,
+        args: options.args,
+        workflowId: options.workflowId,
+      } as any, // Temporal SDK types don't match workflow function schedule actions
+      policies: {
+        overlap: this.mapOverlapPolicy(options.overlapPolicy ?? 'skip'),
       },
     });
   }

@@ -31,6 +31,8 @@ import './core/text-block';
 import './core/workflow-call';
 import './core/mcp-library';
 import './core/analytics-sink';
+import './core/recon-dedupe';
+import './core/findings-dedupe';
 // Manual Action components
 import './manual-action/manual-approval';
 import './manual-action/manual-selection';

@@ -28,8 +28,10 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  ArrowLeft,
   Cloud,
   Code,
+  Globe,
   History,
   PauseCircle,
   PlayCircle,
@@ -58,7 +60,8 @@ import type { WorkflowSchedule } from '@shipsec/shared';
 import { useGitHubStore } from '@/store/githubStore';
 import { CloudScanScheduleDialog } from '@/components/security/CloudScanScheduleDialog';
 import { CodeScanScheduleDialog } from '@/components/security/CodeScanScheduleDialog';
-import { CODE_SCHEDULE_SCANS } from '@/components/security/constants';
+import { AsmScheduleDialog } from '@/components/security/AsmScheduleDialog';
+import { CODE_SCHEDULE_SCANS, ASM_SCHEDULE_SCANS } from '@/components/security/constants';
 
 const CLOUD_SCAN_TYPES = [
   {
@@ -118,6 +121,9 @@ export function SchedulesPage() {
   const [cloudScanSlug, setCloudScanSlug] = useState<string | undefined>();
   const [codeScheduleOpen, setCodeScheduleOpen] = useState(false);
   const [codeScanId, setCodeScanId] = useState<string | undefined>();
+  const [asmScheduleOpen, setAsmScheduleOpen] = useState(false);
+  const [asmScanId, setAsmScanId] = useState<string | undefined>();
+  const [chooserCategory, setChooserCategory] = useState<'cloud' | 'code' | 'asm' | null>(null);
 
   const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
   const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
@@ -136,6 +142,14 @@ export function SchedulesPage() {
 
   const resolvedCodeScans = useMemo(() => {
     return CODE_SCHEDULE_SCANS.flatMap((scan) => {
+      const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
+      if (!match) return [];
+      return [scan];
+    });
+  }, [systemWorkflows]);
+
+  const resolvedAsmScans = useMemo(() => {
+    return ASM_SCHEDULE_SCANS.flatMap((scan) => {
       const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
       if (!match) return [];
       return [scan];
@@ -659,88 +673,177 @@ export function SchedulesPage() {
         onSaved={handleScheduleSaved}
       />
       {/* Scan type chooser dialog */}
-      <Dialog open={chooserOpen} onOpenChange={(isOpen) => !isOpen && setChooserOpen(false)}>
-        <DialogContent className="max-w-lg">
+      <Dialog
+        open={chooserOpen}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setChooserOpen(false);
+            setChooserCategory(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>New Schedule</DialogTitle>
-            <DialogDescription>What would you like to schedule?</DialogDescription>
+            <DialogTitle>
+              {chooserCategory && (
+                <button
+                  type="button"
+                  onClick={() => setChooserCategory(null)}
+                  className="inline-flex items-center mr-2 text-muted-foreground hover:text-foreground transition-colors align-middle"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+              )}
+              New Schedule
+            </DialogTitle>
+            <DialogDescription>
+              {chooserCategory
+                ? chooserCategory === 'cloud'
+                  ? 'Choose a cloud security scan'
+                  : chooserCategory === 'code'
+                    ? 'Choose a code security scan'
+                    : 'Choose an attack surface scan'
+                : 'What would you like to schedule?'}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-5 py-2">
-            {resolvedCloudScans.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Cloud className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium uppercase text-muted-foreground tracking-wide">
-                    Cloud Security
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {resolvedCloudScans.map((scan) => (
-                    <button
-                      key={scan.slug}
-                      type="button"
-                      onClick={() => {
-                        setChooserOpen(false);
-                        setCloudScanSlug(scan.slug);
-                        setCloudScheduleOpen(true);
-                      }}
-                      className="rounded-lg border border-border p-3 text-left text-sm hover:border-primary/50 transition-colors"
-                    >
-                      <div className="font-medium">{scan.name}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{scan.description}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
 
-            {resolvedCodeScans.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Code className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium uppercase text-muted-foreground tracking-wide">
-                    Code Security
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {resolvedCodeScans.map((scan) => (
-                    <button
-                      key={scan.id}
-                      type="button"
-                      onClick={() => {
-                        setChooserOpen(false);
-                        setCodeScanId(scan.id);
-                        setCodeScheduleOpen(true);
-                      }}
-                      className="rounded-lg border border-border p-3 text-left text-sm hover:border-primary/50 transition-colors"
-                    >
-                      <div className="font-medium">{scan.name}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{scan.description}</div>
-                    </button>
-                  ))}
-                </div>
+          {!chooserCategory ? (
+            /* Step 1: Category selection */
+            <div className="space-y-3 py-2">
+              <div className="grid grid-cols-3 gap-3">
+                {resolvedCloudScans.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setChooserCategory('cloud')}
+                    className="rounded-lg border border-border p-4 text-left hover:border-primary/50 transition-colors flex flex-col items-center text-center gap-2"
+                  >
+                    <Cloud className="h-6 w-6 text-muted-foreground" />
+                    <div>
+                      <div className="font-medium text-sm">Cloud Security</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        AWS misconfigurations & container scans
+                      </div>
+                    </div>
+                  </button>
+                )}
+                {resolvedCodeScans.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setChooserCategory('code')}
+                    className="rounded-lg border border-border p-4 text-left hover:border-primary/50 transition-colors flex flex-col items-center text-center gap-2"
+                  >
+                    <Code className="h-6 w-6 text-muted-foreground" />
+                    <div>
+                      <div className="font-medium text-sm">Code Security</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Secrets, SAST & dependency audits
+                      </div>
+                    </div>
+                  </button>
+                )}
+                {resolvedAsmScans.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setChooserCategory('asm')}
+                    className="rounded-lg border border-border p-4 text-left hover:border-primary/50 transition-colors flex flex-col items-center text-center gap-2"
+                  >
+                    <Globe className="h-6 w-6 text-muted-foreground" />
+                    <div>
+                      <div className="font-medium text-sm">Attack Surface</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Subdomain discovery, DNS & HTTP probing
+                      </div>
+                    </div>
+                  </button>
+                )}
               </div>
-            )}
-
-            <div className="border-t pt-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setChooserOpen(false);
-                  openCreateDrawer();
-                }}
-                className="w-full flex items-start gap-3 rounded-lg border border-border p-3 text-left text-sm hover:border-primary/50 transition-colors"
-              >
-                <Settings className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                <div>
-                  <div className="font-medium">Custom Workflow</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Advanced: schedule any workflow with full control over inputs & overrides
+              <div className="border-t pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setChooserOpen(false);
+                    setChooserCategory(null);
+                    openCreateDrawer();
+                  }}
+                  className="w-full flex items-start gap-3 rounded-lg border border-border p-3 text-left text-sm hover:border-primary/50 transition-colors"
+                >
+                  <Settings className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium">Custom Workflow</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Advanced: schedule any workflow with full control over inputs & overrides
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
+              </div>
             </div>
-          </div>
+          ) : chooserCategory === 'cloud' ? (
+            /* Step 2: Cloud Security options */
+            <div className="space-y-2 py-2">
+              <div className="grid grid-cols-2 gap-2">
+                {resolvedCloudScans.map((scan) => (
+                  <button
+                    key={scan.slug}
+                    type="button"
+                    onClick={() => {
+                      setChooserOpen(false);
+                      setChooserCategory(null);
+                      setCloudScanSlug(scan.slug);
+                      setCloudScheduleOpen(true);
+                    }}
+                    className="rounded-lg border border-border p-3 text-left text-sm hover:border-primary/50 transition-colors"
+                  >
+                    <div className="font-medium">{scan.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{scan.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : chooserCategory === 'code' ? (
+            /* Step 2: Code Security options */
+            <div className="space-y-2 py-2">
+              <div className="grid grid-cols-2 gap-2">
+                {resolvedCodeScans.map((scan) => (
+                  <button
+                    key={scan.id}
+                    type="button"
+                    onClick={() => {
+                      setChooserOpen(false);
+                      setChooserCategory(null);
+                      setCodeScanId(scan.id);
+                      setCodeScheduleOpen(true);
+                    }}
+                    className="rounded-lg border border-border p-3 text-left text-sm hover:border-primary/50 transition-colors"
+                  >
+                    <div className="font-medium">{scan.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{scan.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Step 2: Attack Surface options */
+            <div className="space-y-2 py-2">
+              <div className="grid grid-cols-2 gap-2">
+                {resolvedAsmScans.map((scan) => (
+                  <button
+                    key={scan.id}
+                    type="button"
+                    onClick={() => {
+                      setChooserOpen(false);
+                      setChooserCategory(null);
+                      setAsmScanId(scan.id);
+                      setAsmScheduleOpen(true);
+                    }}
+                    className="rounded-lg border border-border p-3 text-left text-sm hover:border-primary/50 transition-colors"
+                  >
+                    <div className="font-medium">{scan.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{scan.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -753,6 +856,7 @@ export function SchedulesPage() {
         onBack={() => {
           setCloudScheduleOpen(false);
           setCloudScanSlug(undefined);
+          setChooserCategory('cloud');
           setChooserOpen(true);
         }}
         connection={null}
@@ -767,9 +871,24 @@ export function SchedulesPage() {
         onBack={() => {
           setCodeScheduleOpen(false);
           setCodeScanId(undefined);
+          setChooserCategory('code');
           setChooserOpen(true);
         }}
         preSelectedScanId={codeScanId}
+      />
+      <AsmScheduleDialog
+        open={asmScheduleOpen}
+        onClose={() => {
+          setAsmScheduleOpen(false);
+          setAsmScanId(undefined);
+        }}
+        onBack={() => {
+          setAsmScheduleOpen(false);
+          setAsmScanId(undefined);
+          setChooserCategory('asm');
+          setChooserOpen(true);
+        }}
+        preSelectedScanId={asmScanId}
       />
     </>
   );

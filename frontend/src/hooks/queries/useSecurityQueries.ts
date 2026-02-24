@@ -108,7 +108,7 @@ export function useSecurityTimeSeries(
 
       const buckets = result.aggregations?.over_time?.buckets ?? [];
       return buckets.map((bucket: any) => {
-        const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
+        const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
         for (const sev of bucket.by_severity?.buckets ?? []) {
           const key = sev.key?.toLowerCase();
           if (key in counts) {
@@ -156,7 +156,7 @@ export function useSecurityTimeSeriesForHeatmap(days = 90) {
 
       const buckets = result.aggregations?.over_time?.buckets ?? [];
       return buckets.map((bucket: any) => {
-        const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
+        const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
         for (const sev of bucket.by_severity?.buckets ?? []) {
           const key = sev.key?.toLowerCase();
           if (key in counts) counts[key] = sev.doc_count;

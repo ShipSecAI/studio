@@ -3232,6 +3232,8 @@ export interface components {
             aggs?: Record<string, never>;
             /** @description Sort specification */
             sort?: string[];
+            /** @description Field collapsing specification for deduplication */
+            collapse?: Record<string, never>;
         };
         AnalyticsQueryResponseDto: {
             /**
