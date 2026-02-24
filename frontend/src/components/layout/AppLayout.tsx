@@ -40,6 +40,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
+import { useChatStore } from '@/store/chatStore';
+import { ChatHistoryList } from '@/components/chat/ChatHistoryList';
 import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { UserButton } from '@/components/auth/UserButton';
@@ -124,6 +126,17 @@ export function AppLayout({ children }: AppLayoutProps) {
   const showUserButton = isAuthenticated || authProvider.name === 'clerk';
   const { theme, startTransition } = useThemeStore();
   const openCommandPalette = useCommandPaletteStore((state) => state.open);
+  const chatSessions = useChatStore((s) => s.sessions);
+  const currentSessionId = useChatStore((s) => s.currentSessionId);
+  const loadSessions = useChatStore((s) => s.loadSessions);
+  const deleteSession = useChatStore((s) => s.deleteSession);
+
+  // Load chat sessions when on chat routes
+  useEffect(() => {
+    if (location.pathname.startsWith('/chat') && chatSessions.length === 0) {
+      loadSessions();
+    }
+  }, [location.pathname, chatSessions.length, loadSessions]);
 
   // Get git SHA for version display (monorepo - same for frontend and backend)
   const gitSha = env.VITE_GIT_SHA;
@@ -467,6 +480,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
+  const startNewConversation = useChatStore((s) => s.startNewConversation);
+
   // Get page-specific actions
   const getPageActions = () => {
     if (location.pathname === '/builder') {
@@ -484,6 +499,25 @@ export function AppLayout({ children }: AppLayoutProps) {
           <Plus className={cn('w-4 h-4', isMobile && 'w-3.5 h-3.5')} />
           <span>
             New <span className="hidden md:inline">Workflow</span>
+          </span>
+        </Button>
+      );
+    }
+
+    if (location.pathname.startsWith('/chat')) {
+      return (
+        <Button
+          onClick={() => {
+            startNewConversation();
+            navigate('/chat/new');
+          }}
+          size={isMobile ? 'sm' : 'default'}
+          variant="outline"
+          className={cn('gap-2', isMobile && 'h-8 px-3 text-xs')}
+        >
+          <Plus className={cn('w-4 h-4', isMobile && 'w-3.5 h-3.5')} />
+          <span>
+            New <span className="hidden md:inline">Chat</span>
           </span>
         </Button>
       );
@@ -521,7 +555,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           onMouseLeave={handleMouseLeave}
         >
           {/* Sidebar Header - same style for mobile and desktop */}
-          <SidebarHeader className="flex items-center justify-between p-4 border-b">
+          <SidebarHeader className="flex items-center justify-between">
             <Link
               to="/"
               className="flex items-center gap-2"
@@ -661,41 +695,82 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </span>
                 </SidebarItem>
               </Link>
-              <Link
-                to={chatItem.href}
-                onMouseEnter={() => prefetchRoute(chatItem.href)}
-                onClick={(e) => {
-                  if (e.metaKey || e.ctrlKey || e.shiftKey) return;
-                  if (isMobile) {
-                    setSidebarOpen(false);
-                    return;
-                  }
-                  setSidebarOpen(true);
-                  setWasExplicitlyOpened(true);
-                }}
-              >
-                <SidebarItem
-                  isActive={isActive(chatItem.href)}
-                  className={cn(
-                    'flex items-center gap-3',
-                    sidebarOpen ? 'justify-start px-4' : 'justify-center',
-                  )}
-                >
-                  <MessageSquare className="h-5 w-5 flex-shrink-0" />
-                  <span
-                    className={cn(
-                      'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
-                      sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
-                    )}
-                    style={{
-                      transitionDelay: sidebarOpen ? '200ms' : '0ms',
-                      transitionProperty: 'opacity, max-width',
+              {/* ShipSec AI with collapsible chat history */}
+              <div>
+                <div className="flex items-center">
+                  <Link
+                    to={chatItem.href}
+                    onMouseEnter={() => prefetchRoute(chatItem.href)}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                      if (isMobile) {
+                        setSidebarOpen(false);
+                        return;
+                      }
+                      setSidebarOpen(true);
+                      setWasExplicitlyOpened(true);
                     }}
+                    className="flex-1 min-w-0"
                   >
-                    ShipSec AI
-                  </span>
-                </SidebarItem>
-              </Link>
+                    <SidebarItem
+                      isActive={isActive(chatItem.href)}
+                      className={cn(
+                        'flex items-center gap-3',
+                        sidebarOpen ? 'justify-start px-4 pr-1' : 'justify-center',
+                      )}
+                    >
+                      <MessageSquare className="h-5 w-5 flex-shrink-0" />
+                      <span
+                        className={cn(
+                          'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                          sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                        )}
+                        style={{
+                          transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                          transitionProperty: 'opacity, max-width',
+                        }}
+                      >
+                        ShipSec AI
+                      </span>
+                    </SidebarItem>
+                  </Link>
+                  {sidebarOpen && location.pathname.startsWith('/chat') && (
+                    <button
+                      onClick={() => {
+                        startNewConversation();
+                        navigate('/chat/new');
+                      }}
+                      className="p-1.5 mr-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex-shrink-0"
+                      aria-label="New conversation"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Chat history - visible only on chat routes */}
+                {sidebarOpen && location.pathname.startsWith('/chat') && (
+                  <div className="max-h-48 overflow-y-auto">
+                    {chatSessions.length > 0 ? (
+                      <ChatHistoryList
+                        sessions={chatSessions}
+                        currentSessionId={currentSessionId}
+                        onSelectSession={(id) => {
+                          navigate(`/chat/${id}`);
+                          if (isMobile) setSidebarOpen(false);
+                        }}
+                        onDeleteSession={deleteSession}
+                        maxItems={15}
+                        variant="default"
+                      />
+                    ) : (
+                      <p className="text-xs text-muted-foreground/70 px-3 py-2">
+                        No conversations yet
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Grouped navigation */}
@@ -962,9 +1037,10 @@ export function AppLayout({ children }: AppLayoutProps) {
             isMobile ? 'w-full' : '',
           )}
         >
-          {/* Only show AppTopBar for non-workflow-builder and non-webhook-editor pages */}
+          {/* Only show AppTopBar for non-workflow-builder, non-webhook-editor, and non-chat pages */}
           {!location.pathname.startsWith('/workflows') &&
-            !location.pathname.startsWith('/webhooks/') && (
+            !location.pathname.startsWith('/webhooks/') &&
+            !location.pathname.startsWith('/chat') && (
               <AppTopBar
                 sidebarOpen={sidebarOpen}
                 onSidebarToggle={handleToggle}

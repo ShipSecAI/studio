@@ -14,6 +14,7 @@ import {
   Workflow,
   ChevronDown,
   ChevronUp,
+  Plus,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -785,13 +786,13 @@ export function ChatInterface() {
   return (
     <div className="flex flex-col h-full w-full bg-background">
       {/* Header: sidebar toggle + title + StatusBar */}
-      <div className="flex items-center h-14 border-b bg-background/60 backdrop-blur-sm">
+      <div className="flex items-center h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-3 md:px-4 gap-2 md:gap-4 sticky top-0 z-40">
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleSidebar}
           aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-          className="h-9 w-9 ml-2 shrink-0"
+          className="h-9 w-9 shrink-0"
         >
           {sidebarOpen ? (
             <PanelLeftClose className="h-5 w-5" />
@@ -802,7 +803,7 @@ export function ChatInterface() {
 
         {/* Editable conversation title */}
         {currentSession ? (
-          <div className="flex items-center gap-1 ml-2 min-w-0 max-w-[240px]">
+          <div className="flex items-center gap-1 min-w-0 max-w-[240px]">
             {isEditingTitle ? (
               <div className="flex items-center gap-1 min-w-0">
                 <input
@@ -841,18 +842,30 @@ export function ChatInterface() {
 
         <button
           onClick={handleCopyConversationUrl}
-          className="hidden md:inline-flex items-center gap-1.5 ml-1 px-2 py-1 rounded-md text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-muted transition-colors max-w-[280px]"
+          className="hidden md:inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-muted transition-colors max-w-[280px]"
           title={conversationUrl}
         >
           <Link2 className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">{conversationPath}</span>
         </button>
 
-        {/* Spacer pushes StatusBar to the right */}
+        {/* Spacer pushes actions to the right */}
         <div className="flex-1" />
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => {
+            startNewConversation();
+            navigate('/chat/new');
+          }}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">New Chat</span>
+        </Button>
         <StatusBar className="border-b-0" />
       </div>
-      {/* Body: chat + inspector side-by-side */}
+      {/* Body: chat + history + inspector side-by-side */}
       <div className="flex-1 flex flex-row overflow-hidden min-h-0">
         {/* Content Area */}
         <div className="flex-1 overflow-hidden flex flex-col relative min-w-0">

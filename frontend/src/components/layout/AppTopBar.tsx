@@ -122,7 +122,7 @@ export function AppTopBar({
 
       {/* Action buttons */}
       <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-        <QuickScanButton isMobile={isMobile} />
+        {!location.pathname.startsWith('/chat') && <QuickScanButton isMobile={isMobile} />}
         {actions}
       </div>
     </div>
