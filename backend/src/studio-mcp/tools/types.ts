@@ -27,12 +27,51 @@ export type PermissionPath =
   | 'human-inputs.resolve';
 
 export interface ToolResult {
+  [x: string]: unknown;
   content: [{ type: 'text'; text: string }, ...{ type: 'text'; text: string }[]];
   isError?: boolean;
 }
 
 export interface StudioMcpDeps {
   workflowsService: WorkflowsService;
+  traceService?: { list(runId: string, auth?: any): Promise<{ events: any[]; cursor?: string }> };
+  nodeIOService?: {
+    listSummaries(runId: string, organizationId?: string): Promise<any[]>;
+    getNodeIO(runId: string, nodeRef: string, full?: boolean): Promise<any>;
+  };
+  logStreamService?: { fetch(runId: string, auth: any, options?: any): Promise<any> };
+  terminalStreamService?: {
+    listStreams(runId: string): Promise<any[]>;
+    fetchChunks(runId: string, options?: any): Promise<any>;
+  };
+  artifactsService?: {
+    listArtifacts(auth: any, filters?: any): Promise<any>;
+    listRunArtifacts(auth: any, runId: string): Promise<any>;
+    downloadArtifact(auth: any, artifactId: string): Promise<{ buffer: Buffer; artifact: any }>;
+    deleteArtifact(auth: any, artifactId: string): Promise<void>;
+  };
+  schedulesService?: {
+    list(auth: any, filters?: any): Promise<any[]>;
+    get(auth: any, id: string): Promise<any>;
+    create(auth: any, dto: any): Promise<any>;
+    update(auth: any, id: string, dto: any): Promise<any>;
+    delete(auth: any, id: string): Promise<void>;
+    pause(auth: any, id: string): Promise<any>;
+    resume(auth: any, id: string): Promise<any>;
+    trigger(auth: any, id: string): Promise<any>;
+  };
+  secretsService?: {
+    listSecrets(auth: any): Promise<any[]>;
+    createSecret(auth: any, input: any): Promise<any>;
+    rotateSecret(auth: any, secretId: string, input: any): Promise<any>;
+    updateSecret(auth: any, secretId: string, input: any): Promise<any>;
+    deleteSecret(auth: any, secretId: string): Promise<void>;
+  };
+  humanInputsService?: {
+    list(query?: any, organizationId?: string): Promise<any[]>;
+    getById(id: string, organizationId?: string): Promise<any>;
+    resolve(id: string, dto: any, organizationId?: string, auth?: any): Promise<any>;
+  };
 }
 
 const logger = new Logger('StudioMcpTools');
