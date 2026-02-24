@@ -99,9 +99,12 @@ export function registerScheduleTools(
           workflowId: args.workflowId,
           name: args.name,
           cronExpression: args.cronExpression,
-          inputs: args.inputs,
-          timezone: args.timezone,
+          timezone: args.timezone ?? 'UTC',
           description: args.description,
+          inputPayload: {
+            runtimeInputs: args.inputs ?? {},
+            nodeOverrides: {},
+          },
         };
         const schedule = await schedulesService.create(auth, dto);
         return jsonResult(schedule);
@@ -141,7 +144,9 @@ export function registerScheduleTools(
         const dto: Record<string, unknown> = {};
         if (args.name !== undefined) dto.name = args.name;
         if (args.cronExpression !== undefined) dto.cronExpression = args.cronExpression;
-        if (args.inputs !== undefined) dto.inputs = args.inputs;
+        if (args.inputs !== undefined) {
+          dto.inputPayload = { runtimeInputs: args.inputs, nodeOverrides: {} };
+        }
         if (args.timezone !== undefined) dto.timezone = args.timezone;
         if (args.description !== undefined) dto.description = args.description;
         const schedule = await schedulesService.update(auth, args.scheduleId, dto);
@@ -225,8 +230,8 @@ export function registerScheduleTools(
       const gate = checkPermission(auth, 'schedules.update');
       if (!gate.allowed) return gate.error;
       try {
-        const result = await schedulesService.trigger(auth, args.scheduleId);
-        return jsonResult(result);
+        await schedulesService.trigger(auth, args.scheduleId);
+        return jsonResult({ triggered: true, scheduleId: args.scheduleId });
       } catch (error) {
         return errorResult(error);
       }

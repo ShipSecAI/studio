@@ -93,7 +93,13 @@ export function registerHumanInputTools(
       try {
         const result = await humanInputsService.resolve(
           args.inputId,
-          { action: args.action, data: args.data },
+          {
+            responseData: {
+              status: args.action === 'reject' ? 'rejected' : 'approved',
+              ...args.data,
+            },
+            respondedBy: auth.userId ?? undefined,
+          },
           auth.organizationId ?? undefined,
           auth,
         );
