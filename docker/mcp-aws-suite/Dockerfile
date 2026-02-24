@@ -1,34 +1,24 @@
 ARG BASE_IMAGE=shipsec/mcp-stdio-proxy:latest
 FROM ${BASE_IMAGE}
 
-# Install Python and uv for AWS MCP servers
+# Install Python, uv, and all AWS MCP servers in a single layer
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 python3-pip python3-dev build-essential \
-  && rm -rf /var/lib/apt/lists/* \
-  && pip install --no-cache-dir --break-system-packages uv
-
-# Install 10 essential AWS security MCP servers
-# Core security & auditing
-RUN uv pip install --system --break-system-packages awslabs.cloudtrail-mcp-server
-RUN uv pip install --system --break-system-packages awslabs.iam-mcp-server
-RUN uv pip install --system --break-system-packages awslabs.s3-tables-mcp-server
-RUN uv pip install --system --break-system-packages awslabs.cloudwatch-mcp-server
-
-# Networking & infrastructure security
-RUN uv pip install --system --break-system-packages awslabs.aws-network-mcp-server
-
-# Serverless security
-RUN uv pip install --system --break-system-packages awslabs.lambda-tool-mcp-server
-
-# Database security
-RUN uv pip install --system --break-system-packages awslabs.dynamodb-mcp-server
-
-# Documentation & best practices
-RUN uv pip install --system --break-system-packages awslabs.aws-documentation-mcp-server
-RUN uv pip install --system --break-system-packages awslabs.well-architected-security-mcp-server
-
-# API explorer (for any AWS service)
-RUN uv pip install --system --break-system-packages awslabs.aws-api-mcp-server
+  && pip install --no-cache-dir --break-system-packages uv \
+  && uv pip install --system --break-system-packages \
+    awslabs.cloudtrail-mcp-server \
+    awslabs.iam-mcp-server \
+    awslabs.s3-tables-mcp-server \
+    awslabs.cloudwatch-mcp-server \
+    awslabs.aws-network-mcp-server \
+    awslabs.lambda-tool-mcp-server \
+    awslabs.dynamodb-mcp-server \
+    awslabs.aws-documentation-mcp-server \
+    awslabs.well-architected-security-mcp-server \
+    awslabs.aws-api-mcp-server \
+  && apt-get purge -y python3-dev build-essential \
+  && apt-get autoremove -y \
+  && rm -rf /var/lib/apt/lists/*
 
 # Compatibility shim for fastmcp expecting streamable_http_client
 RUN python3 - <<'PY'
