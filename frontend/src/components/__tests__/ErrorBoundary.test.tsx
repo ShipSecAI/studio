@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'bun:test';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'bun:test';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ErrorBoundary } from '../ErrorBoundary';
 
@@ -14,6 +14,10 @@ function ThrowingChild({ shouldThrow = true }: { shouldThrow?: boolean }) {
 describeBoundary('ErrorBoundary', () => {
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('renders children when no error', () => {
