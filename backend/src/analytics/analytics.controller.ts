@@ -2,11 +2,9 @@ import {
   BadRequestException,
   Body,
   Controller,
-  Delete,
   ForbiddenException,
   Get,
   Headers,
-  HttpCode,
   Post,
   Put,
   UnauthorizedException,
@@ -24,6 +22,7 @@ import {
   UpdateAnalyticsSettingsDto,
   TIER_LIMITS,
 } from './dto/analytics-settings.dto';
+import { AuditLogService } from '../audit/audit-log.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import { Public } from '../auth/public.decorator';
 import type { AuthContext } from '../auth/types';
@@ -45,12 +44,12 @@ export class AnalyticsController {
     private readonly organizationSettingsService: OrganizationSettingsService,
     private readonly openSearchTenantService: OpenSearchTenantService,
     private readonly configService: ConfigService,
+    private readonly auditLogService: AuditLogService,
   ) {
     this.internalServiceToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN') || '';
   }
 
   @Post('query')
-  @HttpCode(200)
   @Throttle({ default: { limit: 100, ttl: 60000 } }) // 100 requests per minute per user
   @ApiOkResponse({
     description: 'Query analytics data for the authenticated organization',
@@ -109,18 +108,18 @@ export class AnalyticsController {
       throw new BadRequestException(`Invalid from: maximum is ${MAX_QUERY_FROM}`);
     }
 
-    // Validate collapse shape: only allow { field: string }, block inner_hits
-    if (queryDto.collapse) {
-      if (typeof queryDto.collapse !== 'object') {
-        throw new BadRequestException('Invalid collapse: must be an object');
-      }
-      if ('inner_hits' in queryDto.collapse) {
-        throw new BadRequestException('Invalid collapse: inner_hits is not allowed');
-      }
-      if (typeof queryDto.collapse.field !== 'string') {
-        throw new BadRequestException('Invalid collapse: must contain a "field" string');
-      }
-    }
+    this.auditLogService.record(auth, {
+      action: 'analytics.query',
+      resourceType: 'analytics',
+      resourceId: null,
+      resourceName: null,
+      metadata: {
+        size,
+        from,
+        hasQuery: Boolean(queryDto.query),
+        hasAggs: Boolean(queryDto.aggs),
+      },
+    });
 
     // Call the service to execute the query
     return this.securityAnalyticsService.query(auth.organizationId, {
@@ -129,7 +128,6 @@ export class AnalyticsController {
       from,
       aggs: queryDto.aggs,
       sort: queryDto.sort,
-      collapse: queryDto.collapse,
     });
   }
 
@@ -247,89 +245,6 @@ export class AnalyticsController {
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     };
-  }
-
-  @Post('batch-run-summaries')
-  @HttpCode(200)
-  @Throttle({ default: { limit: 100, ttl: 60000 } })
-  @ApiOkResponse({
-    description: 'Get severity counts for multiple run IDs',
-  })
-  async batchRunSummaries(
-    @CurrentAuth() auth: AuthContext | null,
-    @Body() body: { runIds: string[] },
-  ) {
-    if (!auth || !auth.isAuthenticated) {
-      throw new UnauthorizedException('Authentication required');
-    }
-    if (!auth.organizationId) {
-      throw new UnauthorizedException('Organization context required');
-    }
-
-    if (!Array.isArray(body.runIds)) {
-      throw new BadRequestException('runIds must be an array');
-    }
-
-    const runIds = [...new Set(body.runIds)].slice(0, 100);
-
-    const summaries = await this.securityAnalyticsService.batchRunSeverityCounts(
-      auth.organizationId,
-      runIds,
-    );
-
-    return { summaries };
-  }
-
-  @Get('storage-usage')
-  @ApiOkResponse({
-    description: 'Get OpenSearch storage usage for the authenticated organization',
-    schema: {
-      type: 'object',
-      properties: {
-        usedBytes: { type: 'number' },
-        documentCount: { type: 'number' },
-        indexCount: { type: 'number' },
-        opensearchEnabled: { type: 'boolean' },
-      },
-    },
-  })
-  async getStorageUsage(@CurrentAuth() auth: AuthContext | null): Promise<{
-    usedBytes: number;
-    documentCount: number;
-    indexCount: number;
-    opensearchEnabled: boolean;
-  }> {
-    if (!auth || !auth.isAuthenticated) {
-      throw new UnauthorizedException('Authentication required');
-    }
-    if (!auth.organizationId) {
-      throw new UnauthorizedException('Organization context required');
-    }
-    return this.securityAnalyticsService.getStorageUsage(auth.organizationId);
-  }
-
-  @Delete('data')
-  @HttpCode(200)
-  @ApiOkResponse({
-    description: 'Purge all analytics data for the authenticated organization',
-    schema: {
-      type: 'object',
-      properties: {
-        deletedIndices: { type: 'number' },
-      },
-    },
-  })
-  async purgeData(@CurrentAuth() auth: AuthContext | null): Promise<{ deletedIndices: number }> {
-    if (!auth || !auth.isAuthenticated) {
-      throw new UnauthorizedException('Authentication required');
-    }
-    if (!auth.organizationId) {
-      throw new UnauthorizedException('Organization context required');
-    }
-    if (!auth.roles.includes('ADMIN')) {
-      throw new ForbiddenException('Only organization admins can purge analytics data');
-    }
-    return this.securityAnalyticsService.purgeOrgData(auth.organizationId);
   }
 
   /**

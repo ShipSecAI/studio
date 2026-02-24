@@ -17,7 +17,6 @@ import {
   Undo2,
   Redo2,
   ExternalLink,
-  Lock,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -27,11 +26,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
-import { WorkflowIconPicker } from '@/components/workflow/WorkflowIconPicker';
 import { useAuthStore, DEFAULT_ORG_ID } from '@/store/authStore';
 import { cn } from '@/lib/utils';
 import { env } from '@/config/env';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface TopBarProps {
   workflowId?: string;
@@ -41,7 +39,6 @@ interface TopBarProps {
   isNew?: boolean;
   onRun?: () => void;
   onSave: () => Promise<void> | void;
-  onAutoSave?: () => Promise<void> | void;
   onImport?: (file: File) => Promise<void> | void;
   onExport?: () => void;
   canManageWorkflows?: boolean;
@@ -61,7 +58,6 @@ export function TopBar({
   selectedRunOrgId,
   onRun,
   onSave,
-  onAutoSave,
   onImport,
   onExport,
   canManageWorkflows = true,
@@ -80,15 +76,14 @@ export function TopBar({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
 
-  const { metadata, isDirty, setWorkflowName, setMetadata } = useWorkflowStore();
+  const { metadata, isDirty, setWorkflowName } = useWorkflowStore();
   const mode = useWorkflowUiStore((state) => state.mode);
   const organizationId = useAuthStore((s) => s.organizationId);
   const authProvider = useAuthStore((s) => s.provider);
   // For Clerk auth, org context is ready when organizationId is set to a real value (not default)
   // For other providers (local, custom), org context is always ready
   const isOrgReady = authProvider !== 'clerk' || organizationId !== DEFAULT_ORG_ID;
-  const isSystemWorkflow = metadata.isSystem === true;
-  const canEdit = Boolean(canManageWorkflows) && !isSystemWorkflow;
+  const canEdit = Boolean(canManageWorkflows);
 
   const handleChangeWorkflowName = () => {
     const trimmed = (tempWorkflowName ?? '').trim();
@@ -96,23 +91,12 @@ export function TopBar({
       setWorkflowName(DEFAULT_WORKFLOW_NAME);
       setTempWorkflowName(DEFAULT_WORKFLOW_NAME);
       setIsEditingTitle(false);
-      // Auto-save the default name after store update propagates
-      if (onAutoSave) setTimeout(() => void onAutoSave(), 0);
       return;
     }
     if (trimmed !== metadata.name) {
       setWorkflowName(trimmed);
-      // Auto-save after name change — use setTimeout so the store update propagates first
-      if (onAutoSave) setTimeout(() => void onAutoSave(), 0);
     }
     setIsEditingTitle(false);
-  };
-
-  const handleIconPickerClose = () => {
-    // Auto-save when icon picker popover closes (icon/color may have changed)
-    if (onAutoSave) {
-      void onAutoSave();
-    }
   };
 
   const handleStartEditing = () => {
@@ -290,12 +274,12 @@ export function TopBar({
     );
 
   return (
-    <div className="min-h-[56px] md:min-h-[60px] border-b bg-background flex flex-nowrap items-center px-2 md:px-4 gap-1.5 md:gap-3 py-0">
+    <div className="h-14 border-b bg-background flex flex-nowrap items-center px-2 md:px-4 gap-1.5 md:gap-3 py-0">
       <Button
         variant="ghost"
         size="icon"
-        onClick={() => navigate(-1)}
-        aria-label="Go back"
+        onClick={() => navigate('/')}
+        aria-label="Back to workflows"
         className="h-9 w-9 flex-shrink-0"
       >
         <ArrowLeft className="h-5 w-5" />
@@ -305,13 +289,6 @@ export function TopBar({
         <div className="flex w-full gap-2 md:gap-4 items-center">
           {/* Workflow name - fixed width left section for consistent centering */}
           <div className="flex items-center justify-start gap-2 min-w-0 w-[140px] sm:w-[200px] md:w-[280px] lg:w-[360px] flex-shrink-0">
-            <WorkflowIconPicker
-              icon={metadata.icon}
-              iconColor={metadata.iconColor}
-              onChange={(icon, iconColor) => setMetadata({ icon, iconColor })}
-              onClose={handleIconPickerClose}
-              disabled={!canEdit}
-            />
             <div
               className={cn(
                 'flex items-center gap-2 min-w-0 max-w-[120px] sm:max-w-[180px] md:max-w-[280px] lg:max-w-[360px]',
@@ -359,19 +336,6 @@ export function TopBar({
               <span className="hidden lg:inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-muted text-muted-foreground border border-border/60 flex-shrink-0">
                 v{metadata.currentVersion}
               </span>
-            )}
-            {isSystemWorkflow && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-muted text-muted-foreground border border-border/60 flex-shrink-0">
-                    <Lock className="h-2.5 w-2.5" />
-                    System
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>System workflow — read-only</p>
-                </TooltipContent>
-              </Tooltip>
             )}
           </div>
           {/* Mode toggle - flex-centered, won't overlap with other elements */}
@@ -508,58 +472,63 @@ export function TopBar({
               {env.VITE_OPENSEARCH_DASHBOARDS_URL &&
                 workflowId &&
                 (!selectedRunId || (selectedRunStatus && selectedRunStatus !== 'RUNNING')) && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 md:gap-2 min-w-0"
-                          disabled={!isOrgReady || !hasAnalyticsSink}
-                          onClick={() => {
-                            if (!isOrgReady || !hasAnalyticsSink) return;
-                            const baseUrl = env.VITE_OPENSEARCH_DASHBOARDS_URL.replace(/\/+$/, '');
-                            // Filter by run_id if a specific run is selected, otherwise by workflow_id
-                            const filterQuery = selectedRunId
-                              ? `shipsec.run_id.keyword:"${selectedRunId}"`
-                              : `shipsec.workflow_id.keyword:"${workflowId}"`;
-                            // Use the run's backend-resolved org ID when available (matches indexed data),
-                            // fall back to auth store org ID for workflow-level queries
-                            const effectiveOrgId = (
-                              selectedRunOrgId || organizationId
-                            ).toLowerCase();
-                            const orgScopedPattern = `security-findings-${effectiveOrgId}-*`;
-                            // OpenSearch Data Explorer URL format
-                            // Use .keyword fields for exact match filtering
-                            // Use 'all time' range (1 year) since run_id is unique - no need to filter by time
-                            const aParam = encodeURIComponent(
-                              `(discover:(columns:!(_source),interval:auto,sort:!()),metadata:(indexPattern:'${orgScopedPattern}',view:discover))`,
-                            );
-                            const qParam = encodeURIComponent(
-                              `(query:(language:kuery,query:'${filterQuery}'))`,
-                            );
-                            const gParam = encodeURIComponent(
-                              '(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1y,to:now))',
-                            );
-                            const url = `${baseUrl}/app/data-explorer/discover/#?_a=${aParam}&_q=${qParam}&_g=${gParam}`;
-                            window.open(url, '_blank', 'noopener,noreferrer');
-                          }}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          <span className="hidden lg:inline">View Analytics</span>
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {!hasAnalyticsSink
-                        ? 'Connect analytics sink to view analytics'
-                        : !isOrgReady
-                          ? 'Loading organization context...'
-                          : selectedRunId
-                            ? 'View analytics for this run in OpenSearch Dashboards'
-                            : 'View analytics for this workflow in OpenSearch Dashboards'}
-                    </TooltipContent>
-                  </Tooltip>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 md:gap-2 min-w-0"
+                            disabled={!isOrgReady || !hasAnalyticsSink}
+                            onClick={() => {
+                              if (!isOrgReady || !hasAnalyticsSink) return;
+                              const baseUrl = env.VITE_OPENSEARCH_DASHBOARDS_URL.replace(
+                                /\/+$/,
+                                '',
+                              );
+                              // Filter by run_id if a specific run is selected, otherwise by workflow_id
+                              const filterQuery = selectedRunId
+                                ? `shipsec.run_id.keyword:"${selectedRunId}"`
+                                : `shipsec.workflow_id.keyword:"${workflowId}"`;
+                              // Use the run's backend-resolved org ID when available (matches indexed data),
+                              // fall back to auth store org ID for workflow-level queries
+                              const effectiveOrgId = (
+                                selectedRunOrgId || organizationId
+                              ).toLowerCase();
+                              const orgScopedPattern = `security-findings-${effectiveOrgId}-*`;
+                              // OpenSearch Data Explorer URL format
+                              // Use .keyword fields for exact match filtering
+                              // Use 'all time' range (1 year) since run_id is unique - no need to filter by time
+                              const aParam = encodeURIComponent(
+                                `(discover:(columns:!(_source),interval:auto,sort:!()),metadata:(indexPattern:'${orgScopedPattern}',view:discover))`,
+                              );
+                              const qParam = encodeURIComponent(
+                                `(query:(language:kuery,query:'${filterQuery}'))`,
+                              );
+                              const gParam = encodeURIComponent(
+                                '(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1y,to:now))',
+                              );
+                              const url = `${baseUrl}/app/data-explorer/discover/#?_a=${aParam}&_q=${qParam}&_g=${gParam}`;
+                              window.open(url, '_blank', 'noopener,noreferrer');
+                            }}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            <span className="hidden lg:inline">View Analytics</span>
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {!hasAnalyticsSink
+                          ? 'Connect analytics sink to view analytics'
+                          : !isOrgReady
+                            ? 'Loading organization context...'
+                            : selectedRunId
+                              ? 'View analytics for this run in OpenSearch Dashboards'
+                              : 'View analytics for this workflow in OpenSearch Dashboards'}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
 
               <Button

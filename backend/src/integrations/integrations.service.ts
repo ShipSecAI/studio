@@ -6,11 +6,8 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SecretEncryptionMaterial } from '@shipsec/shared';
 import { randomBytes, createHash } from 'crypto';
-
-import { IntegrationConnectedEvent } from './events/integration.events';
 
 import {
   IntegrationProviderConfig,
@@ -104,7 +101,6 @@ export class IntegrationsService implements OnModuleInit {
     private readonly awsService: AwsService,
     private readonly slackService: SlackService,
     private readonly setupTokenService: SetupTokenService,
-    private readonly eventEmitter: EventEmitter2,
   ) {
     this.providers = loadIntegrationProviders();
   }
@@ -363,7 +359,6 @@ export class IntegrationsService implements OnModuleInit {
       }
     }
 
-    const previous = await this.repository.findByUserAndProvider(userId, providerId);
     const persisted = await this.persistTokenResponse({
       userId,
       organizationId,
@@ -372,18 +367,9 @@ export class IntegrationsService implements OnModuleInit {
       provider,
       scopes,
       rawResponse,
-      previous,
+      previous: await this.repository.findByUserAndProvider(userId, providerId),
     });
     this.logger.log(`[completeOAuth] Connection persisted: ${persisted.id}`);
-
-    this.emitConnectionEvent({
-      connectionId: persisted.id,
-      provider: providerId,
-      credentialType: 'oauth',
-      organizationId,
-      userId,
-      isReconnect: Boolean(previous),
-    });
 
     return this.toConnection(persisted);
   }
@@ -462,16 +448,13 @@ export class IntegrationsService implements OnModuleInit {
   /*  AWS connection                                                    */
   /* ------------------------------------------------------------------ */
 
-  async getAwsSetupInfo(
-    orgId: string,
-    userId: string,
-  ): Promise<{
+  getAwsSetupInfo(orgId: string): {
     platformRoleArn: string;
     externalId: string;
     setupToken: string;
     trustPolicyTemplate: string;
     externalIdDisplay: string;
-  }> {
+  } {
     let platformRoleArn: string;
     try {
       platformRoleArn = this.awsService.getPlatformRoleArn();
@@ -480,7 +463,7 @@ export class IntegrationsService implements OnModuleInit {
         'AWS integration is not configured. Set the SHIPSEC_PLATFORM_ROLE_ARN environment variable and restart the backend.',
       );
     }
-    const externalId = await this.getOrCreateAwsExternalId(userId);
+    const externalId = generateExternalId();
     const setupToken = this.setupTokenService.generate(orgId, externalId);
     const trustPolicyTemplate = JSON.stringify(
       {
@@ -504,33 +487,6 @@ export class IntegrationsService implements OnModuleInit {
       trustPolicyTemplate,
       externalIdDisplay: formatExternalIdForDisplay(externalId),
     };
-  }
-
-  private async getOrCreateAwsExternalId(userId: string): Promise<string> {
-    const existing = await this.repository.getUserAwsExternalId(userId);
-    if (existing) {
-      return existing;
-    }
-
-    const fromConnection = await this.repository.findLatestAwsExternalIdFromConnections(userId);
-    if (fromConnection) {
-      await this.repository.insertUserAwsExternalId(userId, fromConnection);
-      return fromConnection;
-    }
-
-    const generated = generateExternalId();
-    const inserted = await this.repository.insertUserAwsExternalId(userId, generated);
-    if (inserted) {
-      return inserted;
-    }
-
-    const afterInsert = await this.repository.getUserAwsExternalId(userId);
-    if (afterInsert) {
-      return afterInsert;
-    }
-
-    this.logger.error(`[AWS] Failed to persist externalId for user ${userId}`);
-    throw new BadRequestException('Unable to generate AWS ExternalId for this user');
   }
 
   async createAwsConnection(
@@ -568,7 +524,7 @@ export class IntegrationsService implements OnModuleInit {
       }),
     );
 
-    const { record, isNew } = await this.repository.insertConnection({
+    const record = await this.repository.insertConnection({
       userId,
       provider: 'aws',
       organizationId: orgId,
@@ -587,17 +543,6 @@ export class IntegrationsService implements OnModuleInit {
         region: input.region ?? null,
       },
     });
-
-    this.emitConnectionEvent({
-      connectionId: record.id,
-      provider: 'aws',
-      credentialType: 'iam_role',
-      organizationId: orgId,
-      userId,
-      isReconnect: !isNew,
-      region: input.region,
-    });
-
     return this.toConnection(record);
   }
 
@@ -620,7 +565,7 @@ export class IntegrationsService implements OnModuleInit {
       JSON.stringify({ webhookUrl: input.webhookUrl }),
     );
 
-    const { record, isNew } = await this.repository.insertConnection({
+    const record = await this.repository.insertConnection({
       userId,
       provider: 'slack',
       organizationId,
@@ -632,15 +577,6 @@ export class IntegrationsService implements OnModuleInit {
       tokenType: 'Bearer',
       expiresAt: null,
       metadata: {},
-    });
-
-    this.emitConnectionEvent({
-      connectionId: record.id,
-      provider: 'slack',
-      credentialType: 'webhook',
-      organizationId,
-      userId,
-      isReconnect: !isNew,
     });
 
     return this.toConnection(record);
@@ -862,39 +798,6 @@ export class IntegrationsService implements OnModuleInit {
     if (record.organizationId !== organizationId) {
       throw new ForbiddenException(
         `Connection ${connectionId} does not belong to organization ${organizationId}`,
-      );
-    }
-  }
-
-  /* ------------------------------------------------------------------ */
-  /*  Private helpers: event emission                                   */
-  /* ------------------------------------------------------------------ */
-
-  private emitConnectionEvent(params: {
-    connectionId: string;
-    provider: string;
-    credentialType: string;
-    organizationId: string;
-    userId: string;
-    isReconnect: boolean;
-    region?: string;
-  }): void {
-    try {
-      const event = new IntegrationConnectedEvent(
-        params.connectionId,
-        params.provider,
-        params.credentialType,
-        params.organizationId,
-        params.userId,
-        params.isReconnect,
-        params.region,
-      );
-      this.eventEmitter.emit(IntegrationConnectedEvent.EVENT_NAME, event);
-    } catch (error) {
-      this.logger.error(
-        `Failed to emit integration.connected event: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
       );
     }
   }

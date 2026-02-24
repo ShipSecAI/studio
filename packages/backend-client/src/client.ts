@@ -164,22 +164,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/workflows/runs/activity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["WorkflowsController_getRunActivity"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/workflows/runs": {
         parameters: {
             query?: never;
@@ -703,54 +687,6 @@ export interface paths {
         put: operations["AnalyticsController_updateAnalyticsSettings"];
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/analytics/batch-run-summaries": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AnalyticsController_batchRunSummaries"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/analytics/storage-usage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AnalyticsController_getStorageUsage"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/analytics/data": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["AnalyticsController_purgeData"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2231,22 +2167,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/github/quick-scan-workflows": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["GitHubAppController_getQuickScanWorkflows"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/github/repos/{id}/scan": {
         parameters: {
             query?: never;
@@ -2382,110 +2302,14 @@ export interface paths {
         patch: operations["StudioMcpController_handleMcp_patch"];
         trace?: never;
     };
-    "/api/v1/workflow-templates": {
+    "/api/v1/audit-logs": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["WorkflowTemplatesController_list"];
-        put?: never;
-        post: operations["WorkflowTemplatesController_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workflow-templates/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["WorkflowTemplatesController_getById"];
-        put?: never;
-        post?: never;
-        delete: operations["WorkflowTemplatesController_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workflow-templates/{id}/instantiate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["WorkflowTemplatesController_instantiate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asm/domains": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AsmController_listDomains"];
-        put?: never;
-        post: operations["AsmController_createDomain"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asm/domains/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AsmController_getDomain"];
-        put?: never;
-        post?: never;
-        delete: operations["AsmController_deleteDomain"];
-        options?: never;
-        head?: never;
-        patch: operations["AsmController_updateDomain"];
-        trace?: never;
-    };
-    "/api/v1/asm/domains/{id}/scan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AsmController_triggerScan"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asm/assets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AsmController_listAssets"];
+        get: operations["AuditLogsController_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2494,160 +2318,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/asm/assets/{id}": {
+    "/api/v1/chat/sessions": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AsmController_getAsset"];
+        get: operations["ChatController_listSessions"];
+        put?: never;
+        post: operations["ChatController_createSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ChatController_getSession"];
         put?: never;
         post?: never;
-        delete?: never;
+        delete: operations["ChatController_deleteSession"];
         options?: never;
         head?: never;
-        patch?: never;
+        patch: operations["ChatController_updateSession"];
         trace?: never;
     };
-    "/api/v1/asm/assets/{id}/scan": {
+    "/api/v1/chat/sessions/{id}/messages": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["ChatController_getMessages"];
         put?: never;
-        post: operations["AsmController_triggerAssetScan"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asm/scans": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AsmController_listScans"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asm/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AsmController_getDashboardStats"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/assets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AssetDiscoveryController_listAssets"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/assets/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AssetDiscoveryController_getAssetSummary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/assets/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AssetDiscoveryController_getAsset"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/assets/sync": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_triggerSync"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/sync-runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AssetDiscoveryController_listSyncRuns"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/sync-runs/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AssetDiscoveryController_getSyncRun"];
-        put?: never;
-        post?: never;
+        post: operations["ChatController_sendMessage"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2857,11 +2569,6 @@ export interface components {
                 };
             };
             compiledDefinition: unknown;
-            icon: string | null;
-            iconColor: string | null;
-            isSystem: boolean;
-            /** Format: uuid */
-            templateId: string | null;
             lastRun: string | null;
             runCount: number;
             createdAt: string;
@@ -2946,8 +2653,6 @@ export interface components {
         UpdateWorkflowMetadataDto: {
             name: string;
             description?: string | null;
-            icon?: string | null;
-            iconColor?: string | null;
         };
         WorkflowRuntimeInputsResponseDto: {
             workflowId: string;
@@ -3232,8 +2937,6 @@ export interface components {
             aggs?: Record<string, never>;
             /** @description Sort specification */
             sort?: string[];
-            /** @description Field collapsing specification for deduplication */
-            collapse?: Record<string, never>;
         };
         AnalyticsQueryResponseDto: {
             /**
@@ -3304,10 +3007,16 @@ export interface components {
                     run: boolean;
                     list: boolean;
                     read: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
                 };
                 runs: {
                     read: boolean;
                     cancel: boolean;
+                };
+                audit: {
+                    read: boolean;
                 };
             };
             isActive: boolean;
@@ -3329,10 +3038,16 @@ export interface components {
                     run: boolean;
                     list: boolean;
                     read: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
                 };
                 runs: {
                     read: boolean;
                     cancel: boolean;
+                };
+                audit: {
+                    read: boolean;
                 };
             };
             /** Format: date-time */
@@ -3351,10 +3066,16 @@ export interface components {
                     run: boolean;
                     list: boolean;
                     read: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
                 };
                 runs: {
                     read: boolean;
                     cancel: boolean;
+                };
+                audit: {
+                    read: boolean;
                 };
             };
             isActive: boolean;
@@ -3378,10 +3099,16 @@ export interface components {
                     run: boolean;
                     list: boolean;
                     read: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
                 };
                 runs: {
                     read: boolean;
                     cancel: boolean;
+                };
+                audit: {
+                    read: boolean;
                 };
             };
             isActive?: boolean;
@@ -4216,24 +3943,29 @@ export interface components {
             error?: string;
             errorCode?: string;
         };
-        CreateDomainDto: {
-            domain: string;
-            scopeInclude?: string[];
-            scopeExclude?: string[];
-            /** @default false */
-            scanNow: boolean;
-        };
-        UpdateDomainDto: {
-            scopeInclude?: string[];
-            scopeExclude?: string[];
-        };
-        TriggerScanDto: {
-            /** @default sys-attack-surface-recon */
-            templateSlug: string;
-        };
-        TriggerSyncDto: {
-            /** Format: uuid */
-            integrationId: string;
+        ListAuditLogsResponseDto: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                organizationId: string | null;
+                actorId: string | null;
+                /** @enum {string} */
+                actorType: "user" | "api-key" | "internal" | "unknown";
+                actorDisplay: string | null;
+                action: string;
+                /** @enum {string} */
+                resourceType: "workflow" | "secret" | "api_key" | "webhook" | "artifact" | "analytics" | "schedule" | "mcp_server" | "mcp_group" | "human_input";
+                resourceId: string | null;
+                resourceName: string | null;
+                metadata: {
+                    [key: string]: unknown;
+                } | null;
+                ip: string | null;
+                userAgent: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            }[];
+            nextCursor: string | null;
         };
     };
     responses: never;
@@ -4506,8 +4238,6 @@ export interface operations {
                         id?: string;
                         name?: string;
                         description?: string | null;
-                        icon?: string | null;
-                        iconColor?: string | null;
                         isSystem?: boolean;
                         /** Format: uuid */
                         templateId?: string | null;
@@ -4524,41 +4254,11 @@ export interface operations {
             };
         };
     };
-    WorkflowsController_getRunActivity: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Aggregated run counts per day */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        totalRuns?: number;
-                        activity?: {
-                            /** Format: date */
-                            date?: string;
-                            count?: number;
-                        }[];
-                    };
-                };
-            };
-        };
-    };
     WorkflowsController_listRuns: {
         parameters: {
             query?: {
                 workflowId?: string;
-                workflowIds?: string;
                 status?: string;
-                triggerType?: string;
-                search?: string;
                 limit?: number;
                 offset?: number;
             };
@@ -5707,71 +5407,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AnalyticsSettingsResponseDto"];
-                };
-            };
-        };
-    };
-    AnalyticsController_batchRunSummaries: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Get severity counts for multiple run IDs */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AnalyticsController_getStorageUsage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Get OpenSearch storage usage for the authenticated organization */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        usedBytes?: number;
-                        documentCount?: number;
-                        indexCount?: number;
-                        opensearchEnabled?: boolean;
-                    };
-                };
-            };
-        };
-    };
-    AnalyticsController_purgeData: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Purge all analytics data for the authenticated organization */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        deletedIndices?: number;
-                    };
                 };
             };
         };
@@ -8399,23 +8034,6 @@ export interface operations {
             };
         };
     };
-    GitHubAppController_getQuickScanWorkflows: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     GitHubAppController_triggerScan: {
         parameters: {
             query?: never;
@@ -8727,7 +8345,27 @@ export interface operations {
             };
         };
     };
-    WorkflowTemplatesController_list: {
+    AuditLogsController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List audit log events for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAuditLogsResponseDto"];
+                };
+            };
+        };
+    };
+    ChatController_listSessions: {
         parameters: {
             query?: never;
             header?: never;
@@ -8744,7 +8382,7 @@ export interface operations {
             };
         };
     };
-    WorkflowTemplatesController_create: {
+    ChatController_createSession: {
         parameters: {
             query?: never;
             header?: never;
@@ -8761,7 +8399,7 @@ export interface operations {
             };
         };
     };
-    WorkflowTemplatesController_getById: {
+    ChatController_getSession: {
         parameters: {
             query?: never;
             header?: never;
@@ -8780,7 +8418,7 @@ export interface operations {
             };
         };
     };
-    WorkflowTemplatesController_delete: {
+    ChatController_deleteSession: {
         parameters: {
             query?: never;
             header?: never;
@@ -8799,7 +8437,7 @@ export interface operations {
             };
         };
     };
-    WorkflowTemplatesController_instantiate: {
+    ChatController_updateSession: {
         parameters: {
             query?: never;
             header?: never;
@@ -8810,7 +8448,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Creates a new workflow from the template */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -8819,687 +8456,41 @@ export interface operations {
             };
         };
     };
-    AsmController_listDomains: {
+    ChatController_getMessages: {
         parameters: {
-            query?: {
-                /** @description Max items to return (default 50) */
-                limit?: number;
-                /** @description Items to skip (default 0) */
-                offset?: number;
-            };
+            query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description List of ASM domains */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        domain: string;
-                        scopeInclude?: string[] | null;
-                        scopeExclude?: string[] | null;
-                        monitoringEnabled: boolean;
-                        frequency?: string | null;
-                        /** Format: date-time */
-                        lastScanAt?: string | null;
-                        /** Format: date-time */
-                        deletedAt?: string | null;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                        assetCount: number;
-                    }[];
-                };
+                content?: never;
             };
         };
     };
-    AsmController_createDomain: {
+    ChatController_sendMessage: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: string;
+            };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateDomainDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Newly created ASM domain */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        domain: string;
-                        scopeInclude?: string[] | null;
-                        scopeExclude?: string[] | null;
-                        monitoringEnabled: boolean;
-                        frequency?: string | null;
-                        /** Format: date-time */
-                        lastScanAt?: string | null;
-                        /** Format: date-time */
-                        deletedAt?: string | null;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                        assetCount: number;
-                        scanTriggered?: boolean;
-                        runId?: string;
-                    };
-                };
-            };
-        };
-    };
-    AsmController_getDomain: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Single ASM domain */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        domain: string;
-                        scopeInclude?: string[] | null;
-                        scopeExclude?: string[] | null;
-                        monitoringEnabled: boolean;
-                        frequency?: string | null;
-                        /** Format: date-time */
-                        lastScanAt?: string | null;
-                        /** Format: date-time */
-                        deletedAt?: string | null;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                    };
-                };
-            };
-        };
-    };
-    AsmController_deleteDomain: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Domain deleted */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        success: boolean;
-                    };
-                };
-            };
-        };
-    };
-    AsmController_updateDomain: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateDomainDto"];
-            };
-        };
-        responses: {
-            /** @description Updated ASM domain */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        domain: string;
-                        scopeInclude?: string[] | null;
-                        scopeExclude?: string[] | null;
-                        monitoringEnabled: boolean;
-                        frequency?: string | null;
-                        /** Format: date-time */
-                        lastScanAt?: string | null;
-                        /** Format: date-time */
-                        deletedAt?: string | null;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                    };
-                };
-            };
-        };
-    };
-    AsmController_triggerScan: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TriggerScanDto"];
-            };
-        };
-        responses: {
-            /** @description Scan triggered */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        runId: string;
-                        domain: string;
-                    };
-                };
-            };
-        };
-    };
-    AsmController_listAssets: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-                domainId?: string;
-                type?: string;
-                search?: string;
-                sortBy?: "hostname" | "type" | "riskScore" | "firstSeen" | "lastSeen";
-                sortOrder?: "asc" | "desc";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description List of ASM assets */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        assets: {
-                            /** Format: uuid */
-                            id: string;
-                            organizationId: string;
-                            /** Format: uuid */
-                            domainId: string;
-                            hostname: string;
-                            type: string;
-                            ipAddresses?: string[] | null;
-                            techStack?: string[] | null;
-                            ports?: {
-                                port: number;
-                                protocol: string;
-                                service: string;
-                            }[] | null;
-                            riskScore?: string | null;
-                            dnsRecords?: {
-                                [key: string]: unknown;
-                            } | null;
-                            tlsInfo?: {
-                                [key: string]: unknown;
-                            } | null;
-                            /** Format: date-time */
-                            firstSeen: string;
-                            /** Format: date-time */
-                            lastSeen: string;
-                            metadata?: {
-                                [key: string]: unknown;
-                            } | null;
-                        }[];
-                        total: number;
-                    };
-                };
-            };
-        };
-    };
-    AsmController_getAsset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Single ASM asset */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        /** Format: uuid */
-                        domainId: string;
-                        hostname: string;
-                        type: string;
-                        ipAddresses?: string[] | null;
-                        techStack?: string[] | null;
-                        ports?: {
-                            port: number;
-                            protocol: string;
-                            service: string;
-                        }[] | null;
-                        riskScore?: string | null;
-                        dnsRecords?: {
-                            [key: string]: unknown;
-                        } | null;
-                        tlsInfo?: {
-                            [key: string]: unknown;
-                        } | null;
-                        /** Format: date-time */
-                        firstSeen: string;
-                        /** Format: date-time */
-                        lastSeen: string;
-                        metadata?: {
-                            [key: string]: unknown;
-                        } | null;
-                    };
-                };
-            };
-        };
-    };
-    AsmController_triggerAssetScan: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TriggerScanDto"];
-            };
-        };
-        responses: {
-            /** @description Asset scan triggered */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        runId: string;
-                        domain: string;
-                    };
-                };
-            };
-        };
-    };
-    AsmController_listScans: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-                status?: "running" | "completed" | "failed" | "timed_out";
-                domainId?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description List of ASM scans */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        runs: {
-                            [key: string]: unknown;
-                        }[];
-                        total?: number;
-                    };
-                };
-            };
-        };
-    };
-    AsmController_getDashboardStats: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description ASM dashboard statistics */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        domains: number;
-                        assets: number;
-                    };
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_listAssets: {
-        parameters: {
-            query?: {
-                sortOrder?: "asc" | "desc";
-                sortBy?: "name" | "lastSeenAt" | "firstDiscoveredAt";
-                limit?: number;
-                offset?: number;
-                page?: number;
-                search?: string;
-                integrationId?: string;
-                status?: "active" | "stale" | "removed";
-                region?: string;
-                assetType?: string;
-                provider?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Cloud assets with pagination metadata */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        assets: {
-                            /** Format: uuid */
-                            id: string;
-                            organizationId: string;
-                            /** Format: uuid */
-                            integrationId?: string | null;
-                            provider: string;
-                            accountIdentifier?: string | null;
-                            assetType: string;
-                            externalId: string;
-                            name?: string | null;
-                            region?: string | null;
-                            status: string;
-                            metadata?: {
-                                [key: string]: unknown;
-                            } | null;
-                            /** Format: date-time */
-                            firstDiscoveredAt: string;
-                            /** Format: date-time */
-                            lastSeenAt: string;
-                            /** Format: date-time */
-                            createdAt: string;
-                            /** Format: date-time */
-                            updatedAt: string;
-                        }[];
-                        total: number;
-                        page: number;
-                        limit: number;
-                    };
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_getAssetSummary: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Cloud asset summary aggregates */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        totalAssets: number;
-                        byType: {
-                            assetType: string;
-                            count: number;
-                        }[];
-                        byRegion: {
-                            region: string;
-                            count: number;
-                        }[];
-                        byStatus: {
-                            status: string;
-                            count: number;
-                        }[];
-                    };
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_getAsset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Single cloud asset */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        /** Format: uuid */
-                        integrationId?: string | null;
-                        provider: string;
-                        accountIdentifier?: string | null;
-                        assetType: string;
-                        externalId: string;
-                        name?: string | null;
-                        region?: string | null;
-                        status: string;
-                        metadata?: {
-                            [key: string]: unknown;
-                        } | null;
-                        /** Format: date-time */
-                        firstDiscoveredAt: string;
-                        /** Format: date-time */
-                        lastSeenAt: string;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                    };
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_triggerSync: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TriggerSyncDto"];
-            };
-        };
-        responses: {
-            /** @description Cloud sync accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        workflowId: string;
-                    };
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_listSyncRuns: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-                page?: number;
-                integrationId?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Cloud sync runs with pagination metadata */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        syncRuns: {
-                            /** Format: uuid */
-                            id: string;
-                            organizationId: string;
-                            /** Format: uuid */
-                            integrationId: string;
-                            accountIdentifier?: string | null;
-                            temporalWorkflowId?: string | null;
-                            temporalRunId?: string | null;
-                            status: string;
-                            coveredRegions?: string[] | null;
-                            assetsDiscovered?: number | null;
-                            assetsCreated?: number | null;
-                            assetsUpdated?: number | null;
-                            assetsStale?: number | null;
-                            errors?: {
-                                message: string;
-                                timestamp: string;
-                            }[] | null;
-                            /** Format: date-time */
-                            startedAt: string;
-                            /** Format: date-time */
-                            completedAt?: string | null;
-                            /** Format: date-time */
-                            createdAt: string;
-                        }[];
-                        total: number;
-                        page: number;
-                        limit: number;
-                    };
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_getSyncRun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Single cloud sync run */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        /** Format: uuid */
-                        integrationId: string;
-                        accountIdentifier?: string | null;
-                        temporalWorkflowId?: string | null;
-                        temporalRunId?: string | null;
-                        status: string;
-                        coveredRegions?: string[] | null;
-                        assetsDiscovered?: number | null;
-                        assetsCreated?: number | null;
-                        assetsUpdated?: number | null;
-                        assetsStale?: number | null;
-                        errors?: {
-                            message: string;
-                            timestamp: string;
-                        }[] | null;
-                        /** Format: date-time */
-                        startedAt: string;
-                        /** Format: date-time */
-                        completedAt?: string | null;
-                        /** Format: date-time */
-                        createdAt: string;
-                    };
-                };
+                content?: never;
             };
         };
     };

@@ -8,9 +8,6 @@ import { IntegrationsService } from './integrations.service';
 import { SetupTokenService } from './setup-token.service';
 import { SlackService } from './slack.service';
 import { TokenEncryptionService } from './token.encryption';
-import { IntegrationActionRegistry } from './listeners/integration-action.registry';
-import { IntegrationConnectedListener } from './listeners/integration-connected.listener';
-import { AwsAssetSyncAction } from './listeners/actions/aws-asset-sync.action';
 
 @Module({
   imports: [DatabaseModule],
@@ -22,9 +19,6 @@ import { AwsAssetSyncAction } from './listeners/actions/aws-asset-sync.action';
     AwsService,
     SlackService,
     SetupTokenService,
-    IntegrationActionRegistry,
-    IntegrationConnectedListener,
-    AwsAssetSyncAction,
   ],
   exports: [IntegrationsService],
 })

@@ -11,9 +11,6 @@ import {
   parameters,
   port,
   param,
-  generateFindingHash,
-  analyticsResultSchema,
-  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 
 /**
@@ -134,11 +131,6 @@ const outputSchema = outputs({
     label: 'Findings',
     description: 'Array of detected secrets in standardized format.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
-  }),
-  results: port(z.array(analyticsResultSchema()), {
-    label: 'Results',
-    description:
-      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
   findingCount: port(z.number(), {
     label: 'Finding Count',
@@ -396,9 +388,6 @@ const definition = defineComponent({
     // Add concurrency
     args.push('--concurrency', parsedParams.concurrency.toString());
 
-    // Exclude .git/config — platform-injected clone tokens in this file are false positives
-    args.push('--exclude-paths', '/tmp/exclude-paths.txt');
-
     // Scope scan to changed files only (if provided)
     // TruffleHog expects --include-paths pointing to a file with newline-separated regexes.
     // We write the file to /tmp inside the container via the shell command.
@@ -419,16 +408,15 @@ const definition = defineComponent({
       });
     }
 
-    // Build shell command — always write exclude-paths file, optionally write include-paths
-    const writeExclude = `printf '%s\\n' '(^|/)\\.git/config$' > /tmp/exclude-paths.txt`;
+    // Build shell command — if changedFiles provided, write include-paths file first
     let shellScript: string;
     if (hasChangedFiles) {
       // Escape single quotes in file paths for safe shell interpolation
       const escapedPaths = parsedInputs.changedFiles!.map((f) => f.replace(/'/g, "'\\''"));
       const writeLines = escapedPaths.map((f) => `echo '${f}'`).join(' && ');
-      shellScript = `${writeExclude} && (${writeLines}) > /tmp/include-paths.txt && trufflehog "$@" 2>&1`;
+      shellScript = `(${writeLines}) > /tmp/include-paths.txt && trufflehog "$@" 2>&1`;
     } else {
-      shellScript = `${writeExclude} && trufflehog "$@" 2>&1`;
+      shellScript = 'trufflehog "$@" 2>&1';
     }
 
     // Configure runner with volume mount
@@ -482,24 +470,8 @@ const definition = defineComponent({
       });
     }
 
-    // Build analytics-ready results
-    const results: AnalyticsResult[] = findings.map((finding) => ({
-      ...finding,
-      scanner: 'trufflehog',
-      title: `${finding.secret_type} secret`,
-      asset_key: finding.file,
-      finding_hash: generateFindingHash(
-        'trufflehog',
-        finding.type,
-        finding.file,
-        String(finding.line),
-        finding.secret_type,
-      ),
-    }));
-
     const output: Output = {
       findings,
-      results,
       findingCount: findings.length,
       verifiedCount,
       rawOutput,

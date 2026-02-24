@@ -52,9 +52,6 @@ CLAUDE.md
 coverage/
 .nyc_output/
 
-# Planning files
-.planning/
-
 # Temporary files
 *.tmp
 .cache/
@@ -79,3 +76,17 @@ vite.config.ts.timestamp-*
 .playwright-mcp/
 .omc/
 MCP_FLOW_TRACE.md
+
+# Terraform / OpenTofu
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl.bak
