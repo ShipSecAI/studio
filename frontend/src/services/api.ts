@@ -31,7 +31,25 @@ type ApiKeyResponseDto = components['schemas']['ApiKeyResponseDto'];
 type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto'];
 type CreateApiKeyDto = components['schemas']['CreateApiKeyDto'];
 type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto'];
-type ListAuditLogsResponseDto = components['schemas']['ListAuditLogsResponseDto'];
+// TODO: regenerate OpenAPI types to pull from schema
+export interface ListAuditLogsResponseDto {
+  items: {
+    id: string;
+    organizationId: string | null;
+    actorId: string | null;
+    actorType: 'user' | 'api-key' | 'internal' | 'unknown';
+    actorDisplay: string | null;
+    action: string;
+    resourceType: string;
+    resourceId: string | null;
+    resourceName: string | null;
+    metadata: Record<string, unknown> | null;
+    ip: string | null;
+    userAgent: string | null;
+    createdAt: string;
+  }[];
+  nextCursor: string | null;
+}
 
 export interface TerminalChunkResponse {
   runId: string;
