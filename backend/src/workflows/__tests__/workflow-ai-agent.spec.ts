@@ -248,6 +248,10 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
       isEnabled: vi.fn().mockReturnValue(true),
     };
 
+    const systemWorkflowsServiceMock = {
+      ensureSystemWorkflows: vi.fn().mockResolvedValue(undefined),
+    };
+
     const auditLogServiceMock = {
       record: vi.fn(),
     };
@@ -260,6 +264,7 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
       traceRepositoryMock as any,
       {} as any,
       analyticsServiceMock as any,
+      systemWorkflowsServiceMock as any,
       auditLogServiceMock as any,
     );
 

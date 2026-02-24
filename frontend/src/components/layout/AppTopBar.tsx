@@ -1,10 +1,8 @@
-import { useEffect, useState } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolvePageTitle } from '@/config/pageTitles';
-import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
 
 interface AppTopBarProps {
   title?: string;
@@ -13,6 +11,7 @@ interface AppTopBarProps {
   sidebarOpen?: boolean;
   onSidebarToggle?: () => void;
   actions?: React.ReactNode;
+  afterTitle?: React.ReactNode;
   isMobile?: boolean;
 }
 
@@ -23,54 +22,15 @@ export function AppTopBar({
   sidebarOpen,
   onSidebarToggle,
   actions,
+  afterTitle,
   isMobile = false,
 }: AppTopBarProps) {
   const location = useLocation();
-  const [hasActiveScans, setHasActiveScans] = useState(false);
-  const [loadingActiveScans, setLoadingActiveScans] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadActiveScans = async () => {
-      try {
-        const headers = await getApiAuthHeaders();
-        const response = await fetch(
-          `${API_BASE_URL}/api/v1/github/scans?status=running,pending&limit=1`,
-          { headers },
-        );
-        if (!response.ok) return;
-        const scans = (await response.json()) as unknown;
-        if (cancelled) return;
-        setHasActiveScans(Array.isArray(scans) && scans.length > 0);
-      } catch {
-        if (!cancelled) {
-          setHasActiveScans(false);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingActiveScans(false);
-        }
-      }
-    };
-
-    setLoadingActiveScans(true);
-    loadActiveScans().catch(() => {});
-
-    const timer = window.setInterval(() => {
-      loadActiveScans().catch(() => {});
-    }, 15000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
 
   // Resolve page info from centralized config, with prop overrides
   const resolved = resolvePageTitle(location.pathname);
   const pageInfo = title
-    ? { title, shortTitle: title, subtitle: subtitle ?? '', icon: undefined }
+    ? { title, shortTitle: title, subtitle: subtitle ?? '', icon: undefined, breadcrumb: undefined }
     : { ...resolved };
 
   const PageIcon = pageInfo.icon;
@@ -101,7 +61,7 @@ export function AppTopBar({
 
       {/* Logo and Page title section */}
       <div className="flex items-center min-w-0 flex-1 gap-3">
-        {/* Mobile: ShipSec Studio stacked | Page Title (except on workflows page) */}
+        {/* Mobile: ShipSec Studio stacked | Page Title */}
         {isMobile ? (
           <div className="flex items-center gap-2 min-w-0">
             <Link to="/" className="flex items-center gap-1.5 flex-shrink-0">
@@ -118,7 +78,7 @@ export function AppTopBar({
                 <span className="text-xs text-muted-foreground font-medium -mt-1.5">Studio</span>
               </div>
             </Link>
-            {/* Show page title on non-root pages */}
+            {/* Show page title on non-home pages */}
             {location.pathname !== '/' && (
               <>
                 <span className="text-muted-foreground">|</span>
@@ -129,30 +89,58 @@ export function AppTopBar({
             )}
           </div>
         ) : (
-          /* Desktop: Icon + Full page title */
+          /* Desktop: Icon + Full page title with optional clickable breadcrumb */
           <div className="flex items-center gap-2.5">
             {PageIcon && <PageIcon className="h-5 w-5 text-muted-foreground flex-shrink-0" />}
-            <h1 className="text-xl font-semibold truncate">{pageInfo.title}</h1>
+            <h1 className={cn('text-xl font-semibold', afterTitle ? 'flex-shrink-0' : 'truncate')}>
+              {pageInfo.breadcrumb ? (
+                <>
+                  <Link
+                    to={pageInfo.breadcrumb.href}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {pageInfo.breadcrumb.label}
+                  </Link>
+                  <span className="text-muted-foreground mx-1">/</span>
+                  {pageInfo.title.includes(' / ')
+                    ? pageInfo.title.split(' / ').slice(1).join(' / ')
+                    : pageInfo.title}
+                </>
+              ) : (
+                pageInfo.title
+              )}
+            </h1>
           </div>
+        )}
+        {afterTitle && (
+          <>
+            <span className="text-border mx-1 hidden md:inline">|</span>
+            {afterTitle}
+          </>
         )}
       </div>
 
       {/* Action buttons */}
       <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-        {hasActiveScans && (
-          <Button variant="outline" size={isMobile ? 'sm' : 'default'} asChild>
-            <Link to="/github?tab=scans&status=running,pending">
-              {loadingActiveScans ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-              ) : (
-                <span className="mr-2 inline-flex h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-              )}
-              Live scans
-            </Link>
-          </Button>
-        )}
+        <QuickScanButton isMobile={isMobile} />
         {actions}
       </div>
     </div>
+  );
+}
+
+function QuickScanButton({ isMobile }: { isMobile: boolean }) {
+  const navigate = useNavigate();
+
+  return (
+    <Button
+      variant="default"
+      size={isMobile ? 'sm' : 'default'}
+      className="gap-1.5"
+      onClick={() => navigate('/github/repositories')}
+    >
+      <Zap className="h-3.5 w-3.5" />
+      <span className="hidden sm:inline">Quick Scan</span>
+    </Button>
   );
 }

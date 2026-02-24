@@ -1,6 +1,9 @@
 import {
+  Home,
+  Activity,
   MessageSquare,
   Workflow,
+  LayoutTemplate,
   CalendarClock,
   Webhook,
   Zap,
@@ -8,8 +11,15 @@ import {
   Archive,
   KeyRound,
   Shield,
+  ShieldCheck,
   ServerCog,
   Settings,
+  Globe,
+  Server,
+  Radar,
+  ScanSearch,
+  Cloud,
+  GitPullRequest,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -22,6 +32,8 @@ export interface PageTitleConfig {
   subtitle: string;
   /** Lucide icon matching sidebar navigation */
   icon?: LucideIcon;
+  /** Optional breadcrumb for sub-pages */
+  breadcrumb?: { label: string; href: string };
 }
 
 /**
@@ -32,16 +44,40 @@ export interface PageTitleConfig {
  */
 const PAGE_TITLES: Record<string, PageTitleConfig> = {
   '/': {
+    title: 'Home',
+    shortTitle: 'Home',
+    subtitle: 'Security posture overview and onboarding',
+    icon: Home,
+  },
+  '/chat': {
     title: 'ShipSec AI',
     shortTitle: 'AI',
     subtitle: 'Chat with your security AI assistant',
     icon: MessageSquare,
   },
-  '/workflows': {
+  '/activity': {
+    title: 'Activity',
+    shortTitle: 'Activity',
+    subtitle: 'Workflow execution history and monitoring',
+    icon: Activity,
+  },
+  '/builder': {
     title: 'Workflow Builder',
-    shortTitle: 'Workflows',
+    shortTitle: 'Builder',
     subtitle: 'Create and manage security automation workflows',
     icon: Workflow,
+  },
+  '/workflows': {
+    title: 'Workflow Builder',
+    shortTitle: 'Builder',
+    subtitle: 'Design and automate security workflows',
+    icon: Workflow,
+  },
+  '/templates': {
+    title: 'Workflow Templates',
+    shortTitle: 'Templates',
+    subtitle: 'Browse and use pre-built workflow templates',
+    icon: LayoutTemplate,
   },
   '/schedules': {
     title: 'Workflow Schedules',
@@ -62,9 +98,10 @@ const PAGE_TITLES: Record<string, PageTitleConfig> = {
     icon: Zap,
   },
   '/integrations': {
-    title: 'Connections',
-    shortTitle: 'Connections',
-    subtitle: 'Manage OAuth tokens for external providers',
+    title: 'Integrations',
+    shortTitle: 'Integrations',
+    subtitle:
+      'Connect external services to enable cloud security scanning, notifications, and more',
     icon: Plug,
   },
   '/artifacts': {
@@ -97,6 +134,79 @@ const PAGE_TITLES: Record<string, PageTitleConfig> = {
     subtitle: 'Configure data retention and storage settings',
     icon: Settings,
   },
+  '/settings': {
+    title: 'Settings',
+    shortTitle: 'Settings',
+    subtitle: 'Application settings and preferences',
+    icon: Settings,
+  },
+  '/github/repositories': {
+    title: 'Repositories',
+    shortTitle: 'Repos',
+    subtitle: 'Manage repositories, trigger rules, and scan results',
+    breadcrumb: { label: 'GitHub', href: '/github/repositories' },
+  },
+  '/github/scans': {
+    title: 'Scan Results',
+    shortTitle: 'Scans',
+    subtitle: 'View code security scan results',
+    icon: ScanSearch,
+    breadcrumb: { label: 'GitHub', href: '/github/repositories' },
+  },
+  '/github/triggers': {
+    title: 'PR Protection',
+    shortTitle: 'Triggers',
+    subtitle: 'Configure automated PR security scans',
+    icon: GitPullRequest,
+    breadcrumb: { label: 'GitHub', href: '/github/repositories' },
+  },
+  '/github': {
+    title: 'GitHub',
+    shortTitle: 'GitHub',
+    subtitle: 'Manage repositories, trigger rules, and scan results',
+  },
+  '/cloud/accounts': {
+    title: 'Cloud Accounts',
+    shortTitle: 'Cloud',
+    subtitle: 'Manage your AWS accounts and run cloud security scans',
+    icon: Cloud,
+  },
+  '/cloud/inventory': {
+    title: 'Cloud Inventory',
+    shortTitle: 'Inventory',
+    subtitle: 'Browse cloud resources across your accounts',
+    icon: Server,
+  },
+  '/cloud/scans': {
+    title: 'Cloud Scans',
+    shortTitle: 'Scans',
+    subtitle: 'View cloud security scan history',
+    icon: ScanSearch,
+  },
+  '/dashboards/security': {
+    title: 'Cloud Findings',
+    shortTitle: 'Findings',
+    subtitle: 'Unified security findings across all scanners',
+    icon: ShieldCheck,
+  },
+  '/asm/domains': {
+    title: 'Domains',
+    shortTitle: 'Domains',
+    subtitle: 'Manage your attack surface domains',
+    icon: Globe,
+  },
+  '/asm/assets': {
+    title: 'Assets',
+    shortTitle: 'Assets',
+    subtitle: 'Discovered attack surface assets',
+    icon: Server,
+  },
+  '/asm/scans': {
+    title: 'Scans',
+    shortTitle: 'Scans',
+    subtitle: 'Attack surface scan history',
+    icon: Radar,
+  },
 };
 
 /** Fallback when no route matches */
@@ -123,7 +233,26 @@ export function resolvePageTitle(pathname: string): PageTitleConfig {
     return PAGE_TITLES[pathname];
   }
 
-  // 2. Prefix match — longest prefix wins
+  // 2. Dynamic route handling for /integrations/:provider
+  if (pathname.startsWith('/integrations/') && pathname !== '/integrations/callback') {
+    const provider = pathname.split('/')[2];
+    if (provider) {
+      const providerName =
+        provider.toUpperCase() === 'AWS'
+          ? 'AWS'
+          : provider.charAt(0).toUpperCase() + provider.slice(1);
+      return {
+        title: `Integrations / ${providerName}`,
+        shortTitle: providerName,
+        subtitle:
+          'Connect external services to enable cloud security scanning, notifications, and more',
+        icon: Plug,
+        breadcrumb: { label: 'Integrations', href: '/integrations' },
+      };
+    }
+  }
+
+  // 3. Prefix match — longest prefix wins
   let bestMatch: PageTitleConfig | null = null;
   let bestLength = 0;
 

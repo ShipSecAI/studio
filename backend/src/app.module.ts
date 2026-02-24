@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { join } from 'node:path';
 import { ThrottlerModule, ThrottlerGuard, seconds } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
@@ -36,6 +37,9 @@ import { HumanInputsModule } from './human-inputs/human-inputs.module';
 import { McpServersModule } from './mcp-servers/mcp-servers.module';
 import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
 import { GitHubAppModule } from './github-app/github-app.module';
+import { WorkflowTemplatesModule } from './workflow-templates/workflow-templates.module';
+import { AsmModule } from './asm/asm.module';
+import { AssetDiscoveryModule } from './asset-discovery/asset-discovery.module';
 
 const coreModules = [
   AgentsModule,
@@ -56,6 +60,9 @@ const coreModules = [
   McpModule,
   GitHubAppModule,
   StudioMcpModule,
+  WorkflowTemplatesModule,
+  AsmModule,
+  AssetDiscoveryModule,
   AuditModule,
   ChatModule,
 ];
@@ -101,6 +108,7 @@ function getEnvFilePaths(): string[] {
         };
       },
     }),
+    EventEmitterModule.forRoot(),
     OpenSearchModule,
     ...coreModules,
     ...testingModules,

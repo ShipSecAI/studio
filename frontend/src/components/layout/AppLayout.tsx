@@ -10,11 +10,13 @@ import {
 import { AppTopBar } from '@/components/layout/AppTopBar';
 import { Button } from '@/components/ui/button';
 import {
+  Activity,
   Workflow,
   KeyRound,
   Plus,
   Plug,
   Archive,
+  BarChart3,
   CalendarClock,
   Sun,
   Moon,
@@ -22,14 +24,20 @@ import {
   ShieldCheck,
   Search,
   Command,
-  Zap,
   Webhook,
+  Server,
   ServerCog,
   Settings,
-  MessageSquare,
   ChevronDown,
-  ChevronRight,
-  Github,
+  Home,
+  Globe,
+  Radar,
+  GitPullRequest,
+  ScanSearch,
+  LayoutTemplate,
+  Cloud,
+  MessageSquare,
+  type LucideIcon,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -41,10 +49,35 @@ import { useThemeStore } from '@/store/themeStore';
 import { cn } from '@/lib/utils';
 import { setMobilePlacementSidebarClose } from '@/components/layout/sidebar-state';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
-import { useChatStore } from '@/store/chatStore';
-import { ChatHistoryList } from '@/components/chat';
 import { usePrefetchOnIdle } from '@/hooks/usePrefetchOnIdle';
 import { prefetchIdleRoutes, prefetchRoute } from '@/lib/prefetch-routes';
+import { SecurityTabBar } from '@/components/security/SecurityTabBar';
+
+// Thin loading bar shown during lazy-loaded route transitions.
+// React Router v7 wraps navigations in startTransition, so React 19
+// keeps the old page visible instead of showing the Suspense fallback.
+// This component detects pending transitions via location.key changes.
+function NavigationProgress() {
+  const location = useLocation();
+  const [isPending, startTransition] = React.useTransition();
+  const [navKey, setNavKey] = useState(location.key);
+
+  useEffect(() => {
+    if (location.key !== navKey) {
+      startTransition(() => {
+        setNavKey(location.key);
+      });
+    }
+  }, [location.key, navKey, startTransition]);
+
+  if (!isPending) return null;
+
+  return (
+    <div className="fixed top-0 left-0 right-0 h-0.5 bg-primary/20 z-[200] overflow-hidden">
+      <div className="h-full w-1/3 bg-primary animate-[loading-bar_1.5s_ease-in-out_infinite]" />
+    </div>
+  );
+}
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -78,15 +111,12 @@ export function AppLayout({ children }: AppLayoutProps) {
     prefetchIdleRoutes();
   }, []);
   const isMobile = useIsMobile();
-  const location = useLocation();
-  const navigate = useNavigate();
-  // Chat routes share the same interface and custom header.
-  const isChatInterface = location.pathname === '/' || location.pathname.startsWith('/chat/');
-
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [, setIsHovered] = useState(false);
   const [wasExplicitlyOpened, setWasExplicitlyOpened] = useState(!isMobile);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
   const roles = useAuthStore((state) => state.roles);
   const canManageWorkflows = hasAdminRole(roles);
   const { isAuthenticated } = useAuth();
@@ -94,14 +124,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   const showUserButton = isAuthenticated || authProvider.name === 'clerk';
   const { theme, startTransition } = useThemeStore();
   const openCommandPalette = useCommandPaletteStore((state) => state.open);
-
-  // Chat store for history in sidebar
-  const { sessions, currentSessionId, deleteSession, loadSessions } = useChatStore();
-  const [isChatHistoryExpanded, setIsChatHistoryExpanded] = useState(true);
-
-  useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
 
   // Get git SHA for version display (monorepo - same for frontend and backend)
   const gitSha = env.VITE_GIT_SHA;
@@ -121,20 +143,13 @@ export function AppLayout({ children }: AppLayoutProps) {
       setWasExplicitlyOpened(false);
     } else {
       const isWorkflowRoute =
-        (location.pathname.startsWith('/workflows/') ||
+        (location.pathname.startsWith('/workflows') ||
           location.pathname.startsWith('/webhooks/')) &&
-        !isChatInterface;
-      // For chat interface, maintain sidebar state based on user preference
-      if (isChatInterface) {
-        // Keep sidebar open by default on chat interface
-        setSidebarOpen(true);
-        setWasExplicitlyOpened(true);
-      } else {
-        setSidebarOpen(!isWorkflowRoute);
-        setWasExplicitlyOpened(!isWorkflowRoute);
-      }
+        location.pathname !== '/';
+      setSidebarOpen(!isWorkflowRoute);
+      setWasExplicitlyOpened(!isWorkflowRoute);
     }
-  }, [location.pathname, isMobile, isChatInterface]);
+  }, [location.pathname, isMobile]);
 
   // Close sidebar on mobile when navigating
   useEffect(() => {
@@ -290,59 +305,99 @@ export function AppLayout({ children }: AppLayoutProps) {
     toggle: handleToggle,
   };
 
-  const navigationItems = [
+  interface NavItem {
+    name: string;
+    href: string;
+    icon: LucideIcon;
+    external?: boolean;
+    newTab?: boolean;
+  }
+
+  interface NavGroup {
+    label?: string;
+    items: NavItem[];
+  }
+
+  const homeItem: NavItem = {
+    name: 'Home',
+    href: '/',
+    icon: Home,
+  };
+
+  const chatItem: NavItem = {
+    name: 'ShipSec AI',
+    href: '/chat',
+    icon: MessageSquare,
+  };
+
+  const activityItem: NavItem = {
+    name: 'Activity',
+    href: '/activity',
+    icon: Activity,
+  };
+
+  const navigationGroups: NavGroup[] = [
     {
-      name: 'ShipSec AI',
-      href: '/',
-      icon: MessageSquare,
+      label: 'CODE SECURITY',
+      items: [
+        { name: 'Repositories', href: '/github/repositories', icon: Archive },
+        { name: 'Scan Results', href: '/github/scans', icon: ScanSearch },
+        {
+          name: 'PR Protection',
+          href: '/github/triggers',
+          icon: GitPullRequest,
+        },
+      ],
     },
     {
-      name: 'Workflow Builder',
-      href: '/workflows',
-      icon: Workflow,
+      label: 'CLOUD SECURITY',
+      items: [
+        { name: 'Cloud Accounts', href: '/cloud/accounts', icon: Cloud },
+        { name: 'Cloud Inventory', href: '/cloud/inventory', icon: Server },
+        {
+          name: 'Cloud Findings',
+          href: '/dashboards/security?view=cloud-security',
+          icon: ShieldCheck,
+        },
+        { name: 'Cloud Scans', href: '/cloud/scans', icon: ScanSearch },
+      ],
     },
     {
-      name: 'Schedules',
-      href: '/schedules',
-      icon: CalendarClock,
+      label: 'ATTACK SURFACE',
+      items: [
+        { name: 'Domains', href: '/asm/domains', icon: Globe },
+        { name: 'Assets', href: '/asm/assets', icon: Server },
+        { name: 'Scans', href: '/asm/scans', icon: Radar },
+      ],
     },
     {
-      name: 'Webhooks',
-      href: '/webhooks',
-      icon: Webhook,
+      label: 'WORKFLOWS',
+      items: [
+        { name: 'Builder', href: '/builder', icon: Workflow },
+        { name: 'Templates', href: '/templates', icon: LayoutTemplate },
+        { name: 'Schedules', href: '/schedules', icon: CalendarClock },
+        { name: 'Webhooks', href: '/webhooks', icon: Webhook },
+      ],
     },
-    {
-      name: 'Action Center',
-      href: '/action-center',
-      icon: Zap,
-    },
-    {
-      name: 'Security',
-      href: '/dashboards/aws-security',
-      icon: ShieldCheck,
-    },
-    ...(env.VITE_ENABLE_CONNECTIONS
+    ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
       ? [
           {
-            name: 'Connections',
-            href: '/integrations',
-            icon: Plug,
+            label: undefined,
+            items: [
+              {
+                name: 'Dashboards',
+                href: env.VITE_OPENSEARCH_DASHBOARDS_URL,
+                icon: BarChart3,
+                external: true,
+              },
+            ],
           },
         ]
       : []),
-    {
-      name: 'Artifact Library',
-      href: '/artifacts',
-      icon: Archive,
-    },
-    {
-      name: 'GitHub',
-      href: '/github',
-      icon: Github,
-    },
   ];
 
-  const settingsItems = [
+  const settingsItems: NavItem[] = [
+    { name: 'Integrations', href: '/integrations', icon: Plug },
     {
       name: 'Secrets',
       href: '/secrets',
@@ -369,36 +424,52 @@ export function AppLayout({ children }: AppLayoutProps) {
       : []),
   ];
 
+  // Collect all base paths that have query-param siblings (e.g. /dashboards/security has ?view=cloud-security)
+  const queryParamPaths = new Set<string>();
+  for (const group of navigationGroups) {
+    for (const item of group.items) {
+      if (item.href.includes('?')) {
+        queryParamPaths.add(item.href.split('?')[0]);
+      }
+    }
+  }
+  // Also check home-level query-param items
+  if (navigationGroups.some((g) => g.items.some((i) => i.href.startsWith('/?')))) {
+    queryParamPaths.add('/');
+  }
+
   const isActive = (path: string) => {
     if (path === '/') {
-      return isChatInterface;
+      return location.pathname === '/' && !location.search;
     }
-    if (path === '/workflows') {
-      return location.pathname.startsWith('/workflows');
+    if (path === '/builder') {
+      return location.pathname === '/builder' || location.pathname.startsWith('/workflows');
+    }
+    // Handle query-param-based nav items like /dashboards/security?view=cloud-security
+    if (path.includes('?')) {
+      const [basePath, queryString] = path.split('?');
+      const queryParams = new URLSearchParams(queryString);
+      const locationParams = new URLSearchParams(location.search);
+
+      // Base path must match
+      if (location.pathname !== basePath) return false;
+
+      // All query params in the nav item must match location params
+      for (const [key, value] of queryParams.entries()) {
+        if (locationParams.get(key) !== value) return false;
+      }
+      return true;
+    }
+    // For paths that have query-param siblings, only match exact pathname (not startsWith)
+    if (queryParamPaths.has(path)) {
+      return location.pathname === path && !location.search;
     }
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
   // Get page-specific actions
   const getPageActions = () => {
-    if (isChatInterface) {
-      return (
-        <Button
-          onClick={() => {
-            navigate('/chat/new');
-          }}
-          size={isMobile ? 'sm' : 'default'}
-          className={cn('gap-2', isMobile && 'h-8 px-3 text-xs')}
-        >
-          <Plus className={cn('w-4 h-4', isMobile && 'w-3.5 h-3.5')} />
-          <span>
-            New <span className="hidden md:inline">Conversation</span>
-          </span>
-        </Button>
-      );
-    }
-
-    if (location.pathname === '/workflows' || location.pathname.startsWith('/workflows')) {
+    if (location.pathname === '/builder') {
       return (
         <Button
           onClick={() => {
@@ -424,6 +495,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <SidebarContext.Provider value={sidebarContextValue}>
       <ThemeTransition />
+      <NavigationProgress />
       <div className="flex h-screen bg-background overflow-hidden">
         {/* Mobile backdrop overlay */}
         {isMobile && sidebarOpen && (
@@ -434,7 +506,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           />
         )}
 
-        {/* Sidebar - Always show with toggle button */}
+        {/* Sidebar */}
         <Sidebar
           className={cn(
             'h-full transition-all duration-300 z-[110]',
@@ -448,7 +520,8 @@ export function AppLayout({ children }: AppLayoutProps) {
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          <SidebarHeader className="h-14 md:h-14 py-0 px-4 flex items-center justify-between border-b">
+          {/* Sidebar Header - same style for mobile and desktop */}
+          <SidebarHeader className="flex items-center justify-between p-4 border-b">
             <Link
               to="/"
               className="flex items-center gap-2"
@@ -468,7 +541,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               </div>
               <span
                 className={cn(
-                  'font-bold text-lg transition-all duration-300 whitespace-nowrap overflow-hidden',
+                  'font-bold text-xl transition-all duration-300 whitespace-nowrap overflow-hidden',
                   sidebarOpen ? 'opacity-100 max-w-48' : 'opacity-0 max-w-0',
                 )}
                 style={{
@@ -481,90 +554,295 @@ export function AppLayout({ children }: AppLayoutProps) {
             </Link>
           </SidebarHeader>
 
-          <SidebarContent className="py-0 flex flex-col overflow-hidden">
-            {/* Top Actions - Fixed */}
-            {sidebarOpen && (
-              <div className="px-3 pt-3 pb-2 space-y-2 shrink-0">
-                {/* Search Button */}
-                <button
-                  onClick={openCommandPalette}
+          {/* Search - pinned to top */}
+          <div className="px-2 py-2 border-b border-border/40">
+            <button
+              onClick={openCommandPalette}
+              className={cn(
+                'w-full flex items-center gap-3 py-2.5 rounded-lg transition-colors',
+                'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground',
+                sidebarOpen ? 'justify-between px-4' : 'justify-center',
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <Search className="h-4 w-4 flex-shrink-0" />
+                <span
                   className={cn(
-                    'w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition-colors',
-                    'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/50',
+                    'transition-all duration-300 whitespace-nowrap overflow-hidden text-sm',
+                    sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                  )}
+                  style={{
+                    transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                    transitionProperty: 'opacity, max-width',
+                  }}
+                >
+                  Search...
+                </span>
+              </div>
+              {sidebarOpen && (
+                <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border border-border/60 bg-background/80 px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                  <Command className="h-2.5 w-2.5" />K
+                </kbd>
+              )}
+            </button>
+          </div>
+
+          {/* Scrollable navigation */}
+          <SidebarContent className="py-0 flex-1 overflow-y-auto">
+            {/* Home navigation item */}
+            <div className="px-2 mt-2 space-y-1">
+              <Link
+                to={homeItem.href}
+                onMouseEnter={() => prefetchRoute(homeItem.href)}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                  if (isMobile) {
+                    setSidebarOpen(false);
+                    return;
+                  }
+                  setSidebarOpen(true);
+                  setWasExplicitlyOpened(true);
+                }}
+              >
+                <SidebarItem
+                  isActive={isActive(homeItem.href)}
+                  className={cn(
+                    'flex items-center gap-3',
+                    sidebarOpen ? 'justify-start px-4' : 'justify-center',
                   )}
                 >
-                  <div className="flex items-center gap-2">
-                    <Search className="h-4 w-4" />
-                    <span className="text-sm">Search...</span>
-                  </div>
-                  <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border border-border/60 bg-background/80 px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-                    <Command className="h-2.5 w-2.5" />K
-                  </kbd>
-                </button>
-              </div>
-            )}
-
-            {/* Search icon only when collapsed */}
-            {!sidebarOpen && (
-              <div className="px-2 pt-3 pb-2 shrink-0">
-                <button
-                  onClick={openCommandPalette}
-                  className="w-full flex items-center justify-center py-2.5 rounded-lg transition-colors bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
+                  <Home className="h-5 w-5 flex-shrink-0" />
+                  <span
+                    className={cn(
+                      'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                      sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                    )}
+                    style={{
+                      transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                      transitionProperty: 'opacity, max-width',
+                    }}
+                  >
+                    Home
+                  </span>
+                </SidebarItem>
+              </Link>
+              <Link
+                to={activityItem.href}
+                onMouseEnter={() => prefetchRoute(activityItem.href)}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                  if (isMobile) {
+                    setSidebarOpen(false);
+                    return;
+                  }
+                  setSidebarOpen(true);
+                  setWasExplicitlyOpened(true);
+                }}
+              >
+                <SidebarItem
+                  isActive={isActive(activityItem.href)}
+                  className={cn(
+                    'flex items-center gap-3',
+                    sidebarOpen ? 'justify-start px-4' : 'justify-center',
+                  )}
                 >
-                  <Search className="h-4 w-4" />
-                </button>
-              </div>
-            )}
+                  <Activity className="h-5 w-5 flex-shrink-0" />
+                  <span
+                    className={cn(
+                      'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                      sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                    )}
+                    style={{
+                      transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                      transitionProperty: 'opacity, max-width',
+                    }}
+                  >
+                    Activity
+                  </span>
+                </SidebarItem>
+              </Link>
+              <Link
+                to={chatItem.href}
+                onMouseEnter={() => prefetchRoute(chatItem.href)}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                  if (isMobile) {
+                    setSidebarOpen(false);
+                    return;
+                  }
+                  setSidebarOpen(true);
+                  setWasExplicitlyOpened(true);
+                }}
+              >
+                <SidebarItem
+                  isActive={isActive(chatItem.href)}
+                  className={cn(
+                    'flex items-center gap-3',
+                    sidebarOpen ? 'justify-start px-4' : 'justify-center',
+                  )}
+                >
+                  <MessageSquare className="h-5 w-5 flex-shrink-0" />
+                  <span
+                    className={cn(
+                      'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                      sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                    )}
+                    style={{
+                      transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                      transitionProperty: 'opacity, max-width',
+                    }}
+                  >
+                    ShipSec AI
+                  </span>
+                </SidebarItem>
+              </Link>
+            </div>
 
-            {/* Navigation Items - Fixed */}
-            <div className={cn('px-2 py-2 space-y-1 shrink-0')}>
-              {navigationItems.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.href);
-                const isExternal = 'external' in item && item.external;
-                const openInNewTab = isExternal && 'newTab' in item ? item.newTab !== false : true;
+            {/* Grouped navigation */}
+            {navigationGroups.map((group) => (
+              <div key={group.label ?? 'ungrouped'} className="px-2 mt-1">
+                {group.label && sidebarOpen && (
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-3 pt-4 pb-1">
+                    {group.label}
+                  </div>
+                )}
+                {!sidebarOpen && group.label && (
+                  <div className="border-t border-border/40 mx-2 mt-2 mb-1" />
+                )}
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(item.href);
+                    const isExternal = item.external;
+                    const openInNewTab = isExternal && item.newTab !== false;
 
-                // Render external link
-                if (isExternal) {
-                  return (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      target={openInNewTab ? '_blank' : undefined}
-                      rel={openInNewTab ? 'noopener noreferrer' : undefined}
-                      onClick={() => {
-                        // Close sidebar on mobile after clicking
-                        if (isMobile) {
-                          setSidebarOpen(false);
-                        }
-                      }}
-                    >
-                      <SidebarItem
-                        isActive={false}
-                        className={cn(
-                          'flex items-center gap-3',
-                          sidebarOpen ? 'justify-start px-4' : 'justify-center',
-                        )}
-                      >
-                        <Icon className="h-5 w-5 flex-shrink-0" />
-                        <span
-                          className={cn(
-                            'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
-                            sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
-                          )}
-                          style={{
-                            transitionDelay: sidebarOpen ? '200ms' : '0ms',
-                            transitionProperty: 'opacity, max-width',
+                    if (isExternal) {
+                      return (
+                        <a
+                          key={item.href}
+                          href={item.href}
+                          target={openInNewTab ? '_blank' : undefined}
+                          rel={openInNewTab ? 'noopener noreferrer' : undefined}
+                          onClick={() => {
+                            if (isMobile) setSidebarOpen(false);
                           }}
                         >
-                          {item.name}
-                        </span>
-                      </SidebarItem>
-                    </a>
-                  );
-                }
+                          <SidebarItem
+                            isActive={false}
+                            className={cn(
+                              'flex items-center gap-3',
+                              sidebarOpen ? 'justify-start px-4' : 'justify-center',
+                            )}
+                          >
+                            <Icon className="h-5 w-5 flex-shrink-0" />
+                            <span
+                              className={cn(
+                                'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                                sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                              )}
+                              style={{
+                                transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                                transitionProperty: 'opacity, max-width',
+                              }}
+                            >
+                              {item.name}
+                            </span>
+                          </SidebarItem>
+                        </a>
+                      );
+                    }
 
-                // Render internal link (React Router)
+                    return (
+                      <Link
+                        key={item.href}
+                        to={item.href}
+                        onMouseEnter={() => prefetchRoute(item.href)}
+                        onClick={(e) => {
+                          if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                          if (isMobile) {
+                            setSidebarOpen(false);
+                            return;
+                          }
+                          if (!item.href.startsWith('/workflows')) {
+                            setSidebarOpen(true);
+                            setWasExplicitlyOpened(true);
+                          }
+                        }}
+                      >
+                        <SidebarItem
+                          isActive={active}
+                          className={cn(
+                            'flex items-center gap-3',
+                            sidebarOpen ? 'justify-start px-4' : 'justify-center',
+                          )}
+                        >
+                          <Icon className="h-5 w-5 flex-shrink-0" />
+                          <span
+                            className={cn(
+                              'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                              sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                            )}
+                            style={{
+                              transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                              transitionProperty: 'opacity, max-width',
+                            }}
+                          >
+                            {item.name}
+                          </span>
+                        </SidebarItem>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </SidebarContent>
+
+          {/* Manage - pinned to bottom */}
+          <div className="border-t border-border/40 px-2 py-1">
+            <button
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              className={cn(
+                'w-full flex items-center gap-3 py-2 rounded-lg transition-colors',
+                'hover:bg-muted/50 text-muted-foreground hover:text-foreground',
+                sidebarOpen ? 'justify-between px-4' : 'justify-center',
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <Settings className="h-5 w-5 flex-shrink-0" />
+                <span
+                  className={cn(
+                    'transition-all duration-300 whitespace-nowrap overflow-hidden text-sm font-medium',
+                    sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                  )}
+                  style={{
+                    transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                    transitionProperty: 'opacity, max-width',
+                  }}
+                >
+                  Manage
+                </span>
+              </div>
+              {sidebarOpen && (
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 transition-transform duration-200 flex-shrink-0',
+                    settingsOpen ? 'rotate-180' : '',
+                  )}
+                />
+              )}
+            </button>
+
+            {/* Collapsible Manage Items - expands upward */}
+            <div
+              className={cn(
+                'overflow-hidden transition-all duration-300',
+                settingsOpen ? 'max-h-96 mt-1 space-y-1' : 'max-h-0',
+              )}
+            >
+              {settingsItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href);
                 return (
                   <Link
                     key={item.href}
@@ -591,10 +869,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                         sidebarOpen ? 'justify-start px-4' : 'justify-center',
                       )}
                     >
-                      <Icon className="h-5 w-5 flex-shrink-0" />
+                      <Icon className="h-4 w-4 flex-shrink-0" />
                       <span
                         className={cn(
-                          'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                          'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1 text-sm',
                           sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
                         )}
                         style={{
@@ -609,158 +887,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 );
               })}
             </div>
-
-            {/* Chat History Section - Scrollable */}
-            {sidebarOpen && (
-              <>
-                <div className="mx-2 my-2 border-t border-border/60" />
-                <div className="flex-1 flex flex-col min-h-0 px-2 pt-2 space-y-2 mt-1">
-                  <button
-                    onClick={() => {
-                      navigate('/chat/new');
-                      if (isMobile) {
-                        setSidebarOpen(false);
-                      }
-                    }}
-                    className={cn(
-                      'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-all duration-200',
-                      'text-primary bg-primary/8 hover:bg-primary/12 hover:border-primary',
-                      'border border-transparent',
-                    )}
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>New Conversation</span>
-                  </button>
-
-                  {sessions.length > 0 && (
-                    <>
-                      <button
-                        onClick={() => setIsChatHistoryExpanded(!isChatHistoryExpanded)}
-                        className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full shrink-0"
-                      >
-                        {isChatHistoryExpanded ? (
-                          <ChevronDown className="h-3 w-3" />
-                        ) : (
-                          <ChevronRight className="h-3 w-3" />
-                        )}
-                        RECENT CHATS
-                      </button>
-
-                      {isChatHistoryExpanded && (
-                        <div className="flex-1 overflow-y-auto mt-1 scrollbar-thin scrollbar-thumb-border">
-                          <ChatHistoryList
-                            sessions={sessions}
-                            currentSessionId={currentSessionId}
-                            maxItems={20}
-                            onSelectSession={(id) => {
-                              navigate(`/chat/${id}`);
-                              if (isMobile) {
-                                setSidebarOpen(false);
-                              }
-                            }}
-                            onDeleteSession={(id) => {
-                              deleteSession(id);
-                            }}
-                          />
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Manage Collapsible Section */}
-            <div className="px-2 mt-2">
-              <button
-                onClick={() => setSettingsOpen(!settingsOpen)}
-                className={cn(
-                  'w-full flex items-center gap-3 py-2 rounded-lg transition-colors',
-                  'hover:bg-muted/50 text-muted-foreground hover:text-foreground',
-                  sidebarOpen ? 'justify-between px-4' : 'justify-center',
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <Settings className="h-5 w-5 flex-shrink-0" />
-                  <span
-                    className={cn(
-                      'transition-all duration-300 whitespace-nowrap overflow-hidden text-sm font-medium',
-                      sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
-                    )}
-                    style={{
-                      transitionDelay: sidebarOpen ? '200ms' : '0ms',
-                      transitionProperty: 'opacity, max-width',
-                    }}
-                  >
-                    Manage
-                  </span>
-                </div>
-                {sidebarOpen && (
-                  <ChevronDown
-                    className={cn(
-                      'h-4 w-4 transition-transform duration-200 flex-shrink-0',
-                      settingsOpen ? 'rotate-180' : '',
-                    )}
-                  />
-                )}
-              </button>
-
-              {/* Collapsible Manage Items */}
-              <div
-                className={cn(
-                  'overflow-hidden transition-all duration-300',
-                  settingsOpen ? 'max-h-96 mt-1 space-y-1' : 'max-h-0',
-                )}
-              >
-                {settingsItems.map((item) => {
-                  const Icon = item.icon;
-                  const active = isActive(item.href);
-                  return (
-                    <Link
-                      key={item.href}
-                      to={item.href}
-                      onMouseEnter={() => prefetchRoute(item.href)}
-                      onClick={(e) => {
-                        if (e.metaKey || e.ctrlKey || e.shiftKey) {
-                          return;
-                        }
-                        if (isMobile) {
-                          setSidebarOpen(false);
-                          return;
-                        }
-                        if (!item.href.startsWith('/workflows')) {
-                          setSidebarOpen(true);
-                          setWasExplicitlyOpened(true);
-                        }
-                      }}
-                    >
-                      <SidebarItem
-                        isActive={active}
-                        className={cn(
-                          'flex items-center gap-3',
-                          sidebarOpen ? 'justify-start px-4' : 'justify-center',
-                        )}
-                      >
-                        <Icon className="h-4 w-4 flex-shrink-0" />
-                        <span
-                          className={cn(
-                            'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1 text-sm',
-                            sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
-                          )}
-                          style={{
-                            transitionDelay: sidebarOpen ? '200ms' : '0ms',
-                            transitionProperty: 'opacity, max-width',
-                          }}
-                        >
-                          {item.name}
-                        </span>
-                      </SidebarItem>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </SidebarContent>
+          </div>
 
           <SidebarFooter className="border-t p-0">
             <div className="flex flex-col gap-1.5 p-1">
@@ -835,16 +962,20 @@ export function AppLayout({ children }: AppLayoutProps) {
             isMobile ? 'w-full' : '',
           )}
         >
-          {/* Show AppTopBar for:
-              - Non-chat pages (except workflow editor and webhook editor which have their own headers)
-              - Workflow list page (/workflows) to have "New Workflow" button */}
-          {!isChatInterface &&
-            !(location.pathname.startsWith('/workflows/') && location.pathname !== '/workflows') &&
+          {/* Only show AppTopBar for non-workflow-builder and non-webhook-editor pages */}
+          {!location.pathname.startsWith('/workflows') &&
             !location.pathname.startsWith('/webhooks/') && (
               <AppTopBar
                 sidebarOpen={sidebarOpen}
                 onSidebarToggle={handleToggle}
                 actions={getPageActions()}
+                afterTitle={
+                  location.pathname === '/' ||
+                  location.pathname.startsWith('/security') ||
+                  location.pathname.startsWith('/dashboards/security') ? (
+                    <SecurityTabBar />
+                  ) : undefined
+                }
                 isMobile={isMobile}
               />
             )}

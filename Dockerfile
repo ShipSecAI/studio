@@ -54,7 +54,7 @@ WORKDIR /app/backend
 EXPOSE 3211
 
 # Run migrations first, then start backend
-CMD ["sh", "-c", "bun run migration:push && bun src/main.ts"]
+CMD ["sh", "-c", "bun run migration:migrate && bun src/main.ts"]
 
 # ============================================================================
 # WORKER SERVICE

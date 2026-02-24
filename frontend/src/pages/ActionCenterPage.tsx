@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle, XCircle, RefreshCw, Search, Clock, Zap, ExternalLink } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
@@ -157,7 +157,7 @@ export function ActionCenterPage() {
   const hasData = filteredApprovals.length > 0;
 
   return (
-    <TooltipProvider>
+    <>
       <div className="flex-1 bg-background">
         <div className="container mx-auto px-3 md:px-4 py-4 md:py-8 space-y-4 md:space-y-6">
           {/* Filters */}
@@ -249,14 +249,26 @@ export function ActionCenterPage() {
                         return (
                           <TableRow key={approval.id}>
                             <TableCell className="font-medium">
-                              <div className="flex flex-col">
-                                <span className="truncate max-w-[200px]">{approval.title}</span>
-                                {approval.description && (
-                                  <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-                                    {approval.description}
-                                  </span>
-                                )}
-                              </div>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex flex-col">
+                                    <span className="truncate max-w-[200px]">{approval.title}</span>
+                                    {approval.description && (
+                                      <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                        {approval.description}
+                                      </span>
+                                    )}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-xs">
+                                  <p className="font-medium">{approval.title}</p>
+                                  {approval.description && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {approval.description}
+                                    </p>
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
                               <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
@@ -391,6 +403,6 @@ export function ActionCenterPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </TooltipProvider>
+    </>
   );
 }

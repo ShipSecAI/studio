@@ -32,11 +32,20 @@ export class SchedulesService {
       ...filters,
       organizationId,
     });
-    return records.map((record) => this.mapRecord(record));
+    // Sync times from Temporal in parallel for all active schedules
+    const synced = await Promise.all(
+      records.map((record) =>
+        record.status === 'active'
+          ? this.syncTimesFromTemporal(record).catch(() => record)
+          : record,
+      ),
+    );
+    return synced.map((record) => this.mapRecord(record));
   }
 
   async get(auth: AuthContext | null, id: string): Promise<WorkflowSchedule> {
-    const record = await this.findOwnedScheduleOrThrow(id, auth);
+    let record = await this.findOwnedScheduleOrThrow(id, auth);
+    record = await this.syncTimesFromTemporal(record);
     return this.mapRecord(record);
   }
 
@@ -107,7 +116,7 @@ export class SchedulesService {
       throw error;
     }
 
-    const updated = await this.repository.update(
+    let updated = await this.repository.update(
       record.id,
       {
         temporalScheduleId: record.id,
@@ -115,6 +124,8 @@ export class SchedulesService {
       },
       { organizationId: context.organizationId },
     );
+
+    updated = await this.syncTimesFromTemporal(updated ?? record);
 
     this.auditLogService.record(auth, {
       action: 'schedule.create',
@@ -178,7 +189,7 @@ export class SchedulesService {
       });
     }
 
-    const updated = await this.repository.update(
+    let updated = await this.repository.update(
       existing.id,
       {
         workflowId: context.workflow.id,
@@ -200,6 +211,8 @@ export class SchedulesService {
     if (!updated) {
       throw new NotFoundException(`Schedule ${id} not found`);
     }
+
+    updated = await this.syncTimesFromTemporal(updated);
 
     this.auditLogService.record(auth, {
       action: 'schedule.update',
@@ -243,11 +256,13 @@ export class SchedulesService {
     if (temporalScheduleId) {
       await this.temporalService.pauseSchedule(temporalScheduleId);
     }
-    const updated = await this.repository.update(
+    let updated = await this.repository.update(
       existing.id,
       { status: 'paused' },
       { organizationId: existing.organizationId },
     );
+    updated = await this.syncTimesFromTemporal(updated ?? existing);
+
     this.auditLogService.record(auth, {
       action: 'schedule.pause',
       resourceType: 'schedule',
@@ -265,11 +280,12 @@ export class SchedulesService {
     if (temporalScheduleId) {
       await this.temporalService.resumeSchedule(temporalScheduleId);
     }
-    const updated = await this.repository.update(
+    let updated = await this.repository.update(
       existing.id,
       { status: 'active' },
       { organizationId: existing.organizationId },
     );
+    updated = await this.syncTimesFromTemporal(updated ?? existing);
 
     this.auditLogService.record(auth, {
       action: 'schedule.resume',
@@ -431,6 +447,40 @@ export class SchedulesService {
           );
         }
       }
+    }
+  }
+
+  private async syncTimesFromTemporal(
+    record: WorkflowScheduleRecord,
+  ): Promise<WorkflowScheduleRecord> {
+    const temporalScheduleId = record.temporalScheduleId ?? record.id;
+    if (!temporalScheduleId) return record;
+
+    try {
+      const description = await this.temporalService.describeSchedule(temporalScheduleId);
+
+      const nextRunAt = description.info.nextActionTimes?.[0] ?? null;
+      const recentActions = description.info.recentActions ?? [];
+      const lastRunAt =
+        recentActions.length > 0 ? recentActions[recentActions.length - 1].takenAt : null;
+
+      const updated = await this.repository.update(
+        record.id,
+        {
+          nextRunAt: nextRunAt ?? null,
+          lastRunAt: lastRunAt ?? null,
+        },
+        { organizationId: record.organizationId },
+      );
+
+      return updated ?? record;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to sync schedule times from Temporal for ${record.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return record;
     }
   }
 

@@ -27,3 +27,7 @@ export * from './chat-messages';
 export * from './chat-partial-responses';
 export * from './chat-stream-events';
 export * from './github-app';
+export * from './workflow-templates';
+export * from './user-settings';
+export * from './asm';
+export * from './asset-discovery';

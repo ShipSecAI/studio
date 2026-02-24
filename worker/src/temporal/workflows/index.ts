@@ -10,6 +10,19 @@ import {
   uuid4,
 } from '@temporalio/workflow';
 import type { ComponentRetryPolicy } from '@shipsec/component-sdk';
+
+// Run context merge constants (mirrored from @shipsec/component-sdk/context to avoid
+// pulling the full SDK into the Temporal workflow sandbox bundle)
+const RUN_CONTEXT_ALLOWED_KEYS = new Set([
+  'repository',
+  'branch',
+  'commitSha',
+  'provider',
+  'accountId',
+  'connectionName',
+]);
+const RUN_CONTEXT_MAX_VALUE_LENGTH = 256;
+const RUN_CONTEXT_MAX_ENTRIES = 16;
 import { runWorkflowWithScheduler } from '../workflow-scheduler.js';
 import { buildActionPayload } from '../input-resolver.js';
 import {
@@ -161,6 +174,10 @@ export async function shipsecWorkflowRun(
     input.definition.actions.map((action) => [action.ref, action]),
   );
 
+  // Run-level shared context: components contribute via contributeRunContext,
+  // workflow merges first-writer-wins after each activity completes.
+  const runContext: Record<string, string> = {};
+
   // Track pending human inputs and their resolutions
   const pendingHumanInputs = new Map<
     string,
@@ -208,6 +225,9 @@ export async function shipsecWorkflowRun(
           workflowId: input.workflowId,
           workflowVersionId: input.workflowVersionId,
           organizationId: input.organizationId,
+          triggerType: input.triggerType ?? null,
+          triggerSource: input.triggerSource ?? null,
+          runContext: { ...runContext },
           action: {
             ref: `tool-call:${request.callId}`,
             componentId: request.componentId,
@@ -654,6 +674,9 @@ export async function shipsecWorkflowRun(
           workflowName: input.definition.title,
           workflowVersionId: input.workflowVersionId ?? null,
           organizationId: input.organizationId ?? null,
+          triggerType: input.triggerType ?? null,
+          triggerSource: input.triggerSource ?? null,
+          runContext: { ...runContext },
           action: {
             ref: action.ref,
             componentId: action.componentId,
@@ -862,6 +885,19 @@ export async function shipsecWorkflowRun(
           console.log(
             `[Workflow] MCP Group node ${action.ref} registered as ready (child servers already registered during execution)`,
           );
+        }
+
+        // Merge run context contributions (first-writer-wins, defense-in-depth guards)
+        if (output.runContextContributions) {
+          for (const [key, value] of Object.entries(output.runContextContributions)) {
+            if (!RUN_CONTEXT_ALLOWED_KEYS.has(key)) continue;
+            if (!value || typeof value !== 'string') continue;
+            if (value.length > RUN_CONTEXT_MAX_VALUE_LENGTH) continue;
+            if (Object.keys(runContext).length >= RUN_CONTEXT_MAX_ENTRIES) break;
+            if (!(key in runContext)) {
+              runContext[key] = value;
+            }
+          }
         }
 
         // Check if this is a pending human input request (approval gate, form, choice, etc.)
@@ -1156,6 +1192,8 @@ export async function scheduleTriggerWorkflow(
         workflowVersionId: prepared.workflowVersionId,
         workflowVersion: prepared.workflowVersion,
         organizationId: prepared.organizationId,
+        triggerType: prepared.trigger?.type ?? null,
+        triggerSource: prepared.trigger?.sourceId,
       },
     ],
     workflowId: prepared.runId,
@@ -1169,6 +1207,9 @@ export { mcpDiscoveryWorkflow, mcpGroupDiscoveryWorkflow } from './mcp-discovery
 
 // Export webhook parsing workflow (Docker execution must run in worker).
 export { webhookParsingWorkflow } from './webhook-parsing-workflow.js';
+
+// Export asset sync workflow (cloud inventory reconciliation).
+export { assetSyncWorkflow } from './asset-sync-workflow.js';
 
 // Export chat agent workflow
 export { chatAgentWorkflow } from './chat-agent.workflow.js';

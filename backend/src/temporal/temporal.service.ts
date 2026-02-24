@@ -23,6 +23,7 @@ import {
   mcpDiscoveryWorkflow,
   mcpGroupDiscoveryWorkflow,
   webhookParsingWorkflow,
+  assetSyncWorkflow,
   chatAgentWorkflow,
 } from '@shipsec/studio-worker/workflows';
 import type { ExecutionTriggerMetadata, ScheduleOverlapPolicy } from '@shipsec/shared';
@@ -159,6 +160,8 @@ export class TemporalService implements OnModuleDestroy {
         return mcpGroupDiscoveryWorkflow;
       case 'webhookParsingWorkflow':
         return webhookParsingWorkflow;
+      case 'assetSyncWorkflow':
+        return assetSyncWorkflow;
       case 'chatAgentWorkflow':
         return chatAgentWorkflow;
       default:
@@ -438,6 +441,32 @@ export class TemporalService implements OnModuleDestroy {
         catchupWindow: options.catchupWindowSeconds
           ? options.catchupWindowSeconds * 1000
           : undefined,
+      },
+    });
+  }
+
+  async createCustomSchedule(options: {
+    scheduleId: string;
+    cronExpression: string;
+    workflowType: string;
+    workflowId: string;
+    args: unknown[];
+    overlapPolicy?: ScheduleOverlapPolicy;
+  }): Promise<void> {
+    const client = await this.getScheduleClient();
+    const workflowFn = this.getWorkflowFunction(options.workflowType);
+    await client.create({
+      scheduleId: options.scheduleId,
+      spec: { cronExpressions: [options.cronExpression] },
+      action: {
+        type: 'startWorkflow',
+        workflowType: workflowFn,
+        taskQueue: this.defaultTaskQueue,
+        args: options.args,
+        workflowId: options.workflowId,
+      } as any, // Temporal SDK types don't match workflow function schedule actions
+      policies: {
+        overlap: this.mapOverlapPolicy(options.overlapPolicy ?? 'skip'),
       },
     });
   }

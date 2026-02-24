@@ -298,6 +298,12 @@ describe('WorkflowsService', () => {
     async cacheTerminalStatus() {
       // no-op in tests
     },
+    async getActivityByDay(_orgId: string, _days: number) {
+      return [
+        { date: '2026-02-17', count: 3 },
+        { date: '2026-02-18', count: 5 },
+      ];
+    },
   };
 
   const traceRepositoryMock = {
@@ -341,6 +347,10 @@ describe('WorkflowsService', () => {
     trackApiCall: vi.fn(),
     track: vi.fn(),
     isEnabled: vi.fn().mockReturnValue(true),
+  };
+
+  const systemWorkflowsServiceMock = {
+    ensureSystemWorkflows: vi.fn().mockResolvedValue(undefined),
   };
 
   const buildTemporalStub = (overrides?: Partial<WorkflowRunStatus>) => {
@@ -407,6 +417,7 @@ describe('WorkflowsService', () => {
       traceRepositoryMock as any,
       temporalService,
       analyticsServiceMock as any,
+      systemWorkflowsServiceMock as any,
       { record: vi.fn() } as any,
     );
   });
@@ -444,6 +455,10 @@ describe('WorkflowsService', () => {
       lastRun: null,
       runCount: 0,
       organizationId: TEST_ORG,
+      isSystem: false,
+      templateId: null,
+      icon: null,
+      iconColor: null,
     });
 
     const run = await service.run('workflow-id', { inputs: { message: 'hi' } }, authContext);
@@ -497,6 +512,10 @@ describe('WorkflowsService', () => {
       lastRun: null,
       runCount: 0,
       organizationId: TEST_ORG,
+      isSystem: false,
+      templateId: null,
+      icon: null,
+      iconColor: null,
     });
 
     const run = await service.run('workflow-id', { inputs: { foo: 'bar' } }, authContext);
@@ -525,6 +544,10 @@ describe('WorkflowsService', () => {
       lastRun: null,
       runCount: 0,
       organizationId: TEST_ORG,
+      isSystem: false,
+      templateId: null,
+      icon: null,
+      iconColor: null,
     });
 
     const trigger = {
@@ -572,6 +595,10 @@ describe('WorkflowsService', () => {
       lastRun: null,
       runCount: 0,
       organizationId: TEST_ORG,
+      isSystem: false,
+      templateId: null,
+      icon: null,
+      iconColor: null,
     });
 
     const prepared = await service.prepareRunPayload(
@@ -657,6 +684,7 @@ describe('WorkflowsService', () => {
       traceRepositoryMock as any,
       failureTemporalService,
       analyticsServiceMock as any,
+      systemWorkflowsServiceMock as any,
       { record: vi.fn() } as any,
     );
 
@@ -684,5 +712,13 @@ describe('WorkflowsService', () => {
         applicationFailureDetails: { node: 'node-1' },
       },
     });
+  });
+
+  it('getRunActivity returns aggregated activity data', async () => {
+    const result = await service.getRunActivity(authContext, 90);
+    expect(result.totalRuns).toBe(8);
+    expect(result.activity).toHaveLength(2);
+    expect(result.activity[0]).toEqual({ date: '2026-02-17', count: 3 });
+    expect(result.activity[1]).toEqual({ date: '2026-02-18', count: 5 });
   });
 });

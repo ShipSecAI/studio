@@ -40,6 +40,15 @@ import {
 } from '../activities/mcp-discovery.activity';
 import { executeWebhookParsingScriptActivity } from '../activities/webhook-parsing.activity';
 import {
+  createSyncRunActivity,
+  discoverAndReconcilePageActivity,
+  persistSyncRunScopesActivity,
+  markStaleAssetsActivity,
+  emitStaleAndRemovedEventsActivity,
+  updateSyncRunStatusActivity,
+  initializeAssetSyncActivities,
+} from '../activities/asset-sync.activities';
+import {
   runChatAgentStepActivity,
   saveChatMessagesActivity,
   loadChatMessagesActivity,
@@ -242,6 +251,12 @@ async function main() {
     trace: traceAdapter,
   });
 
+  // Asset sync activities call internal backend endpoints.
+  initializeAssetSyncActivities({
+    backendUrl,
+    internalToken: process.env.INTERNAL_SERVICE_TOKEN ?? '',
+  });
+
   // Initialize chat agent activities
   initializeChatAgentActivities({
     database: db,
@@ -277,6 +292,12 @@ async function main() {
       discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
       executeWebhookParsingScriptActivity,
+      createSyncRunActivity,
+      discoverAndReconcilePageActivity,
+      persistSyncRunScopesActivity,
+      markStaleAssetsActivity,
+      emitStaleAndRemovedEventsActivity,
+      updateSyncRunStatusActivity,
     }).join(', ')}`,
   );
 
@@ -319,6 +340,12 @@ async function main() {
       discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
       executeWebhookParsingScriptActivity,
+      createSyncRunActivity,
+      discoverAndReconcilePageActivity,
+      persistSyncRunScopesActivity,
+      markStaleAssetsActivity,
+      emitStaleAndRemovedEventsActivity,
+      updateSyncRunStatusActivity,
       runChatAgentStepActivity,
       saveChatMessagesActivity,
       loadChatMessagesActivity,
