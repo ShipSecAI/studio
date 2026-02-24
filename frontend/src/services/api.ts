@@ -31,6 +31,7 @@ type ApiKeyResponseDto = components['schemas']['ApiKeyResponseDto'];
 type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto'];
 type CreateApiKeyDto = components['schemas']['CreateApiKeyDto'];
 type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto'];
+type ListAuditLogsResponseDto = components['schemas']['ListAuditLogsResponseDto'];
 
 export interface TerminalChunkResponse {
   runId: string;
@@ -51,8 +52,6 @@ export interface WorkflowSummary {
   id: string;
   name: string;
   description: string | null;
-  icon: string | null;
-  iconColor: string | null;
   organizationId: string | null;
   isSystem: boolean;
   templateId: string | null;
@@ -118,19 +117,20 @@ type RuntimeImportMeta = ImportMeta & {
 function resolveApiBaseUrl() {
   const metaEnv = (import.meta as RuntimeImportMeta).env;
   if (metaEnv?.VITE_API_URL && metaEnv.VITE_API_URL.trim().length > 0) {
-    return metaEnv.VITE_API_URL;
+    const configured = metaEnv.VITE_API_URL.trim();
+    return configured.replace(/\/api(?:\/v1)?\/?$/i, '');
   }
 
   if (typeof process !== 'undefined') {
     const nodeEnv = (process.env ?? {}).VITE_API_URL;
     if (nodeEnv && nodeEnv.trim().length > 0) {
-      return nodeEnv;
+      return nodeEnv.trim().replace(/\/api(?:\/v1)?\/?$/i, '');
     }
   }
 
-  // Default to empty string (relative URLs) so API calls go through the same
-  // origin that served the page. This avoids CORS/mixed-content issues when
-  // accessed via ngrok or custom domains (nginx proxies /api/ to the backend).
+  // No explicit API URL — use same-origin relative paths.
+  // Works with path-based routing (/api/v1/* routed to backend via Ingress).
+  // For local dev, set VITE_API_URL=http://localhost:3211 in frontend/.env
   return '';
 }
 
@@ -287,12 +287,7 @@ export const api = {
 
     updateMetadata: async (
       id: string,
-      metadata: {
-        name: string;
-        description?: string | null;
-        icon?: string | null;
-        iconColor?: string | null;
-      },
+      metadata: { name: string; description?: string | null },
     ): Promise<WorkflowResponseDto> => {
       const response = await apiClient.updateWorkflowMetadata(id, metadata);
       if (response.error) throw new Error('Failed to update workflow metadata');
@@ -702,6 +697,38 @@ export const api = {
     },
   },
 
+  auditLogs: {
+    list: async (query: {
+      resourceType?: string;
+      resourceId?: string;
+      action?: string;
+      actorId?: string;
+      from?: string;
+      to?: string;
+      limit?: number;
+      cursor?: string;
+    }): Promise<ListAuditLogsResponseDto> => {
+      const headers = await getAuthHeaders();
+      const url = new URL(`${API_V1_URL}/audit-logs`);
+
+      if (query.resourceType) url.searchParams.set('resourceType', query.resourceType);
+      if (query.resourceId) url.searchParams.set('resourceId', query.resourceId);
+      if (query.action) url.searchParams.set('action', query.action);
+      if (query.actorId) url.searchParams.set('actorId', query.actorId);
+      if (query.from) url.searchParams.set('from', query.from);
+      if (query.to) url.searchParams.set('to', query.to);
+      if (query.cursor) url.searchParams.set('cursor', query.cursor);
+      if (query.limit) url.searchParams.set('limit', String(query.limit));
+
+      const res = await fetch(url.toString(), { headers });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Failed to fetch audit logs: ${res.status} ${text}`);
+      }
+      return (await res.json()) as ListAuditLogsResponseDto;
+    },
+  },
+
   executions: {
     start: async (
       workflowId: string,
@@ -779,7 +806,8 @@ export const api = {
       },
     ): Promise<TerminalChunkResponse> => {
       const headers = await getAuthHeaders();
-      const url = new URL(`${API_V1_URL}/workflows/runs/${executionId}/terminal`);
+      const path = `${API_V1_URL}/workflows/runs/${executionId}/terminal`;
+      const url = new URL(path, window.location.origin);
       if (params?.nodeRef) url.searchParams.set('nodeRef', params.nodeRef);
       if (params?.stream) url.searchParams.set('stream', params.stream);
       if (params?.cursor) url.searchParams.set('cursor', params.cursor);
@@ -877,22 +905,13 @@ export const api = {
 
     listRuns: async (options?: {
       workflowId?: string;
-      workflowIds?: string;
       status?: string;
-      triggerType?: string;
-      search?: string;
       limit?: number;
       offset?: number;
     }) => {
       const response = await apiClient.listWorkflowRuns(options);
       if (response.error) throw new Error('Failed to fetch runs');
       return response.data || { runs: [] };
-    },
-
-    getRunActivity: async (options?: { days?: number }) => {
-      const response = await apiClient.getRunActivity(options);
-      if (response.error) throw new Error('Failed to fetch run activity');
-      return response.data || { totalRuns: 0, activity: [] };
     },
 
     getRun: async (runId: string) => {
@@ -1123,137 +1142,6 @@ export const api = {
     },
   },
 
-  asm: {
-    listDomains: async (options?: { limit?: number; offset?: number }) => {
-      const response = await apiClient.listAsmDomains(options);
-      if (response.error) throw new Error('Failed to fetch ASM domains');
-      return response.data || [];
-    },
-
-    getDomain: async (id: string) => {
-      const response = await apiClient.getAsmDomain(id);
-      if (response.error) throw new Error('Failed to fetch ASM domain');
-      if (!response.data) throw new Error('ASM domain not found');
-      return response.data;
-    },
-
-    createDomain: async (body: {
-      domain: string;
-      scopeInclude?: string[];
-      scopeExclude?: string[];
-      scanNow?: boolean;
-    }) => {
-      const response = await apiClient.createAsmDomain({
-        ...body,
-        scanNow: body.scanNow ?? false,
-      });
-      if (response.error) throw new Error('Failed to create ASM domain');
-      if (!response.data) throw new Error('ASM domain creation failed');
-      return response.data;
-    },
-
-    updateDomain: async (
-      id: string,
-      body: {
-        scopeInclude?: string[];
-        scopeExclude?: string[];
-      },
-    ) => {
-      const response = await apiClient.updateAsmDomain(id, body);
-      if (response.error) throw new Error('Failed to update ASM domain');
-      if (!response.data) throw new Error('ASM domain update failed');
-      return response.data;
-    },
-
-    deleteDomain: async (id: string) => {
-      const response = await apiClient.deleteAsmDomain(id);
-      if (response.error) throw new Error('Failed to delete ASM domain');
-      if (!response.data) throw new Error('ASM domain deletion failed');
-      return response.data;
-    },
-
-    triggerDomainScan: async (id: string, body?: { templateSlug?: string }) => {
-      const response = await apiClient.triggerAsmDomainScan(id, {
-        templateSlug: body?.templateSlug ?? 'sys-attack-surface-recon',
-      });
-      if (response.error) throw new Error('Failed to trigger ASM domain scan');
-      if (!response.data) throw new Error('ASM scan trigger failed');
-      return response.data;
-    },
-
-    listScans: async (options?: {
-      limit?: number;
-      offset?: number;
-      status?: string;
-      domainId?: string;
-    }) => {
-      const response = await apiClient.listAsmScans({
-        ...options,
-        status: options?.status as 'running' | 'completed' | 'failed' | 'timed_out' | undefined,
-      });
-      if (response.error) throw new Error('Failed to fetch ASM scans');
-      return response.data || { runs: [], total: 0 };
-    },
-
-    getStats: async () => {
-      const response = await apiClient.getAsmStats();
-      if (response.error) throw new Error('Failed to fetch ASM stats');
-      if (!response.data) throw new Error('ASM stats not found');
-      return response.data;
-    },
-  },
-
-  cloudInventory: {
-    listAssets: async (options?: {
-      limit?: number;
-      offset?: number;
-      assetType?: string;
-      region?: string;
-      status?: 'active' | 'stale' | 'removed';
-      search?: string;
-      sortBy?: 'name' | 'lastSeenAt' | 'firstDiscoveredAt';
-      sortOrder?: 'asc' | 'desc';
-    }) => {
-      const response = await apiClient.listCloudAssets(options);
-      if (response.error) throw new Error('Failed to fetch cloud assets');
-      return response.data || { assets: [], total: 0, page: 1, limit: options?.limit ?? 50 };
-    },
-
-    getSummary: async () => {
-      const response = await apiClient.getCloudAssetSummary();
-      if (response.error) throw new Error('Failed to fetch cloud asset summary');
-      if (!response.data) throw new Error('Cloud asset summary not found');
-      return response.data;
-    },
-
-    getAsset: async (id: string) => {
-      const response = await apiClient.getCloudAsset(id);
-      if (response.error) throw new Error('Failed to fetch cloud asset');
-      if (!response.data) throw new Error('Cloud asset not found');
-      return response.data;
-    },
-
-    triggerSync: async (integrationId: string) => {
-      const response = await apiClient.triggerCloudSync({ integrationId });
-      if (response.error) throw new Error('Failed to trigger cloud sync');
-      if (!response.data) throw new Error('Cloud sync trigger failed');
-      return response.data;
-    },
-
-    listSyncRuns: async (options?: { limit?: number; offset?: number }) => {
-      const response = await apiClient.listCloudSyncRuns(options);
-      if (response.error) throw new Error('Failed to fetch cloud sync runs');
-      return response.data || { syncRuns: [], total: 0, page: 1, limit: options?.limit ?? 20 };
-    },
-
-    getSyncRun: async (id: string) => {
-      const response = await apiClient.getCloudSyncRun(id);
-      if (response.error) throw new Error('Failed to fetch cloud sync run');
-      if (!response.data) throw new Error('Cloud sync run not found');
-      return response.data;
-    },
-  },
-
   analytics: {
     query: async (body: {
       query?: Record<string, any>;
@@ -1261,7 +1149,6 @@ export const api = {
       from?: number;
       aggs?: Record<string, any>;
       sort?: Record<string, any>[];
-      collapse?: Record<string, any>;
     }) => {
       const headers = await getAuthHeaders();
       const response = await fetch(`${API_V1_URL}/analytics/query`, {
@@ -1274,22 +1161,6 @@ export const api = {
         total: number;
         hits: { _id: string; _source: Record<string, any>; _score?: number }[];
         aggregations?: Record<string, any>;
-      }>;
-    },
-
-    batchRunSummaries: async (runIds: string[]) => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/analytics/batch-run-summaries`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runIds }),
-      });
-      if (!response.ok) throw new Error(`Batch run summaries failed: ${response.status}`);
-      return response.json() as Promise<{
-        summaries: Record<
-          string,
-          { critical: number; high: number; medium: number; low: number; info: number }
-        >;
       }>;
     },
   },

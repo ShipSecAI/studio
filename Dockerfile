@@ -25,6 +25,7 @@ RUN groupadd -g 1001 shipsec && useradd -u 1001 -g shipsec -m shipsec
 # Copy all files
 COPY --chown=shipsec:shipsec bun.lock package.json bunfig.toml ./
 COPY --chown=shipsec:shipsec packages/ packages/
+COPY --chown=shipsec:shipsec scripts/ scripts/
 COPY --chown=shipsec:shipsec backend/ backend/
 COPY --chown=shipsec:shipsec frontend/ frontend/
 COPY --chown=shipsec:shipsec worker/ worker/
@@ -53,7 +54,7 @@ WORKDIR /app/backend
 EXPOSE 3211
 
 # Run migrations first, then start backend
-CMD ["sh", "-c", "bun run migration:migrate && bun src/main.ts"]
+CMD ["sh", "-c", "bun run migration:push && bun src/main.ts"]
 
 # ============================================================================
 # WORKER SERVICE
@@ -83,8 +84,8 @@ FROM base AS frontend
 # Frontend build-time configuration
 ARG VITE_AUTH_PROVIDER=local
 ARG VITE_CLERK_PUBLISHABLE_KEY=""
-ARG VITE_API_URL=http://localhost:3211
-ARG VITE_BACKEND_URL=http://localhost:3211
+ARG VITE_API_URL=""
+ARG VITE_BACKEND_URL=""
 ARG VITE_DEFAULT_ORG_ID=local-dev
 ARG VITE_GIT_SHA=unknown
 ARG VITE_PUBLIC_POSTHOG_KEY=""
@@ -125,8 +126,8 @@ FROM base AS frontend-debug
 # Frontend build-time configuration
 ARG VITE_AUTH_PROVIDER=local
 ARG VITE_CLERK_PUBLISHABLE_KEY=""
-ARG VITE_API_URL=http://localhost:3211
-ARG VITE_BACKEND_URL=http://localhost:3211
+ARG VITE_API_URL=""
+ARG VITE_BACKEND_URL=""
 ARG VITE_DEFAULT_ORG_ID=local-dev
 ARG VITE_GIT_SHA=unknown
 ARG VITE_PUBLIC_POSTHOG_KEY=""

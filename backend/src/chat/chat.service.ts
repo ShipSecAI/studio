@@ -363,6 +363,7 @@ export class ChatService implements OnModuleInit {
     // Track text part IDs for proper streaming (AI SDK expects text-start/text-end pairs)
     let textPartCounter = 0;
     let currentTextId: string | null = null;
+    const seenToolCalls = new Set<string>();
 
     const startTextPart = (): string => {
       textPartCounter++;
@@ -387,6 +388,26 @@ export class ChatService implements OnModuleInit {
       closed = true;
       endTextPart();
       this.endSseStream(res);
+    };
+
+    const ensureToolInvocation = (
+      toolCallId: string,
+      toolName: string | undefined,
+      input: unknown = {},
+    ): void => {
+      if (seenToolCalls.has(toolCallId)) return;
+      this.writeSseEvent(res, {
+        type: 'tool-input-start',
+        toolCallId,
+        toolName: toolName ?? 'unknown_tool',
+      });
+      this.writeSseEvent(res, {
+        type: 'tool-input-available',
+        toolCallId,
+        toolName: toolName ?? 'unknown_tool',
+        input,
+      });
+      seenToolCalls.add(toolCallId);
     };
 
     /**
@@ -420,19 +441,10 @@ export class ChatService implements OnModuleInit {
       } else if (event.type === 'tool-call') {
         endTextPart();
         const toolCallId = (event.toolCallId as string) ?? `call-${Date.now()}`;
-        this.writeSseEvent(res, {
-          type: 'tool-input-start',
-          toolCallId,
-          toolName: event.toolName,
-        });
-        this.writeSseEvent(res, {
-          type: 'tool-input-available',
-          toolCallId,
-          toolName: event.toolName,
-          input: event.args ?? {},
-        });
+        ensureToolInvocation(toolCallId, event.toolName as string | undefined, event.args ?? {});
       } else if (event.type === 'tool-result') {
         const toolCallId = (event.toolCallId as string) ?? `call-${Date.now()}`;
+        ensureToolInvocation(toolCallId, event.toolName as string | undefined);
         this.writeSseEvent(res, {
           type: 'tool-output-available',
           toolCallId,
@@ -442,6 +454,7 @@ export class ChatService implements OnModuleInit {
       } else if (event.type === 'tool-progress') {
         const toolCallId = event.toolCallId as string | undefined;
         if (!toolCallId) return false;
+        ensureToolInvocation(toolCallId, event.toolName as string | undefined);
         this.writeSseEvent(res, {
           type: 'tool-output-available',
           toolCallId,
@@ -451,6 +464,7 @@ export class ChatService implements OnModuleInit {
       } else if (event.type === 'tool-error') {
         const toolCallId = event.toolCallId as string | undefined;
         if (!toolCallId) return false;
+        ensureToolInvocation(toolCallId, event.toolName as string | undefined);
         this.writeSseEvent(res, {
           type: 'tool-output-error',
           toolCallId,
