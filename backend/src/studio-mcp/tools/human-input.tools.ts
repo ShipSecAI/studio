@@ -95,8 +95,9 @@ export function registerHumanInputTools(
           args.inputId,
           {
             responseData: {
-              status: args.action === 'reject' ? 'rejected' : 'approved',
               ...args.data,
+              // Set status AFTER spread to prevent caller-supplied data from overriding it
+              status: args.action === 'reject' ? 'rejected' : 'approved',
             },
             respondedBy: auth.userId ?? undefined,
           },

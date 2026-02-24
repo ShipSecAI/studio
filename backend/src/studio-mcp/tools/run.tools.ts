@@ -185,6 +185,7 @@ export function registerRunTools(server: McpServer, auth: AuthContext, deps: Stu
       if (!gate.allowed) return gate.error;
       if (!nodeIOService) return errorResult(new Error('nodeIOService is not available'));
       try {
+        await workflowsService.ensureRunAccess(args.runId, auth);
         const io = await nodeIOService.getNodeIO(args.runId, args.nodeRef, args.full ?? false);
         return jsonResult(io);
       } catch (error) {
