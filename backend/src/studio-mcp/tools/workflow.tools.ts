@@ -260,6 +260,7 @@ export function registerWorkflowTools(
         monitorWorkflowRun(
           handle.runId,
           handle.temporalRunId,
+          args.workflowId,
           task.taskId,
           extra.taskStore,
           workflowsService,
@@ -292,6 +293,7 @@ export function registerWorkflowTools(
 export async function monitorWorkflowRun(
   runId: string,
   temporalRunId: string | undefined,
+  workflowId: string,
   taskId: string,
   taskStore: any,
   workflowsService: StudioMcpDeps['workflowsService'],
@@ -339,8 +341,18 @@ export async function monitorWorkflowRun(
           resultData = runStatusPayload.failure || { reason: runStatusPayload.status };
         }
 
+        // Wrap result with run metadata so the chat UI can show a live status card.
         const resultPayload = {
-          content: [{ type: 'text', text: JSON.stringify(resultData, null, 2) }],
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                { runId, workflowId, status: runStatusPayload.status, result: resultData },
+                null,
+                2,
+              ),
+            },
+          ],
         };
 
         const storeStatus = taskState === 'completed' ? 'completed' : 'failed';
@@ -348,8 +360,13 @@ export async function monitorWorkflowRun(
         break;
       }
 
-      // Non-terminal: just update status and keep polling
-      await taskStore.updateTaskStatus(taskId, taskState, runStatusPayload.status);
+      // Non-terminal: update status with run metadata so the chat UI can
+      // show the WorkflowRunStatusCard immediately (before the run finishes).
+      await taskStore.updateTaskStatus(
+        taskId,
+        taskState,
+        JSON.stringify({ runId, workflowId, executionStatus: runStatusPayload.status }),
+      );
       await new Promise((res) => setTimeout(res, 2000));
     } catch (err) {
       logger.error(`Error monitoring task ${taskId} (run: ${runId}): ${err}`);
