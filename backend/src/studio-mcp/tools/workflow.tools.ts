@@ -289,7 +289,7 @@ export function registerWorkflowTools(
   );
 }
 
-async function monitorWorkflowRun(
+export async function monitorWorkflowRun(
   runId: string,
   temporalRunId: string | undefined,
   taskId: string,

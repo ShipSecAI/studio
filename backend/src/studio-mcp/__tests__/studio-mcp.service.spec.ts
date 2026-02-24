@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, jest } from 'bun:test';
 import { StudioMcpService } from '../studio-mcp.service';
+import { monitorWorkflowRun } from '../tools/workflow.tools';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AuthContext } from '../../auth/types';
 import type { WorkflowsService } from '../../workflows/workflows.service';
@@ -89,18 +90,35 @@ describe('StudioMcpService Unit Tests', () => {
       const toolNames = Object.keys(registeredTools).sort();
       expect(toolNames).toEqual([
         'cancel_run',
+        'create_secret',
         'create_workflow',
+        'delete_secret',
         'delete_workflow',
         'get_component',
+        'get_human_input',
+        'get_node_io',
+        'get_run_config',
+        'get_run_logs',
         'get_run_result',
         'get_run_status',
+        'get_run_trace',
         'get_workflow',
+        'list_artifacts',
+        'list_child_runs',
         'list_components',
+        'list_human_inputs',
+        'list_run_artifacts',
+        'list_run_node_io',
         'list_runs',
+        'list_secrets',
         'list_workflows',
+        'resolve_human_input',
+        'rotate_secret',
         'run_workflow',
+        'update_secret',
         'update_workflow',
         'update_workflow_metadata',
+        'view_artifact',
       ]);
     });
 
@@ -512,7 +530,6 @@ describe('StudioMcpService Unit Tests', () => {
         storeTaskResult: jest.fn().mockResolvedValue(true),
       };
 
-      const mockServer = {} as McpServer;
       const taskId = 'test-task-id';
       const runId = 'test-run-id';
 
@@ -534,12 +551,12 @@ describe('StudioMcpService Unit Tests', () => {
       (global as any).setTimeout = (fn: any) => originalSetTimeout(fn, 1);
 
       try {
-        await (service as any).monitorWorkflowRun(
+        await monitorWorkflowRun(
           runId,
           undefined,
           taskId,
           mockTaskStore,
-          mockServer,
+          workflowsService,
           mockAuthContext,
         );
       } finally {
@@ -575,12 +592,12 @@ describe('StudioMcpService Unit Tests', () => {
         failure: { message: 'boom' },
       });
 
-      await (service as any).monitorWorkflowRun(
+      await monitorWorkflowRun(
         runId,
         undefined,
         taskId,
         mockTaskStore,
-        {} as McpServer,
+        workflowsService,
         mockAuthContext,
       );
 
