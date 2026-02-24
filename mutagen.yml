@@ -1,8 +1,11 @@
 sync:
-  toronto-dev:
+  stuttgart:
     alpha: '.'
-    beta: 'toronto-dev:/home/shipsec/toronto'
+    beta: 'shipsec-dev:/home/shipsec/stuttgart'
     mode: 'two-way-resolved'
+    permissions:
+      defaultFileMode: 0644
+      defaultDirectoryMode: 0755
     ignore:
       vcs: true
       paths:

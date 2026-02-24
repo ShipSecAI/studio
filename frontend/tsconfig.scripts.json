@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "emitDeclarationOnly": false,
+    "lib": ["ES2022"],
+    "types": ["bun-types"]
+  },
+  "include": ["scripts/**/*"]
+}

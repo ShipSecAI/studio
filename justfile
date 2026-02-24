@@ -122,6 +122,11 @@ dev action="start":
                 DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/shipsec_instance_${INST}" \
                     bun --cwd=backend run migration:migrate
 
+                # Validate environments before starting PM2
+                bun --env-file="backend/.env" backend/scripts/validate-env.ts || exit 1
+                bun --env-file="worker/.env" worker/scripts/validate-env.ts || exit 1
+                bun --env-file="frontend/.env" frontend/scripts/validate-env.ts || exit 1
+
                 # Update git SHA and start PM2 with security enabled
                 ./scripts/set-git-sha.sh || true
                 SHIPSEC_INSTANCE="$INST" SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=true NODE_TLS_REJECT_UNAUTHORIZED=0 \
@@ -154,6 +159,11 @@ dev action="start":
                 echo "🗄️  Running database migrations..."
                 DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/shipsec_instance_${INST}" \
                     bun --cwd=backend run migration:migrate
+
+                # Validate environments before starting PM2
+                bun --env-file="backend/.env" backend/scripts/validate-env.ts || exit 1
+                bun --env-file="worker/.env" worker/scripts/validate-env.ts || exit 1
+                bun --env-file="frontend/.env" frontend/scripts/validate-env.ts || exit 1
 
                 # Update git SHA and start PM2
                 ./scripts/set-git-sha.sh || true
