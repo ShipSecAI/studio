@@ -135,6 +135,28 @@ export class AuthGuard implements CanActivate {
       audit: {
         read: Boolean(permissions.audit?.read),
       },
+      artifacts: {
+        read: Boolean(permissions.artifacts?.read),
+        delete: Boolean(permissions.artifacts?.delete),
+      },
+      schedules: {
+        list: Boolean(permissions.schedules?.list),
+        read: Boolean(permissions.schedules?.read),
+        create: Boolean(permissions.schedules?.create),
+        update: Boolean(permissions.schedules?.update),
+        delete: Boolean(permissions.schedules?.delete),
+      },
+      secrets: {
+        list: Boolean(permissions.secrets?.list),
+        read: Boolean(permissions.secrets?.read),
+        create: Boolean(permissions.secrets?.create),
+        update: Boolean(permissions.secrets?.update),
+        delete: Boolean(permissions.secrets?.delete),
+      },
+      'human-inputs': {
+        read: Boolean(permissions['human-inputs']?.read),
+        resolve: Boolean(permissions['human-inputs']?.resolve),
+      },
     };
 
     return {

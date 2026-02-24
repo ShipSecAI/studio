@@ -19,6 +19,36 @@ export const ApiKeyPermissionsSchema = z.object({
   audit: z.object({
     read: z.boolean(),
   }),
+  artifacts: z
+    .object({
+      read: z.boolean().optional(),
+      delete: z.boolean().optional(),
+    })
+    .optional(),
+  schedules: z
+    .object({
+      list: z.boolean().optional(),
+      read: z.boolean().optional(),
+      create: z.boolean().optional(),
+      update: z.boolean().optional(),
+      delete: z.boolean().optional(),
+    })
+    .optional(),
+  secrets: z
+    .object({
+      list: z.boolean().optional(),
+      read: z.boolean().optional(),
+      create: z.boolean().optional(),
+      update: z.boolean().optional(),
+      delete: z.boolean().optional(),
+    })
+    .optional(),
+  'human-inputs': z
+    .object({
+      read: z.boolean().optional(),
+      resolve: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const CreateApiKeySchema = z.object({
