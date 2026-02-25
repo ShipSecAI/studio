@@ -7,7 +7,7 @@ import { validateFrontendEnv } from '../src/config/env.validate';
 
 try {
   validateFrontendEnv(process.env as Record<string, unknown>);
-  console.log('✅  Frontend environment OK');
+  console.log('✅  Frontend .env OK');
 } catch {
   process.exit(1);
 }

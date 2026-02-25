@@ -32,6 +32,9 @@ export const backendEnvSchema = z
     SKIP_INGEST_SERVICES: stringToBoolean(false),
     ENABLE_INGEST_SERVICES: stringToBoolean(true),
 
+    // --- Instance ---
+    SHIPSEC_INSTANCE: z.coerce.number().optional().default(0),
+
     // --- Auth ---
     AUTH_PROVIDER: authProviderSchema,
     CLERK_SECRET_KEY: z.string().optional(),
@@ -45,6 +48,15 @@ export const backendEnvSchema = z
     REDIS_URL: z.string().optional(),
     SESSION_SECRET: z.string().optional().default(''),
     WEBHOOK_BASE_URL: z.string().optional(),
+
+    // --- Internal service auth ---
+    INTERNAL_SERVICE_TOKEN: z.string().optional().default(''),
+    INTEGRATION_STORE_MASTER_KEY: z.string().optional(),
+    ALLOW_INSECURE_INTERNAL_ENDPOINTS: stringToBoolean(false),
+
+    // --- Terminal / Tool Registry Redis ---
+    TERMINAL_REDIS_URL: z.string().optional(),
+    TOOL_REGISTRY_REDIS_URL: z.string().optional(),
 
     // --- OpenSearch ---
     OPENSEARCH_URL: z.string().optional(),
@@ -61,23 +73,86 @@ export const backendEnvSchema = z
     // --- MinIO ---
     MINIO_ROOT_USER: z.string().optional(),
     MINIO_ROOT_PASSWORD: z.string().optional(),
+    MINIO_ENDPOINT: z.string().optional().default('localhost'),
+    MINIO_PORT: z.coerce.number().optional().default(9000),
+    MINIO_USE_SSL: stringToBoolean(false),
+    MINIO_ACCESS_KEY: z.string().optional().default('minioadmin'),
+    MINIO_SECRET_KEY: z.string().optional().default('minioadmin'),
+    MINIO_BUCKET_NAME: z.string().optional().default('shipsec-files'),
 
-    // --- GitHub App ---
-    GITHUB_APP_ID: z.string().optional(),
-    GITHUB_APP_SLUG: z.string().optional(),
+    // --- Kafka client/group/topic customization ---
+    LOG_KAFKA_CLIENT_ID: z.string().optional().default('shipsec-backend'),
+    LOG_KAFKA_GROUP_ID: z.string().optional().default('shipsec-log-ingestor'),
+    LOG_KAFKA_TOPIC: z.string().optional().default('telemetry.logs'),
+    EVENT_KAFKA_CLIENT_ID: z.string().optional().default('shipsec-backend-events'),
+    EVENT_KAFKA_GROUP_ID: z.string().optional().default('shipsec-event-ingestor'),
+    EVENT_KAFKA_TOPIC: z.string().optional().default('telemetry.events'),
+    AGENT_TRACE_KAFKA_CLIENT_ID: z.string().optional().default('shipsec-backend-agent-trace'),
+    AGENT_TRACE_KAFKA_GROUP_ID: z.string().optional().default('shipsec-backend-agent-trace'),
+    AGENT_TRACE_KAFKA_TOPIC: z.string().optional().default('telemetry.agent-trace'),
+    NODE_IO_KAFKA_CLIENT_ID: z.string().optional().default('shipsec-backend-node-io'),
+    NODE_IO_KAFKA_GROUP_ID: z.string().optional().default('shipsec-backend-node-io'),
+    NODE_IO_KAFKA_TOPIC: z.string().optional().default('telemetry.node-io'),
+    ASSET_EVENT_KAFKA_TOPIC: z.string().optional().default('asset.events'),
+
+    // --- GitHub App (required) ---
+    GITHUB_APP_ID: z.string().min(1, 'GITHUB_APP_ID is required'),
+    GITHUB_APP_SLUG: z.string().min(1, 'GITHUB_APP_SLUG is required'),
+    GITHUB_APP_PRIVATE_KEY: z.string().min(1, 'GITHUB_APP_PRIVATE_KEY is required'),
+    GITHUB_APP_WEBHOOK_SECRET: z.string().min(1, 'GITHUB_APP_WEBHOOK_SECRET is required'),
+    GITHUB_APP_CLIENT_ID: z.string().min(1, 'GITHUB_APP_CLIENT_ID is required'),
+    GITHUB_APP_CLIENT_SECRET: z.string().min(1, 'GITHUB_APP_CLIENT_SECRET is required'),
+    GITHUB_API_URL: z.string().optional().default('https://api.github.com'),
+    GITHUB_URL: z.string().optional().default('https://github.com'),
 
     // --- GitHub OAuth ---
     GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
     GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
+    GITHUB_OAUTH_SCOPES: z.string().optional(),
 
     // --- Zoom OAuth ---
     ZOOM_OAUTH_CLIENT_ID: z.string().optional(),
     ZOOM_OAUTH_CLIENT_SECRET: z.string().optional(),
+    ZOOM_OAUTH_SCOPES: z.string().optional(),
+
+    // --- Slack OAuth (required) ---
+    SLACK_OAUTH_CLIENT_ID: z.string().min(1, 'SLACK_OAUTH_CLIENT_ID is required'),
+    SLACK_OAUTH_CLIENT_SECRET: z.string().min(1, 'SLACK_OAUTH_CLIENT_SECRET is required'),
+    SLACK_OAUTH_SCOPES: z.string().optional(),
+
+    // --- AWS ---
+    SHIPSEC_AWS_REGION: z.string().optional(),
+    SHIPSEC_AWS_ACCESS_KEY_ID: z.string().optional(),
+    SHIPSEC_AWS_SECRET_ACCESS_KEY: z.string().optional(),
+    SHIPSEC_AWS_SESSION_TOKEN: z.string().optional(),
+    SHIPSEC_AWS_STRICT_IDENTITY_CHECK: stringToBoolean(false),
+    SHIPSEC_AWS_STS_DURATION_SECONDS: z.coerce.number().optional().default(3600),
+    SHIPSEC_PLATFORM_ROLE_ARN: z.string().min(1, 'SHIPSEC_PLATFORM_ROLE_ARN is required'),
+    AWS_REGION: z.string().optional(),
+    AWS_DEFAULT_REGION: z.string().optional(),
+
+    // --- LiteLLM ---
+    LITELLM_PROXY_URL: z.string().optional(),
+    LITELLM_MASTER_KEY: z.string().optional(),
 
     // --- Platform ---
     PLATFORM_API_URL: z.string().optional().default(''),
     PLATFORM_SERVICE_TOKEN: z.string().optional().default(''),
     PLATFORM_API_TIMEOUT_MS: z.string().optional().default(''),
+
+    // --- Feature flags ---
+    ASSET_DISCOVERY_ENABLED: stringToBoolean(true),
+    MCP_SYNC_TEMPLATES_ON_STARTUP: stringToBoolean(false),
+
+    // --- Migration / version check ---
+    SHIPSEC_SKIP_MIGRATION_CHECK: stringToBoolean(false),
+    SHIPSEC_VERSION_CHECK_URL: z.string().optional(),
+    SHIPSEC_VERSION_CHECK_TIMEOUT_MS: z.coerce.number().optional().default(5000),
+    SHIPSEC_VERSION_CHECK_DISABLED: stringToBoolean(false),
+    SHIPSEC_VERSION_CHECK_VERSION: z.string().optional(),
+
+    // --- CORS ---
+    CORS_EXTRA_ORIGINS: z.string().optional(),
 
     // --- Temporal ---
     TEMPORAL_BOOTSTRAP_DEMO: stringToBoolean(false),
@@ -110,17 +185,6 @@ export const backendEnvSchema = z
           path: ['LOG_KAFKA_BROKERS'],
           message:
             'LOG_KAFKA_BROKERS is required (set SKIP_INGEST_SERVICES=true or ENABLE_INGEST_SERVICES=false to skip)',
-        });
-      }
-    }
-
-    // GITHUB_APP_SLUG required when GITHUB_APP_ID is set
-    if (data.GITHUB_APP_ID) {
-      if (!data.GITHUB_APP_SLUG) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['GITHUB_APP_SLUG'],
-          message: 'GITHUB_APP_SLUG is required when GITHUB_APP_ID is set',
         });
       }
     }

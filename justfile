@@ -295,6 +295,12 @@ prod action="start":
 
     case "{{action}}" in
         start)
+            # Validate .env.docker files before starting containers
+            echo "🔍  Validating environment variables..."
+            bun --env-file="backend/.env.docker" backend/scripts/validate-env.ts || exit 1
+            bun --env-file="worker/.env.docker" worker/scripts/validate-env.ts || exit 1
+            echo ""
+
             if [ "$SECURE_MODE" = "true" ]; then
                 echo "🔐  Starting production environment (secure mode)..."
 
@@ -337,6 +343,12 @@ prod action="start":
             echo "✅  Production stopped"
             ;;
         build)
+            # Validate .env.docker files before building
+            echo "🔍  Validating environment variables..."
+            bun --env-file="backend/.env.docker" backend/scripts/validate-env.ts || exit 1
+            bun --env-file="worker/.env.docker" worker/scripts/validate-env.ts || exit 1
+            echo ""
+
             echo "🔨 Building and starting production..."
 
             # Auto-detect git version: prioritize tag, then SHA, then "dev"
@@ -368,6 +380,12 @@ prod action="start":
             echo "✅  Production cleaned"
             ;;
         start-latest)
+            # Validate .env.docker files before pulling/starting
+            echo "🔍  Validating environment variables..."
+            bun --env-file="backend/.env.docker" backend/scripts/validate-env.ts || exit 1
+            bun --env-file="worker/.env.docker" worker/scripts/validate-env.ts || exit 1
+            echo ""
+
             echo "🔍 Fetching latest release information from GitHub API..."
             if ! command -v curl &> /dev/null || ! command -v jq &> /dev/null; then
                 echo "❌  curl or jq is not installed. Please install them first."

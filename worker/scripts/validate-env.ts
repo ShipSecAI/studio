@@ -15,4 +15,4 @@ if (!result.success) {
   process.exit(1);
 }
 
-console.log('✅  Worker environment OK');
+console.log('✅  Worker .env OK');

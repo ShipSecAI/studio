@@ -138,6 +138,113 @@ Learn more about our design decisions and system components in the **[Architectu
 
 ---
 
+## 🧑‍💻 Development Setup
+
+### Prerequisites
+
+- [Bun](https://bun.sh/) — package manager + runtime
+- [Docker](https://docs.docker.com/get-docker/) — shared infra (Postgres, Temporal, Redpanda, Redis, MinIO, Loki)
+- [just](https://github.com/casey/just) — command runner
+
+### 1. Initialize
+
+```bash
+just init
+```
+
+This installs dependencies and creates `.env` files from the `.env.example` templates:
+
+- `backend/.env` from `backend/.env.example`
+- `worker/.env` from `worker/.env.example`
+- `frontend/.env` from `frontend/.env.example`
+
+### 2. Configure environment
+
+After `just init`, fill in the required credentials before running the app. Get these from a team member or your secrets vault.
+
+#### `backend/.env`
+
+| Variable                        | How to get it                                                                                                   |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `SECRET_STORE_MASTER_KEY`       | Generate: `openssl rand -base64 24 \| head -c 32` (exactly 32 chars). **Copy the same value to `worker/.env`.** |
+| `GITHUB_APP_ID`                 | [GitHub App settings](https://github.com/settings/apps) → App ID                                                |
+| `GITHUB_APP_SLUG`               | URL-friendly name from `github.com/apps/<slug>`                                                                 |
+| `GITHUB_APP_PRIVATE_KEY`        | GitHub App settings → Private keys → Generate (PEM or base64-encoded)                                           |
+| `GITHUB_APP_WEBHOOK_SECRET`     | GitHub App settings → Webhook → Secret                                                                          |
+| `GITHUB_APP_CLIENT_ID`          | GitHub App settings → OAuth credentials                                                                         |
+| `GITHUB_APP_CLIENT_SECRET`      | GitHub App settings → OAuth credentials                                                                         |
+| `SLACK_OAUTH_CLIENT_ID`         | Slack App → OAuth & Permissions                                                                                 |
+| `SLACK_OAUTH_CLIENT_SECRET`     | Slack App → OAuth & Permissions                                                                                 |
+| `SHIPSEC_AWS_REGION`            | Your AWS region (e.g., `us-east-1`)                                                                             |
+| `SHIPSEC_AWS_ACCESS_KEY_ID`     | IAM user or role credentials                                                                                    |
+| `SHIPSEC_AWS_SECRET_ACCESS_KEY` | IAM user or role credentials                                                                                    |
+
+These work out of the box with defaults: `DATABASE_URL`, `LOG_KAFKA_BROKERS`, `LOKI_URL`.
+
+#### `worker/.env`
+
+| Variable                  | How to get it                                                                                   |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `SECRET_STORE_MASTER_KEY` | **Same value as `backend/.env`** — both services encrypt/decrypt secrets in the shared database |
+
+Everything else has safe defaults.
+
+#### `frontend/.env`
+
+No changes needed — defaults work out of the box.
+
+### 3. Run
+
+```bash
+just dev
+```
+
+This starts the shared Docker infra + backend, worker, and frontend via PM2.
+
+You can access the app at: http://localhost (since everything is proxied through nginx).
+
+| Service         | URL                   |
+| --------------- | --------------------- |
+| Frontend        | http://localhost:5173 |
+| Backend API     | http://localhost:3211 |
+| Unified (nginx) | http://localhost      |
+| Temporal UI     | http://localhost:8081 |
+
+### Common commands
+
+```bash
+just dev               # Start dev environment
+just dev stop          # Stop your instance (infra stays running)
+just dev stop all      # Stop everything including infra
+just dev logs          # View logs
+just help              # All commands
+```
+
+### After backend route changes
+
+```bash
+bun --cwd backend run generate:openapi
+bun --cwd packages/backend-client run generate
+```
+
+### Database
+
+```bash
+bun --cwd backend run migration:generate   # Generate migration SQL from schema changes
+bun --cwd backend run migration:migrate    # Apply committed migrations
+bun --cwd backend run db:studio            # View data
+```
+
+### Testing
+
+```bash
+bun run test           # All tests
+bun run typecheck      # Type check
+bun run lint           # Lint
+```
+
+---
+
 ## 🔀 Multi-Instance Development
 
 Run multiple isolated dev instances on one machine for parallel feature work:

@@ -42,6 +42,10 @@ export const frontendEnvSchema = z
     VITE_CLERK_PUBLISHABLE_KEY: z.string().optional().default(''),
     VITE_CLERK_JWT_TEMPLATE: z.string().optional().default(''),
     VITE_API_AUTH_PROVIDER: z.string().optional().default(''),
+
+    // Dev defaults
+    VITE_DEFAULT_ORG: z.string().optional().default(''),
+    VITE_DEFAULT_USER_ID: z.string().optional().default(''),
   })
   .superRefine((data, ctx) => {
     // If auth provider is clerk, VITE_CLERK_PUBLISHABLE_KEY is required

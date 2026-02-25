@@ -81,6 +81,62 @@ just instance-env show 5
 
 `just dev` auto-initializes env files for the active instance when missing (without overwriting existing files).
 
+## Environment Configuration
+
+Each service has its own `.env` file created from its `.env.example` template:
+
+| File            | Service           | Created by                                   |
+| --------------- | ----------------- | -------------------------------------------- |
+| `backend/.env`  | Backend (NestJS)  | `just init` → copies `backend/.env.example`  |
+| `worker/.env`   | Worker (Temporal) | `just init` → copies `worker/.env.example`   |
+| `frontend/.env` | Frontend (Vite)   | `just init` → copies `frontend/.env.example` |
+
+**There is no root `.env` for shared config.** If a root `.env` exists it is a leftover and can be deleted — nothing reads it. PM2 loads each service's own `.env` via `env_file` (see `pm2.config.cjs`).
+
+For first-time environment setup (which variables to fill in), see the [Development Setup section in README.md](../README.md#-development-setup).
+
+### Env loading order
+
+1. **PM2** reads the service's `.env` file (or per-instance override from `.instances/instance-N/`)
+2. **PM2 `env:` block** overrides specific values (Temporal namespace, Kafka client IDs, ports — all instance-scoped)
+3. **Zod schema** validates and applies defaults for any unset optional vars
+
+### Variables that must match across services
+
+These variables appear in both `backend/.env` and `worker/.env` and **must have identical values** — they share the same database, encryption keys, and infrastructure:
+
+| Variable                           | Why it must match                                  |
+| ---------------------------------- | -------------------------------------------------- |
+| `SECRET_STORE_MASTER_KEY`          | Same encryption key for secrets in shared Postgres |
+| `DATABASE_URL`                     | Same database (PM2 overrides per-instance DB name) |
+| `LOG_KAFKA_BROKERS`                | Same Kafka cluster                                 |
+| `OPENSEARCH_URL`                   | Same OpenSearch cluster (if enabled)               |
+| `OPENSEARCH_USERNAME` / `PASSWORD` | Same OpenSearch credentials                        |
+
+### Env vars with auto-defaults (safe to omit)
+
+These are set by PM2 or have schema defaults — you don't need them in `.env` files:
+
+| Variable              | Default                    | Set by                |
+| --------------------- | -------------------------- | --------------------- |
+| `TEMPORAL_ADDRESS`    | `localhost:7233`           | PM2 + schema          |
+| `TEMPORAL_NAMESPACE`  | `shipsec-dev-N`            | PM2 (instance-scoped) |
+| `TEMPORAL_TASK_QUEUE` | `shipsec-dev-N`            | PM2 (instance-scoped) |
+| `PORT`                | `3211 + N*100`             | PM2 (instance-scoped) |
+| `MINIO_*`             | `localhost` / `minioadmin` | Schema defaults       |
+| `LOG_KAFKA_CLIENT_ID` | `shipsec-backend-N`        | PM2 (instance-scoped) |
+| `LOG_KAFKA_GROUP_ID`  | `shipsec-*-N`              | PM2 (instance-scoped) |
+
+### Production vs local dev
+
+| Concern              | Local dev                | Production                                              |
+| -------------------- | ------------------------ | ------------------------------------------------------- |
+| Orchestrator         | PM2 (`pm2.config.cjs`)   | Docker Compose (`docker-compose.full.yml`)              |
+| Env source           | `{service}/.env` files   | Inline `environment:` in Compose                        |
+| Service addresses    | `localhost:PORT`         | Docker service names (`temporal:7233`, `redpanda:9092`) |
+| Temporal namespace   | `shipsec-dev-N`          | `shipsec-prod`                                          |
+| `.env.example` files | Template for `just init` | Not used                                                |
+
 ## Port Map
 
 Ports are offset by `N * 100`:
@@ -98,7 +154,7 @@ Shared infra (fixed ports, same for all instances):
 | Temporal         | 7233        |
 | Temporal UI      | 8081        |
 | Redis            | 6379        |
-| Redpanda (Kafka) | 19092       |
+| Redpanda (Kafka) | 9092        |
 | Redpanda Console | 8082        |
 | MinIO API/UI     | 9000 / 9001 |
 | Loki             | 3100        |
@@ -192,6 +248,8 @@ If any required variable is missing or malformed, startup aborts with a clear er
 ### .env Gotchas
 
 **Instance-aware DATABASE_URL**: PM2 creates per-instance databases named `shipsec_instance_N`. Your `backend/.env` and `worker/.env` must use this naming (e.g., `shipsec_instance_0`), not the bare `shipsec` database. The `.env.example` files reflect this.
+
+**No root `.env`**: Do not use a root `.env` for shared config. Each service reads only its own `.env` file via PM2's `env_file`. If a root `.env` exists, it is ignored by PM2 (Vite may read it as a fallback, but `frontend/.env` takes precedence).
 
 **No inline comments in .env**: PM2's env loader strips inline comments for unquoted values (e.g., `KEY=value # comment`), but some tools do not. Avoid inline comments entirely — use a full-line comment above the variable instead.
 

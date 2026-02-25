@@ -15,4 +15,4 @@ if (!result.success) {
   process.exit(1);
 }
 
-console.log('✅  Backend environment OK');
+console.log('✅  Backend .env OK');
