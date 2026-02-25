@@ -165,8 +165,8 @@ function App() {
     <AuthProvider>
       <AuthIntegration>
         <QueryClientProvider client={queryClient}>
-          <ToastProvider>
-            <BrowserRouter>
+          <BrowserRouter>
+            <ToastProvider>
               <TooltipProvider>
                 <CommandPaletteProvider>
                   {/* Analytics wiring */}
@@ -266,8 +266,8 @@ function App() {
                   </AppLayout>
                 </CommandPaletteProvider>
               </TooltipProvider>
-            </BrowserRouter>
-          </ToastProvider>
+            </ToastProvider>
+          </BrowserRouter>
           {import.meta.env.DEV && env.VITE_ENABLE_DEVTOOLS && (
             <Suspense fallback={null}>
               <ReactQueryDevtools />

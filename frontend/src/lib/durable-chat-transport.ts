@@ -98,7 +98,10 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     afterSeq: number,
     headers: Record<string, string>,
   ): ReadableStream<UIMessageChunk> {
-    const url = new URL(`${this.options.apiBase}/chat/sessions/${sessionId}/stream`);
+    const url = new URL(
+      `${this.options.apiBase}/chat/sessions/${sessionId}/stream`,
+      window.location.origin,
+    );
     url.searchParams.set('runId', runId);
     url.searchParams.set('afterSeq', String(afterSeq));
 
