@@ -85,6 +85,15 @@ dev action="start":
                 exit 1
             fi
 
+            # Validate environments early (fail fast before starting containers)
+            # Validates base .env files — these are the source of truth that users edit.
+            # Instance env files (.instances/instance-N/) are derived from these.
+            echo "🔍  Validating environment variables..."
+            bun --env-file="backend/.env" backend/scripts/validate-env.ts || exit 1
+            bun --env-file="worker/.env" worker/scripts/validate-env.ts || exit 1
+            bun --env-file="frontend/.env" frontend/scripts/validate-env.ts || exit 1
+            echo ""
+
             # Auto-init instance env files if missing (never overwrites)
             if [ "$INST" != "0" ] || [ ! -d ".instances/instance-0" ]; then
                 ./scripts/instance-env.sh init "$INST"
@@ -136,13 +145,6 @@ dev action="start":
                 DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/${DB_NAME}" \
                     bun --cwd=backend run migration:migrate
 
-                # Validate environments before starting PM2
-                # Mirrors pm2.config.cjs resolveEnvFile: prefer .instances/instance-N/<app>.env, fall back to <app>/.env
-                resolve_env() { local f=".instances/instance-${INST}/${1}.env"; [ -f "$f" ] && echo "$f" || echo "${1}/.env"; }
-                bun --env-file="$(resolve_env backend)" backend/scripts/validate-env.ts || exit 1
-                bun --env-file="$(resolve_env worker)" worker/scripts/validate-env.ts || exit 1
-                bun --env-file="$(resolve_env frontend)" frontend/scripts/validate-env.ts || exit 1
-
                 # Update git SHA and start PM2 with security enabled
                 ./scripts/set-git-sha.sh || true
                 SHIPSEC_INSTANCE="$INST" SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=true NODE_TLS_REJECT_UNAUTHORIZED=0 \
@@ -189,13 +191,6 @@ dev action="start":
                 echo "🗄️  Running database migrations..."
                 DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/${DB_NAME}" \
                     bun --cwd=backend run migration:migrate
-
-                # Validate environments before starting PM2
-                # Mirrors pm2.config.cjs resolveEnvFile: prefer .instances/instance-N/<app>.env, fall back to <app>/.env
-                resolve_env() { local f=".instances/instance-${INST}/${1}.env"; [ -f "$f" ] && echo "$f" || echo "${1}/.env"; }
-                bun --env-file="$(resolve_env backend)" backend/scripts/validate-env.ts || exit 1
-                bun --env-file="$(resolve_env worker)" worker/scripts/validate-env.ts || exit 1
-                bun --env-file="$(resolve_env frontend)" frontend/scripts/validate-env.ts || exit 1
 
                 # Update git SHA and start PM2
                 ./scripts/set-git-sha.sh || true
