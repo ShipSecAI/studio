@@ -85,10 +85,9 @@ dev action="start":
                 exit 1
             fi
 
-            # Auto-init instance env files if missing (never overwrites)
-            if [ "$INST" != "0" ] || [ ! -d ".instances/instance-0" ]; then
-                ./scripts/instance-env.sh init "$INST"
-            fi
+            # Always regenerate instance env files from root .env so edits
+            # to backend/.env, worker/.env, frontend/.env take effect.
+            ./scripts/instance-env.sh init "$INST" --force
 
             # Validate the env files PM2 will actually use (instance files if they exist, base otherwise)
             echo "🔍  Validating environment variables..."
