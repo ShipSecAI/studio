@@ -21,3 +21,4 @@ export * from './mcp-servers';
 
 export * from './node-io';
 export * from './organization-settings';
+export * from './templates';

@@ -63,6 +63,11 @@ export const queryKeys = {
     terminalChunks: (runId: string, nodeRef: string, stream: string) =>
       ['executionTerminal', getOrgScope(), runId, nodeRef, stream] as const,
   },
+  templates: {
+    all: (filters?: Record<string, unknown>) => ['templates', getOrgScope(), filters] as const,
+    categories: () => ['templateCategories', getOrgScope()] as const,
+    tags: () => ['templateTags', getOrgScope()] as const,
+  },
   workflows: {
     list: () => ['workflows', getOrgScope()] as const,
     summary: () => ['workflowsSummary', getOrgScope()] as const,

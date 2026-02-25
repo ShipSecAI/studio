@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'  # Triggers on tags like v1.0.0, v1.2.3, etc.
+      - 'v*.*.*' # Triggers on tags like v1.0.0, v1.2.3, etc.
   workflow_dispatch:
     inputs:
       version:
@@ -27,7 +27,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for changelog generation
+          fetch-depth: 0 # Full history for changelog generation
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -62,7 +62,7 @@ jobs:
           # Check if this is the latest tag (highest semver)
           CURRENT_TAG="${{ steps.version.outputs.version_clean }}"
           LATEST_TAG=$(git tag -l 'v*.*.*' | sort -V | tail -1 | sed 's/^v//')
-          
+
           if [ "$CURRENT_TAG" = "$LATEST_TAG" ]; then
             echo "is_latest=true" >> $GITHUB_OUTPUT
             echo "This is the latest release"
@@ -81,7 +81,7 @@ jobs:
           # Convert repository owner to lowercase for Docker registry compatibility
           IMAGE_PREFIX_LOWER=$(echo "${{ env.IMAGE_PREFIX }}" | tr '[:upper:]' '[:lower:]')
           VERSION_TAG="${{ env.REGISTRY }}/${IMAGE_PREFIX_LOWER}-backend:${{ steps.version.outputs.version_clean }}"
-          
+
           if [ "${{ steps.is_latest.outputs.is_latest }}" = "true" ]; then
             echo "backend_tags<<EOF" >> $GITHUB_OUTPUT
             echo "$VERSION_TAG" >> $GITHUB_OUTPUT
@@ -166,10 +166,10 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          
+
           # Convert repository owner to lowercase for Docker registry compatibility
           IMAGE_PREFIX_LOWER=$(echo "${{ env.IMAGE_PREFIX }}" | tr '[:upper:]' '[:lower:]')
-          
+
           if [ -z "$PREVIOUS_TAG" ]; then
             echo "No previous tag found, generating full changelog"
             CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
@@ -177,11 +177,11 @@ jobs:
             echo "Generating changelog from $PREVIOUS_TAG to $VERSION"
             CHANGELOG=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
           fi
-          
+
           if [ -z "$CHANGELOG" ]; then
             CHANGELOG="No changes detected"
           fi
-          
+
           {
             echo "## Release $VERSION"
             echo ""
@@ -195,7 +195,7 @@ jobs:
             echo ""
             echo "$CHANGELOG"
           } > CHANGELOG.md
-          
+
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
           cat CHANGELOG.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT

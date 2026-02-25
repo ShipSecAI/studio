@@ -75,6 +75,17 @@ export const backendEnvSchema = z
     PLATFORM_SERVICE_TOKEN: z.string().optional().default(''),
     PLATFORM_API_TIMEOUT_MS: z.string().optional().default(''),
 
+    // --- GitHub Template Library ---
+    GITHUB_TEMPLATE_REPO: z
+      .string()
+      .optional()
+      .default('shipsecai/workflow-templates')
+      .refine((v) => v.includes('/'), {
+        message: 'GITHUB_TEMPLATE_REPO must be in owner/repo format',
+      }),
+    GITHUB_TEMPLATE_BRANCH: z.string().optional().default('main'),
+    GITHUB_TEMPLATE_TOKEN: z.string().optional(),
+
     // --- Temporal ---
     TEMPORAL_BOOTSTRAP_DEMO: stringToBoolean(false),
   })

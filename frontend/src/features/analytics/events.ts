@@ -14,6 +14,8 @@ export const Events = {
   NodeAdded: 'ui_node_added',
   SecretCreated: 'ui_secret_created',
   SecretDeleted: 'ui_secret_deleted',
+  TemplateUseClicked: 'ui_template_use_clicked',
+  TemplatePublishClicked: 'ui_template_publish_clicked',
 } as const;
 
 type EventName = (typeof Events)[keyof typeof Events];
@@ -56,6 +58,15 @@ const payloadSchemas: Record<EventName, z.ZodSchema<Properties>> = {
   }),
   [Events.SecretDeleted]: z.object({
     name_length: z.number().int().nonnegative().optional(),
+  }),
+  [Events.TemplateUseClicked]: z.object({
+    template_id: z.string().optional(),
+    template_name: z.string().optional(),
+    category: z.string().optional(),
+  }),
+  [Events.TemplatePublishClicked]: z.object({
+    workflow_id: z.string().optional(),
+    template_name: z.string().optional(),
   }),
 };
 

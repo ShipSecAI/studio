@@ -22,6 +22,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 const WorkflowList = lazy(() =>
   import('@/pages/WorkflowList').then((m) => ({ default: m.WorkflowList })),
 );
+const TemplateLibraryPage = lazy(() =>
+  import('@/pages/TemplateLibraryPage').then((m) => ({ default: m.TemplateLibraryPage })),
+);
 const WorkflowBuilder = lazy(() =>
   import('@/features/workflow-builder/WorkflowBuilder').then((m) => ({
     default: m.WorkflowBuilder,
@@ -141,6 +144,7 @@ function App() {
                     <Suspense fallback={<PageSkeleton />}>
                       <Routes>
                         <Route path="/" element={<WorkflowList />} />
+                        <Route path="/templates" element={<TemplateLibraryPage />} />
                         <Route
                           path="/workflows/:id"
                           element={
