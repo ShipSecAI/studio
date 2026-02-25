@@ -111,15 +111,29 @@ dev action="start":
 
                 # Wait for Postgres to be fully ready (not just accepting connections, but able to execute queries)
                 echo "⏳  Waiting for infrastructure..."
-                timeout 60s bash -c 'until docker exec shipsec-postgres psql -U shipsec -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
+                timeout 90s bash -c 'until docker exec shipsec-postgres psql -U shipsec -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
 
                 # Wait for OpenSearch to be healthy (security init takes longer)
                 echo "⏳  Waiting for OpenSearch security initialization..."
                 timeout 120s bash -c 'until docker exec shipsec-opensearch curl -sf -u admin:${OPENSEARCH_ADMIN_PASSWORD:-admin} --cacert /usr/share/opensearch/config/certs/root-ca.pem https://localhost:9200/_cluster/health >/dev/null 2>&1; do sleep 2; done' || true
 
+                # Resolve database name: instance 0 uses 'shipsec', others use 'shipsec_instance_N'
+                if [ "$INST" = "0" ]; then
+                    DB_NAME="shipsec"
+                else
+                    DB_NAME="shipsec_instance_${INST}"
+                fi
+
+                # Lazily create instance database if it doesn't exist
+                echo "🗄️  Ensuring instance database exists..."
+                docker exec shipsec-postgres psql -U shipsec -d postgres -c \
+                    "SELECT 'CREATE DATABASE \"${DB_NAME}\" OWNER shipsec' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${DB_NAME}')" \
+                    --tuples-only --no-align | grep -q 'CREATE DATABASE' && \
+                    docker exec shipsec-postgres psql -U shipsec -d postgres -c "CREATE DATABASE \"${DB_NAME}\" OWNER shipsec" || true
+
                 # Apply committed migrations before PM2 startup
                 echo "🗄️  Running database migrations..."
-                DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/shipsec_instance_${INST}" \
+                DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/${DB_NAME}" \
                     bun --cwd=backend run migration:migrate
 
                 # Validate environments before starting PM2
@@ -155,11 +169,25 @@ dev action="start":
 
                 # Wait for Postgres to be fully ready (not just accepting connections, but able to execute queries)
                 echo "⏳  Waiting for infrastructure..."
-                timeout 60s bash -c 'until docker exec shipsec-postgres psql -U shipsec -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
+                timeout 90s bash -c 'until docker exec shipsec-postgres psql -U shipsec -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
+
+                # Resolve database name: instance 0 uses 'shipsec', others use 'shipsec_instance_N'
+                if [ "$INST" = "0" ]; then
+                    DB_NAME="shipsec"
+                else
+                    DB_NAME="shipsec_instance_${INST}"
+                fi
+
+                # Lazily create instance database if it doesn't exist
+                echo "🗄️  Ensuring instance database exists..."
+                docker exec shipsec-postgres psql -U shipsec -d postgres -c \
+                    "SELECT 'CREATE DATABASE \"${DB_NAME}\" OWNER shipsec' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${DB_NAME}')" \
+                    --tuples-only --no-align | grep -q 'CREATE DATABASE' && \
+                    docker exec shipsec-postgres psql -U shipsec -d postgres -c "CREATE DATABASE \"${DB_NAME}\" OWNER shipsec" || true
 
                 # Apply committed migrations before PM2 startup
                 echo "🗄️  Running database migrations..."
-                DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/shipsec_instance_${INST}" \
+                DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/${DB_NAME}" \
                     bun --cwd=backend run migration:migrate
 
                 # Validate environments before starting PM2
