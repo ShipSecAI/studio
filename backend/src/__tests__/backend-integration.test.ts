@@ -2,7 +2,8 @@ import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import { AppModule } from '../app.module';
+// Dynamic import to avoid triggering ConfigModule validation when tests are skipped
+let AppModule: any;
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
@@ -139,6 +140,10 @@ interface Component {
 
   beforeAll(async () => {
     console.log('🚀 Starting backend integration test setup...');
+
+    // Dynamic import to avoid triggering env validation when tests are skipped
+    const appModule = await import('../app.module');
+    AppModule = appModule.AppModule;
 
     // Create NestJS test application
     const moduleFixture: TestingModule = await Test.createTestingModule({

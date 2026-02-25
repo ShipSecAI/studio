@@ -7,6 +7,15 @@ function validEnv(overrides: Record<string, string> = {}): Record<string, string
     DATABASE_URL: 'postgresql://user:pass@localhost:5432/db',
     SECRET_STORE_MASTER_KEY: 'a'.repeat(32),
     LOG_KAFKA_BROKERS: 'localhost:9092',
+    GITHUB_APP_ID: '12345',
+    GITHUB_APP_SLUG: 'my-app',
+    GITHUB_APP_PRIVATE_KEY: 'test-private-key',
+    GITHUB_APP_WEBHOOK_SECRET: 'test-webhook-secret',
+    GITHUB_APP_CLIENT_ID: 'test-client-id',
+    GITHUB_APP_CLIENT_SECRET: 'test-client-secret',
+    SLACK_OAUTH_CLIENT_ID: 'test-slack-client-id',
+    SLACK_OAUTH_CLIENT_SECRET: 'test-slack-client-secret',
+    SHIPSEC_PLATFORM_ROLE_ARN: 'arn:aws:iam::123456789012:role/test-role',
     ...overrides,
   };
 }
@@ -28,16 +37,18 @@ describe('backendEnvSchema', () => {
   });
 
   it('passes when SKIP_INGEST_SERVICES=true without DATABASE_URL and LOG_KAFKA_BROKERS', () => {
+    const { DATABASE_URL, LOG_KAFKA_BROKERS, ...rest } = validEnv();
     const result = backendEnvSchema.safeParse({
-      SECRET_STORE_MASTER_KEY: 'a'.repeat(32),
+      ...rest,
       SKIP_INGEST_SERVICES: 'true',
     });
     expect(result.success).toBe(true);
   });
 
   it('passes when ENABLE_INGEST_SERVICES=false without DATABASE_URL and LOG_KAFKA_BROKERS', () => {
+    const { DATABASE_URL, LOG_KAFKA_BROKERS, ...rest } = validEnv();
     const result = backendEnvSchema.safeParse({
-      SECRET_STORE_MASTER_KEY: 'a'.repeat(32),
+      ...rest,
       ENABLE_INGEST_SERVICES: 'false',
     });
     expect(result.success).toBe(true);
@@ -94,25 +105,36 @@ describe('backendEnvSchema', () => {
     }
   });
 
-  it('fails when GITHUB_APP_ID is set without GITHUB_APP_SLUG', () => {
-    const result = backendEnvSchema.safeParse(validEnv({ GITHUB_APP_ID: '12345' }));
+  it('fails when required GitHub App fields are missing', () => {
+    const { GITHUB_APP_ID, GITHUB_APP_SLUG, ...rest } = validEnv();
+    const result = backendEnvSchema.safeParse(rest);
     expect(result.success).toBe(false);
     if (!result.success) {
       const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths).toContain('GITHUB_APP_ID');
       expect(paths).toContain('GITHUB_APP_SLUG');
     }
   });
 
-  it('passes when GITHUB_APP_ID is set with GITHUB_APP_SLUG', () => {
-    const result = backendEnvSchema.safeParse(
-      validEnv({ GITHUB_APP_ID: '12345', GITHUB_APP_SLUG: 'my-app' }),
-    );
-    expect(result.success).toBe(true);
+  it('fails when required Slack OAuth fields are missing', () => {
+    const { SLACK_OAUTH_CLIENT_ID, SLACK_OAUTH_CLIENT_SECRET, ...rest } = validEnv();
+    const result = backendEnvSchema.safeParse(rest);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths).toContain('SLACK_OAUTH_CLIENT_ID');
+      expect(paths).toContain('SLACK_OAUTH_CLIENT_SECRET');
+    }
   });
 
-  it('passes when neither GITHUB_APP_ID nor GITHUB_APP_SLUG is set', () => {
-    const result = backendEnvSchema.safeParse(validEnv());
-    expect(result.success).toBe(true);
+  it('fails when SHIPSEC_PLATFORM_ROLE_ARN is missing', () => {
+    const { SHIPSEC_PLATFORM_ROLE_ARN, ...rest } = validEnv();
+    const result = backendEnvSchema.safeParse(rest);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths).toContain('SHIPSEC_PLATFORM_ROLE_ARN');
+    }
   });
 
   it('coerces PORT string to number', () => {

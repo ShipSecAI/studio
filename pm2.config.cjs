@@ -250,7 +250,10 @@ const isProduction = environment === 'production';
 
 // Get instance number (0-9) for multi-instance support
 const instanceNum = process.env.SHIPSEC_INSTANCE || '0';
-const instanceDatabaseUrl = `postgresql://shipsec:shipsec@localhost:5433/shipsec_instance_${instanceNum}`;
+// Instance 0 uses the default 'shipsec' DB (auto-created by POSTGRES_DB in docker-compose),
+// others use 'shipsec_instance_N' (lazily created by `just dev`).
+const instanceDbName = instanceNum === '0' ? 'shipsec' : `shipsec_instance_${instanceNum}`;
+const instanceDatabaseUrl = `postgresql://shipsec:shipsec@localhost:5433/${instanceDbName}`;
 // Only set these defaults for local development. In production, credentials must
 // come from the environment / deployment config.
 const devInstanceEnv = isProduction

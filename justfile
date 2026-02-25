@@ -85,19 +85,21 @@ dev action="start":
                 exit 1
             fi
 
-            # Validate environments early (fail fast before starting containers)
-            # Validates base .env files — these are the source of truth that users edit.
-            # Instance env files (.instances/instance-N/) are derived from these.
-            echo "🔍  Validating environment variables..."
-            bun --env-file="backend/.env" backend/scripts/validate-env.ts || exit 1
-            bun --env-file="worker/.env" worker/scripts/validate-env.ts || exit 1
-            bun --env-file="frontend/.env" frontend/scripts/validate-env.ts || exit 1
-            echo ""
-
             # Auto-init instance env files if missing (never overwrites)
             if [ "$INST" != "0" ] || [ ! -d ".instances/instance-0" ]; then
                 ./scripts/instance-env.sh init "$INST"
             fi
+
+            # Validate the env files PM2 will actually use (instance files if they exist, base otherwise)
+            echo "🔍  Validating environment variables..."
+            INST_DIR=".instances/instance-${INST}"
+            BE_ENV="${INST_DIR}/backend.env"; [ ! -f "$BE_ENV" ] && BE_ENV="backend/.env"
+            WK_ENV="${INST_DIR}/worker.env";  [ ! -f "$WK_ENV" ] && WK_ENV="worker/.env"
+            FE_ENV="${INST_DIR}/frontend.env"; [ ! -f "$FE_ENV" ] && FE_ENV="frontend/.env"
+            bun --env-file="$BE_ENV" backend/scripts/validate-env.ts || exit 1
+            bun --env-file="$WK_ENV" worker/scripts/validate-env.ts || exit 1
+            bun --env-file="$FE_ENV" frontend/scripts/validate-env.ts || exit 1
+            echo ""
 
             # Ensure native PTY module is rebuilt for current Node runtime
             ./scripts/ensure-node-pty.sh
@@ -126,12 +128,8 @@ dev action="start":
                 echo "⏳  Waiting for OpenSearch security initialization..."
                 timeout 120s bash -c 'until docker exec shipsec-opensearch curl -sf -u admin:${OPENSEARCH_ADMIN_PASSWORD:-admin} --cacert /usr/share/opensearch/config/certs/root-ca.pem https://localhost:9200/_cluster/health >/dev/null 2>&1; do sleep 2; done' || true
 
-                # Resolve database name: instance 0 uses 'shipsec', others use 'shipsec_instance_N'
-                if [ "$INST" = "0" ]; then
-                    DB_NAME="shipsec"
-                else
-                    DB_NAME="shipsec_instance_${INST}"
-                fi
+                # Instance 0 uses 'shipsec' (auto-created by docker-compose), others use 'shipsec_instance_N'
+                if [ "$INST" = "0" ]; then DB_NAME="shipsec"; else DB_NAME="shipsec_instance_${INST}"; fi
 
                 # Lazily create instance database if it doesn't exist
                 echo "🗄️  Ensuring instance database exists..."
@@ -173,12 +171,8 @@ dev action="start":
                 echo "⏳  Waiting for infrastructure..."
                 timeout 90s bash -c 'until docker exec shipsec-postgres psql -U shipsec -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
 
-                # Resolve database name: instance 0 uses 'shipsec', others use 'shipsec_instance_N'
-                if [ "$INST" = "0" ]; then
-                    DB_NAME="shipsec"
-                else
-                    DB_NAME="shipsec_instance_${INST}"
-                fi
+                # Instance 0 uses 'shipsec' (auto-created by docker-compose), others use 'shipsec_instance_N'
+                if [ "$INST" = "0" ]; then DB_NAME="shipsec"; else DB_NAME="shipsec_instance_${INST}"; fi
 
                 # Lazily create instance database if it doesn't exist
                 echo "🗄️  Ensuring instance database exists..."
