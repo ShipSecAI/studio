@@ -17,6 +17,7 @@ export default tseslint.config(
       '**/*.js',
       '**/*.mjs',
       '**/*.cjs',
+      'scripts/',
     ],
   },
   js.configs.recommended,
@@ -32,7 +33,7 @@ export default tseslint.config(
         ...globals.es2024,
       },
       parserOptions: {
-        project: ['./tsconfig.json', './tsconfig.scripts.json'],
+        projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },
