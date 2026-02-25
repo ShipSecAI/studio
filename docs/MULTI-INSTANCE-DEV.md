@@ -173,6 +173,30 @@ bun run test:e2e
 SHIPSEC_INSTANCE=2 bun run test:e2e
 ```
 
+## Environment Validation
+
+`just dev` runs pre-flight environment validation before starting PM2. Each service's `.env` file is checked against its Zod schema:
+
+```
+✅  Backend environment OK
+✅  Worker environment OK
+✅  Frontend environment OK
+```
+
+If any required variable is missing or malformed, startup aborts with a clear error pointing to the relevant `.env.example` file. The validation scripts live at:
+
+- `backend/scripts/validate-env.ts`
+- `worker/scripts/validate-env.ts`
+- `frontend/scripts/validate-env.ts`
+
+### .env Gotchas
+
+**Instance-aware DATABASE_URL**: PM2 creates per-instance databases named `shipsec_instance_N`. Your `backend/.env` and `worker/.env` must use this naming (e.g., `shipsec_instance_0`), not the bare `shipsec` database. The `.env.example` files reflect this.
+
+**No inline comments in .env**: PM2's env loader strips inline comments for unquoted values (e.g., `KEY=value # comment`), but some tools do not. Avoid inline comments entirely — use a full-line comment above the variable instead.
+
+**Chat AI variables**: The worker requires `CHAT_AI_BASE_URL`, `CHAT_AI_API_KEY`, `CHAT_AI_MODEL_ID`, and `CHAT_AI_PROVIDER` for the chat feature. See `worker/.env.example` for reference values.
+
 ## Troubleshooting
 
 ### Port already in use
