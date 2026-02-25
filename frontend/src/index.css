@@ -10,6 +10,12 @@
 /* Use class-based dark mode */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Restore container centering + padding lost in Tailwind v4 migration */
+@utility container {
+  margin-inline: auto;
+  padding-inline: 2rem;
+}
+
 @theme {
   /* Container */
   --container-2xl: 1400px;
