@@ -80,6 +80,10 @@ vite.config.ts.timestamp-*
 .omc/
 MCP_FLOW_TRACE.md
 
+# Mutagen (machine-specific sync config)
+mutagen.yml
+mutagen.yml.lock
+
 # Terraform / OpenTofu
 .terraform/
 *.tfstate
