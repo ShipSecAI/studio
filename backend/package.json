@@ -14,6 +14,7 @@
     "generate:openapi": "bun scripts/generate-openapi.ts",
     "migration:generate": "bun x drizzle-kit generate",
     "migration:migrate": "bun x drizzle-kit migrate",
+    "migration:deploy": "bun scripts/migrate-deploy.ts",
     "migration:push": "bun x drizzle-kit push",
     "stamp-baseline": "bun scripts/stamp-baseline.ts",
     "migration:smoke": "bun scripts/migration-smoke.ts",

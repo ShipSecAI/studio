@@ -53,8 +53,8 @@ WORKDIR /app/backend
 # Expose port
 EXPOSE 3211
 
-# Run migrations first, then start backend
-CMD ["sh", "-c", "bun run migration:migrate && bun src/main.ts"]
+# Safely align legacy DBs with baseline, then apply forward migrations.
+CMD ["sh", "-c", "bun run migration:deploy && bun src/main.ts"]
 
 # ============================================================================
 # WORKER SERVICE

@@ -138,6 +138,84 @@ CREATE TABLE "assets" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "audit_logs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"organization_id" varchar(191),
+	"actor_id" varchar(191),
+	"actor_type" varchar(32) NOT NULL,
+	"actor_display" varchar(191),
+	"action" varchar(64) NOT NULL,
+	"resource_type" varchar(32) NOT NULL,
+	"resource_id" varchar(191),
+	"resource_name" varchar(191),
+	"metadata" jsonb DEFAULT 'null'::jsonb,
+	"ip" varchar(64),
+	"user_agent" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "billing_usage_events" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"idempotency_key" varchar(191) NOT NULL,
+	"organization_id" varchar(191) NOT NULL,
+	"occurred_at" timestamp with time zone NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"channel" varchar(64) NOT NULL,
+	"meter_key" varchar(64) NOT NULL,
+	"units" bigint NOT NULL,
+	"model" varchar(191),
+	"provider" varchar(64),
+	"workflow_id" uuid,
+	"run_id" text,
+	"node_ref" text,
+	"agent_run_id" text,
+	"actor_id" varchar(191),
+	"request_id" text,
+	"trace_id" text,
+	"cost_micros" bigint,
+	"pricing_version" varchar(32),
+	"settlement_status" varchar(32) DEFAULT 'pending' NOT NULL,
+	"settled_at" timestamp with time zone,
+	"raw_payload" jsonb
+);
+--> statement-breakpoint
+CREATE TABLE "chat_messages" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"session_id" uuid NOT NULL,
+	"role" text NOT NULL,
+	"parts" jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "chat_partial_responses" (
+	"session_id" uuid PRIMARY KEY NOT NULL,
+	"parts" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "chat_sessions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" text NOT NULL,
+	"organization_id" varchar(191),
+	"title" text DEFAULT 'New Conversation' NOT NULL,
+	"status" text DEFAULT 'active' NOT NULL,
+	"processing_status" text DEFAULT 'idle' NOT NULL,
+	"active_run_id" uuid,
+	"next_event_seq" integer DEFAULT 1 NOT NULL,
+	"temporal_workflow_id" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "chat_stream_events" (
+	"id" bigserial PRIMARY KEY NOT NULL,
+	"session_id" uuid NOT NULL,
+	"run_id" uuid NOT NULL,
+	"seq" integer NOT NULL,
+	"event" jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "files" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"file_name" varchar(255) NOT NULL,
@@ -592,10 +670,34 @@ CREATE TABLE "workflow_templates" (
 	CONSTRAINT "workflow_templates_slug_unique" UNIQUE("slug")
 );
 --> statement-breakpoint
+CREATE TABLE "user_settings" (
+	"user_id" varchar(191) PRIMARY KEY NOT NULL,
+	"aws_external_id" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "subscription_plans" (
+	"id" varchar(50) PRIMARY KEY NOT NULL,
+	"display_name" varchar(100) NOT NULL,
+	"price_usd_cents" integer NOT NULL,
+	"workflow_runs_per_month" integer NOT NULL,
+	"ai_budget_usd_cents" integer NOT NULL,
+	"max_concurrent_runs" integer NOT NULL,
+	"analytics_retention_days" integer NOT NULL,
+	"max_workflows" integer NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 ALTER TABLE "artifacts" ADD CONSTRAINT "artifacts_file_id_files_id_fk" FOREIGN KEY ("file_id") REFERENCES "public"."files"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "asm_assets" ADD CONSTRAINT "asm_assets_domain_id_asm_domains_id_fk" FOREIGN KEY ("domain_id") REFERENCES "public"."asm_domains"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "asset_scan_status" ADD CONSTRAINT "asset_scan_status_asset_id_assets_id_fk" FOREIGN KEY ("asset_id") REFERENCES "public"."assets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "asset_sync_run_scopes" ADD CONSTRAINT "asset_sync_run_scopes_sync_run_id_asset_sync_runs_id_fk" FOREIGN KEY ("sync_run_id") REFERENCES "public"."asset_sync_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_messages" ADD CONSTRAINT "chat_messages_session_id_chat_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."chat_sessions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_partial_responses" ADD CONSTRAINT "chat_partial_responses_session_id_chat_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."chat_sessions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_stream_events" ADD CONSTRAINT "chat_stream_events_session_id_chat_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."chat_sessions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "github_repositories" ADD CONSTRAINT "github_repositories_installation_id_github_app_installations_id_fk" FOREIGN KEY ("installation_id") REFERENCES "public"."github_app_installations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "github_scan_results" ADD CONSTRAINT "github_scan_results_repository_id_github_repositories_id_fk" FOREIGN KEY ("repository_id") REFERENCES "public"."github_repositories"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "github_scan_results" ADD CONSTRAINT "github_scan_results_trigger_rule_id_github_trigger_rules_id_fk" FOREIGN KEY ("trigger_rule_id") REFERENCES "public"."github_trigger_rules"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -623,6 +725,19 @@ CREATE UNIQUE INDEX "assets_org_provider_type_external_uidx" ON "assets" USING b
 CREATE INDEX "assets_org_asset_type_idx" ON "assets" USING btree ("organization_id","asset_type");--> statement-breakpoint
 CREATE INDEX "assets_org_integration_idx" ON "assets" USING btree ("organization_id","integration_id");--> statement-breakpoint
 CREATE INDEX "assets_status_last_seen_idx" ON "assets" USING btree ("status","last_seen_at");--> statement-breakpoint
+CREATE INDEX "audit_logs_org_created_at_idx" ON "audit_logs" USING btree ("organization_id","created_at");--> statement-breakpoint
+CREATE INDEX "audit_logs_org_resource_idx" ON "audit_logs" USING btree ("organization_id","resource_type","resource_id");--> statement-breakpoint
+CREATE INDEX "audit_logs_org_action_created_at_idx" ON "audit_logs" USING btree ("organization_id","action","created_at");--> statement-breakpoint
+CREATE INDEX "audit_logs_org_actor_created_at_idx" ON "audit_logs" USING btree ("organization_id","actor_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "billing_usage_events_idempotency_unique" ON "billing_usage_events" USING btree ("idempotency_key");--> statement-breakpoint
+CREATE INDEX "billing_usage_events_org_occurred_idx" ON "billing_usage_events" USING btree ("organization_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "billing_usage_events_org_run_occurred_idx" ON "billing_usage_events" USING btree ("organization_id","run_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "billing_usage_events_org_workflow_occurred_idx" ON "billing_usage_events" USING btree ("organization_id","workflow_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "billing_usage_events_org_channel_occurred_idx" ON "billing_usage_events" USING btree ("organization_id","channel","occurred_at");--> statement-breakpoint
+CREATE INDEX "billing_usage_events_request_idx" ON "billing_usage_events" USING btree ("organization_id","request_id");--> statement-breakpoint
+CREATE INDEX "chat_messages_session_created_idx" ON "chat_messages" USING btree ("session_id","created_at");--> statement-breakpoint
+CREATE INDEX "chat_sessions_user_org_status_idx" ON "chat_sessions" USING btree ("user_id","organization_id","status");--> statement-breakpoint
+CREATE INDEX "chat_stream_events_session_run_seq_idx" ON "chat_stream_events" USING btree ("session_id","run_id","seq");--> statement-breakpoint
 CREATE UNIQUE INDEX "github_installations_installation_id_uidx" ON "github_app_installations" USING btree ("installation_id");--> statement-breakpoint
 CREATE INDEX "github_installations_org_idx" ON "github_app_installations" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "github_installations_account_login_idx" ON "github_app_installations" USING btree ("account_login");--> statement-breakpoint
