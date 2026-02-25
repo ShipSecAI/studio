@@ -182,6 +182,12 @@ function loadFrontendEnv(envFilePath) {
           // Remove surrounding quotes if present
           if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
             value = value.slice(1, -1);
+          } else {
+            // Strip inline comments for unquoted values
+            const commentIndex = value.indexOf(' #');
+            if (commentIndex !== -1) {
+              value = value.substring(0, commentIndex).trimEnd();
+            }
           }
           // Only include VITE_* variables for frontend
           if (key.startsWith('VITE_')) {
@@ -218,6 +224,12 @@ function loadWorkerEnv() {
           // Remove surrounding quotes if present
           if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
             value = value.slice(1, -1);
+          } else {
+            // Strip inline comments for unquoted values
+            const commentIndex = value.indexOf(' #');
+            if (commentIndex !== -1) {
+              value = value.substring(0, commentIndex).trimEnd();
+            }
           }
           env[key] = value;
         }
