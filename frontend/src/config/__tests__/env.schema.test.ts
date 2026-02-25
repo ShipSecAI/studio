@@ -9,19 +9,19 @@ describe('frontendEnvSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('empty object passes and VITE_API_URL defaults to http://localhost:3211', () => {
+  it('empty object passes and VITE_API_URL defaults to empty (relative paths)', () => {
     const result = frontendEnvSchema.safeParse({});
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.VITE_API_URL).toBe('http://localhost:3211');
+      expect(result.data.VITE_API_URL).toBe('');
     }
   });
 
-  it('VITE_API_URL=undefined defaults to http://localhost:3211', () => {
+  it('VITE_API_URL=undefined defaults to empty (relative paths)', () => {
     const result = frontendEnvSchema.safeParse({ VITE_API_URL: undefined });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.VITE_API_URL).toBe('http://localhost:3211');
+      expect(result.data.VITE_API_URL).toBe('');
     }
   });
 

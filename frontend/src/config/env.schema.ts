@@ -14,8 +14,8 @@ function viteBoolean(defaultValue = false) {
 
 export const frontendEnvSchema = z
   .object({
-    // API URL — defaults to localhost for dev/test compatibility
-    VITE_API_URL: z.string().optional().default('http://localhost:3211'),
+    // API URL — empty means relative paths (/api/v1/…), proxied by Vite dev-server or Nginx
+    VITE_API_URL: z.string().optional().default(''),
     // App URL — defaults to current origin
     VITE_APP_URL: z.string().optional().default(''),
 

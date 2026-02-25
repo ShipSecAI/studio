@@ -71,9 +71,6 @@ get_studio_api_url() {
   echo "http://localhost:$(get_backend_port "$1")/api/v1"
 }
 
-get_vite_api_url() {
-  echo "http://localhost:$(get_backend_port "$1")"
-}
 
 resolve_source_env() {
   local app="$1"
@@ -119,7 +116,11 @@ apply_instance_vars() {
       set_var "$file" "STUDIO_API_BASE_URL" "$(get_studio_api_url "$instance")"
       ;;
     frontend)
-      set_var "$file" "VITE_API_URL" "$(get_vite_api_url "$instance")"
+      # VITE_API_URL intentionally left empty so the frontend uses relative
+      # paths (/api/v1/…).  Both the Vite dev-server proxy and the Nginx
+      # reverse-proxy forward /api/* to the correct backend port, which
+      # avoids cross-origin issues when accessing via Cloudflare Tunnel or
+      # any non-localhost URL.
       ;;
     *)
       fail "Unknown app: $app"
@@ -134,7 +135,6 @@ show_summary() {
   echo "Frontend port: $(get_frontend_port "$instance")"
   echo "Database:      $(get_db_name "$instance")"
   echo "Temporal NS:   $(get_temporal_ns "$instance")"
-  echo "API URL:       $(get_vite_api_url "$instance")"
   echo "Studio API:    $(get_studio_api_url "$instance")"
 }
 
