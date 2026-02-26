@@ -1322,6 +1322,7 @@ export const api = {
       aggs?: Record<string, any>;
       sort?: Record<string, any>[];
       collapse?: Record<string, any>;
+      useLatest?: boolean;
     }) => {
       const headers = await getAuthHeaders();
       const response = await fetch(`${API_V1_URL}/analytics/query`, {

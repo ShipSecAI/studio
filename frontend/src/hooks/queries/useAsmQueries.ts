@@ -148,14 +148,14 @@ export function useAsmAssetsFromOpenSearch(filters: {
     queryKey: queryKeys.asm.assets(filters),
     queryFn: async () => {
       const must: Record<string, unknown>[] = [
-        { terms: { 'scanner.keyword': filters.scanner ?? ['dnsx', 'httpx'] } },
+        { terms: { scanner: filters.scanner ?? ['dnsx', 'httpx'] } },
       ];
       if (filters.search) {
         const escaped = filters.search.replace(/[*?\\]/g, '\\$&');
         must.push({ wildcard: { 'host.keyword': `*${escaped}*` } });
       }
       if (filters.domain) {
-        must.push({ term: { 'shipsec.trigger_source.keyword': `asm:${filters.domain}` } });
+        must.push({ term: { 'shipsec.trigger_source': `asm:${filters.domain}` } });
       }
 
       const result = await api.analytics.query({
@@ -165,7 +165,7 @@ export function useAsmAssetsFromOpenSearch(filters: {
         sort: [{ '@timestamp': 'desc' }],
         collapse: { field: 'host.keyword' },
         aggs: {
-          scanners: { terms: { field: 'scanner.keyword' } },
+          scanners: { terms: { field: 'scanner' } },
           unique_hosts: { cardinality: { field: 'host.keyword' } },
         },
       });
@@ -204,7 +204,7 @@ export function useAsmStats() {
     queryFn: async () => {
       const pgStats = await api.asm.getStats();
       const osResult = await api.analytics.query({
-        query: { bool: { must: [{ terms: { 'scanner.keyword': ['dnsx', 'httpx'] } }] } },
+        query: { bool: { must: [{ terms: { scanner: ['dnsx', 'httpx'] } }] } },
         size: 0,
         aggs: { unique_hosts: { cardinality: { field: 'host.keyword' } } },
       });

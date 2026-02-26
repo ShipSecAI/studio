@@ -431,6 +431,112 @@ export class OpenSearchIndexer {
   }
 
   /**
+   * Upsert documents to the deduplicated latest-state index.
+   * Uses finding_hash as _id so re-scanning the same finding updates the existing doc.
+   * Documents without finding_hash are skipped with a warning.
+   */
+  async upsertToLatest(
+    orgId: string,
+    documents: Record<string, any>[],
+    options: IndexOptions,
+  ): Promise<{ indexName: string; documentCount: number }> {
+    if (!this.isEnabled() || !this.client) {
+      console.debug('[OpenSearchIndexer] Latest upsert skipped, client not enabled');
+      throw new Error('OpenSearch client not enabled');
+    }
+
+    if (documents.length === 0) {
+      return { indexName: '', documentCount: 0 };
+    }
+
+    // Ensure tenant is provisioned (reuses cache from bulkIndex)
+    await this.ensureTenantProvisioned(orgId);
+
+    const latestIndexName = `findings-latest-${orgId}`.toLowerCase();
+    const timestamp = new Date().toISOString();
+
+    const bulkOps: any[] = [];
+    let skippedCount = 0;
+
+    for (const document of documents) {
+      const findingHash = document.finding_hash;
+      if (!findingHash) {
+        skippedCount++;
+        continue;
+      }
+
+      const assetKey = this.detectAssetKey(document, options.assetKeyField);
+      const enrichedDocument = this.buildEnrichedDocument(
+        document,
+        options,
+        orgId,
+        timestamp,
+        assetKey,
+      );
+
+      bulkOps.push({ index: { _index: latestIndexName, _id: findingHash } });
+      bulkOps.push(enrichedDocument);
+    }
+
+    if (skippedCount > 0) {
+      console.warn(
+        `[OpenSearchIndexer] Skipped ${skippedCount} documents without finding_hash for latest index`,
+      );
+    }
+
+    if (bulkOps.length === 0) {
+      return { indexName: latestIndexName, documentCount: 0 };
+    }
+
+    const docCount = bulkOps.length / 2;
+
+    try {
+      const response = await retryWithBackoff(async () => {
+        return await this.client!.bulk({ body: bulkOps });
+      }, `Upsert ${docCount} documents to ${latestIndexName}`);
+
+      if (response.body.errors) {
+        const failedItems = response.body.items.filter((item: any) => item.index?.error);
+        const errorSamples = failedItems.slice(0, 3).map((item: any) => ({
+          type: item.index?.error?.type,
+          reason: item.index?.error?.reason,
+        }));
+        console.warn(
+          `[OpenSearchIndexer] Latest upsert completed with ${failedItems.length} errors out of ${docCount} documents`,
+        );
+        console.warn(`[OpenSearchIndexer] Error samples:`, JSON.stringify(errorSamples, null, 2));
+      } else {
+        console.debug(`[OpenSearchIndexer] Upserted ${docCount} documents to ${latestIndexName}`);
+      }
+
+      if (options.trace) {
+        options.trace.record({
+          type: 'NODE_PROGRESS',
+          level: 'info',
+          message: `Upserted ${docCount} documents to latest index ${latestIndexName}`,
+          data: { indexName: latestIndexName, documentCount: docCount, skippedCount },
+        });
+      }
+
+      return { indexName: latestIndexName, documentCount: docCount };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[OpenSearchIndexer] Failed to upsert to latest index:`, error);
+
+      if (options.trace) {
+        options.trace.record({
+          type: 'NODE_PROGRESS',
+          level: 'warn',
+          message: `Failed to upsert to latest index ${latestIndexName}: ${errorMessage}`,
+          data: { indexName: latestIndexName, documentCount: docCount },
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  /**
    * Refresh index patterns in OpenSearch Dashboards to make new fields visible.
    * Ensures both the generic `security-findings-*` and org-specific
    * `security-findings-{orgId}-*` patterns exist and have up-to-date field mappings.

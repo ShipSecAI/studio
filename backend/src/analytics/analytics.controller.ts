@@ -145,6 +145,7 @@ export class AnalyticsController {
       aggs: queryDto.aggs,
       sort: queryDto.sort,
       collapse: queryDto.collapse,
+      useLatest: queryDto.useLatest,
     });
   }
 

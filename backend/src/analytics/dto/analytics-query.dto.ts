@@ -50,6 +50,13 @@ export class AnalyticsQueryRequestDto {
     required: false,
   })
   collapse?: Record<string, any>;
+
+  @ApiProperty({
+    description: 'Query the deduplicated latest-state index instead of the event log',
+    required: false,
+    default: false,
+  })
+  useLatest?: boolean;
 }
 
 export class AnalyticsQueryResponseDto {

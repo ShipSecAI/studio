@@ -158,6 +158,7 @@ export class SecurityAnalyticsService {
       aggs?: Record<string, any>;
       sort?: Record<string, any>[];
       collapse?: Record<string, any>;
+      useLatest?: boolean;
     },
   ): Promise<{
     total: number;
@@ -176,12 +177,15 @@ export class SecurityAnalyticsService {
     }
 
     try {
-      // Build index pattern for org: security-findings-{orgId}-*
-      const indexPattern = `security-findings-${orgId}-*`;
+      // Route to latest-state index or event-log index pattern
+      const indexPattern = options.useLatest
+        ? `findings-latest-${orgId}`
+        : `security-findings-${orgId}-*`;
 
       // Execute the search
       const response = await client.search({
         index: indexPattern,
+        ignore_unavailable: true,
         body: {
           query: options.query || { match_all: {} },
           size: options.size ?? 10,
@@ -255,15 +259,15 @@ export class SecurityAnalyticsService {
           size: 0,
           query: {
             bool: {
-              filter: [{ terms: { 'shipsec.run_id.keyword': runIds } }],
+              filter: [{ terms: { 'shipsec.run_id': runIds } }],
             },
           },
           aggs: {
             by_run: {
-              terms: { field: 'shipsec.run_id.keyword', size: 100 },
+              terms: { field: 'shipsec.run_id', size: 100 },
               aggs: {
                 severity_counts: {
-                  terms: { field: 'severity.keyword' },
+                  terms: { field: 'severity' },
                 },
               },
             },
@@ -311,7 +315,7 @@ export class SecurityAnalyticsService {
     }
 
     try {
-      const indexPattern = `security-findings-${orgId}-*`;
+      const indexPattern = [`security-findings-${orgId}-*`, `findings-latest-${orgId}`];
       const response = await client.cat.indices({
         index: indexPattern as unknown as string[],
         format: 'json',
@@ -355,7 +359,11 @@ export class SecurityAnalyticsService {
 
     try {
       const indexPattern = `security-findings-${orgId}-*`;
-      await client.indices.delete({ index: indexPattern, ignore_unavailable: true });
+      const latestIndex = `findings-latest-${orgId}`;
+      await client.indices.delete({
+        index: [indexPattern, latestIndex] as any,
+        ignore_unavailable: true,
+      });
       this.logger.log(`Purged analytics data for org ${orgId}`);
       return { deletedIndices: 1 };
     } catch (error) {

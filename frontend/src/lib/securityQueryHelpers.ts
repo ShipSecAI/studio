@@ -148,9 +148,9 @@ export function buildBaseFilter(
 
   if (viewFilter?.scannerTerms && viewFilter.scannerTerms.length > 0) {
     if (viewFilter.scannerTerms.length === 1) {
-      must.push({ term: { 'scanner.keyword': viewFilter.scannerTerms[0] } });
+      must.push({ term: { scanner: viewFilter.scannerTerms[0] } });
     } else {
-      must.push({ terms: { 'scanner.keyword': viewFilter.scannerTerms } });
+      must.push({ terms: { scanner: viewFilter.scannerTerms } });
     }
   }
 
@@ -166,23 +166,23 @@ export function buildBaseFilter(
   const filter: Record<string, any>[] = [];
 
   if (filters.account) {
-    filter.push({ term: { 'account_id.keyword': filters.account } });
+    filter.push({ term: { account_id: filters.account } });
   }
 
   if (filters.severity.length > 0) {
-    filter.push({ terms: { 'severity.keyword': filters.severity } });
+    filter.push({ terms: { severity: filters.severity } });
   }
 
   if (filters.status.length > 0) {
-    filter.push({ terms: { 'status.keyword': filters.status } });
+    filter.push({ terms: { status: filters.status } });
   }
 
   if (filters.region.length > 0) {
-    filter.push({ terms: { 'region.keyword': filters.region } });
+    filter.push({ terms: { region: filters.region } });
   }
 
   if (filters.service.length > 0) {
-    filter.push({ terms: { 'service_name.keyword': filters.service } });
+    filter.push({ terms: { service_name: filters.service } });
   }
 
   if (filters.tags.length > 0) {
@@ -192,19 +192,19 @@ export function buildBaseFilter(
   }
 
   if (filters.compliance.length > 0) {
-    filter.push({ terms: { 'compliance.keyword': filters.compliance } });
+    filter.push({ terms: { compliance: filters.compliance } });
   }
 
   if (filters.checkName.length > 0) {
-    filter.push({ terms: { 'check_name.keyword': filters.checkName } });
+    filter.push({ terms: { check_name: filters.checkName } });
   }
 
   if (filters.scanner.length > 0) {
-    filter.push({ terms: { 'scanner.keyword': filters.scanner } });
+    filter.push({ terms: { scanner: filters.scanner } });
   }
 
   if (filters.repository.length > 0) {
-    filter.push({ terms: { 'shipsec.trigger_source.keyword': filters.repository } });
+    filter.push({ terms: { 'shipsec.trigger_source': filters.repository } });
   }
 
   if (filters.ruleId.length > 0) {
@@ -237,23 +237,25 @@ export function buildBaseFilter(
   return { bool: { must, filter } };
 }
 
-// Fields that use dynamic mapping (text + keyword sub-field) — need .keyword for sorting
-const TEXT_FIELDS_WITH_KEYWORD = new Set([
+// Fields mapped as bare keyword in the index template — use directly, no .keyword suffix.
+// Only rule_id and file are text+keyword (need .keyword for sorting/aggs).
+const KEYWORD_FIELDS = new Set([
   'severity',
   'status',
   'scanner',
   'region',
   'service_name',
   'check_name',
+  'account_id',
+  '@timestamp',
 ]);
 
 export function buildSort(filters: SecurityDashboardFilters): Record<string, any>[] {
   let field: string;
-  if (filters.sort === '@timestamp') {
-    field = '@timestamp';
-  } else if (TEXT_FIELDS_WITH_KEYWORD.has(filters.sort)) {
-    field = `${filters.sort}.keyword`;
+  if (KEYWORD_FIELDS.has(filters.sort)) {
+    field = filters.sort;
   } else {
+    // text+keyword fields (rule_id, file, etc.) need .keyword for sorting
     field = `${filters.sort}.keyword`;
   }
   return [{ [field]: filters.order }];

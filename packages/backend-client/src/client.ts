@@ -2654,6 +2654,150 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AuditLogsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ChatController_listSessions"];
+        put?: never;
+        post: operations["ChatController_createSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ChatController_getSession"];
+        put?: never;
+        post?: never;
+        delete: operations["ChatController_deleteSession"];
+        options?: never;
+        head?: never;
+        patch: operations["ChatController_updateSession"];
+        trace?: never;
+    };
+    "/api/v1/chat/sessions/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ChatController_getMessages"];
+        put?: never;
+        post: operations["ChatController_sendMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/sessions/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ChatController_getProcessingStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/sessions/{id}/partial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ChatController_getPartialResponse"];
+        put?: never;
+        post: operations["ChatController_upsertPartialResponse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/sessions/{id}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ChatController_streamLive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/sessions/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ChatController_listRunEvents"];
+        put?: never;
+        post: operations["ChatController_appendRunEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/sessions/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ChatController_completeSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/testing/webhooks": {
         parameters: {
             query?: never;
@@ -3234,6 +3378,11 @@ export interface components {
             sort?: string[];
             /** @description Field collapsing specification for deduplication */
             collapse?: Record<string, never>;
+            /**
+             * @description Query the deduplicated latest-state index instead of the event log
+             * @default false
+             */
+            useLatest: boolean;
         };
         AnalyticsQueryResponseDto: {
             /**
@@ -3304,10 +3453,38 @@ export interface components {
                     run: boolean;
                     list: boolean;
                     read: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
                 };
                 runs: {
                     read: boolean;
                     cancel: boolean;
+                };
+                audit: {
+                    read: boolean;
+                };
+                artifacts?: {
+                    read?: boolean;
+                    delete?: boolean;
+                };
+                schedules?: {
+                    list?: boolean;
+                    read?: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
+                };
+                secrets?: {
+                    list?: boolean;
+                    read?: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
+                };
+                "human-inputs"?: {
+                    read?: boolean;
+                    resolve?: boolean;
                 };
             };
             isActive: boolean;
@@ -3329,10 +3506,38 @@ export interface components {
                     run: boolean;
                     list: boolean;
                     read: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
                 };
                 runs: {
                     read: boolean;
                     cancel: boolean;
+                };
+                audit: {
+                    read: boolean;
+                };
+                artifacts?: {
+                    read?: boolean;
+                    delete?: boolean;
+                };
+                schedules?: {
+                    list?: boolean;
+                    read?: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
+                };
+                secrets?: {
+                    list?: boolean;
+                    read?: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
+                };
+                "human-inputs"?: {
+                    read?: boolean;
+                    resolve?: boolean;
                 };
             };
             /** Format: date-time */
@@ -3351,10 +3556,38 @@ export interface components {
                     run: boolean;
                     list: boolean;
                     read: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
                 };
                 runs: {
                     read: boolean;
                     cancel: boolean;
+                };
+                audit: {
+                    read: boolean;
+                };
+                artifacts?: {
+                    read?: boolean;
+                    delete?: boolean;
+                };
+                schedules?: {
+                    list?: boolean;
+                    read?: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
+                };
+                secrets?: {
+                    list?: boolean;
+                    read?: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
+                };
+                "human-inputs"?: {
+                    read?: boolean;
+                    resolve?: boolean;
                 };
             };
             isActive: boolean;
@@ -3378,10 +3611,38 @@ export interface components {
                     run: boolean;
                     list: boolean;
                     read: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
                 };
                 runs: {
                     read: boolean;
                     cancel: boolean;
+                };
+                audit: {
+                    read: boolean;
+                };
+                artifacts?: {
+                    read?: boolean;
+                    delete?: boolean;
+                };
+                schedules?: {
+                    list?: boolean;
+                    read?: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
+                };
+                secrets?: {
+                    list?: boolean;
+                    read?: boolean;
+                    create?: boolean;
+                    update?: boolean;
+                    delete?: boolean;
+                };
+                "human-inputs"?: {
+                    read?: boolean;
+                    resolve?: boolean;
                 };
             };
             isActive?: boolean;
@@ -4234,6 +4495,30 @@ export interface components {
         TriggerSyncDto: {
             /** Format: uuid */
             integrationId: string;
+        };
+        ListAuditLogsResponseDto: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                organizationId: string | null;
+                actorId: string | null;
+                /** @enum {string} */
+                actorType: "user" | "api-key" | "internal" | "unknown";
+                actorDisplay: string | null;
+                action: string;
+                /** @enum {string} */
+                resourceType: "workflow" | "secret" | "api_key" | "webhook" | "artifact" | "analytics" | "schedule" | "mcp_server" | "mcp_group" | "human_input";
+                resourceId: string | null;
+                resourceName: string | null;
+                metadata: {
+                    [key: string]: unknown;
+                } | null;
+                ip: string | null;
+                userAgent: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            }[];
+            nextCursor: string | null;
         };
     };
     responses: never;
@@ -9500,6 +9785,294 @@ export interface operations {
                         createdAt: string;
                     };
                 };
+            };
+        };
+    };
+    AuditLogsController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List audit log events for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAuditLogsResponseDto"];
+                };
+            };
+        };
+    };
+    ChatController_listSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_createSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_getSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_deleteSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_updateSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_getMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_sendMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_getProcessingStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_getPartialResponse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_upsertPartialResponse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_streamLive: {
+        parameters: {
+            query: {
+                runId: string;
+                afterSeq: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_listRunEvents: {
+        parameters: {
+            query: {
+                runId: string;
+                afterSeq: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_appendRunEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_completeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

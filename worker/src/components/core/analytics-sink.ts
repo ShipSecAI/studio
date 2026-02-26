@@ -347,6 +347,15 @@ const definition = defineComponent({
       );
       const result = await indexer.bulkIndex(context.organizationId, allDocuments, indexOptions);
 
+      // Dual-write: upsert to latest-state index for deduplication
+      try {
+        await indexer.upsertToLatest(context.organizationId, allDocuments, indexOptions);
+      } catch (err) {
+        context.logger.warn(
+          `[Analytics Sink] Failed to upsert to latest index (event log is primary): ${err instanceof Error ? err.message : err}`,
+        );
+      }
+
       context.logger.info(
         `[Analytics Sink] Successfully indexed ${result.documentCount} document(s) to ${result.indexName}`,
       );

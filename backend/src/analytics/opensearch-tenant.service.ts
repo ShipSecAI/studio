@@ -4,6 +4,46 @@ import { ConfigService } from '@nestjs/config';
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 1000;
 
+/** Shared field mappings used by both event-log and latest-state indices. */
+const FINDING_FIELD_MAPPINGS = {
+  '@timestamp': { type: 'date' },
+  workflow_id: { type: 'keyword' },
+  workflow_name: { type: 'keyword' },
+  run_id: { type: 'keyword' },
+  node_ref: { type: 'keyword' },
+  component_id: { type: 'keyword' },
+  asset_key: { type: 'keyword' },
+  scanner: { type: 'keyword' },
+  severity: { type: 'keyword' },
+  finding_hash: { type: 'keyword' },
+  status: { type: 'keyword' },
+  region: { type: 'keyword' },
+  service_name: { type: 'keyword' },
+  account_id: { type: 'keyword' },
+  check_name: { type: 'keyword' },
+  rule_id: { type: 'text', fields: { keyword: { type: 'keyword', ignore_above: 512 } } },
+  file: { type: 'text', fields: { keyword: { type: 'keyword', ignore_above: 512 } } },
+  shipsec: {
+    properties: {
+      organization_id: { type: 'keyword' },
+      run_id: { type: 'keyword' },
+      workflow_id: { type: 'keyword' },
+      workflow_name: { type: 'keyword' },
+      component_id: { type: 'keyword' },
+      node_ref: { type: 'keyword' },
+      asset_key: { type: 'keyword' },
+      trigger_source: { type: 'keyword' },
+      trigger_type: { type: 'keyword' },
+      repository: { type: 'keyword' },
+      branch: { type: 'keyword' },
+      commit_sha: { type: 'keyword' },
+      account_id: { type: 'keyword' },
+      connection_name: { type: 'keyword' },
+      provider: { type: 'keyword' },
+    },
+  },
+} as const;
+
 /**
  * OpenSearch Tenant Service
  *
@@ -100,11 +140,13 @@ export class OpenSearchTenantService {
       return false;
     }
 
-    // Index template + seed index are always needed (proper field mappings for
+    // Index templates + seed indices are always needed (proper field mappings for
     // aggregations/sorting), regardless of whether the security plugin is active.
     try {
       await this.createIndexTemplate(normalizedOrgId);
       await this.createSeedIndex(normalizedOrgId);
+      await this.createLatestIndexTemplate(normalizedOrgId);
+      await this.createLatestSeedIndex(normalizedOrgId);
     } catch (error: any) {
       this.logger.error(
         `Failed to create index template/seed for ${normalizedOrgId}: ${error?.message || error}`,
@@ -215,6 +257,10 @@ export class OpenSearchTenantService {
           allowed_actions: ['read', 'indices:data/read/*'],
         },
         {
+          index_patterns: [`findings-latest-${orgId}`],
+          allowed_actions: ['read', 'indices:data/read/*'],
+        },
+        {
           // Tenant-scoped Dashboards saved objects index alias/index
           index_patterns: [tenantSavedObjectsPattern],
           allowed_actions: [
@@ -299,46 +345,7 @@ export class OpenSearchTenantService {
     const templateDefinition = {
       index_patterns: [`security-findings-${orgId}-*`],
       template: {
-        mappings: {
-          properties: {
-            '@timestamp': { type: 'date' },
-            workflow_id: { type: 'keyword' },
-            workflow_name: { type: 'keyword' },
-            run_id: { type: 'keyword' },
-            node_ref: { type: 'keyword' },
-            component_id: { type: 'keyword' },
-            asset_key: { type: 'keyword' },
-            scanner: { type: 'keyword' },
-            severity: { type: 'keyword' },
-            finding_hash: { type: 'keyword' },
-            status: { type: 'keyword' },
-            region: { type: 'keyword' },
-            service_name: { type: 'keyword' },
-            account_id: { type: 'keyword' },
-            check_name: { type: 'keyword' },
-            rule_id: { type: 'text', fields: { keyword: { type: 'keyword', ignore_above: 512 } } },
-            file: { type: 'text', fields: { keyword: { type: 'keyword', ignore_above: 512 } } },
-            shipsec: {
-              properties: {
-                organization_id: { type: 'keyword' },
-                run_id: { type: 'keyword' },
-                workflow_id: { type: 'keyword' },
-                workflow_name: { type: 'keyword' },
-                component_id: { type: 'keyword' },
-                node_ref: { type: 'keyword' },
-                asset_key: { type: 'keyword' },
-                trigger_source: { type: 'keyword' },
-                trigger_type: { type: 'keyword' },
-                repository: { type: 'keyword' },
-                branch: { type: 'keyword' },
-                commit_sha: { type: 'keyword' },
-                account_id: { type: 'keyword' },
-                connection_name: { type: 'keyword' },
-                provider: { type: 'keyword' },
-              },
-            },
-          },
-        },
+        mappings: { properties: FINDING_FIELD_MAPPINGS },
       },
       priority: 100,
     };
@@ -380,49 +387,7 @@ export class OpenSearchTenantService {
           Authorization: this.getAuthHeader(),
         },
         body: JSON.stringify({
-          mappings: {
-            properties: {
-              '@timestamp': { type: 'date' },
-              workflow_id: { type: 'keyword' },
-              workflow_name: { type: 'keyword' },
-              run_id: { type: 'keyword' },
-              node_ref: { type: 'keyword' },
-              component_id: { type: 'keyword' },
-              asset_key: { type: 'keyword' },
-              scanner: { type: 'keyword' },
-              severity: { type: 'keyword' },
-              finding_hash: { type: 'keyword' },
-              status: { type: 'keyword' },
-              region: { type: 'keyword' },
-              service_name: { type: 'keyword' },
-              account_id: { type: 'keyword' },
-              check_name: { type: 'keyword' },
-              rule_id: {
-                type: 'text',
-                fields: { keyword: { type: 'keyword', ignore_above: 512 } },
-              },
-              file: { type: 'text', fields: { keyword: { type: 'keyword', ignore_above: 512 } } },
-              shipsec: {
-                properties: {
-                  organization_id: { type: 'keyword' },
-                  run_id: { type: 'keyword' },
-                  workflow_id: { type: 'keyword' },
-                  workflow_name: { type: 'keyword' },
-                  component_id: { type: 'keyword' },
-                  node_ref: { type: 'keyword' },
-                  asset_key: { type: 'keyword' },
-                  trigger_source: { type: 'keyword' },
-                  trigger_type: { type: 'keyword' },
-                  repository: { type: 'keyword' },
-                  branch: { type: 'keyword' },
-                  commit_sha: { type: 'keyword' },
-                  account_id: { type: 'keyword' },
-                  connection_name: { type: 'keyword' },
-                  provider: { type: 'keyword' },
-                },
-              },
-            },
-          },
+          mappings: { properties: FINDING_FIELD_MAPPINGS },
         }),
       },
       `createSeedIndex(${orgId})`,
@@ -434,6 +399,84 @@ export class OpenSearchTenantService {
     }
 
     this.logger.debug(`Seed index created/verified: ${indexName}`);
+  }
+
+  /**
+   * Creates an index template for the deduplicated latest-state index.
+   * Uses finding_hash as _id for upsert semantics.
+   */
+  private async createLatestIndexTemplate(orgId: string): Promise<void> {
+    const templateName = `findings-latest-${orgId}`;
+    const url = `${this.opensearchUrl}/_index_template/${templateName}`;
+
+    const templateDefinition = {
+      index_patterns: [`findings-latest-${orgId}`],
+      template: {
+        settings: {
+          number_of_shards: 1,
+          number_of_replicas: 0,
+        },
+        mappings: { properties: FINDING_FIELD_MAPPINGS },
+      },
+      priority: 100,
+    };
+
+    const response = await this.fetchWithRetry(
+      url,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: this.getAuthHeader(),
+        },
+        body: JSON.stringify(templateDefinition),
+      },
+      `createLatestIndexTemplate(${orgId})`,
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to create latest index template: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    this.logger.debug(`Latest index template created/verified: ${templateName}`);
+  }
+
+  /**
+   * Creates the latest-state seed index so queries don't fail with index_not_found.
+   */
+  private async createLatestSeedIndex(orgId: string): Promise<void> {
+    const indexName = `findings-latest-${orgId}`;
+    const url = `${this.opensearchUrl}/${indexName}`;
+
+    const response = await this.fetchWithRetry(
+      url,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: this.getAuthHeader(),
+        },
+        body: JSON.stringify({
+          settings: {
+            number_of_shards: 1,
+            number_of_replicas: 0,
+          },
+          mappings: { properties: FINDING_FIELD_MAPPINGS },
+        }),
+      },
+      `createLatestSeedIndex(${orgId})`,
+    );
+
+    // 200 = created, 400 with "already exists" = OK
+    if (!response.ok && response.status !== 400) {
+      throw new Error(
+        `Failed to create latest seed index: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    this.logger.debug(`Latest seed index created/verified: ${indexName}`);
   }
 
   /**
