@@ -1,26 +1,30 @@
 {
-    "files": [],
-    "references": [
-        {
-            "path": "frontend"
-        },
-        {
-            "path": "backend"
-        },
-        {
-            "path": "worker"
-        },
-        {
-            "path": "packages/shared"
-        },
-        {
-            "path": "packages/contracts"
-        },
-        {
-            "path": "packages/backend-client"
-        },
-        {
-            "path": "packages/component-sdk"
-        }
-    ]
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "frontend"
+    },
+    {
+      "path": "backend"
+    },
+    {
+      "path": "worker"
+    },
+    {
+      "path": "packages/shared"
+    },
+    {
+      "path": "packages/contracts"
+    },
+    {
+      "path": "packages/backend-client"
+    },
+    {
+      "path": "packages/component-sdk"
+    }
+  ]
 }
