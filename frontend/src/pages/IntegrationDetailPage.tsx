@@ -923,43 +923,55 @@ export function IntegrationDetailPage() {
 
   // ---- Actions ----
 
-  const handleValidate = async (connection: IntegrationConnection) => {
+  const handleValidate = (connection: IntegrationConnection) => {
     setValidatingId(connection.id);
-    try {
-      if (provider === 'aws') {
-        const result = await validateAwsMutation.mutateAsync({ id: connection.id });
-        if (result.valid) {
-          toast({
-            title: 'Validation passed',
-            description: `${connection.displayName} credentials are valid.`,
-          });
-        } else {
-          toast({
-            title: 'Validation failed',
-            description: result.error ?? 'Credentials are invalid.',
-            variant: 'destructive',
-          });
-        }
-      } else if (provider === 'slack') {
-        const result = await testSlackMutation.mutateAsync({ id: connection.id });
-        if (result.ok) {
-          toast({
-            title: 'Test passed',
-            description: `${connection.displayName} connection is healthy.`,
-          });
-        } else {
-          toast({
-            title: 'Test failed',
-            description: result.error ?? 'Connection test failed.',
-            variant: 'destructive',
-          });
-        }
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Validation request failed.';
-      toast({ title: 'Error', description: message, variant: 'destructive' });
-    } finally {
-      setValidatingId(null);
+    const onSettled = () => setValidatingId(null);
+
+    if (provider === 'aws') {
+      validateAwsMutation.mutate(
+        { id: connection.id },
+        {
+          onSuccess: () =>
+            toast({
+              title: 'Validation passed',
+              description: `${connection.displayName} credentials are valid.`,
+            }),
+          onError: (err) =>
+            toast({
+              title: 'Validation failed',
+              description: err instanceof Error ? err.message : 'Validation request failed.',
+              variant: 'destructive',
+            }),
+          onSettled,
+        },
+      );
+    } else if (provider === 'slack') {
+      testSlackMutation.mutate(
+        { id: connection.id },
+        {
+          onSuccess: (result) => {
+            if (result.ok) {
+              toast({
+                title: 'Test passed',
+                description: `${connection.displayName} connection is healthy.`,
+              });
+            } else {
+              toast({
+                title: 'Test failed',
+                description: result.error ?? 'Connection test failed.',
+                variant: 'destructive',
+              });
+            }
+          },
+          onError: (err) =>
+            toast({
+              title: 'Test failed',
+              description: err instanceof Error ? err.message : 'Connection test failed.',
+              variant: 'destructive',
+            }),
+          onSettled,
+        },
+      );
     }
   };
 

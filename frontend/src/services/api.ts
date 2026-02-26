@@ -546,8 +546,15 @@ export const api = {
           headers: { ...headers, 'Content-Type': 'application/json' },
         },
       );
-      if (!res.ok) throw new Error('Failed to validate AWS connection');
-      return res.json();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to validate AWS connection');
+      }
+      const result = await res.json();
+      if (!result.valid) {
+        throw new Error(result.error || 'AWS connection validation failed');
+      }
+      return result;
     },
 
     discoverOrgAccounts: async (

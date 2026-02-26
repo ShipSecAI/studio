@@ -125,7 +125,7 @@ export const backendEnvSchema = z
     SHIPSEC_AWS_ACCESS_KEY_ID: z.string().optional(),
     SHIPSEC_AWS_SECRET_ACCESS_KEY: z.string().optional(),
     SHIPSEC_AWS_SESSION_TOKEN: z.string().optional(),
-    SHIPSEC_AWS_STRICT_IDENTITY_CHECK: stringToBoolean(false),
+    SHIPSEC_AWS_STRICT_IDENTITY_CHECK: stringToBoolean(true),
     SHIPSEC_AWS_STS_DURATION_SECONDS: z.coerce.number().optional().default(3600),
     SHIPSEC_PLATFORM_ROLE_ARN: z.string().min(1, 'SHIPSEC_PLATFORM_ROLE_ARN is required'),
     AWS_REGION: z.string().optional(),

@@ -26,10 +26,20 @@ interface AssumedRoleCredentials {
   sessionToken: string;
 }
 
+interface CachedPlatformSession {
+  credentials: AssumedRoleCredentials;
+  expiresAt: Date;
+}
+
 @Injectable()
 export class AwsService implements OnModuleInit {
   private readonly logger = new Logger(AwsService.name);
   private static readonly DEFAULT_REGION = 'us-east-1';
+  private static readonly REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
+
+  private platformSession: CachedPlatformSession | null = null;
+  private platformSessionPromise: Promise<AssumedRoleCredentials> | null = null;
+  private bootstrapIsPlatformRole = false;
 
   private resolveRegion(preferred?: string): string {
     const region = (
@@ -51,23 +61,23 @@ export class AwsService implements OnModuleInit {
       return;
     }
     try {
-      const client = this.getPlatformStsClient();
+      const client = this.getBootstrapStsClient();
       const identity = await client.send(new GetCallerIdentityCommand({}));
       const callerArn = identity.Arn!;
-      const normalizedCaller = this.normalizeToRoleArn(callerArn);
-      if (normalizedCaller !== platformArn) {
-        const msg =
-          `Platform identity mismatch: SHIPSEC_PLATFORM_ROLE_ARN=${platformArn} ` +
-          `but actual caller is ${callerArn} (normalized: ${normalizedCaller})`;
-        if (process.env.SHIPSEC_AWS_STRICT_IDENTITY_CHECK === 'true') {
-          throw new Error(msg);
-        }
-        this.logger.warn(
-          msg + ' — continuing anyway (set SHIPSEC_AWS_STRICT_IDENTITY_CHECK=true to enforce)',
-        );
-      } else {
-        this.logger.log(`Platform identity verified: ${platformArn}`);
+
+      if (this.isPlatformRole(callerArn)) {
+        // Already running as the platform role (e.g., EC2/ECS instance role)
+        this.bootstrapIsPlatformRole = true;
+        this.logger.log(`Platform identity verified: running as ${platformArn}`);
+        return;
       }
+
+      // Bootstrap identity differs — attempt to assume the platform role
+      this.logger.log(
+        `Bootstrap identity is ${callerArn} (not ${platformArn}) — attempting platform role assumption`,
+      );
+      await this.getPlatformSessionCredentials();
+      this.logger.log(`Platform role assumed successfully: ${platformArn}`);
     } catch (error: any) {
       if (error?.message?.includes('Region is missing')) {
         this.logger.warn(
@@ -77,12 +87,12 @@ export class AwsService implements OnModuleInit {
         return;
       }
       this.logger.error('AWS platform identity verification failed', error);
-      throw error; // Prevent app from starting with invalid AWS creds
+      throw error;
     }
   }
 
-  // ── Platform STS client (env vars → default chain) ──
-  private getPlatformStsClient(region?: string): STSClient {
+  // ── Bootstrap STS client (env vars → default chain) ──
+  private getBootstrapStsClient(region?: string): STSClient {
     const keyId = process.env.SHIPSEC_AWS_ACCESS_KEY_ID;
     const secret = process.env.SHIPSEC_AWS_SECRET_ACCESS_KEY;
     if ((keyId && !secret) || (!keyId && secret)) {
@@ -113,6 +123,97 @@ export class AwsService implements OnModuleInit {
     return arn;
   }
 
+  // ── Check if caller ARN matches the platform role ──
+  private isPlatformRole(callerArn: string): boolean {
+    const platformArn = process.env.SHIPSEC_PLATFORM_ROLE_ARN;
+    if (!platformArn) return false;
+    return this.normalizeToRoleArn(callerArn) === platformArn;
+  }
+
+  // ── Get or refresh cached platform role session credentials ──
+  private async getPlatformSessionCredentials(): Promise<AssumedRoleCredentials> {
+    const now = Date.now();
+
+    // Cache hit: credentials valid for more than 5 more minutes
+    if (
+      this.platformSession &&
+      this.platformSession.expiresAt.getTime() - now > AwsService.REFRESH_BUFFER_MS
+    ) {
+      return this.platformSession.credentials;
+    }
+
+    // Coalesce concurrent refresh attempts
+    if (this.platformSessionPromise) {
+      return this.platformSessionPromise;
+    }
+
+    this.platformSessionPromise = (async () => {
+      try {
+        const platformArn = this.getPlatformRoleArn();
+        const bootstrapClient = this.getBootstrapStsClient();
+
+        const response = await bootstrapClient.send(
+          new AssumeRoleCommand({
+            RoleArn: platformArn,
+            RoleSessionName: `shipsec-platform-${Date.now()}`,
+            DurationSeconds: 3600,
+          }),
+        );
+
+        if (!response.Credentials) {
+          throw new Error('AssumeRole for platform role returned no credentials');
+        }
+
+        const creds: AssumedRoleCredentials = {
+          accessKeyId: response.Credentials.AccessKeyId!,
+          secretAccessKey: response.Credentials.SecretAccessKey!,
+          sessionToken: response.Credentials.SessionToken!,
+        };
+
+        this.platformSession = {
+          credentials: creds,
+          expiresAt: response.Credentials.Expiration ?? new Date(now + 3600 * 1000),
+        };
+
+        return creds;
+      } catch (error: any) {
+        this.platformSession = null;
+        const isAccessDenied =
+          error.name === 'AccessDenied' || error.name === 'AccessDeniedException';
+        if (isAccessDenied) {
+          throw new Error(
+            `Platform role assumption failed: the bootstrap identity does not have ` +
+              `permission to assume ${process.env.SHIPSEC_PLATFORM_ROLE_ARN}. ` +
+              `Grant sts:AssumeRole on that ARN to the bootstrap identity. ` +
+              `Original: ${error.message}`,
+          );
+        }
+        throw error;
+      } finally {
+        this.platformSessionPromise = null;
+      }
+    })();
+
+    return this.platformSessionPromise;
+  }
+
+  // ── STS client using platform role session credentials ──
+  private async getPlatformStsClient(region?: string): Promise<STSClient> {
+    if (this.bootstrapIsPlatformRole) {
+      // Bootstrap identity is already the platform role — use directly
+      return this.getBootstrapStsClient(region);
+    }
+    const sessionCreds = await this.getPlatformSessionCredentials();
+    return new STSClient({
+      credentials: {
+        accessKeyId: sessionCreds.accessKeyId,
+        secretAccessKey: sessionCreds.secretAccessKey,
+        sessionToken: sessionCreds.sessionToken,
+      },
+      region: this.resolveRegion(region),
+    });
+  }
+
   // ── Assume customer role via platform identity (with duration retry) ──
   async assumeRoleWithPlatformIdentity(
     roleArn: string,
@@ -124,7 +225,7 @@ export class AwsService implements OnModuleInit {
     let lastError: Error | undefined;
     for (const duration of durations) {
       try {
-        const client = this.getPlatformStsClient(region);
+        const client = await this.getPlatformStsClient(region);
         const response = await client.send(
           new AssumeRoleCommand({
             RoleArn: roleArn,
