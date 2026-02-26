@@ -15,6 +15,13 @@
       "when": 1772018816636,
       "tag": "0001_reconcile_existing_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772150400000,
+      "tag": "0002_reconcile_workflows_columns",
+      "breakpoints": true
     }
   ]
 }
