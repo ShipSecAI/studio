@@ -5,7 +5,9 @@ import { TemporalModule } from '../temporal/temporal.module';
 import { StorageModule } from '../storage/storage.module';
 import { TerminalModule } from '../terminal/terminal.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { AuditModule } from '../audit/audit.module';
 import { NodeIOModule } from '../node-io/node-io.module';
+import { TraceModule } from '../trace/trace.module';
 import { WorkflowRepository } from './repository/workflow.repository';
 import { WorkflowRunRepository } from './repository/workflow-run.repository';
 import { WorkflowVersionRepository } from './repository/workflow-version.repository';
@@ -26,7 +28,9 @@ import { WorkflowRoleGuard } from './workflow-role.guard';
     StorageModule,
     TerminalModule,
     AnalyticsModule,
+    AuditModule,
     NodeIOModule,
+    TraceModule,
     // GitHubAppModule is @Global() — no import needed here.
     // WorkflowsService accesses it via @Optional() @Inject('GitHubAppService').
   ],

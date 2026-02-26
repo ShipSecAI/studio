@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AuditModule } from '../audit/audit.module';
 import { DatabaseModule } from '../database/database.module';
 import { SecretsController } from './secrets.controller';
 import { SecretsEncryptionService } from './secrets.encryption';
@@ -8,7 +9,7 @@ import { SecretsService } from './secrets.service';
 import { SecretResolver } from './secret-resolver';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, AuditModule],
   controllers: [SecretsController],
   providers: [SecretsService, SecretsRepository, SecretsEncryptionService, SecretResolver],
   exports: [SecretsService, SecretsEncryptionService, SecretResolver],

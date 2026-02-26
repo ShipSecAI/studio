@@ -20,6 +20,7 @@ import { SecretsEncryptionService } from '../../secrets/secrets.encryption';
 import { InternalMcpController } from '../internal-mcp.controller';
 import { McpGatewayService } from '../mcp-gateway.service';
 import { ToolRegistryService, TOOL_REGISTRY_REDIS } from '../tool-registry.service';
+import { WorkflowsService } from '../../workflows/workflows.service';
 import { Pool } from 'pg';
 
 // Simple Mock Redis
@@ -133,6 +134,8 @@ describe('MCP Internal API (Integration)', () => {
       })
       .overrideProvider(McpGatewayService)
       .useValue(mockGatewayService)
+      .overrideProvider(WorkflowsService)
+      .useValue({})
       .overrideProvider(AuthService)
       .useValue({
         authenticate: async () => {
