@@ -74,6 +74,11 @@ function formatTime(dateStr: string): string {
   });
 }
 
+function extractDomain(triggerSource?: string | null): string | null {
+  if (!triggerSource) return null;
+  return triggerSource.startsWith('asm:') ? triggerSource.slice(4) : null;
+}
+
 function StatusBadge({ status }: { status: string }) {
   const Icon = STATUS_ICONS[status] ?? Clock;
   const colors = STATUS_COLORS[status] ?? STATUS_COLORS.QUEUED;
@@ -165,6 +170,16 @@ export function AsmScansPage() {
                   <span className="text-sm font-medium">
                     {run.workflowName || run.triggerLabel || 'ASM Scan'}
                   </span>
+                  {extractDomain(run.triggerSource) && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <img
+                        src={`https://www.google.com/s2/favicons?domain=${extractDomain(run.triggerSource)}&sz=16`}
+                        alt=""
+                        className="h-3.5 w-3.5 rounded-sm"
+                      />
+                      {extractDomain(run.triggerSource)}
+                    </span>
+                  )}
                 </div>
                 <span className="text-xs text-muted-foreground">
                   {run.startTime ? formatTime(run.startTime) : ''}
@@ -200,6 +215,7 @@ export function AsmScansPage() {
                   <th className="text-left px-4 py-3 font-medium">Time</th>
                   <th className="text-left px-4 py-3 font-medium">Status</th>
                   <th className="text-left px-4 py-3 font-medium">Scan</th>
+                  <th className="text-left px-4 py-3 font-medium">Domain</th>
                   <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Duration</th>
                 </tr>
               </thead>
@@ -220,6 +236,20 @@ export function AsmScansPage() {
                       <span className="font-medium">
                         {run.workflowName || run.triggerLabel || 'ASM Scan'}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {extractDomain(run.triggerSource) ? (
+                        <span className="flex items-center gap-1.5">
+                          <img
+                            src={`https://www.google.com/s2/favicons?domain=${extractDomain(run.triggerSource)}&sz=16`}
+                            alt=""
+                            className="h-4 w-4 rounded-sm"
+                          />
+                          {extractDomain(run.triggerSource)}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">
                       {formatDuration(run.duration)}
