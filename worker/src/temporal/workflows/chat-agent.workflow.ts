@@ -52,13 +52,21 @@ interface GenerateSessionTitleInput {
   assistantMessage: string;
 }
 
-const { runChatAgentStepActivity, saveChatMessagesActivity } = proxyActivities<{
-  runChatAgentStepActivity(input: ChatAgentStepInput): Promise<ChatAgentStepOutput>;
-  saveChatMessagesActivity(input: SaveChatMessagesInput): Promise<void>;
-}>({
-  startToCloseTimeout: '5 minutes',
-  heartbeatTimeout: '30 seconds',
-});
+const { runChatAgentStepActivity, saveChatMessagesActivity, markChatRunCompleteActivity } =
+  proxyActivities<{
+    runChatAgentStepActivity(input: ChatAgentStepInput): Promise<ChatAgentStepOutput>;
+    saveChatMessagesActivity(input: SaveChatMessagesInput): Promise<void>;
+    markChatRunCompleteActivity(input: { sessionId: string; runId: string }): Promise<void>;
+  }>({
+    startToCloseTimeout: '5 minutes',
+    heartbeatTimeout: '30 seconds',
+    retry: {
+      initialInterval: '2 seconds',
+      backoffCoefficient: 2,
+      maximumInterval: '30 seconds',
+      maximumAttempts: 5,
+    },
+  });
 
 const { generateSessionTitleActivity } = proxyActivities<{
   generateSessionTitleActivity(input: GenerateSessionTitleInput): Promise<string>;
@@ -240,6 +248,12 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
         }
       }
     } catch (err) {
+      try {
+        await markChatRunCompleteActivity({ sessionId, runId });
+      } catch {
+        // Best-effort: avoid masking the original failure path.
+      }
+
       // On error, add an error message so the user sees feedback
       messages.push({
         role: 'assistant',

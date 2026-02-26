@@ -22,12 +22,15 @@ interface McpSession {
   /** Identity of the caller who created this session — used to reject hijacking. */
   userId: string | null;
   organizationId: string | null;
+  createdAtMs: number;
+  lastTouchedAtMs: number;
 }
 
 @ApiTags('studio-mcp')
 @Controller('studio-mcp')
 export class StudioMcpController {
   private readonly logger = new Logger(StudioMcpController.name);
+  private static readonly SESSION_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
   // Active session transports keyed by MCP session ID.
   // NOTE: In-memory — single-instance design. For horizontal scaling, use sticky sessions.
@@ -35,10 +38,28 @@ export class StudioMcpController {
 
   constructor(private readonly studioMcpService: StudioMcpService) {}
 
+  private pruneExpiredSessions(nowMs = Date.now()): void {
+    for (const [id, session] of this.sessions.entries()) {
+      if (nowMs - session.lastTouchedAtMs <= StudioMcpController.SESSION_TTL_MS) continue;
+      this.logger.warn(`Studio MCP session expired by TTL: ${id}`);
+      this.cleanupSession(id, session);
+    }
+  }
+
+  private cleanupSession(sessionId: string, session: McpSession): void {
+    this.sessions.delete(sessionId);
+    const transport = session.transport as unknown as { close?: () => void | Promise<void> };
+    Promise.resolve(transport.close?.()).catch(() => {
+      // Best-effort transport cleanup.
+    });
+  }
+
   @All()
   @Throttle({ default: { limit: 5000, ttl: 60000 } })
   @ApiOperation({ summary: 'Studio MCP endpoint (Streamable HTTP) for external agents' })
   async handleMcp(@Req() req: Request & { auth?: AuthContext }, @Res() res: Response) {
+    this.pruneExpiredSessions();
+
     const auth = req.auth;
     if (!auth?.isAuthenticated) {
       return res
@@ -62,6 +83,7 @@ export class StudioMcpController {
       if (!session) {
         return res.status(404).json({ error: 'Session not found or expired' });
       }
+      session.lastTouchedAtMs = Date.now();
 
       // Verify the caller matches the session creator (prevent session hijacking)
       if (session.userId !== auth.userId || session.organizationId !== auth.organizationId) {
@@ -78,14 +100,14 @@ export class StudioMcpController {
       if (isGet) {
         res.on('close', () => {
           this.logger.log(`Studio MCP SSE closed for session ${sessionId}`);
-          this.sessions.delete(sessionId);
+          this.cleanupSession(sessionId, session);
         });
         // Cast: Express Request extends IncomingMessage; handleRequest accepts it at runtime
         void transport.handleRequest(req as any, res as any);
       } else if (isDelete) {
         this.logger.log(`Studio MCP session terminated: ${sessionId}`);
         await transport.handleRequest(req as any, res as any, body);
-        this.sessions.delete(sessionId);
+        this.cleanupSession(sessionId, session);
       } else {
         await transport.handleRequest(req as any, res as any, body);
       }
@@ -116,10 +138,13 @@ export class StudioMcpController {
 
     // Store transport + identity by the session ID generated during initialize
     if (transport.sessionId) {
+      const nowMs = Date.now();
       this.sessions.set(transport.sessionId, {
         transport,
         userId: auth.userId,
         organizationId: auth.organizationId,
+        createdAtMs: nowMs,
+        lastTouchedAtMs: nowMs,
       });
       this.logger.log(`Studio MCP session created: ${transport.sessionId}`);
     }

@@ -270,6 +270,14 @@ export async function runChatAgentStepActivity(
   input: ChatAgentStepInput,
 ): Promise<ChatAgentStepOutput> {
   const { sessionId, runId, organizationId, systemPrompt, messages, maxSteps } = input;
+  Context.current().heartbeat('activity-start');
+  const heartbeatTimer = setInterval(() => {
+    try {
+      Context.current().heartbeat('activity-alive');
+    } catch {
+      // Best-effort periodic heartbeat.
+    }
+  }, 10000);
 
   // Publish "processing" status
   await emitStreamEvent(sessionId, runId, { type: 'status', status: 'processing' });
@@ -592,6 +600,7 @@ export async function runChatAgentStepActivity(
       throw error;
     }
   } finally {
+    clearInterval(heartbeatTimer);
     await taskClient.close().catch(() => {
       // Best-effort cleanup
     });
@@ -688,4 +697,15 @@ export async function generateSessionTitleActivity(
   publishStreamChunk(input.sessionId, JSON.stringify({ type: 'title-update', title }));
 
   return title;
+}
+
+/**
+ * Ensure chat run state is reset in backend even when higher-level workflow logic
+ * catches errors before the main streaming activity can finalize normally.
+ */
+export async function markChatRunCompleteActivity(input: {
+  sessionId: string;
+  runId: string;
+}): Promise<void> {
+  await notifySessionComplete(input.sessionId, input.runId);
 }

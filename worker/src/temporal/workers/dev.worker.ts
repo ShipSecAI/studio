@@ -53,6 +53,7 @@ import {
   saveChatMessagesActivity,
   loadChatMessagesActivity,
   generateSessionTitleActivity,
+  markChatRunCompleteActivity,
   initializeChatAgentActivities,
 } from '../activities/chat-agent.activities';
 
@@ -350,6 +351,7 @@ async function main() {
       saveChatMessagesActivity,
       loadChatMessagesActivity,
       generateSessionTitleActivity,
+      markChatRunCompleteActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],
