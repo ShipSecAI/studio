@@ -68,9 +68,9 @@ function computeThresholds(values: number[]): number[] {
 export function ActivityHeatmap() {
   const [mode, setMode] = useState<Mode>('findings');
 
-  const { data: scanData, isLoading: scansLoading } = useRunActivity(90);
+  const { data: scanData, isLoading: scansLoading } = useRunActivity(365);
   const { data: findingsData = [], isLoading: findingsLoading } =
-    useSecurityTimeSeriesForHeatmap(90);
+    useSecurityTimeSeriesForHeatmap(365);
 
   const isLoading = mode === 'findings' ? findingsLoading : scansLoading;
 
@@ -104,11 +104,11 @@ export function ActivityHeatmap() {
     return { findingsMap: fMap, scansMap: sMap };
   }, [findingsData, scanData]);
 
-  // Generate 90-day grid cells aligned to weeks
+  // Generate 365-day grid cells aligned to weeks
   const { cells, monthLabels, totalValue } = useMemo(() => {
     const today = new Date();
     const startDate = new Date(today);
-    startDate.setUTCDate(startDate.getUTCDate() - 89);
+    startDate.setUTCDate(startDate.getUTCDate() - 364);
 
     // Align to start of week (Sunday)
     const dayOfWeek = startDate.getUTCDay();
@@ -132,11 +132,11 @@ export function ActivityHeatmap() {
       if (current.getUTCDay() === 0 && current > startDate) weekIndex++;
 
       const dateStr = toUTCDateString(current);
-      const isInRange = current >= new Date(today.getTime() - 89 * 86_400_000) && current <= today;
+      const isInRange = current >= new Date(today.getTime() - 364 * 86_400_000) && current <= today;
 
       let value = 0;
       let tooltip = '';
-      const formattedDate = `${MONTH_NAMES[current.getUTCMonth()]} ${current.getUTCDate()}`;
+      const formattedDate = `${MONTH_NAMES[current.getUTCMonth()]} ${current.getUTCDate()}, ${current.getUTCFullYear()}`;
 
       if (isInRange) {
         if (mode === 'findings') {
@@ -165,10 +165,16 @@ export function ActivityHeatmap() {
             : value;
       }
 
-      // Track month labels
+      // Track month labels — if too close to previous, replace previous (drop partial month)
       const month = current.getUTCMonth();
       if (month !== lastMonth && current.getUTCDay() === 0) {
-        months.push({ label: MONTH_NAMES[month], weekIndex });
+        const prev = months.length > 0 ? months[months.length - 1] : null;
+        if (prev && weekIndex - prev.weekIndex < 3) {
+          // Previous label was a partial month — replace it with this full month
+          months[months.length - 1] = { label: MONTH_NAMES[month], weekIndex };
+        } else {
+          months.push({ label: MONTH_NAMES[month], weekIndex });
+        }
         lastMonth = month;
       }
 
@@ -194,7 +200,7 @@ export function ActivityHeatmap() {
     [cells],
   );
 
-  // Aggregate severity totals across the 90-day window
+  // Aggregate severity totals across the 365-day window
   const severityTotals = useMemo(() => {
     let critical = 0,
       high = 0,
@@ -219,8 +225,8 @@ export function ActivityHeatmap() {
 
   const headerText =
     mode === 'findings'
-      ? `${totalValue} finding${totalValue !== 1 ? 's' : ''} in the last 90 days`
-      : `${scansStats.total} scan${scansStats.total !== 1 ? 's' : ''} in the last 90 days`;
+      ? `${totalValue} finding${totalValue !== 1 ? 's' : ''} in the last year`
+      : `${scansStats.total} scan${scansStats.total !== 1 ? 's' : ''} in the last year`;
 
   return (
     <Card className="h-full">
@@ -258,19 +264,22 @@ export function ActivityHeatmap() {
         {isLoading ? (
           <Skeleton className="h-[120px] w-full rounded-md" />
         ) : (
-          <div className="overflow-x-auto">
+          <div>
             {/* Month labels */}
             <div
-              className="grid gap-[3px] mb-1"
+              className="grid gap-0.5 mb-1 overflow-visible"
               style={{
-                gridTemplateColumns: `28px repeat(${totalWeeks}, 14px)`,
+                gridTemplateColumns: `28px repeat(${totalWeeks}, 1fr)`,
               }}
             >
               <div /> {/* Spacer for day labels */}
               {Array.from({ length: totalWeeks }, (_, i) => {
                 const monthLabel = monthLabels.find((m) => m.weekIndex === i);
                 return (
-                  <div key={i} className="text-[10px] text-muted-foreground leading-none">
+                  <div
+                    key={i}
+                    className="text-[10px] text-muted-foreground leading-none overflow-visible whitespace-nowrap"
+                  >
                     {monthLabel?.label ?? ''}
                   </div>
                 );
@@ -279,9 +288,9 @@ export function ActivityHeatmap() {
 
             {/* Heatmap grid: 7 rows (days) x N columns (weeks) */}
             <div
-              className="grid gap-[3px]"
+              className="grid gap-0.5"
               style={{
-                gridTemplateColumns: `28px repeat(${totalWeeks}, 14px)`,
+                gridTemplateColumns: `28px repeat(${totalWeeks}, 1fr)`,
                 gridTemplateRows: 'repeat(7, 14px)',
               }}
             >
@@ -299,7 +308,12 @@ export function ActivityHeatmap() {
                     );
 
                     if (!cell || cell.value === -1) {
-                      return <div key={`${dayIndex}-${weekIdx}`} className="rounded-sm" />;
+                      return (
+                        <div
+                          key={`${dayIndex}-${weekIdx}`}
+                          className={`rounded-sm ${EMPTY_CELL}`}
+                        />
+                      );
                     }
 
                     const colorIdx = getColorIndex(cell.value, thresholds);
@@ -308,7 +322,7 @@ export function ActivityHeatmap() {
                       <Tooltip key={`${dayIndex}-${weekIdx}`}>
                         <TooltipTrigger asChild>
                           <div
-                            className={`rounded-sm ${colors[colorIdx]} cursor-default transition-colors`}
+                            className={`rounded-sm ${colors[colorIdx]} transition-colors hover:ring-1 hover:ring-foreground/30`}
                           />
                         </TooltipTrigger>
                         <TooltipContent side="top" className="text-xs">

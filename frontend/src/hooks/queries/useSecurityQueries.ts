@@ -33,14 +33,14 @@ export function useSecurityFindings(
         from: (filters.page - 1) * PAGE_SIZE,
         sort: buildSort(filters),
         aggs: {
-          severity_counts: { terms: { field: 'severity' } },
+          severity_counts: { terms: { field: 'severity.keyword' } },
           accounts: { terms: { field: 'account_id.keyword', size: 50 } },
-          regions: { terms: { field: 'region', size: 50 } },
-          services: { terms: { field: 'service_name', size: 100 } },
+          regions: { terms: { field: 'region.keyword', size: 50 } },
+          services: { terms: { field: 'service_name.keyword', size: 100 } },
           compliance_frameworks: { terms: { field: 'compliance.keyword', size: 50 } },
-          check_names: { terms: { field: 'check_name', size: 200 } },
-          status_counts: { terms: { field: 'status' } },
-          scanners: { terms: { field: 'scanner', size: 50 } },
+          check_names: { terms: { field: 'check_name.keyword', size: 200 } },
+          status_counts: { terms: { field: 'status.keyword' } },
+          scanners: { terms: { field: 'scanner.keyword', size: 50 } },
           repositories: { terms: { field: 'shipsec.trigger_source.keyword', size: 100 } },
           rule_ids: { terms: { field: 'rule_id.keyword', size: 200 } },
           files: { terms: { field: 'file.keyword', size: 200 } },
@@ -100,7 +100,7 @@ export function useSecurityTimeSeries(
               min_doc_count: 0,
             },
             aggs: {
-              by_severity: { terms: { field: 'severity' } },
+              by_severity: { terms: { field: 'severity.keyword' } },
             },
           },
         },
@@ -148,7 +148,7 @@ export function useSecurityTimeSeriesForHeatmap(days = 90) {
               min_doc_count: 0,
             },
             aggs: {
-              by_severity: { terms: { field: 'severity' } },
+              by_severity: { terms: { field: 'severity.keyword' } },
             },
           },
         },
@@ -292,9 +292,9 @@ export function useCategoryCounts(scannerToCategory: Record<string, string>, cat
         size: 0,
         aggs: {
           by_scanner: {
-            terms: { field: 'scanner', size: 20 },
+            terms: { field: 'scanner.keyword', size: 20 },
             aggs: {
-              by_severity: { terms: { field: 'severity' } },
+              by_severity: { terms: { field: 'severity.keyword' } },
             },
           },
         },

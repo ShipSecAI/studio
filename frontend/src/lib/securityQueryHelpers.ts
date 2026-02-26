@@ -148,9 +148,9 @@ export function buildBaseFilter(
 
   if (viewFilter?.scannerTerms && viewFilter.scannerTerms.length > 0) {
     if (viewFilter.scannerTerms.length === 1) {
-      must.push({ term: { scanner: viewFilter.scannerTerms[0] } });
+      must.push({ term: { 'scanner.keyword': viewFilter.scannerTerms[0] } });
     } else {
-      must.push({ terms: { scanner: viewFilter.scannerTerms } });
+      must.push({ terms: { 'scanner.keyword': viewFilter.scannerTerms } });
     }
   }
 
@@ -170,19 +170,19 @@ export function buildBaseFilter(
   }
 
   if (filters.severity.length > 0) {
-    filter.push({ terms: { severity: filters.severity } });
+    filter.push({ terms: { 'severity.keyword': filters.severity } });
   }
 
   if (filters.status.length > 0) {
-    filter.push({ terms: { status: filters.status } });
+    filter.push({ terms: { 'status.keyword': filters.status } });
   }
 
   if (filters.region.length > 0) {
-    filter.push({ terms: { region: filters.region } });
+    filter.push({ terms: { 'region.keyword': filters.region } });
   }
 
   if (filters.service.length > 0) {
-    filter.push({ terms: { service_name: filters.service } });
+    filter.push({ terms: { 'service_name.keyword': filters.service } });
   }
 
   if (filters.tags.length > 0) {
@@ -196,11 +196,11 @@ export function buildBaseFilter(
   }
 
   if (filters.checkName.length > 0) {
-    filter.push({ terms: { check_name: filters.checkName } });
+    filter.push({ terms: { 'check_name.keyword': filters.checkName } });
   }
 
   if (filters.scanner.length > 0) {
-    filter.push({ terms: { scanner: filters.scanner } });
+    filter.push({ terms: { 'scanner.keyword': filters.scanner } });
   }
 
   if (filters.repository.length > 0) {
@@ -237,8 +237,8 @@ export function buildBaseFilter(
   return { bool: { must, filter } };
 }
 
-// Fields explicitly mapped as keyword in the index template — sort directly without .keyword
-const KEYWORD_SORT_FIELDS = new Set([
+// Fields that use dynamic mapping (text + keyword sub-field) — need .keyword for sorting
+const TEXT_FIELDS_WITH_KEYWORD = new Set([
   'severity',
   'status',
   'scanner',
@@ -251,8 +251,8 @@ export function buildSort(filters: SecurityDashboardFilters): Record<string, any
   let field: string;
   if (filters.sort === '@timestamp') {
     field = '@timestamp';
-  } else if (KEYWORD_SORT_FIELDS.has(filters.sort)) {
-    field = filters.sort;
+  } else if (TEXT_FIELDS_WITH_KEYWORD.has(filters.sort)) {
+    field = `${filters.sort}.keyword`;
   } else {
     field = `${filters.sort}.keyword`;
   }
