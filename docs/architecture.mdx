@@ -1,146 +1,123 @@
 ---
 title: "Architecture"
-description: "System design and module responsibilities for ShipSec Studio"
+description: "How ShipSec Studio is designed under the hood — from the visual builder to infrastructure."
 ---
 
 ## What is ShipSec Studio?
 
-ShipSec Studio is an open-source, no-code security workflow orchestration platform. Build, execute, and monitor security automation workflows through a visual interface — focus on security, not infrastructure.
+ShipSec Studio is an **open-source, no-code security workflow orchestration platform**. Build, execute, and monitor security automation workflows through a visual canvas — focus on security logic, not infrastructure plumbing.
 
 ---
 
 ## System Overview
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                              FRONTEND                                  │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │
-│  │   Visual    │  │  Terminal   │  │  Timeline   │  │   Config    │    │
-│  │   Builder   │  │   Viewer    │  │   Replay    │  │    Panel    │    │
-│  │ (ReactFlow) │  │  (xterm.js) │  │  (Zustand)  │  │  (Forms)    │    │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘    │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ REST API + Unified SSE
-┌───────────────────────────────────▼─────────────────────────────────────┐
-│                               BACKEND                                   │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │Workflows │ │ Secrets  │ │ Storage  │ │  Trace   │ │  Auth    │       │
-│  │  + DSL   │ │(AES-256) │ │ (MinIO)  │ │ Events   │ │ (Clerk)  │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │ Webhooks │ │Schedules │ │ Agents   │ │Human     │ │Integr-   │       │
-│  │          │ │ (CRON)   │ │          │ │Inputs    │ │ations    │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-└───────────────────────────────────┬─────────────────────────────────────┘
-                                    │ Temporal Client
-┌───────────────────────────────────▼─────────────────────────────────────┐
-│                              TEMPORAL                                   │
-│            Workflow Orchestration • Retry Logic • Durability            │
-└───────────────────────────────────┬─────────────────────────────────────┘
-                                    │ Activity Execution
-┌───────────────────────────────────▼─────────────────────────────────────┐
-│                               WORKER                                    │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                    COMPONENT REGISTRY                           │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐            │    │
-│  │  │  Tools   │ │    AI    │ │  Human   │ │   Core   │            │    │
-│  │  │(Security)│ │  Agents  │ │ in Loop  │ │  Utils   │            │    │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘            │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                      SERVICE ADAPTERS                           │    │
-│  │  Secrets │ Storage │ Artifacts │ Trace │ Terminal │ Logs        │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼─────────────────────────────────────┐
-│                           INFRASTRUCTURE                                │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │PostgreSQL│ │  MinIO   │ │  Redis   │ │Redpanda  │ │   Loki   │       │
-│  │  (Data)  │ │ (Files)  │ │(Terminal)│ │ (Kafka)  │ │  (Logs)  │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+<Frame caption="ShipSec Studio architecture — from the visual builder down to infrastructure">
+  <img
+    src="/images/svgviewer-output(1).svg"
+    alt="Svgviewer Output"
+  />
+</Frame>
 
 ---
 
 ## Technology Stack
 
-| Layer | Stack |
-|-------|-------|
-| **Frontend** | React 19, TypeScript, Vite, TailwindCSS, Radix UI, ReactFlow, xterm.js, Zustand |
-| **Backend** | NestJS, TypeScript, Bun, Drizzle ORM, Clerk Auth |
-| **Worker** | Node.js, TypeScript, Temporal SDK, Docker |
-| **Infrastructure** | PostgreSQL 16, Temporal, MinIO, Redis, Redpanda (Kafka), Loki |
+| Layer              | Technologies                                                                    |
+| ------------------ | ------------------------------------------------------------------------------- |
+| **Frontend**       | React 19, TypeScript, Vite, TailwindCSS, Radix UI, ReactFlow, xterm.js, Zustand |
+| **Backend**        | NestJS, TypeScript, Bun, Drizzle ORM, Clerk Auth                                |
+| **Worker**         | Node.js, TypeScript, Temporal SDK, Docker                                       |
+| **Infrastructure** | PostgreSQL 16, Temporal, MinIO, Redis, Redpanda (Kafka), Loki                   |
 
 ---
 
-## Core Deep-Dives
+## Core Subsystems
 
-To keep this guide concise, complicated subsystems are documented in their own dedicated files:
+These are the most complex parts of the system — each has its own dedicated deep-dive:
 
-- **[Workflow Compilation (DSL)](/architecture/workflow-compilation)**: How visual graphs are transformed into executable instructions.
-- **[Temporal Orchestration](/architecture/temporal-orchestration)**: How we use Temporal for durability and worker scaling.
-- **[Streaming Pipelines](/architecture/streaming-pipelines)**: How terminal, logs, and events are delivered in real-time.
-- **[Human-in-the-Loop](/architecture/human-in-the-loop)**: How we pause workflows for manual approvals and forms.
+<CardGroup cols={2}>
+  <Card icon="code" href="/architecture/workflow-compilation" title="Workflow Compilation (DSL)">
+    How visual node graphs are compiled into executable workflow instructions.
+  </Card>
+  <Card icon="clock" href="/architecture/temporal-orchestration" title="Temporal Orchestration">
+    How we use Temporal for durability, retries, and worker scaling.
+  </Card>
+  <Card icon="wave-sine" href="/architecture/streaming-pipelines" title="Streaming Pipelines">
+    How terminal output, logs, and events are delivered in real-time via SSE.
+  </Card>
+  <Card icon="user-check" href="/architecture/human-in-the-loop" title="Human-in-the-Loop">
+    How workflows pause mid-execution for manual approvals and form inputs.
+  </Card>
+</CardGroup>
 
 ---
 
 ## Component Categories
 
-Components are the building blocks of workflows:
+Components are the drag-and-drop building blocks of every workflow.
 
-| Category | Description | Examples |
-|----------|-------------|----------|
-| **security** | Security scanning and enumeration tools | Subfinder, DNSX, Nuclei, Naabu, HTTPx, TruffleHog |
-| **ai** | AI/ML and agent components | LLM Generate, AI Agent, MCP Providers |
-| **core** | Utility and data processing | HTTP Request, File Loader, Logic Script, JSON Transform |
-| **notification** | Alerts and messaging | Slack, Email |
-| **manual-action** | Human-in-the-loop | Approvals, Forms, Selection |
-| **github** | GitHub integrations | Remove Org Membership |
+| Category          | What it does                      | Examples                                                |
+| ----------------- | --------------------------------- | ------------------------------------------------------- |
+| **security**      | Security scanning and enumeration | Subfinder, DNSX, Nuclei, Naabu, HTTPx, TruffleHog       |
+| **ai**            | AI/LLM and agent components       | LLM Generate, AI Agent, MCP Providers                   |
+| **core**          | Utility and data processing       | HTTP Request, File Loader, Logic Script, JSON Transform |
+| **notification**  | Alerts and messaging              | Slack, Email                                            |
+| **manual-action** | Human-in-the-loop controls        | Approvals, Forms, Selection                             |
+| **github**        | GitHub integrations               | Remove Org Membership                                   |
 
 ---
 
 ## Security Architecture
 
 ### Authentication & Multi-tenancy
-- **Clerk Integration** — Production-ready authentication for hosted environments.
-- **Local Auth** — Default for local setup using `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
-- **Organization Isolation** — All data scoped by `organization_id`.
+
+- **Clerk Integration** — Production-ready auth for hosted deployments
+- **Local Auth** — Default for local dev via `ADMIN_USERNAME` / `ADMIN_PASSWORD` env vars
+- **Organization Isolation** — Every database record is scoped by `organization_id` — no data leaks between tenants
 
 ### Secrets Management
-- **AES-256-GCM** encryption at rest.
-- **Versioned secrets** with active/inactive tracking.
-- **Master key** via `SECRET_STORE_MASTER_KEY` environment variable.
+
+- **AES-256-GCM** encryption for all secrets at rest
+- **Versioned secrets** with active/inactive state tracking
+- **Master key** provided via the `SECRET_STORE_MASTER_KEY` environment variable
 
 ### Container Isolation
-- **IsolatedContainerVolume** — Per-tenant, per-run Docker volumes. See **[Isolated Volumes](/development/isolated-volumes)**.
-- **Network isolation** — Components run with `network: none` or `bridge`.
-- **Automatic cleanup** — Volumes destroyed after execution.
+
+- **IsolatedContainerVolume** — Each workflow run gets a dedicated, per-tenant Docker volume
+- **Network isolation** — Components execute with `network: none` or `bridge` depending on requirements
+- **Automatic cleanup** — Volumes are destroyed immediately after execution completes
+
+<Note>
+  For a full breakdown of isolated volume behavior, see the [Isolated Volumes](/development/isolated-volumes) guide.
+</Note>
 
 ---
 
 ## Development URLs
 
-All application services are accessible through nginx on port 80:
+All services are accessible through **nginx on port 80** in development:
 
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost/ |
-| Backend API | http://localhost/api/ |
-| Analytics | http://localhost/analytics/ |
-| Temporal UI | http://localhost:8081 |
-| MinIO Console | http://localhost:9001 |
-| Redpanda Console | http://localhost:8082 |
-| Loki | http://localhost:3100 |
+| Service          | URL                         |
+| ---------------- | --------------------------- |
+| Frontend         | http://localhost/           |
+| Backend API      | http://localhost/api/       |
+| Analytics        | http://localhost/analytics/ |
+| Temporal UI      | http://localhost:8081       |
+| MinIO Console    | http://localhost:9001       |
+| Redpanda Console | http://localhost:8082       |
+| Loki             | http://localhost:3100       |
 
 <Note>
-  Individual service ports (5173, 3211, 5601) are available for debugging but should not be used in normal development. All traffic flows through nginx on port 80.
+  Direct service ports (`5173`, `3211`, `5601`) are available for low-level debugging only. All normal development traffic should flow through nginx on port 80.
 </Note>
 
 ---
 
-## Learn More
-
-- **Component Development**: `/development/component-development`
-- **Getting Started**: `/getting-started`
+<CardGroup cols={2}>
+  <Card icon="arrow-left" href="/command-reference" title="Command Reference">
+    ← Previous
+  </Card>
+  <Card icon="arrow-right" href="/development/component-development" title="Component Development">
+    Next →
+  </Card>
+</CardGroup>

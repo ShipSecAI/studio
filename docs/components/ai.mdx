@@ -1,183 +1,209 @@
 ---
 title: "AI Components"
-description: "LLM integrations for intelligent workflow automation"
+description: "Connect LLMs to your security workflows — triage alerts, investigate findings, and extract structured data automatically."
 ---
 
-AI components in ShipSec Studio follow a **Provider-Consumer** architecture. 
+AI components let you plug **large language models directly into your workflows**. Summarize scan results, triage alerts, run autonomous investigations, and extract structured data — all without writing a single line of code.
 
-1.  **Providers**: Handle credentials, model selection, and API configuration (OpenAI, Gemini, OpenRouter).
-2.  **Consumers**: Execute specific tasks (Text Generation or Autonomous Agents) using the configuration emitted by a Provider.
+They follow a simple **Provider → Consumer** pattern:
+
+- **Providers** handle credentials and model selection — set it once, reuse everywhere.
+- **Consumers** do the actual AI work — text generation or autonomous agent reasoning.
 
 ---
 
 ## Providers
 
-Provider nodes normalize credentials and model settings into a reusable **LLM Provider Config**.
+A Provider node is always the **first step** in any AI chain. It holds your API key and model choice, and outputs a reusable config that Consumer nodes plug into.
+
+<Tip>
+  By keeping credentials and model selection in one Provider node, you can swap models for your entire workflow by changing just one thing.
+</Tip>
 
 ### OpenAI Provider
 
-Configures access to OpenAI or OpenAI-compatible endpoints.
+Connects to OpenAI's API (or any OpenAI-compatible endpoint).
 
 | Input | Type | Description |
-|-------|------|-------------|
-| `apiKey` | Secret | OpenAI API key (typically from a Secret Loader) |
+|---|---|---|
+| `apiKey` | Secret | Your OpenAI API key — use **Secret Loader** to supply this safely |
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `model` | Select | `gpt-5.2`, `gpt-5.1`, `gpt-5`, `gpt-5-mini` |
-| `apiBaseUrl` | Text | Optional override for the API base URL |
+|---|---|---|
+| `model` | Select | `gpt-5.2` · `gpt-5.1` · `gpt-5` · `gpt-5-mini` |
+| `apiBaseUrl` | Text | Override the API base URL — useful for self-hosted or proxy endpoints |
+
+---
 
 ### Gemini Provider
 
-Configures access to Google's Gemini models.
+Connects to Google's Gemini model family.
 
 | Input | Type | Description |
-|-------|------|-------------|
-| `apiKey` | Secret | Google AI API key |
+|---|---|---|
+| `apiKey` | Secret | Your Google AI API key |
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `model` | Select | `gemini-3-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro` |
-| `apiBaseUrl` | Text | Optional override for the API base URL |
+|---|---|---|
+| `model` | Select | `gemini-3-pro-preview` · `gemini-3-flash-preview` · `gemini-2.5-pro` |
+| `apiBaseUrl` | Text | Optional API base URL override |
 | `projectId` | Text | Optional Google Cloud project identifier |
+
+---
 
 ### OpenRouter Provider
 
-Configures access to multiple LLM providers through OpenRouter's unified API.
+Connects to [OpenRouter](https://openrouter.ai) — a unified API that gives you access to models from Anthropic, Google, Meta, Mistral, and more through a single key.
 
 | Input | Type | Description |
-|-------|------|-------------|
-| `apiKey` | Secret | OpenRouter API key |
+|---|---|---|
+| `apiKey` | Secret | Your OpenRouter API key |
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `model` | Text | Model slug (e.g., `openrouter/auto`, `anthropic/claude-3.5-sonnet`) |
-| `apiBaseUrl` | Text | Optional override for the API base URL |
-| `httpReferer` | Text | Application URL for OpenRouter ranking |
-| `appTitle` | Text | Application title for OpenRouter ranking |
+|---|---|---|
+| `model` | Text | Model slug — e.g. `anthropic/claude-sonnet-4-5`, `openrouter/auto` |
+| `apiBaseUrl` | Text | Optional API base URL override |
+| `httpReferer` | Text | Your app URL — used for OpenRouter analytics |
+| `appTitle` | Text | Your app name — used for OpenRouter analytics |
 
 ---
 
 ## Consumers
 
-Consumer nodes perform the actual AI work. They require a **Provider Config** output from one of the providers above.
+Consumer nodes do the actual AI work. Every consumer has a `chatModel` input — **connect your Provider output here.**
 
 ### AI Generate Text
 
-Performs a one-shot chat completion.
+A single-shot prompt-response. Give it a prompt, get back text. Simple and fast.
 
 | Input | Type | Description |
-|-------|------|-------------|
-| `userPrompt` | Text | The primary request or data to process |
-| `chatModel` | Credential | **Required.** Connect a Provider output here |
-| `modelApiKey` | Secret | Optional. supersedes the API key in the Provider Config |
+|---|---|---|
+| `chatModel` | Credential | **Required** — connect a Provider output here |
+| `userPrompt` | Text | The question, instruction, or data to process |
+| `modelApiKey` | Secret | Optional — overrides the API key from the Provider |
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `systemPrompt`| Textarea | Instructions that guide the model's behavior |
-| `temperature` | Number | Creativity vs. determinism (0.0 to 2.0) |
-| `maxTokens` | Number | Maximum tokens to generate |
+|---|---|---|
+| `systemPrompt` | Textarea | High-level instructions that shape the model's behavior (e.g. "You are a senior security analyst") |
+| `temperature` | Number | Controls creativity vs. consistency — `0.0` is deterministic, `2.0` is creative |
+| `maxTokens` | Number | Cap on how long the response can be |
 
 | Output | Type | Description |
-|--------|------|-------------|
-| `responseText`| Text | The assistant's response |
-| `usage` | JSON | Token consumption metadata |
-| `rawResponse` | JSON | Full API response for debugging |
+|---|---|---|
+| `responseText` | Text | The model's response |
+| `usage` | JSON | Token usage metadata |
+| `rawResponse` | JSON | Full API response — useful for debugging |
 
 ---
 
 ### AI SDK Agent
 
-An autonomous agent that uses reasoning steps and tool-calling to solve complex tasks.
+An **autonomous agent** that reasons step-by-step, calls tools, and iterates until it completes a task. Think of it as giving the AI a goal rather than a single question.
 
 | Input | Type | Description |
-|-------|------|-------------|
-| `userInput` | Text | The task or question for the agent |
-| `chatModel` | Credential | **Required.** Connect a Provider output here |
-| `conversationState` | JSON | Optional. Connect from a previous turn for memory |
-| `mcpTools` | List | Optional. Connect tools from MCP Providers |
+|---|---|---|
+| `chatModel` | Credential | **Required** — connect a Provider output here |
+| `userInput` | Text | The task or goal for the agent |
+| `conversationState` | JSON | Optional — pass in a previous turn's state to give the agent memory |
+| `mcpTools` | List | Optional — connect tools from MCP Provider nodes |
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `systemPrompt`| Textarea | Core identity and constraints for the agent |
-| `temperature` | Number | Reasoning creativity (default 0.7) |
-| `stepLimit` | Number | Max "Think -> Act -> Observe" loops (1-12) |
-| `memorySize` | Number | Number of previous turns to retain in context |
-| `structuredOutputEnabled` | Toggle | Enable to enforce a specific JSON output structure |
-| `schemaType` | Select | How to define the schema: `json-example` or `json-schema` |
-| `jsonExample` | JSON | Example JSON object for schema inference (all properties become required) |
-| `jsonSchema` | JSON | Full JSON Schema definition for precise validation |
-| `autoFixFormat` | Toggle | Attempt to extract valid JSON from malformed responses |
+|---|---|---|
+| `systemPrompt` | Textarea | Core identity and constraints — defines who the agent is and what it's allowed to do |
+| `temperature` | Number | Reasoning creativity (default: `0.7`) |
+| `stepLimit` | Number | Max Think → Act → Observe loops before stopping (range: `1–12`) |
+| `memorySize` | Number | How many previous turns to keep in context |
+| `structuredOutputEnabled` | Toggle | Force the agent to always return a specific JSON structure |
+| `schemaType` | Select | How to define the output schema: `json-example` or `json-schema` |
+| `jsonExample` | JSON | Provide an example JSON object — all fields become required |
+| `jsonSchema` | JSON | Provide a full JSON Schema for precise validation |
+| `autoFixFormat` | Toggle | Try to salvage valid JSON from a malformed response |
 
 | Output | Type | Description |
-|--------|------|-------------|
-| `responseText`| Text | Final answer after reasoning is complete |
-| `structuredOutput` | JSON | Parsed structured output (when enabled) |
-| `conversationState` | JSON | Updated state to pass to the next agent node |
-| `reasoningTrace` | JSON | Detailed step-by-step logs of the agent's thoughts |
+|---|---|---|
+| `responseText` | Text | The agent's final answer after all reasoning steps |
+| `structuredOutput` | JSON | Parsed, validated JSON output (when Structured Output is enabled) |
+| `conversationState` | JSON | Updated state — loop this back into the next agent node for multi-turn memory |
+| `reasoningTrace` | JSON | Step-by-step log of every thought and action the agent took |
 | `agentRunId` | Text | Unique session ID for tracking and streaming |
+
+<Note>
+  Use **Structured Output** whenever you need the agent's response to feed into another component downstream. It guarantees the JSON schema is correct every time — no fragile prompt-parsing required.
+</Note>
 
 ---
 
 ## MCP Tools (Model Context Protocol)
 
-ShipSec Studio supports the **Model Context Protocol (MCP)**, allowing AI agents to interact with external tools over HTTP.
+MCP lets your AI Agent **call external tools** — things like searching logs, querying APIs, or running lookups — as part of its reasoning loop. You define what tools are available; the agent decides when and how to use them.
 
 ### MCP HTTP Tools
 
-Exposes a set of tools from a remote HTTP server that implements the MCP contract.
+Connects to a remote server that exposes tools over HTTP using the MCP protocol.
 
-| Input | Type | Description |
-|-------|------|-------------|
-| `endpoint` | Text | The HTTP URL where the MCP server is hosted |
-| `headersJson` | Text | Optional JSON of headers (e.g., Auth tokens) |
-| `tools` | JSON | List of tool definitions available on that endpoint |
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `endpoint` | Text | Destination URL for tool execution |
-| `tools` | JSON | Array of tools with `id`, `title`, and `arguments` |
+| Input / Parameter | Type | Description |
+|---|---|---|
+| `endpoint` | Text | The URL of the MCP server |
+| `headersJson` | Text | Optional JSON headers (e.g. `{"Authorization": "Bearer ..."}`) |
+| `tools` | JSON | Tool definitions — each needs an `id`, `title`, and `arguments` schema |
 
 | Output | Type | Description |
-|--------|------|-------------|
-| `tools` | List | Normalized MCP tool definitions for the AI Agent |
-
-### MCP Tool Merge
-
-Combines multiple MCP tool lists into a single consolidated list.
-
-| Input | Type | Description |
-|-------|------|-------------|
-| `toolsA`, `toolsB`| List | Multiple upstream MCP tool outputs |
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `slots` | JSON | Configure additional input ports for merging |
-
-| Output | Type | Description |
-|--------|------|-------------|
-| `tools` | List | De-duplicated list of tools ready for an agent |
+|---|---|---|
+| `tools` | List | Normalized tool list ready to plug into an AI Agent |
 
 ---
 
-## Use Cases
+### MCP Tool Merge
 
-### Automated Alert Triage
-**Flow:** `Provider` → `AI Generate Text`
+Combines tool lists from multiple MCP servers into one unified list for the agent.
 
-Analyze incoming security alerts to filter out false positives.
-**Prompt:** "Given this alert payload: {{alert}}, determine if it's a real threat or noise."
+| Input | Type | Description |
+|---|---|---|
+| `toolsA`, `toolsB` | List | Outputs from two or more MCP HTTP Tools nodes |
+| `slots` | JSON | Add more input ports if you have more than two sources |
 
-### Investigative Agent
-**Flow:** `Provider` + `MCP Tool` → `AI Agent`
+| Output | Type | Description |
+|---|---|---|
+| `tools` | List | De-duplicated, merged tool list — connect directly to the Agent's `mcpTools` input |
 
-An agent that searches through logs and performs lookups to investigate a specific IP address.
-**Task:** "Investigate the IP {{ip}} using the available Splunk and VirusTotal tools."
+---
 
-### Structured Output for Data Extraction
-**Flow:** `Provider` → `AI Agent` (with Structured Output enabled)
+## Real-World Use Cases
 
-Extract structured data from unstructured security reports. Enable **Structured Output** and provide a JSON example:
+### Alert Triage
+> *"Is this alert real or noise?"*
+```
+OpenAI Provider → AI Generate Text
+```
+
+Pass raw alert data into the prompt and let the model filter signal from noise before it ever reaches a human.
+```
+System Prompt: "You are a security analyst. Classify alerts as TRUE_POSITIVE or FALSE_POSITIVE with a one-sentence reason."
+User Prompt: "{{alertPayload}}"
+```
+
+---
+
+### Autonomous Investigation
+> *"Investigate this IP using every tool available."*
+```
+OpenAI Provider + MCP HTTP Tools → AI SDK Agent
+```
+
+Give the agent a task and a set of tools (Splunk search, VirusTotal lookup, etc.) and let it figure out the investigation steps itself.
+```
+Task: "Investigate IP {{ip}}. Use the available tools to determine if it is malicious."
+```
+
+---
+
+### Structured Data Extraction
+> *"Turn this messy report into clean JSON."*
+```
+OpenAI Provider → AI SDK Agent (Structured Output enabled)
+```
+
+Enable **Structured Output** and provide a JSON example. The agent will always return data in exactly this shape — no prompt-wrangling, no parsing errors.
 ```json
 {
   "severity": "high",
@@ -185,20 +211,26 @@ Extract structured data from unstructured security reports. Enable **Structured 
   "remediation_steps": ["Patch CVE-2024-1234", "Restart service"]
 }
 ```
-The agent will always return validated JSON matching this schema, ready for downstream processing.
 
 ---
 
 ## Best Practices
 
-<Note>
-  **The Provider Concept**: Always place a Provider node (OpenAI/Gemini/OpenRouter) at the start of your AI chain. This allows you to swap models or providers for the entire workflow by changing just one node.
-</Note>
+**Use System Prompts for behavior, User Prompts for data.** System prompts define *who the model is* and *how it should respond*. User prompts carry the actual data to process. Keep them separate.
 
-### Prompt Engineering
-1.  **Use Structured Output**: When you need consistent JSON for downstream nodes, enable **Structured Output** instead of relying on prompt instructions. This guarantees schema compliance and eliminates parsing errors.
-2.  **Use System Prompts**: Set high-level rules (e.g., "You are a senior security researcher") in the System Prompt parameter instead of the User Input.
-3.  **Variable Injection**: Use `{{variableName}}` syntax to inject data from upstream nodes into your prompts.
+**Inject upstream data with `{{variableName}}` syntax.** Any output from a previous component can be dropped into a prompt — just reference it by name.
 
-### Memory & State
-For multi-turn conversations, always loop the `conversationState` output of the AI Agent back into the `conversationState` input of the next agent invocation (or store it in a persistent variable).
+**Loop `conversationState` for multi-turn memory.** Connect the `conversationState` output of one Agent node into the `conversationState` input of the next to give your agent persistent memory across steps.
+
+**Always use Secret Loader for API keys.** Never paste API keys directly into Provider parameters — always connect them via the Secret Loader component.
+
+---
+
+<CardGroup cols={2}>
+  <Card title="Security Components" icon="arrow-left" href="/components/security">
+    ← Previous
+  </Card>
+  <Card title="Component Development" icon="arrow-right" href="/development/component-development">
+    Next →
+  </Card>
+</CardGroup>
