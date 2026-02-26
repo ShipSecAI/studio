@@ -21,6 +21,7 @@ interface EmbeddedRunGraphProps {
 function EmbeddedRunGraphCanvas({ workflowId, runId }: EmbeddedRunGraphProps) {
   const { data: workflow, isLoading, isError } = useWorkflow(workflowId);
   const monitorRun = useExecutionStore((state) => state.monitorRun);
+  const stopPolling = useExecutionStore((state) => state.stopPolling);
   const setMode = useWorkflowUiStore((state) => state.setMode);
 
   const [nodes, setNodes] = useState<ReactFlowNode<FrontendNodeData>[]>([]);
@@ -30,7 +31,15 @@ function EmbeddedRunGraphCanvas({ workflowId, runId }: EmbeddedRunGraphProps) {
     // Force execution rendering behavior for the shared canvas node components.
     setMode('execution');
     monitorRun(runId, workflowId);
-  }, [setMode, monitorRun, runId, workflowId]);
+    // Capture runId in closure so cleanup checks the value from THIS effect instance
+    const startedRunId = runId;
+    return () => {
+      const currentRunId = useExecutionStore.getState().runId;
+      if (currentRunId === startedRunId) {
+        stopPolling();
+      }
+    };
+  }, [setMode, monitorRun, runId, workflowId, stopPolling]);
 
   useEffect(() => {
     if (!workflow) return;

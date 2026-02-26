@@ -71,7 +71,8 @@ export function useCreateDomain() {
       scanNow?: boolean;
     }) => api.asm.createDomain(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['asm'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.asm.domainsAll() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.asm.stats() });
     },
   });
 }
@@ -87,8 +88,9 @@ export function useUpdateDomain() {
       scopeInclude?: string[];
       scopeExclude?: string[];
     }) => api.asm.updateDomain(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['asm'] });
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.asm.domain(variables.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.asm.domainsAll() });
     },
   });
 }
@@ -98,7 +100,8 @@ export function useDeleteDomain() {
   return useMutation({
     mutationFn: (id: string) => api.asm.deleteDomain(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['asm'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.asm.domainsAll() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.asm.stats() });
     },
   });
 }
@@ -109,8 +112,10 @@ export function useTriggerDomainScan() {
     mutationFn: ({ domainId, templateSlug }: { domainId: string; templateSlug?: string }) => {
       return api.asm.triggerDomainScan(domainId, { templateSlug });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['asm'] });
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.asm.domain(variables.domainId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.asm.domainsAll() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.asm.scansAll() });
     },
   });
 }

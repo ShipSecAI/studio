@@ -152,6 +152,8 @@ export function useWorkflowExecutionLifecycle({
     }
 
     let cancelled = false;
+    // Capture the routeRunId this effect instance will process
+    const effectRouteRunId = routeRunId;
 
     const ensureRouteRun = async () => {
       let targetRun = getRunByIdFromCache(routeRunId);
@@ -220,6 +222,11 @@ export function useWorkflowExecutionLifecycle({
 
     return () => {
       cancelled = true;
+      // Stop polling only if still monitoring the run this effect instance started
+      const store = useExecutionStore.getState();
+      if (store.runId === effectRouteRunId) {
+        store.stopPolling();
+      }
     };
   }, [
     builderRoutePrefix,

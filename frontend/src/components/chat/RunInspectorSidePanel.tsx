@@ -22,6 +22,11 @@ export function RunInspectorSidePanel() {
       void selectRun(selectedRunId, 'live');
       monitorRun(selectedRunId);
     }
+
+    // Cleanup on unmount (user navigates away from chat entirely)
+    return () => {
+      stopPolling();
+    };
   }, [selectedRunId, isRunInspectorOpen, selectRun, monitorRun, stopPolling]);
 
   const handleClose = () => {

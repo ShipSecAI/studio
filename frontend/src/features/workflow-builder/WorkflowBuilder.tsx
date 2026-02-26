@@ -851,6 +851,13 @@ function WorkflowBuilderContent() {
     workflowRoutePrefix: builderRoutePrefix,
   });
 
+  // Stop execution polling when leaving the builder entirely
+  useEffect(() => {
+    return () => {
+      useExecutionStore.getState().stopPolling();
+    };
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat) {

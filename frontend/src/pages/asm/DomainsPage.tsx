@@ -146,27 +146,35 @@ function AddDomainDialog({
   const navigate = useNavigate();
 
   const handleSubmit = async (scanNow: boolean) => {
+    if (!domain) return;
+    const payload = {
+      domain,
+      scopeInclude: scopeInclude ? scopeInclude.split('\n').filter(Boolean) : undefined,
+      scopeExclude: scopeExclude ? scopeExclude.split('\n').filter(Boolean) : undefined,
+      scanNow,
+    };
+
+    // Close dialog immediately for snappy UX
+    onOpenChange(false);
+
     try {
-      const result = await createDomain.mutateAsync({
-        domain,
-        scopeInclude: scopeInclude ? scopeInclude.split('\n').filter(Boolean) : undefined,
-        scopeExclude: scopeExclude ? scopeExclude.split('\n').filter(Boolean) : undefined,
-        scanNow,
-      });
-      toast({
-        title: scanNow ? 'Domain added & scan started' : 'Domain added',
-        description: `${domain} has been added to your attack surface.`,
-      });
+      const result = await createDomain.mutateAsync(payload);
+      // Only clear form on success
       setDomain('');
       setScopeInclude('');
       setScopeExclude('');
-      onOpenChange(false);
+      toast({
+        title: scanNow ? 'Domain added & scan started' : 'Domain added',
+        description: `${payload.domain} has been added to your attack surface.`,
+      });
 
       // Navigate to the workflow run if a scan was triggered
       if (scanNow && result.runId) {
         navigate(`/runs/${result.runId}`);
       }
     } catch (error) {
+      // Re-open dialog with form data preserved on failure
+      onOpenChange(true);
       toast({
         title: 'Failed to add domain',
         description: error instanceof Error ? error.message : 'Unknown error',
