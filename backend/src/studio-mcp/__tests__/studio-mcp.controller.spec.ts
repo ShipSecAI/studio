@@ -8,7 +8,13 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 // Access private sessions map for assertions
 type SessionsMap = Map<
   string,
-  { transport: unknown; userId: string | null; organizationId: string | null }
+  {
+    transport: unknown;
+    userId: string | null;
+    organizationId: string | null;
+    createdAtMs: number;
+    lastTouchedAtMs: number;
+  }
 >;
 function getSessions(controller: StudioMcpController): SessionsMap {
   return (controller as unknown as { sessions: SessionsMap }).sessions;
@@ -125,10 +131,13 @@ describe('StudioMcpController', () => {
       // Manually insert a session owned by user-1
       const sessions = getSessions(controller);
       const mockTransport = { handleRequest: jest.fn() };
+      const nowMs = Date.now();
       sessions.set('test-session-id', {
         transport: mockTransport,
         userId: authUser1.userId,
         organizationId: authUser1.organizationId,
+        createdAtMs: nowMs,
+        lastTouchedAtMs: nowMs,
       });
 
       // User-2 tries to use user-1's session
@@ -150,10 +159,13 @@ describe('StudioMcpController', () => {
     it('rejects session reuse from different org with 403', async () => {
       const sessions = getSessions(controller);
       const mockTransport = { handleRequest: jest.fn() };
+      const nowMs = Date.now();
       sessions.set('test-session-id', {
         transport: mockTransport,
         userId: authUser1.userId,
         organizationId: authUser1.organizationId,
+        createdAtMs: nowMs,
+        lastTouchedAtMs: nowMs,
       });
 
       // Same user ID but different org
@@ -178,10 +190,13 @@ describe('StudioMcpController', () => {
     it('allows session reuse from same principal', async () => {
       const sessions = getSessions(controller);
       const mockTransport = { handleRequest: jest.fn() };
+      const nowMs = Date.now();
       sessions.set('test-session-id', {
         transport: mockTransport,
         userId: authUser1.userId,
         organizationId: authUser1.organizationId,
+        createdAtMs: nowMs,
+        lastTouchedAtMs: nowMs,
       });
 
       const req = createMockReq({
@@ -202,10 +217,13 @@ describe('StudioMcpController', () => {
     it('cleans up session on DELETE from same principal', async () => {
       const sessions = getSessions(controller);
       const mockTransport = { handleRequest: jest.fn() };
+      const nowMs = Date.now();
       sessions.set('test-session-id', {
         transport: mockTransport,
         userId: authUser1.userId,
         organizationId: authUser1.organizationId,
+        createdAtMs: nowMs,
+        lastTouchedAtMs: nowMs,
       });
 
       const req = createMockReq({
