@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Consumer, Kafka } from 'kafkajs';
+import { Consumer } from 'kafkajs';
 import { getTopicResolver } from '../common/kafka-topic-resolver';
+import { createKafkaClient } from '../common/kafka-client';
 
 import { NodeIORepository } from './node-io.repository';
 
@@ -73,7 +74,7 @@ export class NodeIOIngestService implements OnModuleInit, OnModuleDestroy {
 
   private async connectToKafka(): Promise<void> {
     try {
-      const kafka = new Kafka({
+      const kafka = createKafkaClient({
         clientId: this.kafkaClientId,
         brokers: this.kafkaBrokers,
         requestTimeout: 30000,

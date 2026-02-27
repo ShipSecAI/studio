@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Consumer, Kafka } from 'kafkajs';
+import { Consumer } from 'kafkajs';
 import { getTopicResolver } from '../common/kafka-topic-resolver';
+import { createKafkaClient } from '../common/kafka-client';
 
 import { TraceRepository, type PersistedTraceEvent } from '../trace/trace.repository';
 import type { TraceEventType } from '../trace/types';
@@ -94,7 +95,7 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
 
     let nextConsumer: Consumer | undefined;
     try {
-      const kafka = new Kafka({
+      const kafka = createKafkaClient({
         clientId: this.kafkaClientId,
         brokers: this.kafkaBrokers,
         requestTimeout: 30000,

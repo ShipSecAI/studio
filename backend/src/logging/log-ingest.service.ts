@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Kafka, Consumer } from 'kafkajs';
+import { Consumer } from 'kafkajs';
 import { getTopicResolver } from '../common/kafka-topic-resolver';
+import { createKafkaClient } from '../common/kafka-client';
 
 import { LogStreamRepository } from '../trace/log-stream.repository';
 import type { KafkaLogEntry } from './log-entry.types';
@@ -93,7 +94,7 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
 
     let nextConsumer: Consumer | undefined;
     try {
-      const kafka = new Kafka({
+      const kafka = createKafkaClient({
         clientId: this.kafkaClientId,
         brokers: this.kafkaBrokers,
         requestTimeout: 30000,
