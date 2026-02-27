@@ -3,18 +3,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKER_DIR="${ROOT_DIR}/worker"
-CACHE_DIR="${ROOT_DIR}/.cache"
 
 if ! command -v node >/dev/null 2>&1; then
   echo "⚠️  node not found; skipping node-pty check"
   exit 0
 fi
 
-mkdir -p "${CACHE_DIR}"
-
 NODE_VERSION="$(node -v)"
 NODE_ABI="$(node -p "process.versions.modules")"
-MARKER_FILE="${CACHE_DIR}/node-pty-ok-${NODE_VERSION}-abi${NODE_ABI}"
 
 check_pty() {
   (
@@ -37,33 +33,39 @@ JS
   )
 }
 
-if [ -f "${MARKER_FILE}" ] && check_pty; then
+resolve_node_pty_dir() {
+  local node_pty_package_json
+  node_pty_package_json="$(node -e "try { process.stdout.write(require.resolve('node-pty/package.json', { paths: ['${WORKER_DIR}'] })); } catch { process.exit(1); }")" || {
+    echo "⚠️  node-pty package not found in worker dependency tree"
+    return 1
+  }
+  dirname "${node_pty_package_json}"
+}
+
+rebuild_pty() {
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "⚠️  npm not found; cannot rebuild node-pty"
+    return 1
+  fi
+
+  local node_pty_dir
+  node_pty_dir="$(resolve_node_pty_dir)" || return 1
+
+  (
+    cd "${node_pty_dir}"
+    npm exec --yes --package=node-gyp node-gyp rebuild >/dev/null 2>&1
+  )
+}
+
+if check_pty; then
   echo "✅ node-pty healthy for ${NODE_VERSION} (ABI ${NODE_ABI})"
   exit 0
 fi
 
-if check_pty; then
-  touch "${MARKER_FILE}"
-  echo "✅ node-pty healthy for ${NODE_VERSION} (ABI ${NODE_ABI})"
-  exit 0
-fi
-
-echo "⚠️  node-pty health check failed for ${NODE_VERSION} (ABI ${NODE_ABI})"
-
-# During bun postinstall we must not recurse into bun install.
-if [ "${npm_lifecycle_event:-}" = "postinstall" ]; then
-  echo "⚠️  Skipping auto-repair during postinstall; run 'bun install' once more or start with 'just dev' to auto-heal."
-  exit 0
-fi
-
-echo "🔧 Attempting auto-repair via bun install..."
-(
-  cd "${ROOT_DIR}"
-  bun install >/dev/null 2>&1 || true
-)
+echo "🔧 Rebuilding node-pty native bindings..."
+rebuild_pty || true
 
 if check_pty; then
-  touch "${MARKER_FILE}"
   echo "✅ node-pty repaired and healthy"
 else
   echo "⚠️  node-pty still failing; worker will fall back to stdio (PTY disabled at runtime)"
