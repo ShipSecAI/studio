@@ -29,6 +29,7 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
   private readonly kafkaClientId: string;
   private consumer: Consumer | undefined;
   private reconnectTimer: NodeJS.Timeout | null = null;
+  private reconnectResetTimer: NodeJS.Timeout | null = null;
   private connectInFlight: Promise<void> | null = null;
   private reconnectAttempts = 0;
   private isShuttingDown = false;
@@ -113,19 +114,31 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
 
       nextConsumer.on(nextConsumer.events.CRASH, (event) => {
         if (this.isShuttingDown || this.consumer !== nextConsumer) return;
+        // KafkaJS can auto-restart after recoverable crashes; avoid forcing
+        // reconnect loops while it is already restarting internally.
+        if (event.payload?.restart) {
+          this.logger.warn(
+            `Kafka consumer crashed and will restart internally: ${event.payload?.error ?? 'unknown'}`,
+          );
+          return;
+        }
         this.logger.error(`Kafka consumer crashed: ${event.payload?.error ?? 'unknown'}`);
-        this.scheduleReconnect();
-      });
-      nextConsumer.on(nextConsumer.events.DISCONNECT, () => {
-        if (this.isShuttingDown || this.consumer !== nextConsumer) return;
-        this.logger.warn('Kafka consumer disconnected, scheduling reconnect');
         this.scheduleReconnect();
       });
 
       await nextConsumer.connect();
       await nextConsumer.subscribe({ topic: this.kafkaTopic, fromBeginning: true });
 
-      this.reconnectAttempts = 0;
+      if (this.reconnectResetTimer) {
+        clearTimeout(this.reconnectResetTimer);
+      }
+      // Only reset reconnect backoff after the consumer has stayed healthy
+      // for a short period. This avoids tight reconnect loops on persistent
+      // crash conditions.
+      this.reconnectResetTimer = setTimeout(() => {
+        if (this.isShuttingDown || this.consumer !== nextConsumer) return;
+        this.reconnectAttempts = 0;
+      }, 30_000);
       this.logger.log(
         `Kafka event ingestion connected (${this.kafkaBrokers.join(', ')}) topic=${this.kafkaTopic}`,
       );
@@ -190,6 +203,10 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+    if (this.reconnectResetTimer) {
+      clearTimeout(this.reconnectResetTimer);
+      this.reconnectResetTimer = null;
     }
     if (this.consumer) {
       const current = this.consumer;
