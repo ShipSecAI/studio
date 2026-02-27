@@ -29,6 +29,7 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
   private readonly kafkaClientId: string;
   private consumer: Consumer | undefined;
   private reconnectTimer: NodeJS.Timeout | null = null;
+  private connectInFlight: Promise<void> | null = null;
   private reconnectAttempts = 0;
   private isShuttingDown = false;
 
@@ -56,9 +57,28 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    this.connectToKafka().catch((error) => {
-      this.logger.error('Failed to initialize Kafka e vent ingestion', error as Error);
+    this.ensureConnected().catch((error) => {
+      this.logger.error('Failed to initialize Kafka event ingestion', error as Error);
     });
+  }
+
+  private ensureConnected(): Promise<void> {
+    if (this.isShuttingDown) {
+      return Promise.resolve();
+    }
+    if (this.connectInFlight) {
+      return this.connectInFlight;
+    }
+
+    this.connectInFlight = this.connectToKafka().finally(() => {
+      this.connectInFlight = null;
+    });
+    return this.connectInFlight;
+  }
+
+  private async disconnectConsumer(consumer: Consumer): Promise<void> {
+    (consumer as any).removeAllListeners?.();
+    await consumer.disconnect().catch(() => {});
   }
 
   private async connectToKafka(): Promise<void> {
@@ -68,10 +88,10 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
     if (this.consumer) {
       const old = this.consumer;
       this.consumer = undefined;
-      (old as any).removeAllListeners?.();
-      await old.disconnect().catch(() => {});
+      await this.disconnectConsumer(old);
     }
 
+    let nextConsumer: Consumer | undefined;
     try {
       const kafka = new Kafka({
         clientId: this.kafkaClientId,
@@ -84,67 +104,84 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
         },
       });
 
-      this.consumer = kafka.consumer({
+      nextConsumer = kafka.consumer({
         groupId: this.kafkaGroupId,
-        sessionTimeout: 6000,
-        heartbeatInterval: 2000,
+        sessionTimeout: 30000,
+        heartbeatInterval: 3000,
       });
+      this.consumer = nextConsumer;
 
-      this.consumer.on(this.consumer.events.CRASH, (event) => {
-        if (this.isShuttingDown) return;
+      nextConsumer.on(nextConsumer.events.CRASH, (event) => {
+        if (this.isShuttingDown || this.consumer !== nextConsumer) return;
         this.logger.error(`Kafka consumer crashed: ${event.payload?.error ?? 'unknown'}`);
         this.scheduleReconnect();
       });
-      this.consumer.on(this.consumer.events.DISCONNECT, () => {
-        if (this.isShuttingDown) return;
+      nextConsumer.on(nextConsumer.events.DISCONNECT, () => {
+        if (this.isShuttingDown || this.consumer !== nextConsumer) return;
         this.logger.warn('Kafka consumer disconnected, scheduling reconnect');
         this.scheduleReconnect();
       });
 
-      await this.consumer.connect();
-      await this.consumer.subscribe({ topic: this.kafkaTopic, fromBeginning: true });
-      await this.consumer.run({
-        eachMessage: async ({ message, topic, partition }) => {
-          const messageOffset = message.offset;
-          if (!message.value) {
-            this.logger.warn(`Received empty message from ${topic}[${partition}]@${messageOffset}`);
-            return;
-          }
-          try {
-            const payload = JSON.parse(message.value.toString()) as KafkaTraceEventPayload;
-            this.logger.debug(
-              `Processing trace event: runId=${payload.runId}, type=${payload.type}, sequence=${payload.sequence}, offset=${messageOffset}`,
-            );
-            await this.persistEvent(payload);
-            this.logger.debug(
-              `Successfully persisted trace event for run ${payload.runId}, sequence ${payload.sequence}`,
-            );
-          } catch (error) {
-            this.logger.error(
-              `Failed to process trace event from Kafka (topic=${topic}, partition=${partition}, offset=${messageOffset})`,
-              error as Error,
-            );
-          }
-        },
-      });
+      await nextConsumer.connect();
+      await nextConsumer.subscribe({ topic: this.kafkaTopic, fromBeginning: true });
+
       this.reconnectAttempts = 0;
       this.logger.log(
         `Kafka event ingestion connected (${this.kafkaBrokers.join(', ')}) topic=${this.kafkaTopic}`,
       );
+
+      void nextConsumer
+        .run({
+          eachMessage: async ({ message, topic, partition }) => {
+            const messageOffset = message.offset;
+            if (!message.value) {
+              this.logger.warn(
+                `Received empty message from ${topic}[${partition}]@${messageOffset}`,
+              );
+              return;
+            }
+            try {
+              const payload = JSON.parse(message.value.toString()) as KafkaTraceEventPayload;
+              this.logger.debug(
+                `Processing trace event: runId=${payload.runId}, type=${payload.type}, sequence=${payload.sequence}, offset=${messageOffset}`,
+              );
+              await this.persistEvent(payload);
+              this.logger.debug(
+                `Successfully persisted trace event for run ${payload.runId}, sequence ${payload.sequence}`,
+              );
+            } catch (error) {
+              this.logger.error(
+                `Failed to process trace event from Kafka (topic=${topic}, partition=${partition}, offset=${messageOffset})`,
+                error as Error,
+              );
+            }
+          },
+        })
+        .catch((error) => {
+          if (this.isShuttingDown || this.consumer !== nextConsumer) return;
+          this.logger.error('Kafka event ingestion run loop failed', error as Error);
+          this.scheduleReconnect();
+        });
     } catch (error) {
+      if (nextConsumer) {
+        if (this.consumer === nextConsumer) {
+          this.consumer = undefined;
+        }
+        await this.disconnectConsumer(nextConsumer);
+      }
       this.logger.error('Failed to connect to Kafka event ingestion', error as Error);
       this.scheduleReconnect();
     }
   }
 
   private scheduleReconnect(): void {
-    if (this.isShuttingDown || this.reconnectTimer) return;
+    if (this.isShuttingDown || this.reconnectTimer || this.connectInFlight) return;
     const delayMs = Math.min(30_000, 1_000 * 2 ** Math.min(this.reconnectAttempts, 5));
     this.reconnectAttempts += 1;
     this.logger.warn(`Retrying Kafka connection in ${delayMs}ms`);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      this.connectToKafka().catch(() => {});
+      this.ensureConnected().catch(() => {});
     }, delayMs);
   }
 
@@ -155,8 +192,10 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
       this.reconnectTimer = null;
     }
     if (this.consumer) {
+      const current = this.consumer;
+      this.consumer = undefined;
       this.logger.log('Disconnecting Kafka consumer...');
-      await this.consumer.disconnect().catch((error) => {
+      await this.disconnectConsumer(current).catch((error) => {
         this.logger.error('Failed to disconnect Kafka consumer', error as Error);
       });
       this.logger.log('Kafka consumer disconnected');
