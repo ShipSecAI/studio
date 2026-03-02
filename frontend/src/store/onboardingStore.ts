@@ -9,6 +9,13 @@ interface OnboardingState {
   prevStep: () => void;
   completeOnboarding: () => void;
   resetOnboarding: () => void;
+
+  // Workflow Builder tour
+  hasCompletedBuilderTour: boolean;
+  builderTourStep: number;
+  setBuilderTourStep: (step: number) => void;
+  completeBuilderTour: () => void;
+  resetBuilderTour: () => void;
 }
 
 export const useOnboardingStore = create<OnboardingState>()(
@@ -21,10 +28,20 @@ export const useOnboardingStore = create<OnboardingState>()(
       prevStep: () => set({ currentStep: Math.max(0, get().currentStep - 1) }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true, currentStep: 0 }),
       resetOnboarding: () => set({ hasCompletedOnboarding: false, currentStep: 0 }),
+
+      // Workflow Builder tour
+      hasCompletedBuilderTour: false,
+      builderTourStep: 0,
+      setBuilderTourStep: (step) => set({ builderTourStep: step }),
+      completeBuilderTour: () => set({ hasCompletedBuilderTour: true, builderTourStep: 0 }),
+      resetBuilderTour: () => set({ hasCompletedBuilderTour: false, builderTourStep: 0 }),
     }),
     {
       name: 'shipsec-onboarding',
-      partialize: (state) => ({ hasCompletedOnboarding: state.hasCompletedOnboarding }), // Only persist hasCompletedOnboarding, not currentStep
+      partialize: (state) => ({
+        hasCompletedOnboarding: state.hasCompletedOnboarding,
+        hasCompletedBuilderTour: state.hasCompletedBuilderTour,
+      }),
     },
   ),
 );

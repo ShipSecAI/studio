@@ -194,7 +194,10 @@ export function TopBar({
   }, [metadata.name]);
 
   const modeToggle = (
-    <div className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm flex-shrink-0">
+    <div
+      data-onboarding-builder="mode-toggle"
+      className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm flex-shrink-0"
+    >
       <Button
         variant={mode === 'design' ? 'default' : 'ghost'}
         size="sm"
@@ -354,6 +357,7 @@ export function TopBar({
               {mode === 'design' && (
                 <>
                   <Button
+                    data-onboarding-builder="save-button"
                     onClick={handleSave}
                     disabled={!canEdit || isSaving || saveState === 'clean'}
                     variant="outline"
@@ -445,7 +449,7 @@ export function TopBar({
                 )}
 
               {/* Run button with dropdown for Publish */}
-              <div className="flex items-center">
+              <div data-onboarding-builder="run-button" className="flex items-center">
                 <Button
                   onClick={handleRun}
                   disabled={!canEdit}
@@ -491,7 +495,12 @@ export function TopBar({
                   )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button
+                        data-onboarding-builder="more-options"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                      >
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>

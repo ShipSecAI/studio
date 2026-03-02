@@ -345,6 +345,7 @@ export function WorkflowBuilderShell({
 
         {/* Library Panel - Full screen overlay on mobile, side panel on desktop */}
         <aside
+          data-onboarding-builder="library-panel"
           className={cn(
             'h-full border-r bg-background overflow-hidden z-[60]',
             // Mobile: fixed overlay
@@ -406,7 +407,9 @@ export function WorkflowBuilderShell({
             transition: isInspectorResizing ? 'none' : 'all 200ms ease-in-out',
           }}
         >
-          <div className="flex-1 h-full relative min-w-0">{canvasContent}</div>
+          <div data-onboarding-builder="canvas" className="flex-1 h-full relative min-w-0">
+            {canvasContent}
+          </div>
 
           {/* Schedule Sidebar - Hide on mobile, show as drawer instead */}
           {showScheduleSidebarContainer && !isMobile && (

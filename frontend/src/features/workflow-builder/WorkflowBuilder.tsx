@@ -50,6 +50,8 @@ import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { WorkflowBuilderTour } from '@/components/onboarding/WorkflowBuilderTour';
+import { useOnboardingStore } from '@/store/onboardingStore';
 
 const ENTRY_DEFAULT_RUNTIME_INPUTS = [
   {
@@ -160,6 +162,12 @@ function WorkflowBuilderContent() {
   const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId);
   const selectedRun = selectedRunId ? (getRunByIdFromCache(selectedRunId) ?? null) : null;
   const isMobile = useIsMobile();
+
+  // Builder tour state
+  const hasCompletedBuilderTour = useOnboardingStore((s) => s.hasCompletedBuilderTour);
+  const builderTourStep = useOnboardingStore((s) => s.builderTourStep);
+  const setBuilderTourStep = useOnboardingStore((s) => s.setBuilderTourStep);
+  const completeBuilderTour = useOnboardingStore((s) => s.completeBuilderTour);
 
   // Undo/redo history management
   const { undo, redo, canUndo, canRedo, captureSnapshot, initializeHistory } = useWorkflowHistory({
@@ -1085,6 +1093,12 @@ function WorkflowBuilderContent() {
           onOpenChange={setIsPublishModalOpen}
         />
       )}
+      <WorkflowBuilderTour
+        open={!hasCompletedBuilderTour && !isLoading && !isNewWorkflow && !isMobile}
+        onComplete={completeBuilderTour}
+        currentStep={builderTourStep}
+        onStepChange={setBuilderTourStep}
+      />
     </>
   );
 }
