@@ -250,7 +250,10 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
   const isMobile = useIsMobile();
   return (
     <>
-      <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
+      <aside
+        data-onboarding-builder="execution-inspector"
+        className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background"
+      >
         {/* Header - Run Selector */}
         <div className="border-b px-3 py-2.5 flex items-center justify-between gap-2">
           <RunSelector
@@ -357,7 +360,10 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
 
         {/* Tabs */}
         <div className="border-b px-3 py-2 flex items-center justify-between gap-2 bg-muted/20">
-          <div className="inline-flex rounded-md border bg-background p-0.5 text-xs">
+          <div
+            data-onboarding-builder="inspector-tabs"
+            className="inline-flex rounded-md border bg-background p-0.5 text-xs"
+          >
             <Button
               variant={inspectorTab === 'events' ? 'default' : 'ghost'}
               size="sm"

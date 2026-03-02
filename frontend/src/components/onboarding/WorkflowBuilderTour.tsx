@@ -12,6 +12,9 @@ import {
   ArrowRight,
   ArrowLeft,
   X,
+  MonitorPlay,
+  LayoutList,
+  CalendarClock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -95,6 +98,36 @@ const BUILDER_TOUR_STEPS: BuilderTourStep[] = [
     gradient: 'from-red-500/20 via-red-500/10 to-transparent',
     iconColor: 'text-red-500',
     target: '[data-onboarding-builder="more-options"]',
+  },
+  {
+    title: 'Execution Inspector',
+    description: 'Monitor your workflow runs.',
+    icon: MonitorPlay,
+    content:
+      'Switch to Execute mode to see this panel. Select a run to explore its timeline, view real-time progress, rerun workflows, and stop active executions.',
+    gradient: 'from-cyan-500/20 via-cyan-500/10 to-transparent',
+    iconColor: 'text-cyan-500',
+    target: '[data-onboarding-builder="execution-inspector"]',
+  },
+  {
+    title: 'Inspector Tabs',
+    description: 'Events, Logs, Agent, Artifacts, I/O & Network.',
+    icon: LayoutList,
+    content:
+      'Dive deep into each run with six inspector tabs — view execution events, stream logs in real-time, trace agent activity, browse artifacts, inspect node I/O, and monitor network calls.',
+    gradient: 'from-violet-500/20 via-violet-500/10 to-transparent',
+    iconColor: 'text-violet-500',
+    target: '[data-onboarding-builder="inspector-tabs"]',
+  },
+  {
+    title: 'Schedules',
+    description: 'Automate recurring workflow runs.',
+    icon: CalendarClock,
+    content:
+      'Create and manage schedules to run your workflow automatically at set intervals. View active, paused, and errored schedules right from the canvas.',
+    gradient: 'from-teal-500/20 via-teal-500/10 to-transparent',
+    iconColor: 'text-teal-500',
+    target: '[data-onboarding-builder="schedule-bar"]',
   },
 ];
 
