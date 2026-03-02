@@ -15,8 +15,10 @@ import {
   MonitorPlay,
   LayoutList,
   CalendarClock,
+  Package,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useWorkflowUiStore } from '@/store/workflowUiStore';
 
 interface BuilderTourStep {
   title: string;
@@ -26,6 +28,7 @@ interface BuilderTourStep {
   gradient: string;
   iconColor: string;
   target: string | null;
+  requiresMode?: 'design' | 'execution';
 }
 
 const BUILDER_TOUR_STEPS: BuilderTourStep[] = [
@@ -90,6 +93,16 @@ const BUILDER_TOUR_STEPS: BuilderTourStep[] = [
     target: '[data-onboarding-builder="run-button"]',
   },
   {
+    title: 'Publish as Template',
+    description: 'Share your workflow with the team.',
+    icon: Package,
+    content:
+      'Use the dropdown arrow next to the Run button to publish your workflow as a reusable template. Others in your organization can use it as a starting point.',
+    gradient: 'from-orange-500/20 via-orange-500/10 to-transparent',
+    iconColor: 'text-orange-500',
+    target: '[data-onboarding-builder="publish-trigger"]',
+  },
+  {
     title: 'More Options',
     description: 'Undo, Redo, Import & Export.',
     icon: MoreVertical,
@@ -100,14 +113,25 @@ const BUILDER_TOUR_STEPS: BuilderTourStep[] = [
     target: '[data-onboarding-builder="more-options"]',
   },
   {
+    title: 'Schedules',
+    description: 'Automate recurring workflow runs.',
+    icon: CalendarClock,
+    content:
+      'Create and manage schedules to run your workflow automatically at set intervals. View active, paused, and errored schedules right from the canvas.',
+    gradient: 'from-teal-500/20 via-teal-500/10 to-transparent',
+    iconColor: 'text-teal-500',
+    target: '[data-onboarding-builder="schedule-bar"]',
+  },
+  {
     title: 'Execution Inspector',
     description: 'Monitor your workflow runs.',
     icon: MonitorPlay,
     content:
-      'Switch to Execute mode to see this panel. Select a run to explore its timeline, view real-time progress, rerun workflows, and stop active executions.',
+      'This panel shows all your workflow runs. Select a run to explore its timeline, view real-time progress, rerun workflows, and stop active executions.',
     gradient: 'from-cyan-500/20 via-cyan-500/10 to-transparent',
     iconColor: 'text-cyan-500',
     target: '[data-onboarding-builder="execution-inspector"]',
+    requiresMode: 'execution',
   },
   {
     title: 'Inspector Tabs',
@@ -118,16 +142,7 @@ const BUILDER_TOUR_STEPS: BuilderTourStep[] = [
     gradient: 'from-violet-500/20 via-violet-500/10 to-transparent',
     iconColor: 'text-violet-500',
     target: '[data-onboarding-builder="inspector-tabs"]',
-  },
-  {
-    title: 'Schedules',
-    description: 'Automate recurring workflow runs.',
-    icon: CalendarClock,
-    content:
-      'Create and manage schedules to run your workflow automatically at set intervals. View active, paused, and errored schedules right from the canvas.',
-    gradient: 'from-teal-500/20 via-teal-500/10 to-transparent',
-    iconColor: 'text-teal-500',
-    target: '[data-onboarding-builder="schedule-bar"]',
+    requiresMode: 'execution',
   },
 ];
 
@@ -156,6 +171,20 @@ export function WorkflowBuilderTour({
   const Icon = step?.icon ?? Sparkles;
   const isCenter = !step?.target;
 
+  // Auto-switch mode based on step requirements
+  useEffect(() => {
+    if (!open || !step) return;
+
+    const store = useWorkflowUiStore.getState();
+    const requiredMode = step.requiresMode;
+
+    if (requiredMode === 'execution' && store.mode !== 'execution') {
+      store.setMode('execution');
+    } else if (requiredMode !== 'execution' && store.mode === 'execution') {
+      store.setMode('design');
+    }
+  }, [open, currentStep, step]);
+
   // Track target element position
   useEffect(() => {
     if (!open) {
@@ -168,6 +197,9 @@ export function WorkflowBuilderTour({
       return;
     }
 
+    // Use longer delay for steps that require a mode switch to allow re-render
+    const delay = step.requiresMode ? 250 : 120;
+
     const timer = setTimeout(() => {
       const el = document.querySelector(step.target!);
       if (el) {
@@ -175,10 +207,10 @@ export function WorkflowBuilderTour({
       } else {
         setTargetRect(null);
       }
-    }, 120);
+    }, delay);
 
     return () => clearTimeout(timer);
-  }, [open, step?.target, currentStep]);
+  }, [open, step?.target, step?.requiresMode, currentStep]);
 
   // Update on window resize
   useEffect(() => {
@@ -195,13 +227,22 @@ export function WorkflowBuilderTour({
     return () => window.removeEventListener('resize', updateRect);
   }, [open, step?.target]);
 
+  // Wrap onComplete to restore design mode if needed
+  const handleComplete = useCallback(() => {
+    const currentMode = useWorkflowUiStore.getState().mode;
+    if (currentMode === 'execution') {
+      useWorkflowUiStore.getState().setMode('design');
+    }
+    onComplete();
+  }, [onComplete]);
+
   const handleNext = useCallback(() => {
     if (isLastStep) {
-      onComplete();
+      handleComplete();
     } else {
       onStepChange(currentStep + 1);
     }
-  }, [isLastStep, onComplete, onStepChange, currentStep]);
+  }, [isLastStep, handleComplete, onStepChange, currentStep]);
 
   const handleBack = useCallback(() => {
     if (currentStep > 0) {
@@ -222,13 +263,13 @@ export function WorkflowBuilderTour({
         handleBack();
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        onComplete();
+        handleComplete();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, handleNext, handleBack, onComplete]);
+  }, [open, handleNext, handleBack, handleComplete]);
 
   if (!open || !step) return null;
 
@@ -257,6 +298,19 @@ export function WorkflowBuilderTour({
       return {
         top: tooltipTop,
         left: targetRect.right + TOOLTIP_GAP,
+        width: TOOLTIP_WIDTH,
+      };
+    }
+
+    // For inspector elements (right panel), position to the left
+    if (
+      step.target === '[data-onboarding-builder="execution-inspector"]' ||
+      step.target === '[data-onboarding-builder="inspector-tabs"]'
+    ) {
+      const tooltipTop = Math.max(80, targetRect.top + targetRect.height / 2 - 100);
+      return {
+        top: tooltipTop,
+        left: targetRect.left - TOOLTIP_WIDTH - TOOLTIP_GAP,
         width: TOOLTIP_WIDTH,
       };
     }
@@ -324,7 +378,7 @@ export function WorkflowBuilderTour({
         <div className={cn('bg-gradient-to-br px-5 pt-5 pb-4', step.gradient)}>
           {/* Close button */}
           <button
-            onClick={onComplete}
+            onClick={handleComplete}
             className="absolute top-3 right-3 p-1 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 transition-colors"
             aria-label="Close tour"
           >
@@ -351,33 +405,8 @@ export function WorkflowBuilderTour({
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-border/40 bg-muted/20">
-          {/* Progress dots */}
-          <div className="flex items-center justify-center gap-1.5 mb-3" role="tablist">
-            {BUILDER_TOUR_STEPS.map((s, index) => (
-              <button
-                key={index}
-                role="tab"
-                aria-selected={index === currentStep}
-                aria-label={`Step ${index + 1}: ${s.title}`}
-                onClick={() => onStepChange(index)}
-                className={cn(
-                  'rounded-full transition-all duration-200 hover:opacity-80',
-                  index === currentStep
-                    ? 'w-6 h-2 bg-primary'
-                    : index < currentStep
-                      ? 'w-2 h-2 bg-primary/50'
-                      : 'w-2 h-2 bg-muted-foreground/20',
-                )}
-              />
-            ))}
-          </div>
-
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground/60 tabular-nums">
-              {currentStep + 1} / {BUILDER_TOUR_STEPS.length}
-            </span>
-
-            <div className="flex items-center gap-2">
+            <div>
               {currentStep > 0 && (
                 <Button
                   variant="ghost"
@@ -389,17 +418,17 @@ export function WorkflowBuilderTour({
                   Back
                 </Button>
               )}
-              <Button size="sm" onClick={handleNext} className="h-8 text-xs gap-1 px-4 shadow-sm">
-                {isLastStep ? (
-                  'Start Building'
-                ) : (
-                  <>
-                    Next
-                    <ArrowRight className="h-3 w-3" />
-                  </>
-                )}
-              </Button>
             </div>
+            <Button size="sm" onClick={handleNext} className="h-8 text-xs gap-1 px-4 shadow-sm">
+              {isLastStep ? (
+                'Start Building'
+              ) : (
+                <>
+                  Next
+                  <ArrowRight className="h-3 w-3" />
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </div>

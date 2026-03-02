@@ -463,6 +463,7 @@ export function TopBar({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
+                        data-onboarding-builder="publish-trigger"
                         size="sm"
                         className="px-1.5 rounded-l-none border-l border-primary-foreground/20"
                         disabled={!canEdit}

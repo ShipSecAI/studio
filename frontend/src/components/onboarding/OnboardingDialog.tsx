@@ -294,33 +294,8 @@ export function OnboardingDialog({
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-border/40 bg-muted/20">
-          {/* Progress dots */}
-          <div className="flex items-center justify-center gap-1.5 mb-3" role="tablist">
-            {ONBOARDING_STEPS.map((s, index) => (
-              <button
-                key={index}
-                role="tab"
-                aria-selected={index === currentStep}
-                aria-label={`Step ${index + 1}: ${s.title}`}
-                onClick={() => onStepChange(index)}
-                className={cn(
-                  'rounded-full transition-all duration-200 hover:opacity-80',
-                  index === currentStep
-                    ? 'w-6 h-2 bg-primary'
-                    : index < currentStep
-                      ? 'w-2 h-2 bg-primary/50'
-                      : 'w-2 h-2 bg-muted-foreground/20',
-                )}
-              />
-            ))}
-          </div>
-
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground/60 tabular-nums">
-              {currentStep + 1} / {ONBOARDING_STEPS.length}
-            </span>
-
-            <div className="flex items-center gap-2">
+            <div>
               {currentStep > 0 && (
                 <Button
                   variant="ghost"
@@ -332,17 +307,17 @@ export function OnboardingDialog({
                   Back
                 </Button>
               )}
-              <Button size="sm" onClick={handleNext} className="h-8 text-xs gap-1 px-4 shadow-sm">
-                {isLastStep ? (
-                  'Get Started'
-                ) : (
-                  <>
-                    Next
-                    <ArrowRight className="h-3 w-3" />
-                  </>
-                )}
-              </Button>
             </div>
+            <Button size="sm" onClick={handleNext} className="h-8 text-xs gap-1 px-4 shadow-sm">
+              {isLastStep ? (
+                'Get Started'
+              ) : (
+                <>
+                  Next
+                  <ArrowRight className="h-3 w-3" />
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </div>
