@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, lt, sql, type SQL } from 'drizzle-orm';
 
 import { DRIZZLE_TOKEN } from '../database/database.module';
 import {
@@ -165,6 +165,19 @@ export class ChatSessionRepository {
         updatedAt: sql`now()`,
       })
       .where(and(...conditions));
+  }
+
+  async findStaleProcessingSessions(olderThanMinutes: number): Promise<ChatSession[]> {
+    const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000);
+    return this.db
+      .select()
+      .from(chatSessionsTable)
+      .where(
+        and(
+          eq(chatSessionsTable.processingStatus, 'processing'),
+          lt(chatSessionsTable.updatedAt, cutoff),
+        ),
+      );
   }
 
   async saveMessage(

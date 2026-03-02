@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable, OnModuleInit, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import type { UIMessage } from 'ai';
 import type { ServerResponse } from 'node:http';
 
@@ -20,8 +26,9 @@ Be concise and helpful. When a user asks to run a workflow, confirm the workflow
 and any required inputs before executing. Always show run IDs so users can track progress.`;
 
 @Injectable()
-export class ChatService implements OnModuleInit {
+export class ChatService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ChatService.name);
+  private reconcileInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly sessionRepository: ChatSessionRepository,
@@ -33,6 +40,36 @@ export class ChatService implements OnModuleInit {
 
   onModuleInit() {
     this.logger.log('Chat agent mode: Temporal (durable workflows)');
+    this.reconcileInterval = setInterval(() => {
+      this.reconcileZombieSessions().catch((err) => {
+        this.logger.error('Zombie session reconciliation failed', err);
+      });
+    }, 60_000);
+  }
+
+  onModuleDestroy() {
+    if (this.reconcileInterval) {
+      clearInterval(this.reconcileInterval);
+      this.reconcileInterval = null;
+    }
+  }
+
+  private async reconcileZombieSessions(): Promise<void> {
+    const staleSessions = await this.sessionRepository.findStaleProcessingSessions(10);
+    if (staleSessions.length === 0) return;
+
+    for (const session of staleSessions) {
+      try {
+        await this.temporalService.queryChatStatus(session.id);
+        // Workflow is still running — leave it alone
+      } catch {
+        // Workflow not found or dead — reset the session
+        this.logger.warn(
+          `Resetting zombie session ${session.id} (processingStatus=processing but workflow is gone)`,
+        );
+        await this.sessionRepository.completeRun(session.id);
+      }
+    }
   }
 
   // --- Session CRUD ---
