@@ -432,8 +432,14 @@ export async function runChatAgentStepActivity(
     // Heartbeat before LLM call
     Context.current().heartbeat('llm-call-start');
 
+    // Cap messages to last 50 for LLM context (full history stays in workflow state).
+    // Prevents token exhaustion and context-limit errors in long conversations.
+    const MAX_LLM_MESSAGES = 50;
+    const llmMessages =
+      messages.length > MAX_LLM_MESSAGES ? messages.slice(-MAX_LLM_MESSAGES) : messages;
+
     // Convert messages for AI SDK (preserves tool call/result context)
-    const aiMessages = await toAISDKMessages(messages);
+    const aiMessages = await toAISDKMessages(llmMessages);
 
     try {
       // Run streamText with MCP tools — tool execution happens via MCP protocol
