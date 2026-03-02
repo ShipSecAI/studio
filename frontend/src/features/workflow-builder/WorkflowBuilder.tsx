@@ -1094,7 +1094,7 @@ function WorkflowBuilderContent() {
         />
       )}
       <WorkflowBuilderTour
-        open={!hasCompletedBuilderTour && !isLoading && !isNewWorkflow && !isMobile}
+        open={!hasCompletedBuilderTour && !isLoading && !isMobile}
         onComplete={completeBuilderTour}
         currentStep={builderTourStep}
         onStepChange={setBuilderTourStep}

@@ -10,6 +10,7 @@ import {
   ArrowRight,
   ArrowLeft,
   Sparkles,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -18,7 +19,8 @@ interface OnboardingStep {
   description: string;
   icon: typeof Sparkles;
   content: string;
-  color: string;
+  gradient: string;
+  iconColor: string;
   target: string | null;
 }
 
@@ -29,7 +31,8 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     icon: Sparkles,
     content:
       "ShipSec Studio is your all-in-one security automation platform. We'll walk you through the key features to get you started.",
-    color: 'text-purple-500',
+    gradient: 'from-purple-500/20 via-violet-500/10 to-transparent',
+    iconColor: 'text-purple-500',
     target: null,
   },
   {
@@ -38,7 +41,8 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     icon: Workflow,
     content:
       'Design powerful security workflows using the visual builder. Drag and drop nodes, configure actions, and chain them together.',
-    color: 'text-blue-500',
+    gradient: 'from-blue-500/20 via-blue-500/10 to-transparent',
+    iconColor: 'text-blue-500',
     target: '[data-onboarding="workflow-builder"]',
   },
   {
@@ -47,7 +51,8 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     icon: Package,
     content:
       'Browse ready-made workflow templates for common security tasks. Pick one and customize it to fit your needs.',
-    color: 'text-green-500',
+    gradient: 'from-green-500/20 via-green-500/10 to-transparent',
+    iconColor: 'text-green-500',
     target: '[data-onboarding="template-library"]',
   },
   {
@@ -56,7 +61,8 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     icon: CalendarClock,
     content:
       'Set up schedules to run workflows at specific intervals. Automate recurring security scans and checks effortlessly.',
-    color: 'text-orange-500',
+    gradient: 'from-orange-500/20 via-orange-500/10 to-transparent',
+    iconColor: 'text-orange-500',
     target: '[data-onboarding="schedules"]',
   },
   {
@@ -65,7 +71,8 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     icon: Zap,
     content:
       'Review workflow executions, inspect findings, and take action on results — all from one central dashboard.',
-    color: 'text-yellow-500',
+    gradient: 'from-yellow-500/20 via-yellow-500/10 to-transparent',
+    iconColor: 'text-yellow-500',
     target: '[data-onboarding="action-center"]',
   },
   {
@@ -74,14 +81,15 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     icon: KeyRound,
     content:
       'Store API keys, tokens, and credentials securely. Configure MCP servers and manage all your sensitive data from here.',
-    color: 'text-red-500',
+    gradient: 'from-red-500/20 via-red-500/10 to-transparent',
+    iconColor: 'text-red-500',
     target: '[data-onboarding="manage-section"]',
   },
 ];
 
-const SPOTLIGHT_PADDING = 8;
+const SPOTLIGHT_PADDING = 10;
 const TOOLTIP_GAP = 16;
-const TOOLTIP_WIDTH = 360;
+const TOOLTIP_WIDTH = 380;
 
 interface OnboardingDialogProps {
   open: boolean;
@@ -116,7 +124,6 @@ export function OnboardingDialog({
       return;
     }
 
-    // Delay to allow sidebar animations to settle
     const timer = setTimeout(() => {
       const el = document.querySelector(step.target!);
       if (el) {
@@ -124,7 +131,7 @@ export function OnboardingDialog({
       } else {
         setTargetRect(null);
       }
-    }, 350);
+    }, 120);
 
     return () => clearTimeout(timer);
   }, [open, step?.target, currentStep]);
@@ -181,7 +188,6 @@ export function OnboardingDialog({
 
   if (!open || !step) return null;
 
-  // Calculate tooltip position
   const getTooltipStyle = (): React.CSSProperties => {
     if (isCenter || !targetRect) {
       return {
@@ -192,15 +198,13 @@ export function OnboardingDialog({
       };
     }
 
-    // Position to the right of the highlighted element
     const tooltipTop = Math.max(
       16,
-      Math.min(window.innerHeight - 320, targetRect.top + targetRect.height / 2 - 100),
+      Math.min(window.innerHeight - 340, targetRect.top + targetRect.height / 2 - 100),
     );
 
     const tooltipLeft = targetRect.right + TOOLTIP_GAP;
 
-    // If tooltip would overflow right edge, position below instead
     if (tooltipLeft + TOOLTIP_WIDTH > window.innerWidth - 16) {
       return {
         top: targetRect.bottom + TOOLTIP_GAP,
@@ -223,29 +227,25 @@ export function OnboardingDialog({
       aria-modal="true"
       aria-label="Onboarding tour"
     >
-      {/* Click blocker overlay */}
       <div className="fixed inset-0" aria-hidden="true" />
 
-      {/* Dimming overlay or spotlight */}
       {isCenter || !targetRect ? (
-        <div className="fixed inset-0 bg-black/60 transition-opacity duration-300" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity duration-200" />
       ) : (
         <>
-          {/* Spotlight cutout with smooth transition */}
           <div
-            className="fixed rounded-lg transition-all duration-500 ease-in-out"
+            className="fixed rounded-xl transition-all duration-300 ease-out"
             style={{
               top: targetRect.top - SPOTLIGHT_PADDING,
               left: targetRect.left - SPOTLIGHT_PADDING,
               width: targetRect.width + SPOTLIGHT_PADDING * 2,
               height: targetRect.height + SPOTLIGHT_PADDING * 2,
-              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.6), 0 0 20px 4px rgba(59, 130, 246, 0.25)',
+              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.6), 0 0 30px 8px rgba(99, 102, 241, 0.2)',
               pointerEvents: 'none',
             }}
           />
-          {/* Pulsing ring around spotlight */}
           <div
-            className="fixed rounded-lg border-2 border-primary/50 transition-all duration-500 ease-in-out animate-pulse"
+            className="fixed rounded-xl border-2 border-primary/40 transition-all duration-300 ease-out animate-pulse"
             style={{
               top: targetRect.top - SPOTLIGHT_PADDING - 2,
               left: targetRect.left - SPOTLIGHT_PADDING - 2,
@@ -260,81 +260,90 @@ export function OnboardingDialog({
       {/* Tooltip card */}
       <div
         ref={tooltipRef}
-        className={cn(
-          'fixed rounded-xl border bg-background shadow-2xl transition-all duration-300',
-          isCenter ? 'p-6' : 'p-5',
-        )}
+        className="fixed rounded-2xl border border-border/60 bg-background/95 backdrop-blur-xl shadow-2xl transition-all duration-200 overflow-hidden"
         style={getTooltipStyle()}
       >
-        {/* Progress indicator */}
-        <div className="flex items-center justify-center gap-1.5 mb-4" role="tablist">
-          {ONBOARDING_STEPS.map((s, index) => (
-            <button
-              key={index}
-              role="tab"
-              aria-selected={index === currentStep}
-              aria-label={`Step ${index + 1}: ${s.title}`}
-              onClick={() => onStepChange(index)}
-              className={cn(
-                'h-1.5 rounded-full transition-all duration-300 hover:opacity-80',
-                index <= currentStep ? 'bg-primary' : 'bg-muted',
-                index === currentStep ? 'w-6' : 'w-1.5',
-              )}
-            />
-          ))}
-        </div>
-
-        {/* Step content */}
-        <div key={currentStep} className="animate-in fade-in duration-200">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-              <Icon className={cn('h-5 w-5', step.color)} />
-            </div>
-            <div className="min-w-0">
-              <h3 className="font-semibold text-foreground text-sm leading-tight">{step.title}</h3>
-              <p className="text-xs text-muted-foreground">{step.description}</p>
-            </div>
-          </div>
-
-          <p className="text-sm leading-relaxed text-muted-foreground mb-4">{step.content}</p>
-        </div>
-
-        {/* Navigation footer */}
-        <div className="flex items-center justify-between pt-1">
-          <Button
-            variant="ghost"
-            size="sm"
+        {/* Gradient header */}
+        <div className={cn('bg-gradient-to-br px-5 pt-5 pb-4', step.gradient)}>
+          {/* Close button */}
+          <button
             onClick={onComplete}
-            className="text-muted-foreground text-xs h-8"
+            className="absolute top-3 right-3 p-1 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 transition-colors"
+            aria-label="Close tour"
           >
-            Skip tour
-          </Button>
+            <X className="h-4 w-4" />
+          </button>
 
-          <div className="flex items-center gap-2">
-            {currentStep > 0 && (
-              <Button variant="outline" size="sm" onClick={handleBack} className="h-8 text-xs">
-                <ArrowLeft className="mr-1 h-3 w-3" />
-                Back
-              </Button>
-            )}
-            <Button size="sm" onClick={handleNext} className="h-8 text-xs">
-              {isLastStep ? (
-                'Get Started'
-              ) : (
-                <>
-                  Next
-                  <ArrowRight className="ml-1 h-3 w-3" />
-                </>
-              )}
-            </Button>
+          {/* Step content */}
+          <div key={currentStep} className="animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-background/80 shadow-sm border border-border/40">
+                <Icon className={cn('h-5 w-5', step.iconColor)} />
+              </div>
+              <div className="min-w-0 pt-0.5">
+                <h3 className="font-semibold text-foreground text-[15px] leading-tight">
+                  {step.title}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
+              </div>
+            </div>
+
+            <p className="text-[13px] leading-relaxed text-muted-foreground">{step.content}</p>
           </div>
         </div>
 
-        {/* Step counter */}
-        <div className="text-center mt-2">
-          <span className="text-[11px] text-muted-foreground/70">
-            {currentStep + 1} of {ONBOARDING_STEPS.length}
-          </span>
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-border/40 bg-muted/20">
+          {/* Progress dots */}
+          <div className="flex items-center justify-center gap-1.5 mb-3" role="tablist">
+            {ONBOARDING_STEPS.map((s, index) => (
+              <button
+                key={index}
+                role="tab"
+                aria-selected={index === currentStep}
+                aria-label={`Step ${index + 1}: ${s.title}`}
+                onClick={() => onStepChange(index)}
+                className={cn(
+                  'rounded-full transition-all duration-200 hover:opacity-80',
+                  index === currentStep
+                    ? 'w-6 h-2 bg-primary'
+                    : index < currentStep
+                      ? 'w-2 h-2 bg-primary/50'
+                      : 'w-2 h-2 bg-muted-foreground/20',
+                )}
+              />
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground/60 tabular-nums">
+              {currentStep + 1} / {ONBOARDING_STEPS.length}
+            </span>
+
+            <div className="flex items-center gap-2">
+              {currentStep > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleBack}
+                  className="h-8 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                >
+                  <ArrowLeft className="h-3 w-3" />
+                  Back
+                </Button>
+              )}
+              <Button size="sm" onClick={handleNext} className="h-8 text-xs gap-1 px-4 shadow-sm">
+                {isLastStep ? (
+                  'Get Started'
+                ) : (
+                  <>
+                    Next
+                    <ArrowRight className="h-3 w-3" />
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>,
