@@ -545,12 +545,11 @@ export function ChatInterface() {
 
     let cancelled = false;
     let streamAbortController: AbortController | null = null;
-    let activePassiveRunId: string | null = null;
 
     const closePassiveStream = () => {
       streamAbortController?.abort();
       streamAbortController = null;
-      activePassiveRunId = null;
+      activePassiveRunIdRef.current = null;
     };
 
     const hydrateActiveSessionSafely = async () => {
@@ -565,11 +564,12 @@ export function ChatInterface() {
 
     const attachPassiveStream = async (runId: string) => {
       if (cancelled) return;
-      if (status === 'streaming') return; // local tab already owns an active stream
-      if (activePassiveRunId === runId) return;
+      if (statusRef.current === 'streaming') return; // local tab already owns an active stream
+      // Bug 3: guard with ref so re-runs of this effect don't re-attach the same run
+      if (activePassiveRunIdRef.current === runId) return;
 
       closePassiveStream();
-      activePassiveRunId = runId;
+      activePassiveRunIdRef.current = runId;
       streamAbortController = new AbortController();
 
       // Pull latest persisted messages first so remote user messages show immediately.
@@ -581,7 +581,7 @@ export function ChatInterface() {
       try {
         const iterator = readUIMessageStream({ stream });
         for await (const snapshot of iterator) {
-          if (cancelled || activePassiveRunId !== runId) break;
+          if (cancelled || activePassiveRunIdRef.current !== runId) break;
           if (routeSessionIdRef.current !== currentSessionId) break;
           const current = messagesRef.current;
           const existingIndex = current.findIndex((message) => message.id === snapshot.id);
@@ -600,6 +600,10 @@ export function ChatInterface() {
       }
     };
 
+    // Bug 2: reset staleness counter when a new session/effect starts
+    processingTicksRef.current = 0;
+    setPollingStale(false);
+
     const poll = async () => {
       if (cancelled) return;
       try {
@@ -616,6 +620,14 @@ export function ChatInterface() {
         };
 
         if (body.processingStatus === 'processing' && body.activeRunId) {
+          // Bug 2: detect zombie sessions — if we've been processing for > 5 min stop polling
+          processingTicksRef.current += 1;
+          if (processingTicksRef.current > 200) {
+            window.clearInterval(intervalId);
+            setPollingStale(true);
+            return;
+          }
+
           setSessionProcessing(true);
           setSessionProcessingStartedAtMs(
             body.activeRunStartedAt ? new Date(body.activeRunStartedAt).getTime() : null,
@@ -624,9 +636,12 @@ export function ChatInterface() {
           return;
         }
 
+        // Status returned to idle — reset staleness counter
+        processingTicksRef.current = 0;
+        setPollingStale(false);
         setSessionProcessing(false);
         setSessionProcessingStartedAtMs(null);
-        if (activePassiveRunId) {
+        if (activePassiveRunIdRef.current) {
           closePassiveStream();
           await hydrateActiveSessionSafely();
         }
@@ -636,7 +651,8 @@ export function ChatInterface() {
     };
 
     void poll();
-    const intervalId = window.setInterval(() => {
+    // eslint-disable-next-line prefer-const -- intervalId is referenced inside poll() before it's assigned
+    let intervalId = window.setInterval(() => {
       void poll();
     }, 1500);
 
@@ -647,19 +663,28 @@ export function ChatInterface() {
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
     };
-  }, [
-    currentSessionId,
-    messagesLoaded,
-    status,
-    chatTransport,
-    fetchMessagesForSession,
-    setMessages,
-  ]);
+
+    // statusRef to avoid restarting the polling loop (and resetting activePassiveRunIdRef) on every
+    // status transition (submitted→streaming→ready). See ENG-218.
+  }, [currentSessionId, messagesLoaded, chatTransport, fetchMessagesForSession, setMessages]);
 
   const messagesRef = useRef(messages);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // Keep a ref to status so the polling effect can read it without being in its deps.
+  const statusRef = useRef(status);
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  // Ref to deduplicate passive stream attachment across effect re-runs (Bug 3).
+  const activePassiveRunIdRef = useRef<string | null>(null);
+
+  // Staleness counter: how many consecutive 1.5s ticks the session has been 'processing' (Bug 2).
+  const processingTicksRef = useRef(0);
+  const [pollingStale, setPollingStale] = useState(false);
 
   // Reload sessions when streaming finishes to pick up AI-generated title
   const prevStatusRef = useRef(status);
@@ -954,6 +979,17 @@ export function ChatInterface() {
             <div className="shrink-0 px-4">
               <div className="max-w-5xl mx-auto mb-2 px-3 py-2 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
                 {error.message || 'An error occurred while generating a response.'}
+              </div>
+            </div>
+          )}
+
+          {/* Stale polling warning — shown when the session has been stuck in 'processing' for >5 min */}
+          {pollingStale && (
+            <div className="shrink-0 px-4">
+              <div className="max-w-5xl mx-auto mb-2 px-3 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded-md text-sm text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                This session has been processing for over 5 minutes. It may be stuck. Try refreshing
+                or starting a new session.
               </div>
             </div>
           )}
