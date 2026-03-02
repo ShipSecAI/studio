@@ -36,6 +36,9 @@ function ClerkBridgeInner() {
             name: primaryOrg.name,
           });
         }
+        // Reload feature flags after identify so PostHog can evaluate
+        // per-user and per-org targeting rules
+        posthog.reloadFeatureFlags();
       } catch (_) {
         // ignore
       }

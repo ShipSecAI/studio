@@ -15,6 +15,7 @@ import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { env } from '@/config/env';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { FeatureFlagProvider, FeatureFlagRoute } from '@/features/feature-flags';
 
 const ReactQueryDevtools = lazy(() =>
   import('@tanstack/react-query-devtools').then((mod) => ({
@@ -172,98 +173,159 @@ function App() {
                   {/* Analytics wiring */}
                   <AnalyticsRouterListener />
                   <PostHogClerkBridge />
-                  <AppLayout>
-                    <ProtectedRoute>
-                      <ErrorBoundary resetOnNavigate>
-                        <Suspense fallback={<PageSkeleton />}>
-                          <Routes>
-                            <Route path="/" element={<HomePage />} />
-                            <Route path="/chat" element={<ChatInterface />} />
-                            <Route path="/chat/:sessionId" element={<ChatInterface />} />
-                            <Route path="/activity" element={<ActivityPage />} />
-                            <Route path="/builder" element={<WorkflowList />} />
-                            <Route path="/templates" element={<WorkflowTemplatesPage />} />
-                            <Route
-                              path="/workflows/:id"
-                              element={
-                                <ProtectedRoute>
-                                  <WorkflowBuilder />
-                                </ProtectedRoute>
-                              }
-                            />
-                            <Route
-                              path="/workflows/:id/runs"
-                              element={
-                                <ProtectedRoute>
-                                  <WorkflowBuilder />
-                                </ProtectedRoute>
-                              }
-                            />
-                            <Route
-                              path="/workflows/:id/runs/:runId"
-                              element={
-                                <ProtectedRoute>
-                                  <WorkflowBuilder />
-                                </ProtectedRoute>
-                              }
-                            />
-                            <Route path="/secrets" element={<SecretsManager />} />
-                            <Route path="/api-keys" element={<ApiKeysManager />} />
-                            <Route path="/integrations" element={<IntegrationsManager />} />
-                            <Route
-                              path="/integrations/github"
-                              element={<GitHubIntegrationPage />}
-                            />
-                            <Route
-                              path="/integrations/:provider"
-                              element={<IntegrationDetailPage />}
-                            />
-                            <Route
-                              path="/github"
-                              element={<Navigate to="/github/repositories" replace />}
-                            />
-                            <Route path="/github/repositories" element={<GitHubPage />} />
-                            <Route path="/github/scans" element={<GitHubPage />} />
-                            <Route path="/github/scans/:id" element={<ScanResultPage />} />
-                            <Route path="/github/triggers" element={<GitHubPage />} />
-                            <Route
-                              path="/github/triggers/new"
-                              element={<CreateTriggerRulePage />}
-                            />
-                            <Route path="/github/triggers/:id" element={<EditTriggerRulePage />} />
-                            <Route path="/webhooks" element={<WebhooksPage />} />
-                            <Route path="/webhooks/new" element={<WebhookEditorPage />} />
-                            <Route path="/webhooks/:id" element={<WebhookEditorPage />} />
-                            <Route
-                              path="/webhooks/:id/deliveries"
-                              element={<WebhookEditorPage />}
-                            />
-                            <Route path="/webhooks/:id/settings" element={<WebhookEditorPage />} />
-                            <Route path="/schedules" element={<SchedulesPage />} />
-                            <Route path="/action-center" element={<ActionCenterPage />} />
-                            <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
-                            <Route path="/settings/*" element={<SettingsPage />} />
-                            <Route path="/dashboards/security" element={<SecurityDashboard />} />
-                            <Route path="/artifacts" element={<ArtifactLibrary />} />
-                            <Route path="/mcp-library" element={<McpLibraryPage />} />
-                            <Route path="/cloud/accounts" element={<CloudAccountsPage />} />
-                            <Route path="/cloud/inventory" element={<CloudInventoryPage />} />
-                            <Route path="/cloud/scans" element={<CloudAccountsPage />} />
-                            <Route path="/asm/domains" element={<DomainsPage />} />
-                            <Route path="/asm/assets" element={<AssetsPage />} />
-                            <Route path="/asm/scans" element={<AsmScansPage />} />
-                            <Route path="/recon" element={<Navigate to="/asm/domains" replace />} />
-                            <Route path="/runs/:runId" element={<RunRedirect />} />
-                            <Route
-                              path="/integrations/callback/:provider"
-                              element={<IntegrationCallback />}
-                            />
-                            <Route path="*" element={<NotFound />} />
-                          </Routes>
-                        </Suspense>
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  </AppLayout>
+                  <FeatureFlagProvider>
+                    <AppLayout>
+                      <ProtectedRoute>
+                        <ErrorBoundary resetOnNavigate>
+                          <Suspense fallback={<PageSkeleton />}>
+                            <Routes>
+                              {/* Always-on routes */}
+                              <Route path="/" element={<HomePage />} />
+                              <Route path="/activity" element={<ActivityPage />} />
+                              <Route path="/settings/*" element={<SettingsPage />} />
+                              <Route path="/runs/:runId" element={<RunRedirect />} />
+                              <Route
+                                path="/integrations/callback/:provider"
+                                element={<IntegrationCallback />}
+                              />
+
+                              {/* AI Agent — gated */}
+                              <Route element={<FeatureFlagRoute flag="AI_AGENT" />}>
+                                <Route path="/chat" element={<ChatInterface />} />
+                                <Route path="/chat/:sessionId" element={<ChatInterface />} />
+                              </Route>
+
+                              {/* Workflows — gated */}
+                              <Route element={<FeatureFlagRoute flag="WORKFLOWS" />}>
+                                <Route path="/builder" element={<WorkflowList />} />
+                                <Route path="/templates" element={<WorkflowTemplatesPage />} />
+                                <Route
+                                  path="/workflows/:id"
+                                  element={
+                                    <ProtectedRoute>
+                                      <WorkflowBuilder />
+                                    </ProtectedRoute>
+                                  }
+                                />
+                                <Route
+                                  path="/workflows/:id/runs"
+                                  element={
+                                    <ProtectedRoute>
+                                      <WorkflowBuilder />
+                                    </ProtectedRoute>
+                                  }
+                                />
+                                <Route
+                                  path="/workflows/:id/runs/:runId"
+                                  element={
+                                    <ProtectedRoute>
+                                      <WorkflowBuilder />
+                                    </ProtectedRoute>
+                                  }
+                                />
+                                <Route path="/schedules" element={<SchedulesPage />} />
+                                <Route path="/action-center" element={<ActionCenterPage />} />
+                              </Route>
+
+                              {/* Webhooks — gated (depends on Workflows via registry) */}
+                              <Route element={<FeatureFlagRoute flag="WEBHOOKS" />}>
+                                <Route path="/webhooks" element={<WebhooksPage />} />
+                                <Route path="/webhooks/new" element={<WebhookEditorPage />} />
+                                <Route path="/webhooks/:id" element={<WebhookEditorPage />} />
+                                <Route
+                                  path="/webhooks/:id/deliveries"
+                                  element={<WebhookEditorPage />}
+                                />
+                                <Route
+                                  path="/webhooks/:id/settings"
+                                  element={<WebhookEditorPage />}
+                                />
+                              </Route>
+
+                              {/* GitHub / Code Security — gated */}
+                              <Route element={<FeatureFlagRoute flag="GITHUB_INTEGRATION" />}>
+                                <Route
+                                  path="/github"
+                                  element={<Navigate to="/github/repositories" replace />}
+                                />
+                                <Route path="/github/repositories" element={<GitHubPage />} />
+                                <Route path="/github/scans" element={<GitHubPage />} />
+                                <Route path="/github/scans/:id" element={<ScanResultPage />} />
+                                <Route path="/github/triggers" element={<GitHubPage />} />
+                                <Route
+                                  path="/github/triggers/new"
+                                  element={<CreateTriggerRulePage />}
+                                />
+                                <Route
+                                  path="/github/triggers/:id"
+                                  element={<EditTriggerRulePage />}
+                                />
+                              </Route>
+
+                              {/* Cloud Security — gated */}
+                              <Route element={<FeatureFlagRoute flag="CLOUD_SECURITY" />}>
+                                <Route path="/cloud/accounts" element={<CloudAccountsPage />} />
+                                <Route path="/cloud/inventory" element={<CloudInventoryPage />} />
+                                <Route path="/cloud/scans" element={<CloudAccountsPage />} />
+                              </Route>
+
+                              {/* ASM — gated */}
+                              <Route element={<FeatureFlagRoute flag="ASM" />}>
+                                <Route path="/asm/domains" element={<DomainsPage />} />
+                                <Route path="/asm/assets" element={<AssetsPage />} />
+                                <Route path="/asm/scans" element={<AsmScansPage />} />
+                                <Route
+                                  path="/recon"
+                                  element={<Navigate to="/asm/domains" replace />}
+                                />
+                              </Route>
+
+                              {/* Security Dashboard — gated */}
+                              <Route element={<FeatureFlagRoute flag="SECURITY_DASHBOARD" />}>
+                                <Route
+                                  path="/dashboards/security"
+                                  element={<SecurityDashboard />}
+                                />
+                              </Route>
+
+                              {/* Settings sub-pages — individually gated */}
+                              <Route element={<FeatureFlagRoute flag="SECRETS" />}>
+                                <Route path="/secrets" element={<SecretsManager />} />
+                              </Route>
+                              <Route element={<FeatureFlagRoute flag="API_KEYS" />}>
+                                <Route path="/api-keys" element={<ApiKeysManager />} />
+                              </Route>
+                              <Route element={<FeatureFlagRoute flag="INTEGRATIONS" />}>
+                                <Route path="/integrations" element={<IntegrationsManager />} />
+                                <Route
+                                  path="/integrations/github"
+                                  element={<GitHubIntegrationPage />}
+                                />
+                                <Route
+                                  path="/integrations/:provider"
+                                  element={<IntegrationDetailPage />}
+                                />
+                              </Route>
+                              <Route element={<FeatureFlagRoute flag="MCP_SERVERS" />}>
+                                <Route path="/mcp-library" element={<McpLibraryPage />} />
+                              </Route>
+                              <Route element={<FeatureFlagRoute flag="ARTIFACTS" />}>
+                                <Route path="/artifacts" element={<ArtifactLibrary />} />
+                              </Route>
+                              <Route element={<FeatureFlagRoute flag="ANALYTICS_SETTINGS" />}>
+                                <Route
+                                  path="/analytics-settings"
+                                  element={<AnalyticsSettingsPage />}
+                                />
+                              </Route>
+
+                              <Route path="*" element={<NotFound />} />
+                            </Routes>
+                          </Suspense>
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    </AppLayout>
+                  </FeatureFlagProvider>
                 </CommandPaletteProvider>
               </TooltipProvider>
             </ToastProvider>

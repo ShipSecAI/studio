@@ -26,10 +26,17 @@ export const frontendEnvSchema = z
     VITE_BACKEND_BRANCH: z.string().optional().default(''),
     VITE_GIT_SHA: z.string().optional().default(''),
 
-    // Feature flags
+    // Feature flags (legacy)
     VITE_ENABLE_IT_OPS: viteBoolean(false),
     VITE_ENABLE_DEVTOOLS: viteBoolean(false),
     VITE_DISABLE_ANALYTICS: viteBoolean(false),
+
+    // Build-time feature flags — set to 'false' to tree-shake entire feature from bundle
+    VITE_FF_WORKFLOWS: viteBoolean(true),
+    VITE_FF_AI_AGENT: viteBoolean(true),
+    VITE_FF_GITHUB: viteBoolean(true),
+    VITE_FF_CLOUD: viteBoolean(true),
+    VITE_FF_ASM: viteBoolean(true),
 
     // Third-party integrations
     VITE_LOGO_DEV_PUBLIC_KEY: z.string().optional().default(''),
