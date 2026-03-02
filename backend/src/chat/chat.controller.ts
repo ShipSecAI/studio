@@ -1,4 +1,15 @@
-import { Controller, Post, Get, Patch, Delete, Body, Param, Query, Res } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Res,
+  HttpStatus,
+} from '@nestjs/common';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { ZodValidationPipe } from 'nestjs-zod';
 import type { Response } from 'express';
@@ -17,6 +28,8 @@ import {
 
 @Controller('chat/sessions')
 export class ChatController {
+  private readonly activeStreams = new Map<string, number>();
+
   constructor(private readonly chatService: ChatService) {}
 
   @Post()
@@ -109,6 +122,25 @@ export class ChatController {
     @CurrentAuth() auth: AuthContext,
     @Res() res: Response,
   ) {
+    const current = this.activeStreams.get(id) ?? 0;
+    if (current >= 3) {
+      res.status(HttpStatus.TOO_MANY_REQUESTS).json({
+        message: 'Too many concurrent stream connections for this session',
+      });
+      return;
+    }
+
+    this.activeStreams.set(id, current + 1);
+
+    res.on('close', () => {
+      const count = this.activeStreams.get(id) ?? 1;
+      if (count <= 1) {
+        this.activeStreams.delete(id);
+      } else {
+        this.activeStreams.set(id, count - 1);
+      }
+    });
+
     const parsedAfterSeq = Number(afterSeqRaw ?? '0');
     const afterSeq = Number.isFinite(parsedAfterSeq) && parsedAfterSeq > 0 ? parsedAfterSeq : 0;
     await this.chatService.streamToResponse(id, auth, res, { runId, afterSeq });
