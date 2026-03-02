@@ -96,6 +96,8 @@ function formatTaskError(error: unknown): Error {
   return new Error(`MCP task stream failed: ${String(error)}`);
 }
 
+const STALE_TASK_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
 async function runTaskTool({
   taskClient,
   toolName,
@@ -115,6 +117,13 @@ async function runTaskTool({
   let finalResult: unknown;
   let hasFinalResult = false;
 
+  // Staleness tracking: abort if status+statusMessage haven't changed for 10 minutes.
+  // This allows legitimate long-running tasks (e.g. 30-min scans that keep updating
+  // statusMessage) to continue, while killing truly stuck tasks that never progress.
+  let lastStatusChange = Date.now();
+  let lastSeenStatus: string | undefined;
+  let lastSeenStatusMessage: string | undefined;
+
   const stream = taskClient.experimental.tasks.callToolStream({
     name: toolName,
     arguments: args,
@@ -126,6 +135,17 @@ async function runTaskTool({
     if (message.type === 'taskCreated' || message.type === 'taskStatus') {
       const state = normalizeTaskState(message.task);
       if (!state) continue;
+
+      // Check for staleness: if status and statusMessage are unchanged, track elapsed time.
+      if (state.status !== lastSeenStatus || state.statusMessage !== lastSeenStatusMessage) {
+        lastSeenStatus = state.status;
+        lastSeenStatusMessage = state.statusMessage;
+        lastStatusChange = Date.now();
+      } else if (Date.now() - lastStatusChange > STALE_TASK_TIMEOUT_MS) {
+        throw new Error(
+          `MCP task ${state.taskId} appears stale — status unchanged for 10 minutes. Aborting to prevent infinite polling.`,
+        );
+      }
 
       await onTaskEvent?.({
         type: message.type === 'taskCreated' ? 'task-created' : 'task-status',
