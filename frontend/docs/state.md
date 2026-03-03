@@ -86,6 +86,7 @@ export const queryKeys = {
 | `useExecutionQueries.ts`   | Execution data (`useExecutionNodeIO`, `useExecutionResult`, `useExecutionRun`)                                                               |
 | `useRunQueries.ts`         | Workflow runs (`useRuns`, `useRunDetail`)                                                                                                    |
 | `useArtifactQueries.ts`    | Artifacts library + per-run artifacts                                                                                                        |
+| `useSecurityQueries.ts`    | Security findings, lifecycles, summaries, Prowler check metadata (`useSecurityFindings`, `useFindingDetail`, `useProwlerChecksMetadata`)     |
 | `useIntegrationQueries.ts` | Integration providers, connections, provider config (`useIntegrationProviders`, `useIntegrationConnections`, `useProviderConfig`)            |
 
 ### Writing a New Query Hook

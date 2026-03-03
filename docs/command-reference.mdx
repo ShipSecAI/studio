@@ -233,6 +233,23 @@ Builds production Docker images without starting containers.
 | `just db-reset` | Reset database |
 | `just build` | Build images |
 | `just help` | Show help |
+| `bun scripts/generate-prowler-metadata.ts` | Regenerate Prowler check remediation metadata |
+
+---
+
+## Maintenance Scripts
+
+### Generate Prowler Check Metadata
+
+```bash
+bun scripts/generate-prowler-metadata.ts
+```
+
+Extracts remediation metadata (CLI, Terraform, CloudFormation, manual steps) from the Prowler Docker image into `backend/src/assets/prowler-checks.json`. This file is served by the backend to enrich the security findings detail view with tabbed IaC remediation code.
+
+**Requirements:** Docker access to pull `ghcr.io/shipsecai/prowler:latest`.
+
+**When to run:** After updating the Prowler Docker image version. Commit the generated JSON to the repo.
 
 ---
 

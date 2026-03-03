@@ -23,6 +23,7 @@ The analytics system consists of:
 ```mermaid
 flowchart LR
     subgraph Scanners
+        P[Prowler Scan]
         N[Nuclei Scan]
         T[TruffleHog]
         S[Supabase Scanner]
@@ -31,12 +32,13 @@ flowchart LR
     AS[Analytics Sink]
     OS[(OpenSearch)]
 
-    subgraph Dashboard[OpenSearch Dashboards]
-        V[Visualizations]
-        A[Alerts]
-        Q[Queries]
+    subgraph Dashboard[Security Dashboard]
+        V[Findings Table]
+        D[Finding Detail + Remediation Tabs]
+        C[Charts & Trends]
     end
 
+    P -->|results port| AS
     N -->|results port| AS
     T -->|results port| AS
     S -->|results port| AS
@@ -122,6 +124,7 @@ Each scanner generates the hash from key identifying fields:
 
 | Scanner | Hash Fields |
 |---------|-------------|
+| Prowler | `findingId + resourceId/accountId + title` |
 | Nuclei | `templateId + host + matchedAt` |
 | TruffleHog | `DetectorType + Redacted + filePath` |
 | Supabase Scanner | `check_id + projectRef + resource` |
@@ -214,6 +217,40 @@ After indexing data, create an index pattern in OpenSearch Dashboards:
 <Warning>
   If you don't see `shipsec.*` fields in Available Fields after indexing, refresh the index pattern field list in Dashboards Management.
 </Warning>
+
+---
+
+## Prowler Check Metadata
+
+Prowler findings include basic recommendation text and a URL, but richer remediation guidance (CLI commands, Terraform, CloudFormation, manual steps) is not included in the ASFF output. This data is extracted offline and served as a static asset.
+
+### Endpoint
+
+`GET /api/v1/analytics/prowler-checks-metadata`
+
+Returns a JSON object keyed by Prowler CheckID:
+
+```json
+{
+  "s3_bucket_server_side_encryption_enabled": {
+    "checkTitle": "S3 Bucket has Server Side Encryption Enabled",
+    "recommendation": "Enable server-side encryption...",
+    "recommendationUrl": "https://hub.prowler.com/check/...",
+    "cli": "aws s3api put-bucket-encryption ...",
+    "nativeIaC": "Resources:\n  S3Bucket:\n    Type: AWS::S3::Bucket...",
+    "terraform": "resource \"aws_s3_bucket_server_side_encryption_configuration\" ...",
+    "other": "1. Open the S3 Console..."
+  }
+}
+```
+
+**Caching:** 30-day `Cache-Control` header. The frontend fetches once per session with `staleTime: Infinity`.
+
+**Updating:** Run `bun scripts/generate-prowler-metadata.ts` when the Prowler Docker image is updated, then commit the resulting `backend/src/assets/prowler-checks.json`.
+
+### Frontend Integration
+
+The `FindingDetailSheet` component uses `useProwlerChecksMetadata()` to fetch the metadata map and matches Prowler findings by title (`checkTitle`) to display a tabbed remediation interface with syntax-highlighted code blocks.
 
 ---
 
