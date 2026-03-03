@@ -11,6 +11,18 @@ import { ContainerError, TimeoutError, ValidationError, ConfigurationError } fro
 const CONTAINER_OUTPUT_PATH = '/shipsec-output';
 const OUTPUT_FILENAME = 'result.json';
 
+/**
+ * Sanitize strings to remove common credential patterns.
+ * Defense-in-depth: catches tokens in error messages, URLs, etc.
+ */
+function sanitizeOutput(str: string): string {
+  return str
+    .replace(/x-access-token:[^@\s]+@/g, 'x-access-token:***@')
+    .replace(/ghp_[a-zA-Z0-9]+/g, 'ghp_***')
+    .replace(/ghs_[a-zA-Z0-9]+/g, 'ghs_***')
+    .replace(/github_pat_[a-zA-Z0-9_]+/g, 'github_pat_***');
+}
+
 type PtySpawn = typeof import('node-pty')['spawn'];
 let cachedPtySpawn: PtySpawn | null = null;
 let cachedDockerPath: string | null = null;
@@ -44,12 +56,72 @@ export async function resolveDockerPath(context?: ExecutionContext): Promise<str
 
 
 
+/**
+ * Patterns that indicate a sensitive value in an environment variable.
+ * Used by formatArgs to redact secrets from logged docker commands.
+ */
+const SENSITIVE_ENV_PATTERNS = [
+  /^x-access-token:/i,
+  /^ghp_/,
+  /^ghs_/,
+  /^github_pat_/,
+  /^sk-/,
+  /^Bearer\s+/i,
+];
+
+/** Keys whose values should always be redacted in -e KEY=VALUE args. */
+const SENSITIVE_ENV_KEYS = new Set([
+  'CLONE_URL', 'GIT_TOKEN', 'GITHUB_TOKEN', 'TOKEN',
+  'API_KEY', 'SECRET', 'PASSWORD', 'PRIVATE_KEY',
+  'ACCESS_TOKEN', 'REFRESH_TOKEN',
+]);
+
+function redactEnvArg(arg: string): string {
+  // Match -e KEY=VALUE or KEY=VALUE after a previous -e flag
+  const eqIdx = arg.indexOf('=');
+  if (eqIdx === -1) return arg;
+
+  const key = arg.slice(0, eqIdx);
+  const value = arg.slice(eqIdx + 1);
+
+  // Redact if key is known-sensitive
+  if (SENSITIVE_ENV_KEYS.has(key)) {
+    return `${key}=***`;
+  }
+
+  // Redact if value matches a sensitive pattern
+  for (const pattern of SENSITIVE_ENV_PATTERNS) {
+    if (pattern.test(value)) {
+      return `${key}=***`;
+    }
+  }
+
+  return arg;
+}
+
 function formatArgs(args: string[]): string {
+  let prevWasEnvFlag = false;
   return args
     .map((part, index) => {
       if (!part) {
+        prevWasEnvFlag = false;
         return '';
       }
+
+      // Check if this arg is the value after -e flag
+      if (prevWasEnvFlag) {
+        prevWasEnvFlag = false;
+        const redacted = redactEnvArg(part);
+        const hasNewlines = redacted.includes('\n');
+        const isLong = redacted.length > 120;
+        if (hasNewlines || isLong) {
+          return `<arg-${index}:${redacted.length} chars>`;
+        }
+        return redacted;
+      }
+
+      prevWasEnvFlag = part === '-e';
+
       const hasNewlines = part.includes('\n');
       const isLong = part.length > 120;
       if (hasNewlines || isLong) {
@@ -330,13 +402,13 @@ async function runDockerWithStandardIO<I, O>(
       // Only emit actual error messages as progress, not raw data
       if (chunk.trim().length > 0 && chunk.trim().length < 500) {
         context.emitProgress({
-          message: chunk.trim(),
+          message: sanitizeOutput(chunk.trim()),
           level: 'error',
           data: { stream: 'stderr', origin: 'docker' },
         });
       }
 
-      console.error(`[${context.componentRef}] [Docker] stderr: ${chunk.trim()}`);
+      console.error(`[${context.componentRef}] [Docker] stderr: ${sanitizeOutput(chunk.trim())}`);
     });
 
     proc.on('error', (error) => {
@@ -353,17 +425,17 @@ async function runDockerWithStandardIO<I, O>(
 
       if (code !== 0) {
         context.logger.error(`[Docker] Exited with code ${code}`);
-        context.logger.error(`[Docker] stderr: ${stderr}`);
+        context.logger.error(`[Docker] stderr: ${sanitizeOutput(stderr)}`);
 
         // Emit error to UI
         context.emitProgress({
           message: `Docker container failed with exit code ${code}`,
           level: 'error',
-          data: { exitCode: code, stderr: stderr.slice(0, 500) },
+          data: { exitCode: code, stderr: sanitizeOutput(stderr.slice(0, 500)) },
         });
 
-        reject(new ContainerError(`Docker container failed with exit code ${code}: ${stderr}`, {
-          details: { exitCode: code, stderr, stdout, dockerArgs: formatArgs(dockerArgs) },
+        reject(new ContainerError(`Docker container failed with exit code ${code}: ${sanitizeOutput(stderr)}`, {
+          details: { exitCode: code, stderr: sanitizeOutput(stderr), stdout, dockerArgs: formatArgs(dockerArgs) },
         }));
         return;
       }
