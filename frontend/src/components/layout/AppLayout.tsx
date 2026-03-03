@@ -41,6 +41,12 @@ import { setMobilePlacementSidebarClose } from '@/components/layout/sidebar-stat
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { usePrefetchOnIdle } from '@/hooks/usePrefetchOnIdle';
 import { prefetchIdleRoutes, prefetchRoute } from '@/lib/prefetch-routes';
+import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog';
+import { useOnboardingStore } from '@/store/onboardingStore';
+import {
+  useUserPreferences,
+  useUpdateUserPreferences,
+} from '@/hooks/queries/useUserPreferencesQueries';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -88,6 +94,58 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { theme, startTransition } = useThemeStore();
   const openCommandPalette = useCommandPaletteStore((state) => state.open);
 
+  // Onboarding tutorial state (persisted in DB via API)
+  const {
+    data: userPreferences,
+    isLoading: prefsLoading,
+    isSuccess: prefsLoaded,
+  } = useUserPreferences();
+  const updatePreferences = useUpdateUserPreferences();
+  // While loading: hide dialog (true). After loaded: use server value, default false for new users.
+  const hasCompletedOnboarding = prefsLoaded
+    ? (userPreferences?.hasCompletedOnboarding ?? false)
+    : true;
+  const onboardingStep = useOnboardingStore((state) => state.currentStep);
+  const setOnboardingStep = useOnboardingStore((state) => state.setCurrentStep);
+  const completeOnboarding = () => updatePreferences.mutate({ hasCompletedOnboarding: true });
+
+  // One-time migration: localStorage -> DB
+  useEffect(() => {
+    if (prefsLoading || !isAuthenticated) return;
+
+    const STORAGE_KEY = 'shipsec-onboarding';
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+
+    try {
+      const stored = JSON.parse(raw);
+      const localState = stored?.state;
+      if (!localState) {
+        localStorage.removeItem(STORAGE_KEY);
+        return;
+      }
+
+      const updates: { hasCompletedOnboarding?: boolean; hasCompletedBuilderTour?: boolean } = {};
+
+      if (localState.hasCompletedOnboarding && !userPreferences?.hasCompletedOnboarding) {
+        updates.hasCompletedOnboarding = true;
+      }
+      if (localState.hasCompletedBuilderTour && !userPreferences?.hasCompletedBuilderTour) {
+        updates.hasCompletedBuilderTour = true;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        updatePreferences.mutate(updates, {
+          onSuccess: () => localStorage.removeItem(STORAGE_KEY),
+        });
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }, [prefsLoading, isAuthenticated]);
+
   // Get git SHA for version display (monorepo - same for frontend and backend)
   const gitSha = env.VITE_GIT_SHA;
   // If it's a tag (starts with v), show full tag. Otherwise show first 7 chars of SHA
@@ -100,7 +158,13 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   // Auto-collapse sidebar when opening workflow builder, expand for other routes
   // On mobile, always start collapsed
+  // During onboarding, force sidebar open so highlighted elements are visible
   useEffect(() => {
+    if (isAuthenticated && !hasCompletedOnboarding) {
+      setSidebarOpen(true);
+      setWasExplicitlyOpened(true);
+      return;
+    }
     if (isMobile) {
       setSidebarOpen(false);
       setWasExplicitlyOpened(false);
@@ -112,7 +176,14 @@ export function AppLayout({ children }: AppLayoutProps) {
       setSidebarOpen(!isWorkflowRoute);
       setWasExplicitlyOpened(!isWorkflowRoute);
     }
-  }, [location.pathname, isMobile]);
+  }, [location.pathname, isMobile, isAuthenticated, hasCompletedOnboarding]);
+
+  // Expand Manage section when onboarding highlights it
+  useEffect(() => {
+    if (isAuthenticated && !hasCompletedOnboarding && onboardingStep === 5) {
+      setSettingsOpen(true);
+    }
+  }, [isAuthenticated, hasCompletedOnboarding, onboardingStep]);
 
   // Close sidebar on mobile when navigating
   useEffect(() => {
@@ -268,6 +339,14 @@ export function AppLayout({ children }: AppLayoutProps) {
     toggle: handleToggle,
   };
 
+  // Onboarding target IDs for spotlight tour
+  const onboardingTargetIds: Record<string, string> = {
+    '/': 'workflow-builder',
+    '/templates': 'template-library',
+    '/schedules': 'schedules',
+    '/action-center': 'action-center',
+  };
+
   const navigationItems = [
     {
       name: 'Workflow Builder',
@@ -382,6 +461,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <SidebarContext.Provider value={sidebarContextValue}>
       <ThemeTransition />
+      <OnboardingDialog
+        open={isAuthenticated && !prefsLoading && !hasCompletedOnboarding}
+        onComplete={completeOnboarding}
+        currentStep={onboardingStep}
+        onStepChange={setOnboardingStep}
+      />
       <div className="flex h-screen bg-background overflow-hidden">
         {/* Mobile backdrop overlay */}
         {isMobile && sidebarOpen && (
@@ -493,6 +578,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <Link
                     key={item.href}
                     to={item.href}
+                    data-onboarding={onboardingTargetIds[item.href]}
                     onMouseEnter={() => prefetchRoute(item.href)}
                     onClick={(e) => {
                       // If modifier key is held (CMD+click, Ctrl+click), link opens in new tab
@@ -541,6 +627,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             {/* Manage Collapsible Section */}
             <div className="px-2 mt-2">
               <button
+                data-onboarding="manage-section"
                 onClick={() => setSettingsOpen(!settingsOpen)}
                 className={cn(
                   'w-full flex items-center gap-3 py-2 rounded-lg transition-colors',

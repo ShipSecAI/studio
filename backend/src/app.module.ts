@@ -35,6 +35,7 @@ import { HumanInputsModule } from './human-inputs/human-inputs.module';
 import { McpServersModule } from './mcp-servers/mcp-servers.module';
 import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
 import { TemplatesModule } from './templates/templates.module';
+import { UserPreferencesModule } from './user-preferences/user-preferences.module';
 
 const coreModules = [
   AgentsModule,
@@ -56,6 +57,7 @@ const coreModules = [
   StudioMcpModule,
   TemplatesModule,
   AuditModule,
+  UserPreferencesModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
