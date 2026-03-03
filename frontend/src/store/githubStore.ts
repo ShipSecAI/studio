@@ -28,6 +28,8 @@ export interface GitHubRepo {
   description: string | null;
   language: string | null;
   htmlUrl: string | null;
+  starsCount: number;
+  forksCount: number;
   scansEnabled: boolean;
   lastSyncedAt: string | null;
   createdAt: string;

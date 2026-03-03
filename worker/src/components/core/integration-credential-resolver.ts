@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   componentRegistry,
+  ComponentRetryPolicy,
   ConfigurationError,
   defineComponent,
   inputs,
@@ -93,6 +94,20 @@ const definition = defineComponent({
   label: 'Integration Credential Resolver',
   category: 'input',
   runner: { kind: 'inline' },
+  retryPolicy: {
+    maxAttempts: 3,
+    initialIntervalSeconds: 2,
+    maximumIntervalSeconds: 10,
+    backoffCoefficient: 2,
+    nonRetryableErrorTypes: [
+      'ConfigurationError',
+      'ValidationError',
+      'AuthenticationError',
+      'NotFoundError',
+      'PermissionError',
+      'HttpError',
+    ],
+  } satisfies ComponentRetryPolicy,
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,

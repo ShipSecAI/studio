@@ -84,6 +84,10 @@ export const githubRepositories = pgTable(
     cloneUrl: text('clone_url'),
     /** HTML URL */
     htmlUrl: text('html_url'),
+    /** Star count from GitHub */
+    starsCount: integer('stars_count').default(0).notNull(),
+    /** Fork count from GitHub */
+    forksCount: integer('forks_count').default(0).notNull(),
     /** ShipSec organization */
     organizationId: varchar('organization_id', { length: 191 }).notNull(),
     /** Whether scans are enabled for this repo */

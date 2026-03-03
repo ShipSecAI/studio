@@ -30,6 +30,8 @@ export const GitHubRepoSchema = z.object({
   description: z.string().nullable(),
   language: z.string().nullable(),
   htmlUrl: z.string().nullable(),
+  starsCount: z.number(),
+  forksCount: z.number(),
   scansEnabled: z.boolean(),
   lastSyncedAt: z.string().nullable(),
   createdAt: z.string(),

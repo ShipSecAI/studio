@@ -772,6 +772,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AuditLogsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/api-keys": {
         parameters: {
             query?: never;
@@ -2654,22 +2670,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/audit-logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AuditLogsController_list"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/chat/sessions": {
         parameters: {
             query?: never;
@@ -3441,6 +3441,30 @@ export interface components {
              * @enum {string}
              */
             subscriptionTier?: "free" | "pro" | "enterprise";
+        };
+        ListAuditLogsResponseDto: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                organizationId: string | null;
+                actorId: string | null;
+                /** @enum {string} */
+                actorType: "user" | "api-key" | "internal" | "unknown";
+                actorDisplay: string | null;
+                action: string;
+                /** @enum {string} */
+                resourceType: "workflow" | "secret" | "api_key" | "webhook" | "artifact" | "analytics" | "schedule" | "mcp_server" | "mcp_group" | "human_input";
+                resourceId: string | null;
+                resourceName: string | null;
+                metadata: {
+                    [key: string]: unknown;
+                } | null;
+                ip: string | null;
+                userAgent: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            }[];
+            nextCursor: string | null;
         };
         ApiKeyResponseDto: {
             id: string;
@@ -4495,30 +4519,6 @@ export interface components {
         TriggerSyncDto: {
             /** Format: uuid */
             integrationId: string;
-        };
-        ListAuditLogsResponseDto: {
-            items: {
-                /** Format: uuid */
-                id: string;
-                organizationId: string | null;
-                actorId: string | null;
-                /** @enum {string} */
-                actorType: "user" | "api-key" | "internal" | "unknown";
-                actorDisplay: string | null;
-                action: string;
-                /** @enum {string} */
-                resourceType: "workflow" | "secret" | "api_key" | "webhook" | "artifact" | "analytics" | "schedule" | "mcp_server" | "mcp_group" | "human_input";
-                resourceId: string | null;
-                resourceName: string | null;
-                metadata: {
-                    [key: string]: unknown;
-                } | null;
-                ip: string | null;
-                userAgent: string | null;
-                /** Format: date-time */
-                createdAt: string;
-            }[];
-            nextCursor: string | null;
         };
     };
     responses: never;
@@ -6083,6 +6083,26 @@ export interface operations {
                         securityEnabled?: boolean;
                         message?: string;
                     };
+                };
+            };
+        };
+    };
+    AuditLogsController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List audit log events for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAuditLogsResponseDto"];
                 };
             };
         };
@@ -9784,26 +9804,6 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                     };
-                };
-            };
-        };
-    };
-    AuditLogsController_list: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description List audit log events for the authenticated organization */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ListAuditLogsResponseDto"];
                 };
             };
         };

@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
   OnModuleInit,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SecretEncryptionMaterial } from '@shipsec/shared';
@@ -762,7 +763,18 @@ export class IntegrationsService implements OnModuleInit {
       throw new NotFoundException(`Connection ${connectionId} was not found`);
     }
 
-    const decrypted = await this.encryption.decrypt(record.accessToken as SecretEncryptionMaterial);
+    let decrypted: string;
+    try {
+      decrypted = await this.encryption.decrypt(record.accessToken as SecretEncryptionMaterial);
+    } catch (error: unknown) {
+      const errorName = (error as { name?: string }).name ?? 'UnknownError';
+      this.logger.error(
+        `Failed to decrypt credentials for connection ${connectionId}: [${errorName}]`,
+      );
+      throw new UnprocessableEntityException(
+        `Failed to decrypt credentials for connection ${connectionId}. The stored credentials may be corrupted or the encryption key may have changed.`,
+      );
+    }
 
     let data: Record<string, unknown>;
     let accountId: string | undefined;
@@ -776,9 +788,20 @@ export class IntegrationsService implements OnModuleInit {
         if (provider) {
           hydratedRecord = await this.ensureFreshToken(record, provider);
         }
-        const accessToken = await this.encryption.decrypt(
-          hydratedRecord.accessToken as SecretEncryptionMaterial,
-        );
+        let accessToken: string;
+        try {
+          accessToken = await this.encryption.decrypt(
+            hydratedRecord.accessToken as SecretEncryptionMaterial,
+          );
+        } catch (error: unknown) {
+          const errorName = (error as { name?: string }).name ?? 'UnknownError';
+          this.logger.error(
+            `Failed to decrypt OAuth token for connection ${connectionId}: [${errorName}]`,
+          );
+          throw new UnprocessableEntityException(
+            `Failed to decrypt OAuth token for connection ${connectionId}. The stored token may be corrupted or the encryption key may have changed.`,
+          );
+        }
         data = {
           accessToken,
           tokenType: hydratedRecord.tokenType ?? 'Bearer',
@@ -786,18 +809,49 @@ export class IntegrationsService implements OnModuleInit {
         break;
       }
       case 'iam_role': {
-        const creds = JSON.parse(decrypted);
-        const assumed = await this.awsService.assumeRoleWithPlatformIdentity(
-          creds.roleArn,
-          creds.externalId,
-          creds.region,
-        );
-        data = {
-          accessKeyId: assumed.accessKeyId,
-          secretAccessKey: assumed.secretAccessKey,
-          sessionToken: assumed.sessionToken,
-          region: creds.region,
-        };
+        let creds: { roleArn: string; externalId: string; region?: string };
+        try {
+          creds = JSON.parse(decrypted);
+        } catch {
+          throw new UnprocessableEntityException(
+            `Failed to parse IAM role credentials for connection ${connectionId}. The stored credentials are malformed.`,
+          );
+        }
+        try {
+          const assumed = await this.awsService.assumeRoleWithPlatformIdentity(
+            creds.roleArn,
+            creds.externalId,
+            creds.region,
+          );
+          data = {
+            accessKeyId: assumed.accessKeyId,
+            secretAccessKey: assumed.secretAccessKey,
+            sessionToken: assumed.sessionToken,
+            region: creds.region,
+          };
+        } catch (error: unknown) {
+          const errorName = (error as { name?: string }).name ?? 'Unknown';
+          const errorCode = (error as { code?: string }).code ?? errorName;
+          this.logger.error(
+            `Failed to assume IAM role for connection ${connectionId}: [${errorCode}] ${errorName}`,
+          );
+          // Deterministic IAM errors that won't self-resolve — fail fast with 422
+          const deterministic = new Set([
+            'AccessDenied',
+            'AccessDeniedException',
+            'InvalidIdentityToken',
+            'MalformedPolicyDocument',
+            'PackedPolicyTooLarge',
+            'RegionDisabledException',
+          ]);
+          if (deterministic.has(errorName) || deterministic.has(errorCode)) {
+            throw new UnprocessableEntityException(
+              `Failed to assume IAM role for connection ${connectionId}. Verify that the role ARN and external ID are correct and that the platform has permission to assume the role.`,
+            );
+          }
+          // Transient errors (Throttling, ServiceUnavailable, network) — re-throw so NestJS returns 500 and worker retries
+          throw error;
+        }
         // Extract account ID from role ARN (arn:aws:iam::<account-id>:role/...)
         const arnMatch =
           typeof creds.roleArn === 'string' ? creds.roleArn.match(/^arn:aws:iam::(\d{12}):/) : null;
@@ -806,7 +860,14 @@ export class IntegrationsService implements OnModuleInit {
         break;
       }
       case 'webhook': {
-        const creds = JSON.parse(decrypted);
+        let creds: { webhookUrl: string };
+        try {
+          creds = JSON.parse(decrypted);
+        } catch {
+          throw new UnprocessableEntityException(
+            `Failed to parse webhook credentials for connection ${connectionId}. The stored credentials are malformed.`,
+          );
+        }
         data = {
           webhookUrl: creds.webhookUrl,
         };

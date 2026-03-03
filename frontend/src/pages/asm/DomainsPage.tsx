@@ -1,5 +1,14 @@
 import { useState } from 'react';
-import { Globe, Plus, MoreHorizontal, Play, ExternalLink, Trash2, Loader2 } from 'lucide-react';
+import {
+  Globe,
+  Plus,
+  MoreHorizontal,
+  Play,
+  ExternalLink,
+  Trash2,
+  Loader2,
+  Radio,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,7 +72,16 @@ function DomainCard({
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <Globe className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <img
+              src={`https://www.google.com/s2/favicons?domain=${domain.domain}&sz=32`}
+              alt=""
+              className="h-4 w-4 flex-shrink-0 rounded-sm ring-1 ring-border"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+            <Globe className="h-4 w-4 text-muted-foreground flex-shrink-0 hidden" />
             <CardTitle className="text-base truncate">{domain.domain}</CardTitle>
           </div>
           <div className="flex items-center gap-2">
@@ -102,7 +120,7 @@ function DomainCard({
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-3 gap-3 text-sm">
           <div>
             <span className="text-muted-foreground">Assets</span>
             <p className="font-medium">{domain.assetCount}</p>
@@ -111,7 +129,31 @@ function DomainCard({
             <span className="text-muted-foreground">Last Scan</span>
             <p className="font-medium">{formatRelativeTime(domain.lastScanAt)}</p>
           </div>
+          <div>
+            <span className="text-muted-foreground">Added</span>
+            <p className="font-medium">{formatRelativeTime(domain.createdAt)}</p>
+          </div>
         </div>
+        {domain.monitoringEnabled && (
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Radio className="h-3 w-3 text-emerald-500" />
+            <span>Monitoring {domain.frequency ? `· ${domain.frequency}` : 'on'}</span>
+          </div>
+        )}
+        {domain.techStack?.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {domain.techStack.slice(0, 5).map((tech) => (
+              <Badge key={tech} variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                {tech}
+              </Badge>
+            ))}
+            {domain.techStack.length > 5 && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                +{domain.techStack.length - 5}
+              </Badge>
+            )}
+          </div>
+        )}
         <div className="mt-3 pt-3 border-t flex gap-2">
           <Button size="sm" variant="outline" className="flex-1" onClick={() => onScan(domain.id)}>
             <Play className="h-3.5 w-3.5 mr-1.5" />

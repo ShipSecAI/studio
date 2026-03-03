@@ -557,6 +557,8 @@ export class GitHubAppService implements OnModuleInit {
         language: string | null;
         clone_url: string;
         html_url: string;
+        stargazers_count: number;
+        forks_count: number;
         owner: { login: string };
       }
 
@@ -600,6 +602,8 @@ export class GitHubAppService implements OnModuleInit {
           language: repo.language,
           cloneUrl: repo.clone_url,
           htmlUrl: repo.html_url,
+          starsCount: repo.stargazers_count ?? 0,
+          forksCount: repo.forks_count ?? 0,
           organizationId,
           lastSyncedAt: syncTimestamp,
         });
@@ -631,6 +635,8 @@ export class GitHubAppService implements OnModuleInit {
       description: r.description,
       language: r.language,
       htmlUrl: r.htmlUrl,
+      starsCount: r.starsCount,
+      forksCount: r.forksCount,
       scansEnabled: r.scansEnabled,
       lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),
@@ -658,6 +664,8 @@ export class GitHubAppService implements OnModuleInit {
       description: record.description,
       language: record.language,
       htmlUrl: record.htmlUrl,
+      starsCount: record.starsCount,
+      forksCount: record.forksCount,
       scansEnabled: record.scansEnabled,
       lastSyncedAt: record.lastSyncedAt?.toISOString() ?? null,
       createdAt: record.createdAt.toISOString(),
@@ -1502,6 +1510,8 @@ export class GitHubAppService implements OnModuleInit {
       description: record.description,
       language: record.language,
       htmlUrl: record.htmlUrl,
+      starsCount: record.starsCount ?? 0,
+      forksCount: record.forksCount ?? 0,
       scansEnabled: record.scansEnabled,
       lastSyncedAt: record.lastSyncedAt?.toISOString() ?? null,
       createdAt: record.createdAt.toISOString(),

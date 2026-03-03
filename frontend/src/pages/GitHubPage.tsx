@@ -63,6 +63,8 @@ import {
   ChevronRight,
   ChevronsUpDown,
   AlertCircle,
+  Star,
+  GitFork,
 } from 'lucide-react';
 import type { GitHubRepo, GitHubScanResult } from '@/store/githubStore';
 import { useGitHubStore } from '@/store/githubStore';
@@ -710,28 +712,6 @@ function RepositoriesTab({ onRunScan, onSchedule }: RepositoriesTabProps) {
     return rows;
   }, [filteredRepositories, sortColumn, sortDirection]);
 
-  const handleSort = (column: 'repository' | 'branch' | 'language' | 'scans') => {
-    const next = new URLSearchParams(searchParams);
-    if (sortColumn === column) {
-      next.set('repoDir', sortDirection === 'asc' ? 'desc' : 'asc');
-      setSearchParams(next, { replace: true });
-      return;
-    }
-    next.set('repoSort', column);
-    next.set('repoDir', column === 'scans' ? 'desc' : 'asc');
-    setSearchParams(next, { replace: true });
-  };
-
-  const renderSortIcon = (column: 'repository' | 'branch' | 'language' | 'scans') => {
-    if (sortColumn !== column)
-      return <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/60" />;
-    return sortDirection === 'asc' ? (
-      <ArrowUp className="h-3.5 w-3.5 text-foreground" />
-    ) : (
-      <ArrowDown className="h-3.5 w-3.5 text-foreground" />
-    );
-  };
-
   const clearFilters = () => {
     updateRepoParams({
       repoQ: null,
@@ -897,163 +877,129 @@ function RepositoriesTab({ onRunScan, onSchedule }: RepositoriesTabProps) {
         )}
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead
-              className="cursor-pointer select-none hover:bg-muted/50"
-              onClick={() => handleSort('repository')}
-            >
-              <div className="flex items-center gap-1">
-                Repository
-                {renderSortIcon('repository')}
-              </div>
-            </TableHead>
-            <TableHead
-              className="cursor-pointer select-none hover:bg-muted/50"
-              onClick={() => handleSort('branch')}
-            >
-              <div className="flex items-center gap-1">
-                Branch
-                {renderSortIcon('branch')}
-              </div>
-            </TableHead>
-            <TableHead
-              className="cursor-pointer select-none hover:bg-muted/50"
-              onClick={() => handleSort('language')}
-            >
-              <div className="flex items-center gap-1">
-                Language
-                {renderSortIcon('language')}
-              </div>
-            </TableHead>
-            <TableHead
-              className="cursor-pointer select-none hover:bg-muted/50"
-              onClick={() => handleSort('scans')}
-            >
-              <div className="flex items-center gap-1">
-                Scans
-                {renderSortIcon('scans')}
-              </div>
-            </TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sortedRepositories.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={5}>
-                <EmptyState
-                  icon={FolderGit}
-                  title="No matching repositories"
-                  description="Try adjusting your search or filters."
-                  action={
-                    hasActiveFilters ? (
-                      <Button variant="outline" size="sm" onClick={clearFilters}>
-                        Clear filters
-                      </Button>
-                    ) : undefined
-                  }
-                />
-              </TableCell>
-            </TableRow>
-          ) : (
-            sortedRepositories.map((repo) => (
-              <TableRow key={repo.id}>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    {repo.isPrivate ? (
-                      <Badge variant="secondary" className="text-xs">
-                        Private
-                      </Badge>
-                    ) : null}
+      <div className="border rounded-lg divide-y">
+        {sortedRepositories.length === 0 ? (
+          <EmptyState
+            icon={FolderGit}
+            title="No matching repositories"
+            description="Try adjusting your search or filters."
+            action={
+              hasActiveFilters ? (
+                <Button variant="outline" size="sm" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          sortedRepositories.map((repo) => (
+            <div key={repo.id} className="px-5 py-4 hover:bg-muted/30 transition-colors">
+              <div className="flex items-start justify-between gap-4">
+                {/* Left: repo info */}
+                <div className="min-w-0 flex-1">
+                  {/* Row 1: Name + badge */}
+                  <div className="flex items-center gap-2 flex-wrap">
                     <a
                       href={repo.htmlUrl ?? '#'}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-medium hover:underline flex items-center gap-1"
+                      className="text-base font-semibold text-primary hover:underline flex items-center gap-1"
                     >
                       {repo.fullName}
                       <ExternalLink className="h-3 w-3" />
                     </a>
+                    <Badge
+                      variant="outline"
+                      className="text-[11px] px-1.5 py-0 font-normal text-muted-foreground"
+                    >
+                      {repo.isPrivate ? 'Private' : 'Public'}
+                    </Badge>
                   </div>
+
+                  {/* Row 2: Description */}
                   {repo.description && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <p className="text-sm text-muted-foreground truncate max-w-md">
-                          {repo.description}
-                        </p>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-sm">
-                        {repo.description}
-                      </TooltipContent>
-                    </Tooltip>
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
+                      {repo.description}
+                    </p>
                   )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1 text-sm">
-                    <GitBranch className="h-3 w-3" />
-                    {repo.defaultBranch ?? 'main'}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {repo.language ? (
-                    <Badge variant="outline">{repo.language}</Badge>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant={repo.scansEnabled ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => handleToggle(repo)}
-                    disabled={toggling === repo.id}
-                  >
-                    {toggling === repo.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : repo.scansEnabled ? (
-                      'Enabled'
-                    ) : (
-                      'Disabled'
+
+                  {/* Row 3: Metadata */}
+                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
+                    {repo.language && (
+                      <span className="flex items-center gap-1">
+                        <span className="h-3 w-3 rounded-full bg-current opacity-60" />
+                        {repo.language}
+                      </span>
                     )}
-                  </Button>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
+                    {(repo.starsCount ?? 0) > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Star className="h-3.5 w-3.5" />
+                        {repo.starsCount.toLocaleString()}
+                      </span>
+                    )}
+                    {(repo.forksCount ?? 0) > 0 && (
+                      <span className="flex items-center gap-1">
+                        <GitFork className="h-3.5 w-3.5" />
+                        {repo.forksCount.toLocaleString()}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <GitBranch className="h-3.5 w-3.5" />
+                      {repo.defaultBranch ?? 'main'}
+                    </span>
                     <Button
-                      variant="ghost"
+                      variant={repo.scansEnabled ? 'default' : 'outline'}
                       size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSchedule(repo);
-                      }}
-                      disabled={!repo.scansEnabled}
-                      title={!repo.scansEnabled ? 'Enable scans first' : 'Schedule scan'}
+                      className="h-5 px-2 text-[11px] rounded-full"
+                      onClick={() => handleToggle(repo)}
+                      disabled={toggling === repo.id}
                     >
-                      <CalendarClock className="h-4 w-4" />
+                      {toggling === repo.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : repo.scansEnabled ? (
+                        'Enabled'
+                      ) : (
+                        'Disabled'
+                      )}
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRunScan(repo);
-                      }}
-                      disabled={!repo.scansEnabled}
-                      title={!repo.scansEnabled ? 'Enable scans first to run a scan' : undefined}
-                    >
-                      <PlayCircle className="h-4 w-4 mr-1" />
-                      Run Scan
-                    </Button>
+                    <span>Updated {formatRelativeTime(repo.updatedAt)}</span>
                   </div>
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+                </div>
+
+                {/* Right: Actions */}
+                <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSchedule(repo);
+                    }}
+                    disabled={!repo.scansEnabled}
+                    title={!repo.scansEnabled ? 'Enable scans first' : 'Schedule scan'}
+                  >
+                    <CalendarClock className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRunScan(repo);
+                    }}
+                    disabled={!repo.scansEnabled}
+                    title={!repo.scansEnabled ? 'Enable scans first to run a scan' : undefined}
+                  >
+                    <PlayCircle className="h-4 w-4 mr-1" />
+                    Run Scan
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
