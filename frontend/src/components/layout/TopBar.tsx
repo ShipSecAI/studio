@@ -430,8 +430,26 @@ export function TopBar({
                         <span>Redo</span>
                         <span className="ml-auto pl-4 text-xs text-muted-foreground">⌘⇧Z</span>
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
                     </>
+                  )}
+                  {mode === 'design' && (onImport || onExport) && <DropdownMenuSeparator />}
+                  {mode === 'design' && onImport && (
+                    <DropdownMenuItem
+                      onClick={handleImportClick}
+                      disabled={!canEdit || isImporting}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      <span>Import</span>
+                    </DropdownMenuItem>
+                  )}
+                  {mode === 'design' && onExport && (
+                    <DropdownMenuItem onClick={handleExport} disabled={!canEdit}>
+                      <Download className="mr-2 h-4 w-4" />
+                      <span>Export</span>
+                    </DropdownMenuItem>
+                  )}
+                  {(onPublishTemplate || env.VITE_OPENSEARCH_DASHBOARDS_URL) && (
+                    <DropdownMenuSeparator />
                   )}
                   {onPublishTemplate && isInWorkflowBuilder && (
                     <DropdownMenuItem onClick={onPublishTemplate} disabled={!canEdit}>
@@ -469,22 +487,6 @@ export function TopBar({
                         <span>View Analytics</span>
                       </DropdownMenuItem>
                     )}
-                  {mode === 'design' && (onImport || onExport) && <DropdownMenuSeparator />}
-                  {mode === 'design' && onImport && (
-                    <DropdownMenuItem
-                      onClick={handleImportClick}
-                      disabled={!canEdit || isImporting}
-                    >
-                      <Upload className="mr-2 h-4 w-4" />
-                      <span>Import</span>
-                    </DropdownMenuItem>
-                  )}
-                  {mode === 'design' && onExport && (
-                    <DropdownMenuItem onClick={handleExport} disabled={!canEdit}>
-                      <Download className="mr-2 h-4 w-4" />
-                      <span>Export</span>
-                    </DropdownMenuItem>
-                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

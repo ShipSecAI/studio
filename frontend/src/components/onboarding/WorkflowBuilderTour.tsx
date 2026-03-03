@@ -127,6 +127,7 @@ const BUILDER_TOUR_STEPS: BuilderTourStep[] = [
 const SPOTLIGHT_PADDING = 10;
 const TOOLTIP_GAP = 16;
 const TOOLTIP_WIDTH = 380;
+const TOOLTIP_WIDTH_NARROW = 320;
 
 interface WorkflowBuilderTourProps {
   open: boolean;
@@ -163,7 +164,8 @@ export function WorkflowBuilderTour({
     }
   }, [open, currentStep, step]);
 
-  // Track target element position
+  // Continuously track target element position using requestAnimationFrame
+  // This handles animations, transitions, resizes, and layout shifts automatically
   useEffect(() => {
     if (!open) {
       setTargetRect(null);
@@ -175,35 +177,46 @@ export function WorkflowBuilderTour({
       return;
     }
 
-    // Use longer delay for steps that require a mode switch to allow re-render
-    const delay = step.requiresMode ? 250 : 120;
+    let rafId: number;
+    let running = true;
 
-    const timer = setTimeout(() => {
+    // Initial delay for mode-switch steps to allow React re-render
+    const delay = step.requiresMode ? 300 : 50;
+
+    const track = () => {
+      if (!running) return;
       const el = document.querySelector(step.target!);
       if (el) {
-        setTargetRect(el.getBoundingClientRect());
+        const rect = el.getBoundingClientRect();
+        setTargetRect((prev) => {
+          // Only update state if the rect actually changed (avoids unnecessary re-renders)
+          if (
+            !prev ||
+            Math.abs(prev.left - rect.left) > 0.5 ||
+            Math.abs(prev.top - rect.top) > 0.5 ||
+            Math.abs(prev.width - rect.width) > 0.5 ||
+            Math.abs(prev.height - rect.height) > 0.5
+          ) {
+            return rect;
+          }
+          return prev;
+        });
       } else {
         setTargetRect(null);
       }
-    }, delay);
-
-    return () => clearTimeout(timer);
-  }, [open, step?.target, step?.requiresMode, currentStep]);
-
-  // Update on window resize
-  useEffect(() => {
-    if (!open || !step?.target) return;
-
-    const updateRect = () => {
-      const el = document.querySelector(step.target!);
-      if (el) {
-        setTargetRect(el.getBoundingClientRect());
-      }
+      rafId = requestAnimationFrame(track);
     };
 
-    window.addEventListener('resize', updateRect);
-    return () => window.removeEventListener('resize', updateRect);
-  }, [open, step?.target]);
+    const timer = setTimeout(() => {
+      track();
+    }, delay);
+
+    return () => {
+      running = false;
+      clearTimeout(timer);
+      cancelAnimationFrame(rafId);
+    };
+  }, [open, step?.target, step?.requiresMode, currentStep]);
 
   // Wrap onComplete to restore design mode if needed
   const handleComplete = useCallback(() => {
@@ -251,6 +264,49 @@ export function WorkflowBuilderTour({
 
   if (!open || !step) return null;
 
+  // Compute adjusted spotlight rect: clamp to viewport and expand for parent padding
+  const getSpotlightRect = () => {
+    if (!targetRect) return null;
+
+    let left = targetRect.left;
+    let top = targetRect.top;
+    let width = targetRect.width;
+    let height = targetRect.height;
+
+    // For inspector elements, expand left to cover the parent's pl-2 (8px) gap
+    if (
+      step.target === '[data-onboarding-builder="execution-inspector"]' ||
+      step.target === '[data-onboarding-builder="inspector-tabs"]'
+    ) {
+      left -= 8;
+      width += 8;
+    }
+
+    // Apply padding
+    left -= SPOTLIGHT_PADDING;
+    top -= SPOTLIGHT_PADDING;
+    width += SPOTLIGHT_PADDING * 2;
+    height += SPOTLIGHT_PADDING * 2;
+
+    // Clamp to viewport edges (fixes library panel at left edge)
+    if (left < 0) {
+      width += left; // shrink width by the amount clipped
+      left = 0;
+    }
+    if (top < 0) {
+      height += top;
+      top = 0;
+    }
+    if (left + width > window.innerWidth) {
+      width = window.innerWidth - left;
+    }
+    if (top + height > window.innerHeight) {
+      height = window.innerHeight - top;
+    }
+
+    return { left, top, width, height };
+  };
+
   const getTooltipStyle = (): React.CSSProperties => {
     if (isCenter || !targetRect) {
       return {
@@ -270,37 +326,51 @@ export function WorkflowBuilderTour({
       };
     }
 
-    // For the library panel, position to the right
+    // For the library panel (left side), position tooltip to the right of it
     if (step.target === '[data-onboarding-builder="library-panel"]') {
-      const tooltipTop = Math.max(80, targetRect.top + targetRect.height / 2 - 100);
+      const tooltipTop = Math.max(
+        80,
+        Math.min(window.innerHeight - 340, targetRect.top + targetRect.height / 2 - 100),
+      );
+      // Try full width first, then narrow width
+      const rightEdge = targetRect.right + TOOLTIP_GAP;
+      const fitsFullWidth = rightEdge + TOOLTIP_WIDTH <= window.innerWidth - 16;
+      const fitsNarrowWidth = rightEdge + TOOLTIP_WIDTH_NARROW <= window.innerWidth - 16;
+      const width = fitsFullWidth
+        ? TOOLTIP_WIDTH
+        : fitsNarrowWidth
+          ? TOOLTIP_WIDTH_NARROW
+          : Math.max(260, window.innerWidth - rightEdge - 16);
+
       return {
         top: tooltipTop,
-        left: targetRect.right + TOOLTIP_GAP,
-        width: TOOLTIP_WIDTH,
+        left: rightEdge,
+        width,
       };
     }
 
-    // For inspector elements (right panel), position to the left with bounds checking
+    // For inspector elements (right side), position tooltip to the left of it
     if (
       step.target === '[data-onboarding-builder="execution-inspector"]' ||
       step.target === '[data-onboarding-builder="inspector-tabs"]'
     ) {
-      const tooltipTop = Math.max(80, targetRect.top + targetRect.height / 2 - 100);
-      const leftPos = targetRect.left - TOOLTIP_WIDTH - TOOLTIP_GAP;
-
-      // If tooltip would go off-screen left, center it over the canvas area instead
-      if (leftPos < 16) {
-        return {
-          top: tooltipTop,
-          left: Math.max(16, (targetRect.left - TOOLTIP_WIDTH) / 2),
-          width: Math.min(TOOLTIP_WIDTH, targetRect.left - 32),
-        };
-      }
+      const tooltipTop = Math.max(
+        80,
+        Math.min(window.innerHeight - 340, targetRect.top + targetRect.height / 2 - 100),
+      );
+      // Try full width first, then narrow width
+      const fitsFullWidth = targetRect.left - TOOLTIP_GAP - TOOLTIP_WIDTH >= 16;
+      const fitsNarrowWidth = targetRect.left - TOOLTIP_GAP - TOOLTIP_WIDTH_NARROW >= 16;
+      const width = fitsFullWidth
+        ? TOOLTIP_WIDTH
+        : fitsNarrowWidth
+          ? TOOLTIP_WIDTH_NARROW
+          : Math.max(260, targetRect.left - TOOLTIP_GAP - 16);
 
       return {
         top: tooltipTop,
-        left: leftPos,
-        width: TOOLTIP_WIDTH,
+        left: targetRect.left - TOOLTIP_GAP - width,
+        width,
       };
     }
 
@@ -332,29 +402,37 @@ export function WorkflowBuilderTour({
       {isCenter || !targetRect ? (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity duration-200" />
       ) : (
-        <>
-          <div
-            className="fixed rounded-xl transition-all duration-300 ease-out"
-            style={{
-              top: targetRect.top - SPOTLIGHT_PADDING,
-              left: targetRect.left - SPOTLIGHT_PADDING,
-              width: targetRect.width + SPOTLIGHT_PADDING * 2,
-              height: targetRect.height + SPOTLIGHT_PADDING * 2,
-              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.6), 0 0 30px 8px rgba(99, 102, 241, 0.2)',
-              pointerEvents: 'none',
-            }}
-          />
-          <div
-            className="fixed rounded-xl border-2 border-primary/40 transition-all duration-300 ease-out animate-pulse"
-            style={{
-              top: targetRect.top - SPOTLIGHT_PADDING - 2,
-              left: targetRect.left - SPOTLIGHT_PADDING - 2,
-              width: targetRect.width + SPOTLIGHT_PADDING * 2 + 4,
-              height: targetRect.height + SPOTLIGHT_PADDING * 2 + 4,
-              pointerEvents: 'none',
-            }}
-          />
-        </>
+        (() => {
+          const spot = getSpotlightRect();
+          return spot ? (
+            <>
+              <div
+                className="fixed rounded-xl transition-all duration-300 ease-out"
+                style={{
+                  top: spot.top,
+                  left: spot.left,
+                  width: spot.width,
+                  height: spot.height,
+                  boxShadow:
+                    '0 0 0 9999px rgba(0, 0, 0, 0.6), 0 0 30px 8px rgba(99, 102, 241, 0.2)',
+                  pointerEvents: 'none',
+                }}
+              />
+              <div
+                className="fixed rounded-xl border-2 border-primary/40 transition-all duration-300 ease-out animate-pulse"
+                style={{
+                  top: spot.top - 2,
+                  left: spot.left - 2,
+                  width: spot.width + 4,
+                  height: spot.height + 4,
+                  pointerEvents: 'none',
+                }}
+              />
+            </>
+          ) : (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity duration-200" />
+          );
+        })()
       )}
 
       {/* Tooltip card */}
@@ -395,7 +473,7 @@ export function WorkflowBuilderTour({
         {/* Footer */}
         <div className="px-5 py-3 border-t border-border/40 bg-muted/20">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex items-center gap-1">
               {currentStep > 0 && (
                 <Button
                   variant="ghost"
@@ -407,6 +485,14 @@ export function WorkflowBuilderTour({
                   Back
                 </Button>
               )}
+              <Button
+                variant="link"
+                size="sm"
+                onClick={handleComplete}
+                className="h-8 text-xs text-muted-foreground/60 hover:text-muted-foreground"
+              >
+                Skip tour
+              </Button>
             </div>
             <Button size="sm" onClick={handleNext} className="h-8 text-xs gap-1 px-4 shadow-sm">
               {isLastStep ? (

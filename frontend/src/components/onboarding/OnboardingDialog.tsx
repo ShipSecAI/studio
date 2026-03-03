@@ -295,7 +295,7 @@ export function OnboardingDialog({
         {/* Footer */}
         <div className="px-5 py-3 border-t border-border/40 bg-muted/20">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex items-center gap-1">
               {currentStep > 0 && (
                 <Button
                   variant="ghost"
@@ -307,6 +307,14 @@ export function OnboardingDialog({
                   Back
                 </Button>
               )}
+              <Button
+                variant="link"
+                size="sm"
+                onClick={onComplete}
+                className="h-8 text-xs text-muted-foreground/60 hover:text-muted-foreground"
+              >
+                Skip tour
+              </Button>
             </div>
             <Button size="sm" onClick={handleNext} className="h-8 text-xs gap-1 px-4 shadow-sm">
               {isLastStep ? (
