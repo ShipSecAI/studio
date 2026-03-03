@@ -10,7 +10,8 @@ import { DRIZZLE_TOKEN } from '../database/database.module';
 import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../database/schema';
 import { asmDomains, asmAssets } from '../database/schema/asm';
-import { eq, and, isNull, desc, asc, ilike, count } from 'drizzle-orm';
+import { workflowRunsTable } from '../database/schema/workflow-runs';
+import { eq, and, isNull, desc, asc, ilike, count, sql, inArray } from 'drizzle-orm';
 import type { AuthContext } from '../auth/types';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { SystemWorkflowsService } from '../workflows/system-workflows.service';
@@ -55,6 +56,9 @@ export class AsmService {
       .limit(limit)
       .offset(offset);
 
+    // Compute lastScanAt from completed ASM workflow runs (covers both manual & scheduled scans)
+    const lastScanByDomain = await this.computeLastScanTimes(auth, organizationId, domains);
+
     // Aggregate stats per domain
     const domainsWithStats = await Promise.all(
       domains.map(async (domain) => {
@@ -63,14 +67,120 @@ export class AsmService {
           .from(asmAssets)
           .where(eq(asmAssets.domainId, domain.id));
 
+        const techResult = await this.db.execute(
+          sql`select array(select distinct unnest(tech_stack) from asm_assets where domain_id = ${domain.id} and tech_stack is not null) as techs`,
+        );
+        const techs = (techResult.rows?.[0] as { techs: string[] } | undefined)?.techs ?? [];
+
         return {
           ...domain,
+          lastScanAt: lastScanByDomain.get(domain.domain) ?? domain.lastScanAt,
           assetCount: assetStats?.count ?? 0,
+          techStack: techs,
         };
       }),
     );
 
     return domainsWithStats;
+  }
+
+  /**
+   * Compute the most recent completed scan time for each domain by querying workflow_runs.
+   * Considers both per-domain manual scans (triggerSource = 'asm:{domain}') and
+   * org-wide scheduled scans (any completed ASM workflow run).
+   */
+  private async computeLastScanTimes(
+    auth: AuthContext,
+    organizationId: string,
+    domains: { domain: string }[],
+  ): Promise<Map<string, Date>> {
+    const result = new Map<string, Date>();
+    if (domains.length === 0) return result;
+
+    const asmWorkflowIds = await this.resolveAsmWorkflowIds(auth);
+    if (asmWorkflowIds.length === 0) return result;
+
+    // Latest completed ASM run for the org (covers scheduled multi-domain scans)
+    const [orgLatest] = await this.db
+      .select({
+        lastScan: sql<Date>`MAX(COALESCE(${workflowRunsTable.closeTime}, ${workflowRunsTable.createdAt}))`,
+      })
+      .from(workflowRunsTable)
+      .where(
+        and(
+          eq(workflowRunsTable.organizationId, organizationId),
+          inArray(workflowRunsTable.workflowId, asmWorkflowIds),
+          eq(workflowRunsTable.status, 'COMPLETED'),
+        ),
+      );
+    const orgLastScan = orgLatest?.lastScan ? new Date(orgLatest.lastScan) : null;
+
+    // Per-domain manual scan times (triggerSource = 'asm:{domain}')
+    const domainNames = domains.map((d) => d.domain);
+    const perDomainResults = await this.db
+      .select({
+        triggerSource: workflowRunsTable.triggerSource,
+        lastScan: sql<Date>`MAX(COALESCE(${workflowRunsTable.closeTime}, ${workflowRunsTable.createdAt}))`,
+      })
+      .from(workflowRunsTable)
+      .where(
+        and(
+          eq(workflowRunsTable.organizationId, organizationId),
+          inArray(
+            workflowRunsTable.triggerSource,
+            domainNames.map((d) => `asm:${d}`),
+          ),
+          eq(workflowRunsTable.status, 'COMPLETED'),
+        ),
+      )
+      .groupBy(workflowRunsTable.triggerSource);
+
+    const perDomainMap = new Map<string, Date>();
+    for (const row of perDomainResults) {
+      if (row.triggerSource && row.lastScan) {
+        const domainName = row.triggerSource.replace(/^asm:/, '');
+        perDomainMap.set(domainName, new Date(row.lastScan));
+      }
+    }
+
+    // For each domain, take the most recent of org-wide and per-domain scans
+    for (const domain of domains) {
+      const candidates: Date[] = [];
+      if (orgLastScan) candidates.push(orgLastScan);
+      const perDomain = perDomainMap.get(domain.domain);
+      if (perDomain) candidates.push(perDomain);
+
+      if (candidates.length > 0) {
+        result.set(domain.domain, new Date(Math.max(...candidates.map((d) => d.getTime()))));
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Resolve workflow IDs for ASM-related workflow templates.
+   */
+  private async resolveAsmWorkflowIds(auth: AuthContext): Promise<string[]> {
+    const templates = await this.workflowTemplatesService.list();
+    const asmTemplateSlugs = new Set([
+      'sys-attack-surface-recon',
+      'sys-quick-recon',
+      'sys-port-scan',
+      'sys-vuln-scan',
+    ]);
+    const asmTemplateIds = templates
+      .filter((t) => t.slug && asmTemplateSlugs.has(t.slug))
+      .map((t) => t.id);
+
+    const workflows = await this.workflowsService.list(auth);
+    return workflows
+      .filter((w: any) => {
+        if (asmTemplateIds.includes(w.templateId)) return true;
+        if (w.slug && asmTemplateSlugs.has(w.slug)) return true;
+        return false;
+      })
+      .map((w: any) => w.id);
   }
 
   async getDomain(auth: AuthContext, id: string) {
@@ -233,12 +343,6 @@ export class AsmService {
       },
     );
 
-    // Update lastScanAt
-    await this.db
-      .update(asmDomains)
-      .set({ lastScanAt: new Date(), updatedAt: new Date() })
-      .where(eq(asmDomains.id, domainId));
-
     this.logger.log(
       `Triggered ASM scan for ${domain.domain} (runId: ${runHandle.runId}, template: ${slug})`,
     );
@@ -385,27 +489,7 @@ export class AsmService {
       domainId?: string;
     } = {},
   ) {
-    // Find ASM workflow IDs
-    const templates = await this.workflowTemplatesService.list();
-    const asmTemplateSlugs = new Set([
-      'sys-attack-surface-recon',
-      'sys-quick-recon',
-      'sys-port-scan',
-      'sys-vuln-scan',
-    ]);
-    const asmTemplateIds = templates
-      .filter((t) => t.slug && asmTemplateSlugs.has(t.slug))
-      .map((t) => t.id);
-
-    // Get workflow runs from existing infrastructure
-    const workflows = await this.workflowsService.list(auth);
-    const asmWorkflowIds = workflows
-      .filter((w: any) => {
-        if (asmTemplateIds.includes(w.templateId)) return true;
-        if (w.slug && asmTemplateSlugs.has(w.slug)) return true;
-        return false;
-      })
-      .map((w: any) => w.id);
+    const asmWorkflowIds = await this.resolveAsmWorkflowIds(auth);
 
     if (asmWorkflowIds.length === 0) {
       return { runs: [], total: 0 };
