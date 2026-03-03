@@ -168,9 +168,11 @@ function WorkflowBuilderContent() {
   const isMobile = useIsMobile();
 
   // Builder tour state (completion persisted in DB, step tracking is session-only)
-  const { data: userPreferences } = useUserPreferences();
+  const { data: userPreferences, isSuccess: prefsLoaded } = useUserPreferences();
   const updatePreferencesForTour = useUpdateUserPreferences();
-  const hasCompletedBuilderTour = userPreferences?.hasCompletedBuilderTour ?? true;
+  const hasCompletedBuilderTour = prefsLoaded
+    ? (userPreferences?.hasCompletedBuilderTour ?? false)
+    : true;
   const builderTourStep = useOnboardingStore((s) => s.builderTourStep);
   const setBuilderTourStep = useOnboardingStore((s) => s.setBuilderTourStep);
   const completeBuilderTour = () =>

@@ -95,11 +95,16 @@ export function AppLayout({ children }: AppLayoutProps) {
   const openCommandPalette = useCommandPaletteStore((state) => state.open);
 
   // Onboarding tutorial state (persisted in DB via API)
-  const { data: userPreferences, isLoading: prefsLoading } = useUserPreferences();
+  const {
+    data: userPreferences,
+    isLoading: prefsLoading,
+    isSuccess: prefsLoaded,
+  } = useUserPreferences();
   const updatePreferences = useUpdateUserPreferences();
-  const hasCompletedOnboarding = prefsLoading
-    ? true
-    : (userPreferences?.hasCompletedOnboarding ?? true);
+  // While loading: hide dialog (true). After loaded: use server value, default false for new users.
+  const hasCompletedOnboarding = prefsLoaded
+    ? (userPreferences?.hasCompletedOnboarding ?? false)
+    : true;
   const onboardingStep = useOnboardingStore((state) => state.currentStep);
   const setOnboardingStep = useOnboardingStore((state) => state.setCurrentStep);
   const completeOnboarding = () => updatePreferences.mutate({ hasCompletedOnboarding: true });
