@@ -18,7 +18,6 @@ import {
   Redo2,
   ExternalLink,
   Package,
-  ChevronDown,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -32,7 +31,6 @@ import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useAuthStore, DEFAULT_ORG_ID } from '@/store/authStore';
 import { cn } from '@/lib/utils';
 import { env } from '@/config/env';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface TopBarProps {
   workflowId?: string;
@@ -386,126 +384,42 @@ export function TopBar({
                 </>
               )}
 
-              {env.VITE_OPENSEARCH_DASHBOARDS_URL &&
-                workflowId &&
-                (!selectedRunId || (selectedRunStatus && selectedRunStatus !== 'RUNNING')) && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-flex">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1.5 md:gap-2 min-w-0"
-                            disabled={!isOrgReady || !hasAnalyticsSink}
-                            onClick={() => {
-                              if (!isOrgReady || !hasAnalyticsSink) return;
-                              const baseUrl = env.VITE_OPENSEARCH_DASHBOARDS_URL.replace(
-                                /\/+$/,
-                                '',
-                              );
-                              // Filter by run_id if a specific run is selected, otherwise by workflow_id
-                              const filterQuery = selectedRunId
-                                ? `shipsec.run_id.keyword:"${selectedRunId}"`
-                                : `shipsec.workflow_id.keyword:"${workflowId}"`;
-                              // Use the run's backend-resolved org ID when available (matches indexed data),
-                              // fall back to auth store org ID for workflow-level queries
-                              const effectiveOrgId = (
-                                selectedRunOrgId || organizationId
-                              ).toLowerCase();
-                              const orgScopedPattern = `security-findings-${effectiveOrgId}-*`;
-                              // OpenSearch Data Explorer URL format
-                              // Use .keyword fields for exact match filtering
-                              // Use 'all time' range (1 year) since run_id is unique - no need to filter by time
-                              const aParam = encodeURIComponent(
-                                `(discover:(columns:!(_source),interval:auto,sort:!()),metadata:(indexPattern:'${orgScopedPattern}',view:discover))`,
-                              );
-                              const qParam = encodeURIComponent(
-                                `(query:(language:kuery,query:'${filterQuery}'))`,
-                              );
-                              const gParam = encodeURIComponent(
-                                '(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1y,to:now))',
-                              );
-                              const url = `${baseUrl}/app/data-explorer/discover/#?_a=${aParam}&_q=${qParam}&_g=${gParam}`;
-                              window.open(url, '_blank', 'noopener,noreferrer');
-                            }}
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                            <span className="hidden lg:inline">View Analytics</span>
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {!hasAnalyticsSink
-                          ? 'Connect analytics sink to view analytics'
-                          : !isOrgReady
-                            ? 'Loading organization context...'
-                            : selectedRunId
-                              ? 'View analytics for this run in OpenSearch Dashboards'
-                              : 'View analytics for this workflow in OpenSearch Dashboards'}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
+              {/* Run button */}
+              <Button
+                data-onboarding-builder="run-button"
+                onClick={handleRun}
+                disabled={!canEdit}
+                size="sm"
+                className="gap-1.5 md:gap-2 min-w-0"
+              >
+                <Play className="h-4 w-4" />
+                <span className="hidden sm:inline">Run</span>
+              </Button>
 
-              {/* Run button with dropdown for Publish */}
-              <div data-onboarding-builder="run-button" className="flex items-center">
-                <Button
-                  onClick={handleRun}
-                  disabled={!canEdit}
-                  size="sm"
-                  className="gap-1.5 md:gap-2 min-w-0 rounded-r-none"
-                >
-                  <Play className="h-4 w-4" />
-                  <span className="hidden sm:inline">Run</span>
-                </Button>
-                {onPublishTemplate && isInWorkflowBuilder && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        data-onboarding-builder="publish-trigger"
-                        size="sm"
-                        className="px-1.5 rounded-l-none border-l border-primary-foreground/20"
-                        disabled={!canEdit}
-                        aria-label="More actions"
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-[180px]">
-                      <DropdownMenuItem onClick={onPublishTemplate} disabled={!canEdit}>
-                        <Package className="mr-2 h-4 w-4" />
-                        <span>Publish as Template</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
-
-              {/* Vertical three-dots menu: Undo, Redo, Import, Export */}
-              {mode === 'design' && (
-                <>
-                  {onImport && (
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="application/json"
-                      className="hidden"
-                      onChange={handleFileChange}
-                    />
-                  )}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        data-onboarding-builder="more-options"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+              {/* More options menu: Undo, Redo, Import, Export, Publish, Analytics */}
+              {onImport && (
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/json"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    data-onboarding-builder="more-options"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {mode === 'design' && (
+                    <>
                       <DropdownMenuItem onClick={onUndo} disabled={!canEdit || !canUndo}>
                         <Undo2 className="mr-2 h-4 w-4" />
                         <span>Undo</span>
@@ -516,26 +430,63 @@ export function TopBar({
                         <span>Redo</span>
                         <span className="ml-auto pl-4 text-xs text-muted-foreground">⌘⇧Z</span>
                       </DropdownMenuItem>
-                      {(onImport || onExport) && <DropdownMenuSeparator />}
-                      {onImport && (
-                        <DropdownMenuItem
-                          onClick={handleImportClick}
-                          disabled={!canEdit || isImporting}
-                        >
-                          <Upload className="mr-2 h-4 w-4" />
-                          <span>Import</span>
-                        </DropdownMenuItem>
-                      )}
-                      {onExport && (
-                        <DropdownMenuItem onClick={handleExport} disabled={!canEdit}>
-                          <Download className="mr-2 h-4 w-4" />
-                          <span>Export</span>
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </>
-              )}
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  {onPublishTemplate && isInWorkflowBuilder && (
+                    <DropdownMenuItem onClick={onPublishTemplate} disabled={!canEdit}>
+                      <Package className="mr-2 h-4 w-4" />
+                      <span>Publish as Template</span>
+                    </DropdownMenuItem>
+                  )}
+                  {env.VITE_OPENSEARCH_DASHBOARDS_URL &&
+                    workflowId &&
+                    (!selectedRunId || (selectedRunStatus && selectedRunStatus !== 'RUNNING')) && (
+                      <DropdownMenuItem
+                        disabled={!isOrgReady || !hasAnalyticsSink}
+                        onClick={() => {
+                          if (!isOrgReady || !hasAnalyticsSink) return;
+                          const baseUrl = env.VITE_OPENSEARCH_DASHBOARDS_URL.replace(/\/+$/, '');
+                          const filterQuery = selectedRunId
+                            ? `shipsec.run_id.keyword:"${selectedRunId}"`
+                            : `shipsec.workflow_id.keyword:"${workflowId}"`;
+                          const effectiveOrgId = (selectedRunOrgId || organizationId).toLowerCase();
+                          const orgScopedPattern = `security-findings-${effectiveOrgId}-*`;
+                          const aParam = encodeURIComponent(
+                            `(discover:(columns:!(_source),interval:auto,sort:!()),metadata:(indexPattern:'${orgScopedPattern}',view:discover))`,
+                          );
+                          const qParam = encodeURIComponent(
+                            `(query:(language:kuery,query:'${filterQuery}'))`,
+                          );
+                          const gParam = encodeURIComponent(
+                            '(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1y,to:now))',
+                          );
+                          const url = `${baseUrl}/app/data-explorer/discover/#?_a=${aParam}&_q=${qParam}&_g=${gParam}`;
+                          window.open(url, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        <span>View Analytics</span>
+                      </DropdownMenuItem>
+                    )}
+                  {mode === 'design' && (onImport || onExport) && <DropdownMenuSeparator />}
+                  {mode === 'design' && onImport && (
+                    <DropdownMenuItem
+                      onClick={handleImportClick}
+                      disabled={!canEdit || isImporting}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      <span>Import</span>
+                    </DropdownMenuItem>
+                  )}
+                  {mode === 'design' && onExport && (
+                    <DropdownMenuItem onClick={handleExport} disabled={!canEdit}>
+                      <Download className="mr-2 h-4 w-4" />
+                      <span>Export</span>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>

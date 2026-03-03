@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
-  Sparkles,
   PanelLeft,
   MousePointerSquareDashed,
   PencilLine,
@@ -15,7 +14,6 @@ import {
   MonitorPlay,
   LayoutList,
   CalendarClock,
-  Package,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
@@ -23,7 +21,7 @@ import { useWorkflowUiStore } from '@/store/workflowUiStore';
 interface BuilderTourStep {
   title: string;
   description: string;
-  icon: typeof Sparkles;
+  icon: typeof PanelLeft;
   content: string;
   gradient: string;
   iconColor: string;
@@ -32,16 +30,6 @@ interface BuilderTourStep {
 }
 
 const BUILDER_TOUR_STEPS: BuilderTourStep[] = [
-  {
-    title: 'Welcome to the Workflow Builder!',
-    description: "Let's explore how to build workflows.",
-    icon: Sparkles,
-    content:
-      "This is where you design and execute security workflows. We'll walk you through each part of the builder interface.",
-    gradient: 'from-purple-500/20 via-violet-500/10 to-transparent',
-    iconColor: 'text-purple-500',
-    target: null,
-  },
   {
     title: 'Component Library',
     description: 'Drag and drop nodes onto the canvas.',
@@ -93,21 +81,11 @@ const BUILDER_TOUR_STEPS: BuilderTourStep[] = [
     target: '[data-onboarding-builder="run-button"]',
   },
   {
-    title: 'Publish as Template',
-    description: 'Share your workflow with the team.',
-    icon: Package,
-    content:
-      'Use the dropdown arrow next to the Run button to publish your workflow as a reusable template. Others in your organization can use it as a starting point.',
-    gradient: 'from-orange-500/20 via-orange-500/10 to-transparent',
-    iconColor: 'text-orange-500',
-    target: '[data-onboarding-builder="publish-trigger"]',
-  },
-  {
     title: 'More Options',
-    description: 'Undo, Redo, Import & Export.',
+    description: 'Publish, Analytics, Import & Export.',
     icon: MoreVertical,
     content:
-      'Access undo/redo (Cmd+Z / Cmd+Shift+Z), import workflows from JSON files, or export your current workflow for sharing and backup.',
+      'Access undo/redo, publish your workflow as a reusable template, view analytics dashboards, and import/export workflows as JSON.',
     gradient: 'from-red-500/20 via-red-500/10 to-transparent',
     iconColor: 'text-red-500',
     target: '[data-onboarding-builder="more-options"]',
@@ -168,7 +146,7 @@ export function WorkflowBuilderTour({
 
   const step = BUILDER_TOUR_STEPS[currentStep];
   const isLastStep = currentStep === BUILDER_TOUR_STEPS.length - 1;
-  const Icon = step?.icon ?? Sparkles;
+  const Icon = step?.icon ?? PanelLeft;
   const isCenter = !step?.target;
 
   // Auto-switch mode based on step requirements
@@ -302,15 +280,26 @@ export function WorkflowBuilderTour({
       };
     }
 
-    // For inspector elements (right panel), position to the left
+    // For inspector elements (right panel), position to the left with bounds checking
     if (
       step.target === '[data-onboarding-builder="execution-inspector"]' ||
       step.target === '[data-onboarding-builder="inspector-tabs"]'
     ) {
       const tooltipTop = Math.max(80, targetRect.top + targetRect.height / 2 - 100);
+      const leftPos = targetRect.left - TOOLTIP_WIDTH - TOOLTIP_GAP;
+
+      // If tooltip would go off-screen left, center it over the canvas area instead
+      if (leftPos < 16) {
+        return {
+          top: tooltipTop,
+          left: Math.max(16, (targetRect.left - TOOLTIP_WIDTH) / 2),
+          width: Math.min(TOOLTIP_WIDTH, targetRect.left - 32),
+        };
+      }
+
       return {
         top: tooltipTop,
-        left: targetRect.left - TOOLTIP_WIDTH - TOOLTIP_GAP,
+        left: leftPos,
         width: TOOLTIP_WIDTH,
       };
     }
