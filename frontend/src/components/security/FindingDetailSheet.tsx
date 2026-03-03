@@ -10,7 +10,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ExternalLink, Copy, Check, ChevronDown, ChevronRight, Workflow } from 'lucide-react';
+import { ExternalLink, Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { MarkdownView } from '@/components/ui/markdown';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -85,11 +85,54 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
+function ScannerLabel({ scanner }: { scanner: string }) {
+  const logo = SCANNER_LOGO[scanner];
+  const icon = logo?.emoji ? (
+    <span
+      className="w-4 h-4 flex items-center justify-center text-sm"
+      role="img"
+      aria-label={logo.alt}
+    >
+      {logo.emoji}
+    </span>
+  ) : logo?.src ? (
+    <img src={logo.src} alt={logo.alt} className="w-4 h-4 rounded object-contain" />
+  ) : null;
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {icon}
+      {scanner}
+    </span>
+  );
+}
+
 function RemediationCodeBlock({ code, language }: { code: string; language: string }) {
+  const trimmed = code.trim();
+
+  // If the content is a URL, render as a link instead of a code block
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return (
+      <a
+        href={trimmed}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+      >
+        View Documentation
+        <ExternalLink className="h-3 w-3" />
+      </a>
+    );
+  }
+
+  // Some metadata fields (terraform, nativeIaC) already contain markdown code fences.
+  // Detect this to avoid double-wrapping which breaks syntax highlighting.
+  const alreadyFenced = trimmed.startsWith('```');
+  const content = alreadyFenced ? code : `\`\`\`${language}\n${code}\n\`\`\``;
   return (
     <MarkdownView
-      content={`\`\`\`${language}\n${code}\n\`\`\``}
-      className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground [&_pre]:max-h-60 [&_pre]:overflow-auto"
+      content={content}
+      className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground [&_pre]:max-h-80 [&_pre]:overflow-auto"
     />
   );
 }
@@ -105,6 +148,9 @@ function RemediationTabs({
 }) {
   const tabs = useMemo(() => {
     const t: { value: string; label: string; code: string; language: string }[] = [];
+    // Manual first as the default tab
+    if (metadata.other)
+      t.push({ value: 'manual', label: 'Manual', code: metadata.other, language: 'text' });
     if (metadata.cli) t.push({ value: 'cli', label: 'CLI', code: metadata.cli, language: 'bash' });
     if (metadata.terraform)
       t.push({ value: 'terraform', label: 'Terraform', code: metadata.terraform, language: 'hcl' });
@@ -115,56 +161,56 @@ function RemediationTabs({
         code: metadata.nativeIaC,
         language: 'yaml',
       });
-    if (metadata.other)
-      t.push({ value: 'manual', label: 'Manual', code: metadata.other, language: '' });
     return t;
   }, [metadata]);
 
-  const defaultTab = tabs[0]?.value ?? 'recommendation';
+  const defaultTab = tabs[0]?.value ?? 'manual';
 
   return (
-    <div>
-      <h4 className="text-sm font-medium mb-2">Remediation</h4>
-      <Tabs defaultValue={defaultTab}>
-        <TabsList className="w-full">
-          {tabs.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className="text-xs">
-              {tab.label}
-            </TabsTrigger>
-          ))}
-          {(remediationText || recommendationUrl) && (
-            <TabsTrigger value="recommendation" className="text-xs">
-              Info
-            </TabsTrigger>
+    <div className="space-y-5">
+      {(remediationText || recommendationUrl) && (
+        <div>
+          <h4 className="text-sm font-medium mb-2">Recommendation</h4>
+          {remediationText && (
+            <MarkdownView
+              content={remediationText}
+              className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground mb-2"
+            />
           )}
-        </TabsList>
-        {tabs.map((tab) => (
-          <TabsContent key={tab.value} value={tab.value}>
-            <RemediationCodeBlock code={tab.code} language={tab.language} />
-          </TabsContent>
-        ))}
-        {(remediationText || recommendationUrl) && (
-          <TabsContent value="recommendation">
-            {remediationText && (
-              <MarkdownView
-                content={remediationText}
-                className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground mb-2"
-              />
-            )}
-            {recommendationUrl && (
-              <a
-                href={recommendationUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          {recommendationUrl && (
+            <a
+              href={recommendationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            >
+              View Recommendation
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
+      )}
+      <div>
+        <h4 className="text-sm font-medium mb-2">Remediation</h4>
+        <Tabs defaultValue={defaultTab}>
+          <TabsList className="h-auto bg-transparent p-0 border-b rounded-none justify-start gap-0">
+            {tabs.map((tab) => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="text-xs rounded-none border-b-2 border-transparent px-3 py-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-primary"
               >
-                View Recommendation
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-          </TabsContent>
-        )}
-      </Tabs>
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {tabs.map((tab) => (
+            <TabsContent key={tab.value} value={tab.value}>
+              <RemediationCodeBlock code={tab.code} language={tab.language} />
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
     </div>
   );
 }
@@ -206,7 +252,7 @@ export function FindingDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="pr-8 leading-snug">
             {finding.title ?? 'Untitled Finding'}
@@ -235,27 +281,19 @@ export function FindingDetailSheet({
                     ) : null
                   }
                 />
+                <DetailRow label="Scanner" value={<ScannerLabel scanner={finding.scanner} />} />
                 <DetailRow
-                  label="Scanner"
+                  label="Run"
                   value={
-                    <span className="inline-flex items-center gap-1.5">
-                      {SCANNER_LOGO[finding.scanner]?.emoji ? (
-                        <span
-                          className="w-4 h-4 flex items-center justify-center text-sm"
-                          role="img"
-                          aria-label={SCANNER_LOGO[finding.scanner].alt}
-                        >
-                          {SCANNER_LOGO[finding.scanner].emoji}
-                        </span>
-                      ) : SCANNER_LOGO[finding.scanner]?.src ? (
-                        <img
-                          src={SCANNER_LOGO[finding.scanner].src}
-                          alt={SCANNER_LOGO[finding.scanner].alt}
-                          className="w-4 h-4 rounded object-contain"
-                        />
-                      ) : null}
-                      {finding.scanner}
-                    </span>
+                    workflowId && runId ? (
+                      <Link
+                        to={`/workflows/${workflowId}/runs/${runId}`}
+                        className="inline-flex items-center gap-1.5 hover:underline"
+                      >
+                        {finding.shipsec?.workflow_name ?? 'View Run'}
+                        <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                      </Link>
+                    ) : null
                   }
                 />
                 <DetailRow label="Rule ID" value={finding.rule_id} />
@@ -293,27 +331,19 @@ export function FindingDetailSheet({
                     ) : null
                   }
                 />
+                <DetailRow label="Scanner" value={<ScannerLabel scanner={finding.scanner} />} />
                 <DetailRow
-                  label="Scanner"
+                  label="Run"
                   value={
-                    <span className="inline-flex items-center gap-1.5">
-                      {SCANNER_LOGO[finding.scanner]?.emoji ? (
-                        <span
-                          className="w-4 h-4 flex items-center justify-center text-sm"
-                          role="img"
-                          aria-label={SCANNER_LOGO[finding.scanner].alt}
-                        >
-                          {SCANNER_LOGO[finding.scanner].emoji}
-                        </span>
-                      ) : SCANNER_LOGO[finding.scanner]?.src ? (
-                        <img
-                          src={SCANNER_LOGO[finding.scanner].src}
-                          alt={SCANNER_LOGO[finding.scanner].alt}
-                          className="w-4 h-4 rounded object-contain"
-                        />
-                      ) : null}
-                      {finding.scanner}
-                    </span>
+                    workflowId && runId ? (
+                      <Link
+                        to={`/workflows/${workflowId}/runs/${runId}`}
+                        className="inline-flex items-center gap-1.5 hover:underline"
+                      >
+                        {finding.shipsec?.workflow_name ?? 'View Run'}
+                        <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                      </Link>
+                    ) : null
                   }
                 />
                 <DetailRow label="Check" value={finding.check_name} />
@@ -413,24 +443,6 @@ export function FindingDetailSheet({
                   </Badge>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* Workflow Link */}
-          {workflowId && runId && (
-            <div className="rounded-md border p-3">
-              <div className="flex items-center gap-2">
-                <Workflow className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">
-                  {finding.shipsec?.workflow_name ?? 'Workflow'}
-                </span>
-              </div>
-              <Link
-                to={`/workflows/${workflowId}/runs/${runId}`}
-                className="text-sm text-primary hover:underline mt-1 inline-block"
-              >
-                View Run
-              </Link>
             </div>
           )}
 
