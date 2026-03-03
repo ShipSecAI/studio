@@ -289,11 +289,13 @@ export function HomePage() {
       return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
           <HeroBanner />
-          <GettingStartedChecklist
-            checklist={checklist}
-            completedCount={completedCount}
-            mode="expanded"
-          />
+          <div data-tour="getting-started">
+            <GettingStartedChecklist
+              checklist={checklist}
+              completedCount={completedCount}
+              mode="expanded"
+            />
+          </div>
           <WhatYouWillUnlockSection />
         </div>
       );
@@ -312,11 +314,13 @@ export function HomePage() {
             integrationsConnected={integrationsConnected}
           />
 
-          <GettingStartedChecklist
-            checklist={checklist}
-            completedCount={completedCount}
-            mode="expanded"
-          />
+          <div data-tour="getting-started">
+            <GettingStartedChecklist
+              checklist={checklist}
+              completedCount={completedCount}
+              mode="expanded"
+            />
+          </div>
 
           <QueryErrorBoundary>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

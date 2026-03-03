@@ -54,8 +54,7 @@ import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { usePrefetchOnIdle } from '@/hooks/usePrefetchOnIdle';
 import { prefetchIdleRoutes, prefetchRoute } from '@/lib/prefetch-routes';
 import { SecurityTabBar } from '@/components/security/SecurityTabBar';
-import { useAllFeatureFlags } from '@/features/feature-flags';
-import type { FeatureKey } from '@/features/feature-flags';
+import { SpotlightTour, useAppTour } from '@/features/onboarding';
 
 // Thin loading bar shown during lazy-loaded route transitions.
 // React Router v7 wraps navigations in startTransition, so React 19
@@ -109,6 +108,7 @@ function useIsMobile(breakpoint = 768) {
 
 export function AppLayout({ children }: AppLayoutProps) {
   usePrefetchOnIdle();
+  useAppTour();
 
   // Prefetch all route chunks during idle time
   useEffect(() => {
@@ -132,7 +132,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const loadSessions = useChatStore((s) => s.loadSessions);
   const deleteSession = useChatStore((s) => s.deleteSession);
-  const featureFlags = useAllFeatureFlags();
 
   // Load chat sessions when on chat routes
   useEffect(() => {
@@ -327,15 +326,11 @@ export function AppLayout({ children }: AppLayoutProps) {
     icon: LucideIcon;
     external?: boolean;
     newTab?: boolean;
-    /** When set, this item is hidden if the feature flag is disabled */
-    requiredFlag?: FeatureKey;
   }
 
   interface NavGroup {
     label?: string;
     items: NavItem[];
-    /** When set, the entire group is hidden if the feature flag is disabled */
-    requiredFlag?: FeatureKey;
   }
 
   const homeItem: NavItem = {
@@ -348,7 +343,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     name: 'ShipSec AI',
     href: '/chat',
     icon: MessageSquare,
-    requiredFlag: 'AI_AGENT',
   };
 
   const activityItem: NavItem = {
@@ -360,85 +354,44 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navigationGroups: NavGroup[] = [
     {
       label: 'CODE SECURITY',
-      requiredFlag: 'GITHUB_INTEGRATION',
       items: [
-        {
-          name: 'Repositories',
-          href: '/github/repositories',
-          icon: Archive,
-          requiredFlag: 'GITHUB_INTEGRATION',
-        },
-        {
-          name: 'Scan Results',
-          href: '/github/scans',
-          icon: ScanSearch,
-          requiredFlag: 'CODE_SCANS',
-        },
+        { name: 'Repositories', href: '/github/repositories', icon: Archive },
+        { name: 'Scan Results', href: '/github/scans', icon: ScanSearch },
         {
           name: 'PR Protection',
           href: '/github/triggers',
           icon: GitPullRequest,
-          requiredFlag: 'PR_PROTECTION',
         },
       ],
     },
     {
       label: 'CLOUD SECURITY',
-      requiredFlag: 'CLOUD_SECURITY',
       items: [
-        {
-          name: 'Cloud Accounts',
-          href: '/cloud/accounts',
-          icon: Cloud,
-          requiredFlag: 'CLOUD_SECURITY',
-        },
-        {
-          name: 'Cloud Inventory',
-          href: '/cloud/inventory',
-          icon: Server,
-          requiredFlag: 'CLOUD_INVENTORY',
-        },
+        { name: 'Cloud Accounts', href: '/cloud/accounts', icon: Cloud },
+        { name: 'Cloud Inventory', href: '/cloud/inventory', icon: Server },
         {
           name: 'Cloud Findings',
           href: '/dashboards/security?view=cloud-security',
           icon: ShieldCheck,
-          requiredFlag: 'SECURITY_DASHBOARD',
         },
-        {
-          name: 'Cloud Scans',
-          href: '/cloud/scans',
-          icon: ScanSearch,
-          requiredFlag: 'CLOUD_SCANS',
-        },
+        { name: 'Cloud Scans', href: '/cloud/scans', icon: ScanSearch },
       ],
     },
     {
       label: 'ATTACK SURFACE',
-      requiredFlag: 'ASM',
       items: [
-        { name: 'Domains', href: '/asm/domains', icon: Globe, requiredFlag: 'ASM_DOMAINS' },
-        { name: 'Assets', href: '/asm/assets', icon: Server, requiredFlag: 'ASM_ASSETS' },
-        { name: 'Scans', href: '/asm/scans', icon: Radar, requiredFlag: 'ASM_SCANS' },
+        { name: 'Domains', href: '/asm/domains', icon: Globe },
+        { name: 'Assets', href: '/asm/assets', icon: Server },
+        { name: 'Scans', href: '/asm/scans', icon: Radar },
       ],
     },
     {
       label: 'WORKFLOWS',
-      requiredFlag: 'WORKFLOWS',
       items: [
-        { name: 'Builder', href: '/builder', icon: Workflow, requiredFlag: 'WORKFLOWS' },
-        {
-          name: 'Templates',
-          href: '/templates',
-          icon: LayoutTemplate,
-          requiredFlag: 'WORKFLOW_TEMPLATES',
-        },
-        {
-          name: 'Schedules',
-          href: '/schedules',
-          icon: CalendarClock,
-          requiredFlag: 'WORKFLOW_SCHEDULES',
-        },
-        { name: 'Webhooks', href: '/webhooks', icon: Webhook, requiredFlag: 'WEBHOOKS' },
+        { name: 'Builder', href: '/builder', icon: Workflow },
+        { name: 'Templates', href: '/templates', icon: LayoutTemplate },
+        { name: 'Schedules', href: '/schedules', icon: CalendarClock },
+        { name: 'Webhooks', href: '/webhooks', icon: Webhook },
       ],
     },
     ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
@@ -459,24 +412,21 @@ export function AppLayout({ children }: AppLayoutProps) {
   ];
 
   const settingsItems: NavItem[] = [
-    { name: 'Integrations', href: '/integrations', icon: Plug, requiredFlag: 'INTEGRATIONS' },
+    { name: 'Integrations', href: '/integrations', icon: Plug },
     {
       name: 'Secrets',
       href: '/secrets',
       icon: KeyRound,
-      requiredFlag: 'SECRETS',
     },
     {
       name: 'API Keys',
       href: '/api-keys',
       icon: Shield,
-      requiredFlag: 'API_KEYS',
     },
     {
       name: 'MCP Servers',
       href: '/mcp-library',
       icon: ServerCog,
-      requiredFlag: 'MCP_SERVERS',
     },
     ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
       ? [
@@ -484,28 +434,14 @@ export function AppLayout({ children }: AppLayoutProps) {
             name: 'Analytics Settings',
             href: '/analytics-settings',
             icon: Settings,
-            requiredFlag: 'ANALYTICS_SETTINGS' as FeatureKey,
           },
         ]
       : []),
   ];
 
-  // Filter nav groups and items based on resolved feature flags
-  const filteredNavigationGroups = navigationGroups
-    .filter((group) => !group.requiredFlag || featureFlags[group.requiredFlag])
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => !item.requiredFlag || featureFlags[item.requiredFlag]),
-    }))
-    .filter((group) => group.items.length > 0);
-
-  const filteredSettingsItems = settingsItems.filter(
-    (item) => !item.requiredFlag || featureFlags[item.requiredFlag],
-  );
-
   // Collect all base paths that have query-param siblings (e.g. /dashboards/security has ?view=cloud-security)
   const queryParamPaths = new Set<string>();
-  for (const group of filteredNavigationGroups) {
+  for (const group of navigationGroups) {
     for (const item of group.items) {
       if (item.href.includes('?')) {
         queryParamPaths.add(item.href.split('?')[0]);
@@ -513,7 +449,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }
   // Also check home-level query-param items
-  if (filteredNavigationGroups.some((g) => g.items.some((i) => i.href.startsWith('/?')))) {
+  if (navigationGroups.some((g) => g.items.some((i) => i.href.startsWith('/?')))) {
     queryParamPaths.add('/');
   }
 
@@ -608,6 +544,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Sidebar */}
         <Sidebar
+          data-tour="nav-sidebar"
           className={cn(
             'h-full transition-all duration-300 z-[110]',
             // Mobile: Fixed position, slide in/out
@@ -655,7 +592,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </SidebarHeader>
 
           {/* Search - pinned to top */}
-          <div className="px-2 py-2 border-b border-border/40">
+          <div className="px-2 py-2 border-b border-border/40" data-tour="nav-search">
             <button
               onClick={openCommandPalette}
               className={cn(
@@ -761,89 +698,99 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </span>
                 </SidebarItem>
               </Link>
-              {/* ShipSec AI with collapsible chat history — gated by feature flag */}
-              {(!chatItem.requiredFlag || featureFlags[chatItem.requiredFlag]) && (
-                <div>
-                  <div className="flex items-center">
-                    <Link
-                      to={chatItem.href}
-                      onMouseEnter={() => prefetchRoute(chatItem.href)}
-                      onClick={(e) => {
-                        if (e.metaKey || e.ctrlKey || e.shiftKey) return;
-                        if (isMobile) {
-                          setSidebarOpen(false);
-                          return;
-                        }
-                        setSidebarOpen(true);
-                        setWasExplicitlyOpened(true);
-                      }}
-                      className="flex-1 min-w-0"
-                    >
-                      <SidebarItem
-                        isActive={isActive(chatItem.href)}
-                        className={cn(
-                          'flex items-center gap-3',
-                          sidebarOpen ? 'justify-start px-4 pr-1' : 'justify-center',
-                        )}
-                      >
-                        <MessageSquare className="h-5 w-5 flex-shrink-0" />
-                        <span
-                          className={cn(
-                            'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
-                            sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
-                          )}
-                          style={{
-                            transitionDelay: sidebarOpen ? '200ms' : '0ms',
-                            transitionProperty: 'opacity, max-width',
-                          }}
-                        >
-                          ShipSec AI
-                        </span>
-                      </SidebarItem>
-                    </Link>
-                    {sidebarOpen && location.pathname.startsWith('/chat') && (
-                      <button
-                        onClick={() => {
-                          startNewConversation();
-                          navigate('/chat/new');
-                        }}
-                        className="p-1.5 mr-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex-shrink-0"
-                        aria-label="New conversation"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Chat history - visible only on chat routes */}
-                  {sidebarOpen && location.pathname.startsWith('/chat') && (
-                    <div className="max-h-48 overflow-y-auto">
-                      {chatSessions.length > 0 ? (
-                        <ChatHistoryList
-                          sessions={chatSessions}
-                          currentSessionId={currentSessionId}
-                          onSelectSession={(id) => {
-                            navigate(`/chat/${id}`);
-                            if (isMobile) setSidebarOpen(false);
-                          }}
-                          onDeleteSession={deleteSession}
-                          maxItems={15}
-                          variant="default"
-                        />
-                      ) : (
-                        <p className="text-xs text-muted-foreground/70 px-3 py-2">
-                          No conversations yet
-                        </p>
+              {/* ShipSec AI with collapsible chat history */}
+              <div data-tour="nav-shipsec-ai">
+                <div className="flex items-center">
+                  <Link
+                    to={chatItem.href}
+                    onMouseEnter={() => prefetchRoute(chatItem.href)}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                      if (isMobile) {
+                        setSidebarOpen(false);
+                        return;
+                      }
+                      setSidebarOpen(true);
+                      setWasExplicitlyOpened(true);
+                    }}
+                    className="flex-1 min-w-0"
+                  >
+                    <SidebarItem
+                      isActive={isActive(chatItem.href)}
+                      className={cn(
+                        'flex items-center gap-3',
+                        sidebarOpen ? 'justify-start px-4 pr-1' : 'justify-center',
                       )}
-                    </div>
+                    >
+                      <MessageSquare className="h-5 w-5 flex-shrink-0" />
+                      <span
+                        className={cn(
+                          'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                          sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                        )}
+                        style={{
+                          transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                          transitionProperty: 'opacity, max-width',
+                        }}
+                      >
+                        ShipSec AI
+                      </span>
+                    </SidebarItem>
+                  </Link>
+                  {sidebarOpen && location.pathname.startsWith('/chat') && (
+                    <button
+                      onClick={() => {
+                        startNewConversation();
+                        navigate('/chat/new');
+                      }}
+                      className="p-1.5 mr-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex-shrink-0"
+                      aria-label="New conversation"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
                   )}
                 </div>
-              )}
+
+                {/* Chat history - visible only on chat routes */}
+                {sidebarOpen && location.pathname.startsWith('/chat') && (
+                  <div className="max-h-48 overflow-y-auto">
+                    {chatSessions.length > 0 ? (
+                      <ChatHistoryList
+                        sessions={chatSessions}
+                        currentSessionId={currentSessionId}
+                        onSelectSession={(id) => {
+                          navigate(`/chat/${id}`);
+                          if (isMobile) setSidebarOpen(false);
+                        }}
+                        onDeleteSession={deleteSession}
+                        maxItems={15}
+                        variant="default"
+                      />
+                    ) : (
+                      <p className="text-xs text-muted-foreground/70 px-3 py-2">
+                        No conversations yet
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Grouped navigation — filtered by feature flags */}
-            {filteredNavigationGroups.map((group) => (
-              <div key={group.label ?? 'ungrouped'} className="px-2 mt-1">
+            {/* Grouped navigation */}
+            {navigationGroups.map((group) => (
+              <div
+                key={group.label ?? 'ungrouped'}
+                className="px-2 mt-1"
+                {...(group.label === 'CODE SECURITY'
+                  ? { 'data-tour': 'nav-code-security' }
+                  : group.label === 'CLOUD SECURITY'
+                    ? { 'data-tour': 'nav-cloud-security' }
+                    : group.label === 'ATTACK SURFACE'
+                      ? { 'data-tour': 'nav-attack-surface' }
+                      : group.label === 'WORKFLOWS'
+                        ? { 'data-tour': 'nav-workflows' }
+                        : {})}
+              >
                 {group.label && sidebarOpen && (
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-3 pt-4 pb-1">
                     {group.label}
@@ -942,7 +889,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </SidebarContent>
 
           {/* Manage - pinned to bottom */}
-          <div className="border-t border-border/40 px-2 py-1">
+          <div className="border-t border-border/40 px-2 py-1" data-tour="nav-manage">
             <button
               onClick={() => setSettingsOpen(!settingsOpen)}
               className={cn(
@@ -983,7 +930,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 settingsOpen ? 'max-h-96 mt-1 space-y-1' : 'max-h-0',
               )}
             >
-              {filteredSettingsItems.map((item) => {
+              {settingsItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
                 return (
@@ -1126,6 +1073,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex-1 overflow-auto">{children}</div>
         </main>
       </div>
+      <SpotlightTour />
     </SidebarContext.Provider>
   );
 }

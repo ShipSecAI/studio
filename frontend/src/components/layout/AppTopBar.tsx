@@ -90,11 +90,11 @@ export function AppTopBar({
               </>
             )}
           </div>
-        ) : !afterTitle ? (
-          /* Desktop: Icon + Full page title (hidden when afterTitle like SecurityTabBar is shown) */
+        ) : (
+          /* Desktop: Icon + Full page title with optional clickable breadcrumb */
           <div className="flex items-center gap-2.5">
             {PageIcon && <PageIcon className="h-5 w-5 text-muted-foreground flex-shrink-0" />}
-            <h1 className="text-xl font-semibold truncate">
+            <h1 className={cn('text-xl font-semibold', afterTitle ? 'flex-shrink-0' : 'truncate')}>
               {pageInfo.breadcrumb ? (
                 <>
                   <Link
@@ -113,8 +113,13 @@ export function AppTopBar({
               )}
             </h1>
           </div>
-        ) : null}
-        {afterTitle}
+        )}
+        {afterTitle && (
+          <>
+            <span className="text-border mx-1 hidden md:inline">|</span>
+            {afterTitle}
+          </>
+        )}
       </div>
 
       {/* Action buttons */}
@@ -136,6 +141,7 @@ function QuickScanButton({ isMobile }: { isMobile: boolean }) {
         size={isMobile ? 'sm' : 'default'}
         className="gap-1.5"
         onClick={() => setOpen(true)}
+        data-tour="quick-scan-btn"
       >
         <Zap className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Quick Scan</span>

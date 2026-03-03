@@ -13,16 +13,18 @@ import {
   CheckCircle2,
   Loader2,
   Pencil,
-  MoreHorizontal,
+  EllipsisVertical,
   Undo2,
   Redo2,
   ExternalLink,
   Lock,
+  LayoutTemplate,
 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -84,8 +86,6 @@ export function TopBar({
   const mode = useWorkflowUiStore((state) => state.mode);
   const organizationId = useAuthStore((s) => s.organizationId);
   const authProvider = useAuthStore((s) => s.provider);
-  // For Clerk auth, org context is ready when organizationId is set to a real value (not default)
-  // For other providers (local, custom), org context is always ready
   const isOrgReady = authProvider !== 'clerk' || organizationId !== DEFAULT_ORG_ID;
   const isSystemWorkflow = metadata.isSystem === true;
   const canEdit = Boolean(canManageWorkflows) && !isSystemWorkflow;
@@ -96,20 +96,17 @@ export function TopBar({
       setWorkflowName(DEFAULT_WORKFLOW_NAME);
       setTempWorkflowName(DEFAULT_WORKFLOW_NAME);
       setIsEditingTitle(false);
-      // Auto-save the default name after store update propagates
       if (onAutoSave) setTimeout(() => void onAutoSave(), 0);
       return;
     }
     if (trimmed !== metadata.name) {
       setWorkflowName(trimmed);
-      // Auto-save after name change — use setTimeout so the store update propagates first
       if (onAutoSave) setTimeout(() => void onAutoSave(), 0);
     }
     setIsEditingTitle(false);
   };
 
   const handleIconPickerClose = () => {
-    // Auto-save when icon picker popover closes (icon/color may have changed)
     if (onAutoSave) {
       void onAutoSave();
     }
@@ -118,7 +115,6 @@ export function TopBar({
   const handleStartEditing = () => {
     if (!canEdit) return;
     setIsEditingTitle(true);
-    // Focus the input after a brief delay to ensure it's rendered
     setTimeout(() => {
       titleInputRef.current?.focus();
       titleInputRef.current?.select();
@@ -135,9 +131,7 @@ export function TopBar({
   };
 
   const handleSave = async () => {
-    if (!canEdit) {
-      return;
-    }
+    if (!canEdit) return;
     setIsSaving(true);
     try {
       await Promise.resolve(onSave());
@@ -147,27 +141,17 @@ export function TopBar({
   };
 
   const handleRun = () => {
-    if (!canEdit) {
-      return;
-    }
-    if (onRun) {
-      onRun();
-    }
+    if (!canEdit) return;
+    if (onRun) onRun();
   };
 
   const handleExport = () => {
-    if (!canEdit) {
-      return;
-    }
-    if (onExport) {
-      onExport();
-    }
+    if (!canEdit) return;
+    if (onExport) onExport();
   };
 
   const handleImportClick = () => {
-    if (!canEdit) {
-      return;
-    }
+    if (!canEdit) return;
     if (!onImport) return;
     fileInputRef.current?.click();
   };
@@ -180,10 +164,7 @@ export function TopBar({
     if (!onImport) return;
     const file = event.target.files?.[0];
     event.target.value = '';
-
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     try {
       setIsImporting(true);
@@ -195,6 +176,25 @@ export function TopBar({
     }
   };
 
+  const handleViewAnalytics = () => {
+    if (!isOrgReady || !hasAnalyticsSink || !workflowId) return;
+    const baseUrl = env.VITE_OPENSEARCH_DASHBOARDS_URL.replace(/\/+$/, '');
+    const filterQuery = selectedRunId
+      ? `shipsec.run_id.keyword:"${selectedRunId}"`
+      : `shipsec.workflow_id.keyword:"${workflowId}"`;
+    const effectiveOrgId = (selectedRunOrgId || organizationId).toLowerCase();
+    const orgScopedPattern = `security-findings-${effectiveOrgId}-*`;
+    const aParam = encodeURIComponent(
+      `(discover:(columns:!(_source),interval:auto,sort:!()),metadata:(indexPattern:'${orgScopedPattern}',view:discover))`,
+    );
+    const qParam = encodeURIComponent(`(query:(language:kuery,query:'${filterQuery}'))`);
+    const gParam = encodeURIComponent(
+      '(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1y,to:now))',
+    );
+    const url = `${baseUrl}/app/data-explorer/discover/#?_a=${aParam}&_q=${qParam}&_g=${gParam}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   useEffect(() => {
     if (metadata.name) {
       setTempWorkflowName(metadata.name);
@@ -204,14 +204,16 @@ export function TopBar({
   }, [metadata.name]);
 
   const modeToggle = (
-    <div className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm flex-shrink-0">
+    <div
+      className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm flex-shrink-0"
+      data-tour="wf-mode-toggle"
+    >
       <Button
         variant={mode === 'design' ? 'default' : 'ghost'}
         size="sm"
         className="h-8 md:h-9 px-2 md:px-3 gap-1.5 md:gap-2 rounded-none"
         onClick={() => {
           if (!canEdit || !workflowId) return;
-          // Navigate to design URL - this triggers mode update via useLayoutEffect
           navigate(`/workflows/${workflowId}`);
         }}
         disabled={!canEdit}
@@ -236,8 +238,6 @@ export function TopBar({
         className="h-8 md:h-9 px-2 md:px-3 gap-1.5 md:gap-2 rounded-none border-l border-border/50"
         onClick={() => {
           if (!workflowId) return;
-          // Navigate to execution URL - this triggers mode update via useLayoutEffect
-          // If a run is selected, navigate to that specific run
           const executionPath = selectedRunId
             ? `/workflows/${workflowId}/runs/${selectedRunId}`
             : `/workflows/${workflowId}/runs`;
@@ -262,7 +262,6 @@ export function TopBar({
   );
 
   const saveState = isSaving ? 'saving' : isDirty ? 'dirty' : 'clean';
-
   const saveLabel = saveState === 'clean' ? 'Saved' : saveState === 'saving' ? 'Saving…' : 'Save';
   const saveBadgeText =
     saveState === 'clean' ? 'Synced' : saveState === 'saving' ? 'Syncing' : 'Pending';
@@ -289,6 +288,11 @@ export function TopBar({
       <Save className="h-4 w-4" />
     );
 
+  const showAnalytics =
+    env.VITE_OPENSEARCH_DASHBOARDS_URL &&
+    workflowId &&
+    (!selectedRunId || (selectedRunStatus && selectedRunStatus !== 'RUNNING'));
+
   return (
     <div className="h-14 border-b bg-background flex flex-nowrap items-center px-2 md:px-4 gap-1.5 md:gap-3 py-0">
       <Button
@@ -303,8 +307,11 @@ export function TopBar({
 
       <div className="flex-1 min-w-0">
         <div className="flex w-full gap-2 md:gap-4 items-center">
-          {/* Workflow name - fixed width left section for consistent centering */}
-          <div className="flex items-center justify-start gap-2 min-w-0 w-[140px] sm:w-[200px] md:w-[280px] lg:w-[360px] flex-shrink-0">
+          {/* Workflow name - left section */}
+          <div
+            data-tour="wf-name"
+            className="flex items-center justify-start gap-2 min-w-0 w-[140px] sm:w-[200px] md:w-[280px] lg:w-[360px] flex-shrink-0"
+          >
             <WorkflowIconPicker
               icon={metadata.icon}
               iconColor={metadata.iconColor}
@@ -322,7 +329,6 @@ export function TopBar({
               onMouseEnter={() => canEdit && !isEditingTitle && setShowPencil(true)}
               onMouseLeave={() => setShowPencil(false)}
               onClick={() => {
-                // Allow tap to edit on mobile
                 if (canEdit && !isEditingTitle) {
                   handleStartEditing();
                 }
@@ -374,204 +380,130 @@ export function TopBar({
               </Tooltip>
             )}
           </div>
-          {/* Mode toggle - flex-centered, won't overlap with other elements */}
+
+          {/* Mode toggle - centered */}
           <div className="flex-1 flex justify-center min-w-0">
             <div className="flex-shrink-0">{modeToggle}</div>
           </div>
-          {/* Actions on the right - fixed width to match left section for consistent centering */}
-          <div className="flex items-center justify-end gap-1 md:gap-2 flex-shrink-0 w-[140px] sm:w-[200px] md:w-[280px] lg:w-[360px]">
-            <div className="flex items-center gap-1 md:gap-2">
-              {mode === 'design' && (
-                <>
-                  <div className="hidden md:flex items-center gap-0.5 border-r border-border/50 pr-2 mr-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={onUndo}
-                      disabled={!canEdit || !canUndo}
-                      title="Undo (⌘Z)"
-                    >
-                      <Undo2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={onRedo}
-                      disabled={!canEdit || !canRedo}
-                      title="Redo (⌘⇧Z)"
-                    >
-                      <Redo2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {(onImport || onExport) && (
-                    <div className="hidden md:flex items-center gap-1.5 sm:gap-2">
-                      {onImport && (
-                        <>
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="application/json"
-                            className="hidden"
-                            onChange={handleFileChange}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 xl:px-3 gap-2"
-                            onClick={handleImportClick}
-                            disabled={!canEdit || isImporting}
-                            aria-label="Import workflow"
-                          >
-                            <Upload className="h-4 w-4" />
-                            <span className="text-xs font-medium hidden lg:inline">Import</span>
-                          </Button>
-                        </>
-                      )}
-                      {onExport && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 xl:px-3 gap-2"
-                          onClick={handleExport}
-                          disabled={!canEdit}
-                          aria-label="Export workflow"
-                        >
-                          <Download className="h-4 w-4" />
-                          <span className="text-xs font-medium hidden lg:inline">Export</span>
-                        </Button>
-                      )}
-                    </div>
-                  )}
 
-                  {(onImport || onExport) && (
-                    <div className="flex md:hidden">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {onImport && (
-                            <DropdownMenuItem
-                              onClick={handleImportClick}
-                              disabled={!canEdit || isImporting}
-                            >
-                              <Upload className="mr-2 h-4 w-4" />
-                              <span>Import</span>
-                            </DropdownMenuItem>
-                          )}
-                          {onExport && (
-                            <DropdownMenuItem onClick={handleExport}>
-                              <Download className="mr-2 h-4 w-4" />
-                              <span>Export</span>
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={handleSave}
-                    disabled={!canEdit || isSaving || saveState === 'clean'}
-                    variant="outline"
-                    className={saveButtonClasses}
-                    size="sm"
-                    title={
-                      saveState === 'dirty'
-                        ? 'Changes pending sync'
-                        : saveState === 'saving'
-                          ? 'Syncing now…'
-                          : 'No pending edits'
-                    }
-                  >
-                    {saveIcon}
-                    <span className="hidden xl:inline">{saveLabel}</span>
-                    <span
-                      className={cn(
-                        'text-[10px] font-medium px-1.5 py-0.5 rounded border ml-0 xl:ml-1',
-                        saveBadgeTone,
-                        'hidden sm:inline-block',
-                      )}
-                    >
-                      {saveBadgeText}
-                    </span>
-                  </Button>
-                </>
-              )}
-
-              {env.VITE_OPENSEARCH_DASHBOARDS_URL &&
-                workflowId &&
-                (!selectedRunId || (selectedRunStatus && selectedRunStatus !== 'RUNNING')) && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 md:gap-2 min-w-0"
-                          disabled={!isOrgReady || !hasAnalyticsSink}
-                          onClick={() => {
-                            if (!isOrgReady || !hasAnalyticsSink) return;
-                            const baseUrl = env.VITE_OPENSEARCH_DASHBOARDS_URL.replace(/\/+$/, '');
-                            // Filter by run_id if a specific run is selected, otherwise by workflow_id
-                            const filterQuery = selectedRunId
-                              ? `shipsec.run_id.keyword:"${selectedRunId}"`
-                              : `shipsec.workflow_id.keyword:"${workflowId}"`;
-                            // Use the run's backend-resolved org ID when available (matches indexed data),
-                            // fall back to auth store org ID for workflow-level queries
-                            const effectiveOrgId = (
-                              selectedRunOrgId || organizationId
-                            ).toLowerCase();
-                            const orgScopedPattern = `security-findings-${effectiveOrgId}-*`;
-                            // OpenSearch Data Explorer URL format
-                            // Use .keyword fields for exact match filtering
-                            // Use 'all time' range (1 year) since run_id is unique - no need to filter by time
-                            const aParam = encodeURIComponent(
-                              `(discover:(columns:!(_source),interval:auto,sort:!()),metadata:(indexPattern:'${orgScopedPattern}',view:discover))`,
-                            );
-                            const qParam = encodeURIComponent(
-                              `(query:(language:kuery,query:'${filterQuery}'))`,
-                            );
-                            const gParam = encodeURIComponent(
-                              '(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1y,to:now))',
-                            );
-                            const url = `${baseUrl}/app/data-explorer/discover/#?_a=${aParam}&_q=${qParam}&_g=${gParam}`;
-                            window.open(url, '_blank', 'noopener,noreferrer');
-                          }}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          <span className="hidden lg:inline">View Analytics</span>
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {!hasAnalyticsSink
-                        ? 'Connect analytics sink to view analytics'
-                        : !isOrgReady
-                          ? 'Loading organization context...'
-                          : selectedRunId
-                            ? 'View analytics for this run in OpenSearch Dashboards'
-                            : 'View analytics for this workflow in OpenSearch Dashboards'}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-
+          {/* Actions - right section: Save | Run | More menu */}
+          <div className="flex items-center justify-end gap-1.5 md:gap-2 flex-shrink-0 w-[140px] sm:w-[200px] md:w-[280px] lg:w-[360px]">
+            {mode === 'design' && (
               <Button
-                onClick={handleRun}
-                disabled={!canEdit}
+                data-tour="wf-save"
+                onClick={handleSave}
+                disabled={!canEdit || isSaving || saveState === 'clean'}
+                variant="outline"
+                className={saveButtonClasses}
                 size="sm"
-                className="gap-1.5 md:gap-2 min-w-0"
+                title={
+                  saveState === 'dirty'
+                    ? 'Changes pending sync'
+                    : saveState === 'saving'
+                      ? 'Syncing now…'
+                      : 'No pending edits'
+                }
               >
-                <Play className="h-4 w-4" />
-                <span className="hidden sm:inline">Run</span>
+                {saveIcon}
+                <span className="hidden xl:inline">{saveLabel}</span>
+                <span
+                  className={cn(
+                    'text-[10px] font-medium px-1.5 py-0.5 rounded border ml-0 xl:ml-1',
+                    saveBadgeTone,
+                    'hidden sm:inline-block',
+                  )}
+                >
+                  {saveBadgeText}
+                </span>
               </Button>
-            </div>
+            )}
+
+            <Button
+              data-tour="wf-run"
+              onClick={handleRun}
+              disabled={!canEdit}
+              size="sm"
+              className="gap-1.5 md:gap-2 min-w-0"
+            >
+              <Play className="h-4 w-4" />
+              <span className="hidden sm:inline">Run</span>
+            </Button>
+
+            {/* 3-dot dropdown: Undo, Redo, Analytics, Publish, Import, Export */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  data-tour="wf-more-menu"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 flex-shrink-0"
+                  aria-label="More options"
+                >
+                  <EllipsisVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {mode === 'design' && (
+                  <>
+                    <DropdownMenuItem onClick={onUndo} disabled={!canEdit || !canUndo}>
+                      <Undo2 className="mr-2 h-4 w-4" />
+                      <span className="flex-1">Undo</span>
+                      <kbd className="ml-auto text-[10px] text-muted-foreground">⌘Z</kbd>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={onRedo} disabled={!canEdit || !canRedo}>
+                      <Redo2 className="mr-2 h-4 w-4" />
+                      <span className="flex-1">Redo</span>
+                      <kbd className="ml-auto text-[10px] text-muted-foreground">⌘⇧Z</kbd>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {showAnalytics && (
+                  <DropdownMenuItem
+                    onClick={handleViewAnalytics}
+                    disabled={!isOrgReady || !hasAnalyticsSink}
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    <span>View Analytics</span>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem disabled={!canEdit}>
+                  <LayoutTemplate className="mr-2 h-4 w-4" />
+                  <span>Publish as Template</span>
+                </DropdownMenuItem>
+                {mode === 'design' && (onImport || onExport) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    {onImport && (
+                      <DropdownMenuItem
+                        onClick={handleImportClick}
+                        disabled={!canEdit || isImporting}
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        <span>Import</span>
+                      </DropdownMenuItem>
+                    )}
+                    {onExport && (
+                      <DropdownMenuItem onClick={handleExport} disabled={!canEdit}>
+                        <Download className="mr-2 h-4 w-4" />
+                        <span>Export</span>
+                      </DropdownMenuItem>
+                    )}
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Hidden file input for import */}
+            {onImport && (
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            )}
           </div>
         </div>
       </div>

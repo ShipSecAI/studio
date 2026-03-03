@@ -49,6 +49,7 @@ import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useWorkflowBuilderTour } from '@/features/onboarding';
 
 const ENTRY_DEFAULT_RUNTIME_INPUTS = [
   {
@@ -90,6 +91,7 @@ const computeGraphSignature = (
 };
 
 function WorkflowBuilderContent() {
+  useWorkflowBuilderTour();
   const { id, runId: routeRunId } = useParams<{ id: string; runId?: string }>();
   const navigate = useNavigate();
   const location = useLocation();

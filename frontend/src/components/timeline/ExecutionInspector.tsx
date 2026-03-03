@@ -258,9 +258,15 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
   const isMobile = useIsMobile();
   return (
     <>
-      <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
+      <aside
+        className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background"
+        data-tour="wf-execution-inspector"
+      >
         {/* Header - Run Selector */}
-        <div className="border-b px-3 py-2.5 flex items-center justify-between gap-2">
+        <div
+          className="border-b px-3 py-2.5 flex items-center justify-between gap-2"
+          data-tour="wf-run-selector"
+        >
           <RunSelector
             onRerun={onRerunRun}
             runsPage={runsPage ?? null}
@@ -378,7 +384,10 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
         <div className="border-b" />
 
         {/* Tabs */}
-        <div className="border-b px-3 py-2 flex items-center justify-between gap-2 bg-muted/20">
+        <div
+          className="border-b px-3 py-2 flex items-center justify-between gap-2 bg-muted/20"
+          data-tour="wf-inspector-tabs"
+        >
           <div className="inline-flex rounded-md border bg-background p-0.5 text-xs">
             <Button
               variant={inspectorTab === 'events' ? 'default' : 'ghost'}
