@@ -4,6 +4,7 @@ import { Server, Search, ChevronLeft, ChevronRight, Globe, Code2 } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { getTechIcon, getTechColor } from '@/lib/techIcons';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
@@ -35,6 +36,17 @@ function getScannerLabels(asset: AsmAssetHit): string[] {
     return asset.source_scanners;
   }
   return [asset.scanner];
+}
+
+function TechBadge({ name }: { name: string }) {
+  const Icon = getTechIcon(name);
+  const color = getTechColor(name);
+  return (
+    <Badge variant="secondary" className="text-xs gap-1">
+      {Icon && <Icon className="h-3 w-3" style={color ? { color } : undefined} />}
+      {name}
+    </Badge>
+  );
 }
 
 function formatDate(dateStr: string | undefined): string {
@@ -80,10 +92,12 @@ function AssetDetailPanel({ asset, onClose }: { asset: AsmAssetHit; onClose: () 
                 <span className="font-mono text-xs truncate max-w-[280px]">{asset.url}</span>
               </div>
             )}
-            {asset.ip && (
+            {(asset.ip || asset.answers?.a?.[0] || asset.answers?.aaaa?.[0]) && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">IP</span>
-                <span className="font-mono text-xs">{asset.ip}</span>
+                <span className="font-mono text-xs">
+                  {asset.ip || asset.answers?.a?.[0] || asset.answers?.aaaa?.[0]}
+                </span>
               </div>
             )}
             {asset.status_code != null && (
@@ -121,9 +135,7 @@ function AssetDetailPanel({ asset, onClose }: { asset: AsmAssetHit; onClose: () 
             </h4>
             <div className="flex flex-wrap gap-1.5">
               {asset.technologies.map((tech) => (
-                <Badge key={tech} variant="secondary" className="text-xs">
-                  {tech}
-                </Badge>
+                <TechBadge key={tech} name={tech} />
               ))}
             </div>
           </section>
@@ -318,14 +330,17 @@ export function AssetsPage() {
                         <td className="px-4 py-3 hidden lg:table-cell">
                           <div className="flex gap-1 flex-wrap">
                             {hit.technologies?.slice(0, 3).map((t) => (
-                              <Badge key={t} variant="secondary" className="text-xs">
-                                {t}
-                              </Badge>
+                              <TechBadge key={t} name={t} />
                             ))}
+                            {(hit.technologies?.length ?? 0) > 3 && (
+                              <Badge variant="outline" className="text-xs text-muted-foreground">
+                                +{hit.technologies!.length - 3}
+                              </Badge>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3 hidden lg:table-cell font-mono text-xs text-muted-foreground">
-                          {hit.ip ?? '-'}
+                          {hit.ip || hit.answers?.a?.[0] || hit.answers?.aaaa?.[0] || '-'}
                         </td>
                         <td className="px-4 py-3 hidden sm:table-cell text-muted-foreground text-xs">
                           {hit.webserver ?? '-'}

@@ -337,7 +337,14 @@ const definition = defineComponent({
         'targets.txt': targets.join('\n'),
       });
 
-      const httpxArgs: string[] = ['-json', '-silent', '-l', '/inputs/targets.txt', '-stream'];
+      const httpxArgs: string[] = [
+        '-json',
+        '-silent',
+        '-l',
+        '/inputs/targets.txt',
+        '-stream',
+        '-ip',
+      ];
 
       if (runnerParams.ports) {
         httpxArgs.push('-ports', runnerParams.ports);
@@ -547,7 +554,9 @@ function parseHttpxOutput(raw: string): Finding[] {
       scheme: normaliseString(payload.scheme),
       finalUrl: normaliseString(payload['final-url'] ?? payload.final_url),
       location: normaliseString(payload.location),
-      ip: normaliseString(payload.ip),
+      ip:
+        normaliseString(payload.ip) ??
+        (Array.isArray(payload.a) && typeof payload.a[0] === 'string' ? payload.a[0] : null),
       technologies,
       chainStatus,
       timestamp: normaliseString(payload.timestamp),

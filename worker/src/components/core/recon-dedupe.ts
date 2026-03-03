@@ -174,8 +174,20 @@ const definition = defineComponent({
         droppedCount += 1;
         continue;
       }
-      if (!dnsByHost.has(host)) {
+      const existing = dnsByHost.get(host);
+      if (!existing) {
         dnsByHost.set(host, record);
+      } else {
+        // Prefer DNS records that contain A/AAAA answers over SOA-only
+        const answers = record.answers as Record<string, string[]> | undefined;
+        const existingAnswers = existing.answers as Record<string, string[]> | undefined;
+        const hasAddressRecords = Boolean(answers?.a?.length || answers?.aaaa?.length);
+        const existingHasAddressRecords = Boolean(
+          existingAnswers?.a?.length || existingAnswers?.aaaa?.length,
+        );
+        if (hasAddressRecords && !existingHasAddressRecords) {
+          dnsByHost.set(host, record);
+        }
       }
     }
 
@@ -226,8 +238,17 @@ const definition = defineComponent({
 
       const preferredScanner = hasHttp ? 'httpx' : 'dnsx';
 
+      // Extract IP from httpx or fall back to DNS A/AAAA records
+      const mergedAnswers = merged.answers as Record<string, string[]> | undefined;
+      const ip =
+        (typeof merged.ip === 'string' && merged.ip) ||
+        mergedAnswers?.a?.[0] ||
+        mergedAnswers?.aaaa?.[0] ||
+        null;
+
       dedupedResults.push({
         ...merged,
+        ip,
         scanner: preferredScanner,
         finding_hash: generateFindingHash('asm-recon-host', host),
         severity,

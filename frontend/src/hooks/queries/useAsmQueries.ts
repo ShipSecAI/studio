@@ -17,6 +17,7 @@ export interface AsmDomain {
   createdAt: string;
   updatedAt: string;
   assetCount: number;
+  techStack: string[];
 }
 
 export interface AsmAsset {
@@ -130,6 +131,7 @@ export interface AsmAssetHit {
   host: string;
   url?: string;
   ip?: string;
+  answers?: { a?: string[]; aaaa?: string[]; [key: string]: unknown };
   status_code?: number;
   title?: string;
   webserver?: string;

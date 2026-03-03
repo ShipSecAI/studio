@@ -21,6 +21,7 @@ const FINDING_FIELD_MAPPINGS = {
   service_name: { type: 'keyword' },
   account_id: { type: 'keyword' },
   check_name: { type: 'keyword' },
+  ip: { type: 'keyword' },
   rule_id: { type: 'text', fields: { keyword: { type: 'keyword', ignore_above: 512 } } },
   file: { type: 'text', fields: { keyword: { type: 'keyword', ignore_above: 512 } } },
   shipsec: {
