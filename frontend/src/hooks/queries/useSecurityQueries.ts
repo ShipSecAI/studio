@@ -101,7 +101,12 @@ export function useSecurityTimeSeries(
               min_doc_count: 0,
             },
             aggs: {
-              by_severity: { terms: { field: 'severity' } },
+              by_severity: {
+                terms: { field: 'severity' },
+                aggs: {
+                  unique_findings: { cardinality: { field: 'finding_hash' } },
+                },
+              },
             },
           },
         },
@@ -113,7 +118,7 @@ export function useSecurityTimeSeries(
         for (const sev of bucket.by_severity?.buckets ?? []) {
           const key = sev.key?.toLowerCase();
           if (key in counts) {
-            counts[key] = sev.doc_count;
+            counts[key] = sev.unique_findings?.value ?? sev.doc_count;
           }
         }
         return {
@@ -149,7 +154,12 @@ export function useSecurityTimeSeriesForHeatmap(days = 90) {
               min_doc_count: 0,
             },
             aggs: {
-              by_severity: { terms: { field: 'severity' } },
+              by_severity: {
+                terms: { field: 'severity' },
+                aggs: {
+                  unique_findings: { cardinality: { field: 'finding_hash' } },
+                },
+              },
             },
           },
         },
@@ -160,7 +170,7 @@ export function useSecurityTimeSeriesForHeatmap(days = 90) {
         const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
         for (const sev of bucket.by_severity?.buckets ?? []) {
           const key = sev.key?.toLowerCase();
-          if (key in counts) counts[key] = sev.doc_count;
+          if (key in counts) counts[key] = sev.unique_findings?.value ?? sev.doc_count;
         }
         return {
           date: bucket.key_as_string ?? new Date(bucket.key).toISOString(),
