@@ -75,4 +75,7 @@ export const queryKeys = {
     runtimeInputs: (workflowId: string) =>
       ['workflowRuntimeInputs', getOrgScope(), workflowId] as const,
   },
+  userPreferences: {
+    me: () => ['userPreferences', getOrgScope(), getUserScope()] as const,
+  },
 } as const;

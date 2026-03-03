@@ -52,6 +52,10 @@ import { track, Events } from '@/features/analytics/events';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { WorkflowBuilderTour } from '@/components/onboarding/WorkflowBuilderTour';
 import { useOnboardingStore } from '@/store/onboardingStore';
+import {
+  useUserPreferences,
+  useUpdateUserPreferences,
+} from '@/hooks/queries/useUserPreferencesQueries';
 
 const ENTRY_DEFAULT_RUNTIME_INPUTS = [
   {
@@ -163,11 +167,14 @@ function WorkflowBuilderContent() {
   const selectedRun = selectedRunId ? (getRunByIdFromCache(selectedRunId) ?? null) : null;
   const isMobile = useIsMobile();
 
-  // Builder tour state
-  const hasCompletedBuilderTour = useOnboardingStore((s) => s.hasCompletedBuilderTour);
+  // Builder tour state (completion persisted in DB, step tracking is session-only)
+  const { data: userPreferences } = useUserPreferences();
+  const updatePreferencesForTour = useUpdateUserPreferences();
+  const hasCompletedBuilderTour = userPreferences?.hasCompletedBuilderTour ?? true;
   const builderTourStep = useOnboardingStore((s) => s.builderTourStep);
   const setBuilderTourStep = useOnboardingStore((s) => s.setBuilderTourStep);
-  const completeBuilderTour = useOnboardingStore((s) => s.completeBuilderTour);
+  const completeBuilderTour = () =>
+    updatePreferencesForTour.mutate({ hasCompletedBuilderTour: true });
 
   // Undo/redo history management
   const { undo, redo, canUndo, canRedo, captureSnapshot, initializeHistory } = useWorkflowHistory({

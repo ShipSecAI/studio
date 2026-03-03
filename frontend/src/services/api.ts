@@ -1034,6 +1034,32 @@ export const api = {
     },
   },
 
+  userPreferences: {
+    get: async (): Promise<{
+      hasCompletedOnboarding: boolean;
+      hasCompletedBuilderTour: boolean;
+    }> => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/users/me/preferences`, { headers });
+      if (!response.ok) throw new Error('Failed to fetch user preferences');
+      return response.json();
+    },
+
+    update: async (prefs: {
+      hasCompletedOnboarding?: boolean;
+      hasCompletedBuilderTour?: boolean;
+    }): Promise<{ hasCompletedOnboarding: boolean; hasCompletedBuilderTour: boolean }> => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/users/me/preferences`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(prefs),
+      });
+      if (!response.ok) throw new Error('Failed to update user preferences');
+      return response.json();
+    },
+  },
+
   webhooks: {
     list: async (): Promise<WebhookConfiguration[]> => {
       const response = await apiClient.listWebhookConfigurations();

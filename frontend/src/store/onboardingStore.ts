@@ -1,47 +1,27 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 interface OnboardingState {
-  hasCompletedOnboarding: boolean;
+  // Session-only step tracking (not persisted)
   currentStep: number;
   setCurrentStep: (step: number) => void;
   nextStep: () => void;
   prevStep: () => void;
-  completeOnboarding: () => void;
-  resetOnboarding: () => void;
+  resetSteps: () => void;
 
-  // Workflow Builder tour
-  hasCompletedBuilderTour: boolean;
+  // Workflow Builder tour step tracking (not persisted)
   builderTourStep: number;
   setBuilderTourStep: (step: number) => void;
-  completeBuilderTour: () => void;
-  resetBuilderTour: () => void;
+  resetBuilderTourStep: () => void;
 }
 
-export const useOnboardingStore = create<OnboardingState>()(
-  persist(
-    (set, get) => ({
-      hasCompletedOnboarding: false,
-      currentStep: 0,
-      setCurrentStep: (step) => set({ currentStep: step }),
-      nextStep: () => set({ currentStep: Math.min(5, get().currentStep + 1) }),
-      prevStep: () => set({ currentStep: Math.max(0, get().currentStep - 1) }),
-      completeOnboarding: () => set({ hasCompletedOnboarding: true, currentStep: 0 }),
-      resetOnboarding: () => set({ hasCompletedOnboarding: false, currentStep: 0 }),
+export const useOnboardingStore = create<OnboardingState>()((set, get) => ({
+  currentStep: 0,
+  setCurrentStep: (step) => set({ currentStep: step }),
+  nextStep: () => set({ currentStep: Math.min(5, get().currentStep + 1) }),
+  prevStep: () => set({ currentStep: Math.max(0, get().currentStep - 1) }),
+  resetSteps: () => set({ currentStep: 0 }),
 
-      // Workflow Builder tour
-      hasCompletedBuilderTour: false,
-      builderTourStep: 0,
-      setBuilderTourStep: (step) => set({ builderTourStep: step }),
-      completeBuilderTour: () => set({ hasCompletedBuilderTour: true, builderTourStep: 0 }),
-      resetBuilderTour: () => set({ hasCompletedBuilderTour: false, builderTourStep: 0 }),
-    }),
-    {
-      name: 'shipsec-onboarding',
-      partialize: (state) => ({
-        hasCompletedOnboarding: state.hasCompletedOnboarding,
-        hasCompletedBuilderTour: state.hasCompletedBuilderTour,
-      }),
-    },
-  ),
-);
+  builderTourStep: 0,
+  setBuilderTourStep: (step) => set({ builderTourStep: step }),
+  resetBuilderTourStep: () => set({ builderTourStep: 0 }),
+}));

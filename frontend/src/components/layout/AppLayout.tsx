@@ -43,6 +43,10 @@ import { usePrefetchOnIdle } from '@/hooks/usePrefetchOnIdle';
 import { prefetchIdleRoutes, prefetchRoute } from '@/lib/prefetch-routes';
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog';
 import { useOnboardingStore } from '@/store/onboardingStore';
+import {
+  useUserPreferences,
+  useUpdateUserPreferences,
+} from '@/hooks/queries/useUserPreferencesQueries';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -90,11 +94,52 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { theme, startTransition } = useThemeStore();
   const openCommandPalette = useCommandPaletteStore((state) => state.open);
 
-  // Onboarding tutorial state
-  const hasCompletedOnboarding = useOnboardingStore((state) => state.hasCompletedOnboarding);
+  // Onboarding tutorial state (persisted in DB via API)
+  const { data: userPreferences, isLoading: prefsLoading } = useUserPreferences();
+  const updatePreferences = useUpdateUserPreferences();
+  const hasCompletedOnboarding = prefsLoading
+    ? true
+    : (userPreferences?.hasCompletedOnboarding ?? true);
   const onboardingStep = useOnboardingStore((state) => state.currentStep);
   const setOnboardingStep = useOnboardingStore((state) => state.setCurrentStep);
-  const completeOnboarding = useOnboardingStore((state) => state.completeOnboarding);
+  const completeOnboarding = () => updatePreferences.mutate({ hasCompletedOnboarding: true });
+
+  // One-time migration: localStorage -> DB
+  useEffect(() => {
+    if (prefsLoading || !isAuthenticated) return;
+
+    const STORAGE_KEY = 'shipsec-onboarding';
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+
+    try {
+      const stored = JSON.parse(raw);
+      const localState = stored?.state;
+      if (!localState) {
+        localStorage.removeItem(STORAGE_KEY);
+        return;
+      }
+
+      const updates: { hasCompletedOnboarding?: boolean; hasCompletedBuilderTour?: boolean } = {};
+
+      if (localState.hasCompletedOnboarding && !userPreferences?.hasCompletedOnboarding) {
+        updates.hasCompletedOnboarding = true;
+      }
+      if (localState.hasCompletedBuilderTour && !userPreferences?.hasCompletedBuilderTour) {
+        updates.hasCompletedBuilderTour = true;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        updatePreferences.mutate(updates, {
+          onSuccess: () => localStorage.removeItem(STORAGE_KEY),
+        });
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }, [prefsLoading, isAuthenticated]);
 
   // Get git SHA for version display (monorepo - same for frontend and backend)
   const gitSha = env.VITE_GIT_SHA;
@@ -412,7 +457,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     <SidebarContext.Provider value={sidebarContextValue}>
       <ThemeTransition />
       <OnboardingDialog
-        open={isAuthenticated && !hasCompletedOnboarding}
+        open={isAuthenticated && !prefsLoading && !hasCompletedOnboarding}
         onComplete={completeOnboarding}
         currentStep={onboardingStep}
         onStepChange={setOnboardingStep}
