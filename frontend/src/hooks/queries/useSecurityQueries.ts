@@ -83,10 +83,14 @@ export function useSecurityTimeSeries(
   filters: SecurityDashboardFilters,
   viewFilter: SecurityViewFilter,
   interval = 'day',
+  days = 30,
 ) {
   return useQuery({
-    queryKey: queryKeys.security.timeSeries(filters, viewFilter, interval),
+    queryKey: queryKeys.security.timeSeries(filters, viewFilter, interval, days),
     queryFn: async (): Promise<TimeSeriesBucket[]> => {
+      const now = new Date();
+      const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
       const result = await api.analytics.query({
         query: buildBaseFilter(filters, viewFilter),
         size: 0,
@@ -99,6 +103,10 @@ export function useSecurityTimeSeries(
                 : { fixed_interval: interval }),
               time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
               min_doc_count: 0,
+              extended_bounds: {
+                min: cutoff.getTime(),
+                max: now.getTime(),
+              },
             },
             aggs: {
               by_severity: {
@@ -300,7 +308,7 @@ export function useCategoryCounts(scannerToCategory: Record<string, string>, cat
     queryKey: queryKeys.security.categoryCounts(),
     queryFn: async (): Promise<Record<string, CategoryCounts>> => {
       const result = await api.analytics.query({
-        query: { match_all: {} },
+        query: { bool: { filter: [{ term: { status: 'FAILED' } }] } },
         size: 0,
         useLatest: true,
         aggs: {

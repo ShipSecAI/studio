@@ -111,7 +111,7 @@ export const PAGE_SIZE = 25;
 export const INITIAL_FILTERS: SecurityDashboardFilters = {
   account: null,
   severity: [],
-  status: [],
+  status: ['FAILED'],
   region: [],
   service: [],
   tags: [],

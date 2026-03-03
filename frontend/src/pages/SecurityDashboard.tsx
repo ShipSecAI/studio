@@ -76,7 +76,9 @@ export function SecurityDashboardContent() {
   const setSelectedFinding = useSecurityDashboardStore((s) => s.setSelectedFinding);
 
   // TanStack Query hooks for data fetching
-  const interval = TIME_RANGES.find((t) => t.key === timeRange)?.interval ?? 'day';
+  const currentRange = TIME_RANGES.find((t) => t.key === timeRange);
+  const interval = currentRange?.interval ?? 'day';
+  const rangeDays = currentRange?.days ?? 30;
   const {
     data: findingsData,
     isLoading: findingsLoading,
@@ -86,6 +88,7 @@ export function SecurityDashboardContent() {
     filters,
     viewFilter,
     interval,
+    rangeDays,
   );
 
   // Derived data from findings query

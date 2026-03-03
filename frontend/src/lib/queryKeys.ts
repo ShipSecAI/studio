@@ -75,8 +75,8 @@ export const queryKeys = {
   security: {
     findings: (filters?: unknown, viewFilter?: unknown) =>
       ['security', getOrgScope(), 'findings', filters, viewFilter] as const,
-    timeSeries: (filters?: unknown, viewFilter?: unknown, interval?: string) =>
-      ['security', getOrgScope(), 'timeSeries', filters, viewFilter, interval] as const,
+    timeSeries: (filters?: unknown, viewFilter?: unknown, interval?: string, days?: number) =>
+      ['security', getOrgScope(), 'timeSeries', filters, viewFilter, interval, days] as const,
     findingDetail: (docId: string) => ['security', getOrgScope(), 'findingDetail', docId] as const,
     findingLifecycle: (hash: string) =>
       ['security', getOrgScope(), 'findingLifecycle', hash] as const,
