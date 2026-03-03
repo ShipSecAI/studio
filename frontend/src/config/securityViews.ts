@@ -95,6 +95,8 @@ export interface SecurityViewDefinition {
   builtIn: boolean;
   disabled?: boolean;
   baseFilter: SecurityViewFilter;
+  /** Default user-facing filter values applied when switching to this view. */
+  defaultFilters?: Partial<Record<'status', string[]>>;
   order: number;
   uiConfig: SecurityViewUiConfig;
 }
@@ -143,6 +145,7 @@ export const BUILT_IN_VIEWS: SecurityViewDefinition[] = [
     icon: ShieldCheck,
     builtIn: true,
     baseFilter: { scannerTerms: ['prowler', 'supabase-scanner'] },
+    defaultFilters: { status: ['FAILED'] },
     order: 1,
     uiConfig: {
       filters: [

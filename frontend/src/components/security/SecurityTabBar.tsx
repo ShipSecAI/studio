@@ -41,12 +41,12 @@ export function SecurityTabBar() {
         } else {
           setActiveView(targetViewId);
         }
-        setViewFilter(view.baseFilter);
+        setViewFilter(view.baseFilter, view);
       }
     } else {
       const view = getBuiltInView(activeViewId);
       if (view) {
-        setViewFilter(view.baseFilter);
+        setViewFilter(view.baseFilter, view);
       }
     }
   }, [viewParam]);
@@ -72,7 +72,7 @@ export function SecurityTabBar() {
 
     setActiveView(viewId);
     if (view) {
-      setViewFilter(view.baseFilter);
+      setViewFilter(view.baseFilter, view);
     }
     updateUrlParam(viewId);
   };
@@ -94,7 +94,7 @@ export function SecurityTabBar() {
     reopenBuiltInView(viewId);
     const view = getBuiltInView(viewId);
     if (view) {
-      setViewFilter(view.baseFilter);
+      setViewFilter(view.baseFilter, view);
       updateUrlParam(viewId);
     }
   };
@@ -103,7 +103,7 @@ export function SecurityTabBar() {
     resetViews();
     const view = getBuiltInView('home');
     if (view) {
-      setViewFilter(view.baseFilter);
+      setViewFilter(view.baseFilter, view);
       updateUrlParam('home');
     }
   };

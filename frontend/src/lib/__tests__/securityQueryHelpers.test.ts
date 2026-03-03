@@ -72,6 +72,31 @@ describe('parseFinding', () => {
     expect(finding.title).toBe('MD5 Loose Equality');
   });
 
+  it('returns null status for non-status-aware scanners', () => {
+    const finding = parseFinding({
+      _id: 'finding-httpx',
+      _source: {
+        scanner: 'httpx',
+        title: 'HTTP probe result',
+      },
+    });
+
+    expect(finding.status).toBeNull();
+  });
+
+  it('preserves status for status-aware scanners', () => {
+    const finding = parseFinding({
+      _id: 'finding-prowler',
+      _source: {
+        scanner: 'prowler',
+        status: 'FAILED',
+        title: 'S3 bucket public',
+      },
+    });
+
+    expect(finding.status).toBe('FAILED');
+  });
+
   it('keeps existing human-readable title', () => {
     const finding = parseFinding({
       _id: 'finding-2',

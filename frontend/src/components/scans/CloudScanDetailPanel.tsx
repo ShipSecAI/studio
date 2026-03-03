@@ -270,12 +270,14 @@ export function CloudScanDetailPanel({ runId, onClose }: { runId: string; onClos
                               <Badge className={`${config.badgeClass} border-none`}>
                                 {config.label}
                               </Badge>
-                              <Badge
-                                variant="outline"
-                                className={getStatusBadgeClassFromStatus(finding.status)}
-                              >
-                                {finding.status}
-                              </Badge>
+                              {finding.status && (
+                                <Badge
+                                  variant="outline"
+                                  className={getStatusBadgeClassFromStatus(finding.status)}
+                                >
+                                  {finding.status}
+                                </Badge>
+                              )}
                             </div>
                           </div>
                         </button>

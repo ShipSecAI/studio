@@ -13,7 +13,7 @@ export interface SecurityFinding {
   scanner: string;
   finding_hash: string;
   severity: string;
-  status: string;
+  status: string | null;
   title: string | null;
   description: string | null;
   region: string | null;
@@ -111,7 +111,7 @@ export const PAGE_SIZE = 25;
 export const INITIAL_FILTERS: SecurityDashboardFilters = {
   account: null,
   severity: [],
-  status: ['FAILED'],
+  status: [],
   region: [],
   service: [],
   tags: [],
@@ -365,7 +365,7 @@ export function parseFinding(hit: any): SecurityFinding {
     scanner,
     finding_hash: hit._source.finding_hash ?? '',
     severity: hit._source.severity ?? 'unknown',
-    status: hit._source.status ?? 'UNKNOWN',
+    status: hit._source.status ?? null,
     title: deriveFindingTitle(hit._source, scanner),
     description: hit._source.description ?? null,
     region: hit._source.region ?? null,

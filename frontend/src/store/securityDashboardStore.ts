@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SecurityViewFilter } from '@/config/securityViews';
+import type { SecurityViewFilter, SecurityViewDefinition } from '@/config/securityViews';
 import type { SecurityDashboardFilters, SecurityFinding } from '@/lib/securityQueryHelpers';
 import { INITIAL_FILTERS } from '@/lib/securityQueryHelpers';
 
@@ -15,13 +15,13 @@ interface SecurityDashboardState {
 interface SecurityDashboardActions {
   setFilters: (filters: Partial<SecurityDashboardFilters>) => void;
   resetFilters: () => void;
-  setViewFilter: (viewFilter: SecurityViewFilter) => void;
+  setViewFilter: (viewFilter: SecurityViewFilter, viewDef?: SecurityViewDefinition) => void;
   setSelectedFinding: (finding: SecurityFinding | null) => void;
 }
 
 export type SecurityDashboardStore = SecurityDashboardState & SecurityDashboardActions;
 
-export const useSecurityDashboardStore = create<SecurityDashboardStore>((set, get) => ({
+export const useSecurityDashboardStore = create<SecurityDashboardStore>((set) => ({
   filters: { ...INITIAL_FILTERS },
   viewFilter: {},
   selectedFinding: null,
@@ -36,8 +36,12 @@ export const useSecurityDashboardStore = create<SecurityDashboardStore>((set, ge
     set({ filters: { ...INITIAL_FILTERS } });
   },
 
-  setViewFilter: (viewFilter: SecurityViewFilter) => {
-    set({ viewFilter, filters: { ...get().filters, page: 1 } });
+  setViewFilter: (viewFilter: SecurityViewFilter, viewDef?: SecurityViewDefinition) => {
+    const statusDefault = viewDef?.defaultFilters?.status ?? [];
+    set({
+      viewFilter,
+      filters: { ...INITIAL_FILTERS, status: statusDefault, page: 1 },
+    });
   },
 
   setSelectedFinding: (finding) => {

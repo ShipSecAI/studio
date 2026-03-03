@@ -13,7 +13,8 @@ export function SeverityBadge({ severity }: { severity: string }) {
   return <Badge variant={variant}>{severity}</Badge>;
 }
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status }: { status: string | null }) {
+  if (!status) return <span className="text-muted-foreground text-xs">—</span>;
   const variant = status === 'FAILED' ? 'destructive' : status === 'PASS' ? 'success' : 'secondary';
   return <Badge variant={variant}>{status}</Badge>;
 }

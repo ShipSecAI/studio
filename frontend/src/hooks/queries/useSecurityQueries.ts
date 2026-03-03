@@ -308,7 +308,21 @@ export function useCategoryCounts(scannerToCategory: Record<string, string>, cat
     queryKey: queryKeys.security.categoryCounts(),
     queryFn: async (): Promise<Record<string, CategoryCounts>> => {
       const result = await api.analytics.query({
-        query: { bool: { filter: [{ term: { status: 'FAILED' } }] } },
+        query: {
+          bool: {
+            filter: [
+              {
+                bool: {
+                  should: [
+                    { term: { status: 'FAILED' } },
+                    { bool: { must_not: [{ exists: { field: 'status' } }] } },
+                  ],
+                  minimum_should_match: 1,
+                },
+              },
+            ],
+          },
+        },
         size: 0,
         useLatest: true,
         aggs: {
