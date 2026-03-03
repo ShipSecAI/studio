@@ -90,11 +90,11 @@ export function AppTopBar({
               </>
             )}
           </div>
-        ) : (
-          /* Desktop: Icon + Full page title with optional clickable breadcrumb */
+        ) : !afterTitle ? (
+          /* Desktop: Icon + Full page title (hidden when afterTitle like SecurityTabBar is shown) */
           <div className="flex items-center gap-2.5">
             {PageIcon && <PageIcon className="h-5 w-5 text-muted-foreground flex-shrink-0" />}
-            <h1 className={cn('text-xl font-semibold', afterTitle ? 'flex-shrink-0' : 'truncate')}>
+            <h1 className="text-xl font-semibold truncate">
               {pageInfo.breadcrumb ? (
                 <>
                   <Link
@@ -113,13 +113,8 @@ export function AppTopBar({
               )}
             </h1>
           </div>
-        )}
-        {afterTitle && (
-          <>
-            <span className="text-border mx-1 hidden md:inline">|</span>
-            {afterTitle}
-          </>
-        )}
+        ) : null}
+        {afterTitle}
       </div>
 
       {/* Action buttons */}

@@ -146,7 +146,7 @@ export function SecurityTabBar() {
       <div
         ref={scrollRef}
         onScroll={updateScrollState}
-        className="flex items-center gap-0.5 overflow-x-auto scrollbar-hide"
+        className="flex items-center gap-1 overflow-x-auto scrollbar-hide"
       >
         {openViewIds.map((viewId) => {
           const view = getBuiltInView(viewId);
@@ -162,7 +162,7 @@ export function SecurityTabBar() {
               onClick={() => handleTabClick(viewId)}
               disabled={isDisabled}
               className={cn(
-                'group relative flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap rounded-md',
+                'group relative flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium whitespace-nowrap rounded-md',
                 'transition-colors',
                 isActive
                   ? 'bg-muted text-foreground'
@@ -170,7 +170,7 @@ export function SecurityTabBar() {
                 isDisabled && 'opacity-50 cursor-not-allowed',
               )}
             >
-              <Icon className="h-3 w-3 flex-shrink-0" />
+              <Icon className="h-3.5 w-3.5 flex-shrink-0" />
               <span>{view.label}</span>
               {isDisabled && (
                 <Badge variant="outline" className="ml-0.5 text-[9px] px-1 py-0 h-3.5">
@@ -192,9 +192,9 @@ export function SecurityTabBar() {
                       }
                     }}
                     className={cn(
-                      'ml-0.5 rounded-sm p-0.5 transition-opacity',
-                      'opacity-0 group-hover:opacity-100',
-                      isActive && 'opacity-60 group-hover:opacity-100',
+                      'ml-0.5 rounded-sm p-0.5',
+                      'hidden group-hover:inline-flex',
+                      isActive && 'inline-flex',
                     )}
                   >
                     <X className="h-2.5 w-2.5" />
