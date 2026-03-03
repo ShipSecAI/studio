@@ -26,7 +26,7 @@ export function QuickStatsRow({
 }: QuickStatsRowProps) {
   const stats = [
     {
-      label: 'Findings',
+      label: 'Actionable Findings',
       value: totalFindings,
       icon: ShieldAlert,
       color: 'text-red-500',
