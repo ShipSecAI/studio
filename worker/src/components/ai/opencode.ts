@@ -12,7 +12,12 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
-import { DEFAULT_GATEWAY_URL, getGatewaySessionToken } from './utils';
+import {
+  DEFAULT_GATEWAY_URL,
+  getGatewaySessionToken,
+  fetchOrgVirtualKey,
+  shouldRouteViaLiteLLM,
+} from './utils';
 
 const inputSchema = inputs({
   task: port(
@@ -232,7 +237,14 @@ const definition = defineComponent({
       ...providerConfig,
     };
 
-    const providerEnv = buildProviderEnv(model);
+    // When LiteLLM is enabled and no user-provided key, use org's virtual key
+    let orgVirtualKey: string | undefined;
+    if (shouldRouteViaLiteLLM() && !model?.apiKey && organizationId) {
+      const vk = await fetchOrgVirtualKey(organizationId);
+      if (vk) orgVirtualKey = vk;
+    }
+
+    const providerEnv = buildProviderEnv(model, orgVirtualKey);
 
     // 3. Prepare Context and Prompt
     const contextJson = JSON.stringify(taskContext ?? {}, null, 2);
@@ -426,11 +438,14 @@ function cleanReport(raw: string): string {
   return result;
 }
 
-function buildProviderEnv(model?: { provider: string; apiKey?: string }): Record<string, string> {
+function buildProviderEnv(
+  model?: { provider: string; apiKey?: string },
+  orgVirtualKey?: string,
+): Record<string, string> {
   const liteLLMBaseUrl = process.env.LITELLM_BASE_URL?.trim();
   const liteLLMApiKey = process.env.LITELLM_API_KEY?.trim();
   if (liteLLMBaseUrl) {
-    const key = liteLLMApiKey || model?.apiKey;
+    const key = orgVirtualKey || liteLLMApiKey || model?.apiKey;
     return key
       ? {
           OPENAI_API_KEY: key,

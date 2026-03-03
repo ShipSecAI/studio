@@ -17,7 +17,6 @@ interface BillingUsage {
     spentUsd: number;
     budgetUsd: number;
     remainingUsd: number;
-    totalTokensUsed: number;
   };
   limits: {
     maxConcurrentRuns: number;
@@ -197,9 +196,6 @@ export function BillingPage() {
                     </div>
                   </>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  {usage.ai.totalTokensUsed.toLocaleString()} tokens consumed
-                </p>
                 {!isUnlimitedAi && aiPct >= 90 && (
                   <Warning message="You're approaching your AI budget limit. AI requests will be blocked when the budget is exhausted." />
                 )}

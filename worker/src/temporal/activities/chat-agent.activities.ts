@@ -9,6 +9,12 @@ import type Redis from 'ioredis';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, asc } from 'drizzle-orm';
 
+import {
+  fetchOrgVirtualKey,
+  shouldRouteViaLiteLLM,
+  isBudgetExceededError,
+  BUDGET_EXCEEDED_USER_MESSAGE,
+} from '../../components/ai/utils';
 import * as schema from '../../adapters/schema';
 import {
   withTaskAwareMcpTools,
@@ -146,9 +152,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
-function getModel() {
-  const baseURL = process.env.CHAT_AI_BASE_URL;
-  const apiKey = process.env.CHAT_AI_API_KEY;
+function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
+  const liteLLMEnabled = shouldRouteViaLiteLLM();
+  const liteLLMBaseUrl = process.env.LITELLM_BASE_URL?.trim();
+
+  const baseURL =
+    overrides?.baseURL ??
+    (liteLLMEnabled && liteLLMBaseUrl ? liteLLMBaseUrl : process.env.CHAT_AI_BASE_URL);
+  const apiKey =
+    overrides?.apiKey ??
+    (liteLLMEnabled ? process.env.LITELLM_API_KEY?.trim() : undefined) ??
+    process.env.CHAT_AI_API_KEY;
   const modelId = process.env.CHAT_AI_MODEL_ID;
   const providerName = process.env.CHAT_AI_PROVIDER ?? 'chat-provider';
 
@@ -160,6 +174,21 @@ function getModel() {
 
   const provider = createOpenAI({ baseURL, apiKey, name: providerName });
   return provider.chat(modelId);
+}
+
+/**
+ * Build a model instance with per-org virtual key when LiteLLM is enabled.
+ * Falls back to default env-var credentials otherwise.
+ */
+async function getModelForOrg(organizationId?: string) {
+  if (organizationId && shouldRouteViaLiteLLM()) {
+    const virtualKey = await fetchOrgVirtualKey(organizationId, globalBackendUrl);
+    if (virtualKey) {
+      const liteLLMBaseUrl = process.env.LITELLM_BASE_URL?.trim();
+      return getModel({ apiKey: virtualKey, baseURL: liteLLMBaseUrl });
+    }
+  }
+  return getModel();
 }
 
 /** Publish a streaming chunk to Redis pub/sub for real-time relay */
@@ -984,8 +1013,10 @@ export async function runChatAgentStepActivity(
 
     try {
       // Run streamText with MCP tools — tool execution happens via MCP protocol
+      const orgModel = await getModelForOrg(organizationId);
+
       const result = streamText({
-        model: getModel(),
+        model: orgModel,
         system: systemPrompt,
         messages: aiMessages as any,
         tools: taskAwareTools as any,
@@ -1169,6 +1200,37 @@ export async function runChatAgentStepActivity(
         };
       }
 
+      if (isBudgetExceededError(error)) {
+        console.warn(`[chat-agent] Budget exceeded for session ${sessionId}:`, error.message);
+
+        await emitTurnStatus('failed', {
+          reason: 'budget-exceeded',
+          endedAt: new Date().toISOString(),
+        }).catch(() => {
+          // Best-effort lifecycle marker.
+        });
+        await emitStreamEvent(sessionId, runId, { type: 'status', status: 'idle' });
+        await notifySessionComplete(sessionId, runId);
+
+        return {
+          turnId,
+          runId,
+          generationId,
+          assistantMessages: [
+            {
+              role: 'assistant',
+              parts: [
+                {
+                  type: 'text',
+                  text: BUDGET_EXCEEDED_USER_MESSAGE,
+                },
+              ],
+            },
+          ],
+          compactionState: compactionResult.compactionState,
+        };
+      }
+
       // Handle cooperative cancellation / abort errors
       if (cancellationSignal.aborted || error?.name === 'AbortError') {
         console.log(`[chat-agent] Generation interrupted (caught abort) for session ${sessionId}`);
@@ -1324,6 +1386,7 @@ export async function loadChatMessagesActivity(
 
 interface GenerateSessionTitleInput {
   sessionId: string;
+  organizationId?: string;
   userMessage: string;
   assistantMessage: string;
 }
@@ -1337,8 +1400,10 @@ export async function generateSessionTitleActivity(
 ): Promise<string> {
   if (!globalDb) throw new Error('Database not initialized for chat agent activities');
 
+  const titleModel = await getModelForOrg(input.organizationId);
+
   const result = await generateText({
-    model: getModel(),
+    model: titleModel,
     system:
       'Generate a very short title (3-6 words, no quotes) for this conversation based on the user message and assistant response. Just output the title, nothing else.',
     messages: [

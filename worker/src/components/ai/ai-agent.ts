@@ -51,7 +51,9 @@ import {
   getLiteLLMBaseUrl,
   getLiteLLMApiKey,
   normalizeLiteLLMModel,
-  combineHeaders,
+  fetchOrgVirtualKey,
+  isBudgetExceededError,
+  BUDGET_EXCEEDED_USER_MESSAGE,
 } from './utils';
 
 const agentMessageSchema = z.object({
@@ -609,7 +611,6 @@ Loop the Conversation State output back into the next agent invocation to keep m
 
       const effectiveProvider: ModelProvider = chatModel?.provider ?? 'openai';
       const effectiveModel = ensureModelName(effectiveProvider, chatModel?.modelId ?? null);
-      const requestKey = randomUUID();
       const liteLLMEnabled = shouldRouteViaLiteLLM();
       const liteLLMBaseUrl = getLiteLLMBaseUrl();
       const liteLLMApiKey = getLiteLLMApiKey();
@@ -622,8 +623,17 @@ Loop the Conversation State output back into the next agent invocation to keep m
         overrideApiKey = modelApiKey.trim();
       }
 
+      // When LiteLLM is enabled and no user-provided key (BYOK), use the org's virtual key
+      let resolvedLiteLLMKey = liteLLMApiKey || null;
+      if (liteLLMEnabled && !overrideApiKey && organizationId) {
+        const orgKey = await fetchOrgVirtualKey(organizationId);
+        if (orgKey) {
+          resolvedLiteLLMKey = orgKey;
+        }
+      }
+
       const effectiveApiKey = liteLLMEnabled
-        ? resolveApiKey(effectiveProvider, liteLLMApiKey || overrideApiKey)
+        ? resolveApiKey(effectiveProvider, resolvedLiteLLMKey || overrideApiKey)
         : resolveApiKey(effectiveProvider, overrideApiKey);
       const explicitBaseUrl = chatModel?.baseUrl?.trim();
       const baseUrl =
@@ -641,16 +651,6 @@ Loop the Conversation State output back into the next agent invocation to keep m
         chatModel && (chatModel.provider === 'openai' || chatModel.provider === 'openrouter')
           ? sanitizeHeaders(chatModel.headers)
           : undefined;
-      const billingHeaders = combineHeaders(sanitizedHeaders, {
-        'x-shipsec-org-id': String(organizationId ?? ''),
-        'x-shipsec-run-id': String(context.runId ?? ''),
-        'x-shipsec-node-ref': String(context.componentRef ?? ''),
-        'x-shipsec-agent-run-id': agentRunId,
-        'x-shipsec-request-id': requestKey,
-        'x-shipsec-channel': 'workflow_agent',
-        'x-shipsec-provider': effectiveProvider,
-        'x-shipsec-model': routedModel,
-      });
 
       const incomingState = conversationState;
 
@@ -679,7 +679,9 @@ Loop the Conversation State output back into the next agent invocation to keep m
       const openAIOptions = {
         apiKey: effectiveApiKey,
         ...(baseUrl ? { baseURL: baseUrl } : {}),
-        ...(Object.keys(billingHeaders).length > 0 ? { headers: billingHeaders } : {}),
+        ...(sanitizedHeaders && Object.keys(sanitizedHeaders).length > 0
+          ? { headers: sanitizedHeaders }
+          : {}),
       };
       const isOpenRouter =
         !liteLLMEnabled &&
@@ -740,6 +742,20 @@ Loop the Conversation State output back into the next agent invocation to keep m
           messages: messagesForModel,
         });
       } catch (genError) {
+        if (isBudgetExceededError(genError)) {
+          context.logger.warn(`[AIAgent] Budget exceeded for org ${organizationId}`);
+          agentStream.emitTextDelta(BUDGET_EXCEEDED_USER_MESSAGE);
+          agentStream.emitFinish('error', BUDGET_EXCEEDED_USER_MESSAGE);
+          return {
+            responseText: BUDGET_EXCEEDED_USER_MESSAGE,
+            conversationState: {
+              sessionId: incomingState?.sessionId ?? randomUUID(),
+              messages: [],
+            },
+            agentRunId,
+          };
+        }
+
         const errorSummary = formatErrorForLog(genError, LOG_TRUNCATE_LIMIT);
         context.logger.error(
           `[AIAgent] agent.generate() FAILED (truncated): ${safeStringify(
@@ -775,16 +791,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
         messages: updatedMessages,
       };
 
-      const usagePayload = generationResult.totalUsage ?? generationResult.usage ?? null;
       agentStream.emitTextDelta(responseText);
-      if (usagePayload) {
-        agentStream.emitUsage(usagePayload, {
-          requestId: requestKey,
-          channel: 'workflow_agent',
-          provider: effectiveProvider,
-          model: routedModel,
-        });
-      }
       agentStream.emitFinish(generationResult?.finishReason ?? 'stop', responseText);
       context.emitProgress({
         level: 'info',

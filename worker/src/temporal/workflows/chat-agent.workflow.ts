@@ -65,6 +65,7 @@ interface SaveChatMessagesInput {
 
 interface GenerateSessionTitleInput {
   sessionId: string;
+  organizationId?: string;
   userMessage: string;
   assistantMessage: string;
 }
@@ -324,15 +325,15 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
           .join('\n');
 
         if (userText && assistantText) {
-          try {
-            await generateSessionTitleActivity({
-              sessionId,
-              userMessage: userText,
-              assistantMessage: assistantText,
-            });
-          } catch {
+          // Fire-and-forget — don't block the chat on title generation
+          generateSessionTitleActivity({
+            sessionId,
+            organizationId: organizationId ?? undefined,
+            userMessage: userText,
+            assistantMessage: assistantText,
+          }).catch(() => {
             // Title generation failure is non-critical
-          }
+          });
         }
       }
     } catch (err) {

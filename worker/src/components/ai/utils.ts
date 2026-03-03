@@ -83,6 +83,83 @@ export function normalizeLiteLLMModel(provider: string, model: string): string {
   return model;
 }
 
+// ---------------------------------------------------------------------------
+// LiteLLM virtual key resolution (calls backend internal API)
+// ---------------------------------------------------------------------------
+
+/** In-memory cache: orgId → virtual key */
+const virtualKeyCache = new Map<string, string>();
+
+/**
+ * Fetch the LiteLLM virtual key for an organization from the backend.
+ * Caches results in-memory to avoid repeated calls.
+ * Returns null if LiteLLM is not configured or the key cannot be resolved.
+ */
+export async function fetchOrgVirtualKey(
+  orgId: string,
+  backendUrl?: string,
+): Promise<string | null> {
+  if (!shouldRouteViaLiteLLM()) return null;
+
+  const cached = virtualKeyCache.get(orgId);
+  if (cached) return cached;
+
+  const baseUrl =
+    backendUrl ??
+    process.env.STUDIO_API_BASE_URL ??
+    process.env.SHIPSEC_API_BASE_URL ??
+    process.env.API_BASE_URL ??
+    'http://localhost:3211/api/v1';
+
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
+  if (!internalToken) return null;
+
+  try {
+    const res = await fetch(
+      `${baseUrl}/internal/billing/litellm-key?organizationId=${encodeURIComponent(orgId)}`,
+      {
+        headers: {
+          'x-internal-token': internalToken,
+        },
+      },
+    );
+
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as { virtualKey?: string | null };
+    if (!data.virtualKey) return null;
+
+    virtualKeyCache.set(orgId, data.virtualKey);
+    return data.virtualKey;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Budget enforcement helpers
+// ---------------------------------------------------------------------------
+
+const BUDGET_EXCEEDED_PATTERNS = [
+  'budget exceeded',
+  'exceeded budget',
+  'ExceededBudget',
+  'Budget has been exceeded',
+];
+
+/**
+ * Detect if an error is a LiteLLM budget-exceeded rejection.
+ * LiteLLM returns HTTP 400 with a message containing "budget exceeded".
+ */
+export function isBudgetExceededError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  return BUDGET_EXCEEDED_PATTERNS.some((p) => message.toLowerCase().includes(p.toLowerCase()));
+}
+
+export const BUDGET_EXCEEDED_USER_MESSAGE =
+  'Your organization has reached its AI usage budget for this billing period. ' +
+  'Please upgrade your plan or wait for the next billing cycle to continue using AI features.';
+
 export function combineHeaders(
   ...sources: (Record<string, string> | undefined)[]
 ): Record<string, string> {

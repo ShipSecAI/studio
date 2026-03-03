@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { randomUUID } from 'crypto';
 import { generateText as generateTextImpl } from 'ai';
 import { createOpenAI as createOpenAIImpl } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI as createGoogleGenerativeAIImpl } from '@ai-sdk/google';
@@ -20,7 +19,9 @@ import {
   getLiteLLMBaseUrl,
   getLiteLLMApiKey,
   normalizeLiteLLMModel,
-  combineHeaders,
+  fetchOrgVirtualKey,
+  isBudgetExceededError,
+  BUDGET_EXCEEDED_USER_MESSAGE,
 } from './utils';
 
 const inputSchema = inputs({
@@ -158,7 +159,6 @@ const definition = defineComponent({
   async execute({ inputs, params }, context, dependencies?: Dependencies) {
     const { systemPrompt, temperature, maxTokens } = params;
     const { userPrompt, chatModel, modelApiKey } = inputs;
-    const requestKey = randomUUID();
     const liteLLMEnabled = shouldRouteViaLiteLLM();
     const liteLLMBaseUrl = getLiteLLMBaseUrl();
     const liteLLMApiKey = getLiteLLMApiKey();
@@ -171,9 +171,21 @@ const definition = defineComponent({
     const createGoogleGenerativeAI =
       dependencies?.createGoogleGenerativeAI ?? createGoogleGenerativeAIImpl;
 
-    const resolvedApiKey = liteLLMEnabled
-      ? liteLLMApiKey || modelApiKey?.trim() || chatModel.apiKey?.trim()
-      : modelApiKey?.trim() || chatModel.apiKey?.trim();
+    const userProvidedKey = modelApiKey?.trim() || chatModel.apiKey?.trim();
+
+    // When LiteLLM is enabled and no user-provided key (BYOK), use the org's virtual key
+    let resolvedLiteLLMKey = liteLLMApiKey || null;
+    if (liteLLMEnabled && !userProvidedKey) {
+      const { organizationId } = context.metadata;
+      if (organizationId) {
+        const orgKey = await fetchOrgVirtualKey(organizationId);
+        if (orgKey) {
+          resolvedLiteLLMKey = orgKey;
+        }
+      }
+    }
+
+    const resolvedApiKey = liteLLMEnabled ? resolvedLiteLLMKey || userProvidedKey : userProvidedKey;
     if (!resolvedApiKey) {
       throw new ConfigurationError(
         'No API key available. Provide a key via the provider component or connect an override.',
@@ -181,18 +193,8 @@ const definition = defineComponent({
       );
     }
 
-    const organizationId =
-      typeof context.metadata.organizationId === 'string' ? context.metadata.organizationId : null;
     const modelHeaders = 'headers' in chatModel ? chatModel.headers : undefined;
-    const requestHeaders = combineHeaders(modelHeaders, {
-      'x-shipsec-org-id': String(organizationId ?? ''),
-      'x-shipsec-run-id': String(context.runId ?? ''),
-      'x-shipsec-node-ref': String(context.componentRef ?? ''),
-      'x-shipsec-request-id': requestKey,
-      'x-shipsec-channel': 'workflow_agent',
-      'x-shipsec-provider': chatModel.provider,
-      'x-shipsec-model': routedModel,
-    });
+    const requestHeaders = modelHeaders ?? undefined;
 
     const trimmedSystemPrompt = systemPrompt?.trim();
     const model = buildModelFactory(
@@ -212,40 +214,35 @@ const definition = defineComponent({
 
     context.logger.info(`[AIGenerateText] Calling ${chatModel.provider} model ${routedModel}`);
 
-    const result = await generateText({
-      model,
-      prompt: userPrompt,
-      system: trimmedSystemPrompt ? trimmedSystemPrompt : undefined,
-      temperature,
-      maxOutputTokens: maxTokens,
-    });
-
-    if (result.usage && context.agentTracePublisher) {
-      await context.agentTracePublisher.publish({
-        agentRunId: `${context.runId}:${context.componentRef}:${requestKey}`,
-        workflowRunId: context.runId,
-        nodeRef: context.componentRef,
-        sequence: 1,
-        timestamp: new Date().toISOString(),
-        part: {
-          type: 'data-usage',
-          data: {
-            usage: result.usage,
-            requestId: requestKey,
-            channel: 'workflow_agent',
-            provider: chatModel.provider,
-            model: routedModel,
-          },
-        },
+    try {
+      const result = await generateText({
+        model,
+        prompt: userPrompt,
+        system: trimmedSystemPrompt ? trimmedSystemPrompt : undefined,
+        temperature,
+        maxOutputTokens: maxTokens,
       });
-    }
 
-    return {
-      responseText: result.text,
-      finishReason: result.finishReason ?? null,
-      rawResponse: result.response,
-      usage: result.usage,
-    };
+      return {
+        responseText: result.text,
+        finishReason: result.finishReason ?? null,
+        rawResponse: result.response,
+        usage: result.usage,
+      };
+    } catch (error) {
+      if (isBudgetExceededError(error)) {
+        context.logger.warn(
+          `[AIGenerateText] Budget exceeded for org ${context.metadata.organizationId}`,
+        );
+        return {
+          responseText: BUDGET_EXCEEDED_USER_MESSAGE,
+          finishReason: 'error',
+          rawResponse: null,
+          usage: null,
+        };
+      }
+      throw error;
+    }
   },
 });
 
