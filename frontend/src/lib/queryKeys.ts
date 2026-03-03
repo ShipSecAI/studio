@@ -86,6 +86,7 @@ export const queryKeys = {
       ['security', getOrgScope(), 'timeSeriesHeatmap', days] as const,
     categoryCounts: () => ['security', getOrgScope(), 'categoryCounts'] as const,
     summary: (viewFilter?: unknown) => ['security', getOrgScope(), 'summary', viewFilter] as const,
+    prowlerChecksMetadata: () => ['security', 'prowlerChecksMetadata'] as const,
   },
   cloud: {
     scans: (filters?: { status?: string; offset?: number; limit?: number; workflowIds?: string }) =>

@@ -2839,6 +2839,20 @@
         ]
       }
     },
+    "/api/v1/analytics/prowler-checks-metadata": {
+      "get": {
+        "operationId": "AnalyticsController_getProwlerChecksMetadata",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Static Prowler check metadata keyed by CheckID"
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
     "/api/v1/analytics/ensure-tenant": {
       "post": {
         "operationId": "AnalyticsController_ensureTenant",

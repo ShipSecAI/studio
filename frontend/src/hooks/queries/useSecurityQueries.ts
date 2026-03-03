@@ -394,6 +394,16 @@ export function useNewFindingHighlights(currentFindings: SecurityFinding[] | und
   return newFindingIds;
 }
 
+// ── Prowler Checks Metadata ──────────────────────────────────────────
+
+export function useProwlerChecksMetadata() {
+  return useQuery({
+    queryKey: queryKeys.security.prowlerChecksMetadata(),
+    queryFn: () => api.analytics.prowlerChecksMetadata(),
+    staleTime: Infinity,
+  });
+}
+
 // Re-export types for consumers
 export type {
   SecurityFinding,

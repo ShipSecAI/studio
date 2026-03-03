@@ -32,6 +32,16 @@ type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto'];
 type CreateApiKeyDto = components['schemas']['CreateApiKeyDto'];
 type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto'];
 // TODO: regenerate OpenAPI types to pull from schema
+export interface ProwlerCheckMetadata {
+  checkTitle: string | null;
+  recommendation: string | null;
+  recommendationUrl: string | null;
+  cli: string | null;
+  nativeIaC: string | null;
+  terraform: string | null;
+  other: string | null;
+}
+
 export interface ListAuditLogsResponseDto {
   items: {
     id: string;
@@ -1336,6 +1346,16 @@ export const api = {
         hits: { _id: string; _source: Record<string, any>; _score?: number }[];
         aggregations?: Record<string, any>;
       }>;
+    },
+
+    prowlerChecksMetadata: async (): Promise<Record<string, ProwlerCheckMetadata>> => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/analytics/prowler-checks-metadata`, {
+        method: 'GET',
+        headers,
+      });
+      if (!response.ok) throw new Error(`Prowler checks metadata failed: ${response.status}`);
+      return response.json();
     },
 
     batchRunSummaries: async (runIds: string[]) => {

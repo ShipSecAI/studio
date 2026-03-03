@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Sheet,
@@ -9,11 +9,14 @@ import {
 } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ExternalLink, Copy, Check, ChevronDown, ChevronRight, Workflow } from 'lucide-react';
 import { MarkdownView } from '@/components/ui/markdown';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useProwlerChecksMetadata } from '@/hooks/queries/useSecurityQueries';
 import type { SecurityFinding, FindingLifecycle } from '@/lib/securityQueryHelpers';
+import type { ProwlerCheckMetadata } from '@/services/api';
 
 const SCANNER_LOGO: Record<string, { src?: string; emoji?: string; alt: string }> = {
   opengrep: { src: '/icons/opengrep.ico', alt: 'OpenGrep' },
@@ -81,6 +84,90 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
+function RemediationCodeBlock({ code, language }: { code: string; language: string }) {
+  return (
+    <MarkdownView
+      content={`\`\`\`${language}\n${code}\n\`\`\``}
+      className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground [&_pre]:max-h-60 [&_pre]:overflow-auto"
+    />
+  );
+}
+
+function RemediationTabs({
+  metadata,
+  remediationText,
+  recommendationUrl,
+}: {
+  metadata: ProwlerCheckMetadata;
+  remediationText: string | null;
+  recommendationUrl: string | null;
+}) {
+  const tabs = useMemo(() => {
+    const t: { value: string; label: string; code: string; language: string }[] = [];
+    if (metadata.cli) t.push({ value: 'cli', label: 'CLI', code: metadata.cli, language: 'bash' });
+    if (metadata.terraform)
+      t.push({ value: 'terraform', label: 'Terraform', code: metadata.terraform, language: 'hcl' });
+    if (metadata.nativeIaC)
+      t.push({
+        value: 'cloudformation',
+        label: 'CloudFormation',
+        code: metadata.nativeIaC,
+        language: 'yaml',
+      });
+    if (metadata.other)
+      t.push({ value: 'manual', label: 'Manual', code: metadata.other, language: '' });
+    return t;
+  }, [metadata]);
+
+  const defaultTab = tabs[0]?.value ?? 'recommendation';
+
+  return (
+    <div>
+      <h4 className="text-sm font-medium mb-2">Remediation</h4>
+      <Tabs defaultValue={defaultTab}>
+        <TabsList className="w-full">
+          {tabs.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value} className="text-xs">
+              {tab.label}
+            </TabsTrigger>
+          ))}
+          {(remediationText || recommendationUrl) && (
+            <TabsTrigger value="recommendation" className="text-xs">
+              Info
+            </TabsTrigger>
+          )}
+        </TabsList>
+        {tabs.map((tab) => (
+          <TabsContent key={tab.value} value={tab.value}>
+            <RemediationCodeBlock code={tab.code} language={tab.language} />
+          </TabsContent>
+        ))}
+        {(remediationText || recommendationUrl) && (
+          <TabsContent value="recommendation">
+            {remediationText && (
+              <MarkdownView
+                content={remediationText}
+                className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground mb-2"
+              />
+            )}
+            {recommendationUrl && (
+              <a
+                href={recommendationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+              >
+                View Recommendation
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </TabsContent>
+        )}
+      </Tabs>
+    </div>
+  );
+}
+
 export function FindingDetailSheet({
   finding,
   open,
@@ -91,6 +178,17 @@ export function FindingDetailSheet({
 }: FindingDetailSheetProps) {
   const [rawExpanded, setRawExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { data: prowlerMetadataMap } = useProwlerChecksMetadata();
+
+  // Build a reverse lookup from checkTitle → metadata for Prowler findings
+  const checkMetadata = useMemo((): ProwlerCheckMetadata | null => {
+    if (!finding || finding.scanner !== 'prowler' || !prowlerMetadataMap) return null;
+    // Try direct lookup by check_name (if available) then by title
+    for (const meta of Object.values(prowlerMetadataMap)) {
+      if (meta.checkTitle && meta.checkTitle === finding.title) return meta;
+    }
+    return null;
+  }, [finding, prowlerMetadataMap]);
 
   if (!finding) return null;
 
@@ -347,7 +445,17 @@ export function FindingDetailSheet({
           )}
 
           {/* Remediation */}
-          {(finding.remediationText || finding.recommendationUrl) && (
+          {checkMetadata &&
+          (checkMetadata.cli ||
+            checkMetadata.terraform ||
+            checkMetadata.nativeIaC ||
+            checkMetadata.other) ? (
+            <RemediationTabs
+              metadata={checkMetadata}
+              remediationText={finding.remediationText}
+              recommendationUrl={finding.recommendationUrl}
+            />
+          ) : finding.remediationText || finding.recommendationUrl ? (
             <div>
               <h4 className="text-sm font-medium mb-2">Remediation</h4>
               {finding.remediationText && (
@@ -368,7 +476,7 @@ export function FindingDetailSheet({
                 </a>
               )}
             </div>
-          )}
+          ) : null}
 
           {/* Raw Data */}
           <div className="border-t pt-4">

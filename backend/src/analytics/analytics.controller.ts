@@ -5,6 +5,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  Header,
   Headers,
   HttpCode,
   Post,
@@ -14,6 +15,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ApiOkResponse, ApiTags, ApiHeader } from '@nestjs/swagger';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { SecurityAnalyticsService } from './security-analytics.service';
 import { OrganizationSettingsService } from './organization-settings.service';
@@ -40,6 +43,19 @@ function isValidNonNegativeInt(value: unknown): value is number {
 @Controller('analytics')
 export class AnalyticsController {
   private readonly internalServiceToken: string;
+  private _prowlerChecksMetadata: Record<string, unknown> | null = null;
+
+  private get prowlerChecksMetadata(): Record<string, unknown> {
+    if (!this._prowlerChecksMetadata) {
+      try {
+        const raw = readFileSync(join(__dirname, '..', 'assets', 'prowler-checks.json'), 'utf-8');
+        this._prowlerChecksMetadata = JSON.parse(raw);
+      } catch {
+        this._prowlerChecksMetadata = {};
+      }
+    }
+    return this._prowlerChecksMetadata!;
+  }
 
   constructor(
     private readonly securityAnalyticsService: SecurityAnalyticsService,
@@ -346,6 +362,19 @@ export class AnalyticsController {
       throw new ForbiddenException('Only organization admins can purge analytics data');
     }
     return this.securityAnalyticsService.purgeOrgData(auth.organizationId);
+  }
+
+  @Get('prowler-checks-metadata')
+  @SkipThrottle()
+  @Header('Cache-Control', 'public, max-age=2592000')
+  @ApiOkResponse({
+    description: 'Static Prowler check metadata keyed by CheckID',
+  })
+  async getProwlerChecksMetadata(@CurrentAuth() auth: AuthContext | null) {
+    if (!auth || !auth.isAuthenticated) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    return this.prowlerChecksMetadata;
   }
 
   /**
