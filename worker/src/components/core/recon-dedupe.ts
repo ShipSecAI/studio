@@ -174,6 +174,14 @@ const definition = defineComponent({
         droppedCount += 1;
         continue;
       }
+
+      // Skip DNS records with no actual answers (NXDOMAIN/SERVFAIL responses)
+      const answers = record.answers as Record<string, string[]> | undefined;
+      if (answers && Object.keys(answers).length === 0) {
+        droppedCount += 1;
+        continue;
+      }
+
       const existing = dnsByHost.get(host);
       if (!existing) {
         dnsByHost.set(host, record);

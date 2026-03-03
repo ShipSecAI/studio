@@ -767,14 +767,22 @@ const definition = defineComponent({
         ? params.resolvers.filter((entry) => typeof entry === 'string')
         : [];
 
+      // Only include hosts that actually resolved (have at least one DNS answer).
+      // Domains returning NXDOMAIN/SERVFAIL have an empty answers map and should
+      // not propagate to downstream components (httpx, recon-dedupe, analytics).
+      const hasAnswers = (record: DnsxRecord): boolean =>
+        Object.values(record.answers).some((values) => values.length > 0);
+
+      const resolvedRecords = normalisedRecords.filter(hasAnswers);
+
       const resolvedHosts = ensureUnique(
-        normalisedRecords
+        resolvedRecords
           .map((record) => record.host)
           .filter((host): host is string => typeof host === 'string' && host.length > 0),
       );
 
-      // Build analytics-ready results with scanner metadata
-      const analyticsResults: AnalyticsResult[] = normalisedRecords.map((record) => ({
+      // Build analytics-ready results only for hosts that actually resolved
+      const analyticsResults: AnalyticsResult[] = resolvedRecords.map((record) => ({
         scanner: 'dnsx',
         finding_hash: generateFindingHash(
           'dns-resolution',
