@@ -21,9 +21,13 @@ vi.mock('../../../utils/isolated-volume', () => {
 
 describe('shipsec.opencode.agent', () => {
   let runSpy: any;
+  const envSnapshot = { ...process.env };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env = { ...envSnapshot };
+    delete process.env.LITELLM_BASE_URL;
+    delete process.env.LITELLM_API_KEY;
 
     // Mock getGatewaySessionToken
     // We use spyOn so we can restore it later if needed, but here we just want to ensure it's mocked for this suite.
@@ -40,6 +44,7 @@ describe('shipsec.opencode.agent', () => {
   });
 
   afterAll(() => {
+    process.env = envSnapshot;
     vi.restoreAllMocks();
   });
 

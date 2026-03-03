@@ -375,6 +375,6 @@ describe('core.ai.agent (refactor)', () => {
     const openAiCall = (createOpenAIMock as any).mock.calls[0][0] as Record<string, unknown>;
     expect(openAiCall.baseURL).toBe('http://litellm.local:4000/v1');
     expect(openAiCall.apiKey).toBe('litellm-master-key');
-    expect(openAiCall.headers).toBeDefined();
+    expect(openAiCall.headers).toBeUndefined();
   });
 });
