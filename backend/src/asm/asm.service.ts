@@ -59,29 +59,46 @@ export class AsmService {
     // Compute lastScanAt from completed ASM workflow runs (covers both manual & scheduled scans)
     const lastScanByDomain = await this.computeLastScanTimes(auth, organizationId, domains);
 
-    // Aggregate stats per domain
-    const domainsWithStats = await Promise.all(
-      domains.map(async (domain) => {
-        const [assetStats] = await this.db
-          .select({ count: count() })
-          .from(asmAssets)
-          .where(eq(asmAssets.domainId, domain.id));
+    // Aggregate stats per domain in a single batched query
+    const domainIds = domains.map((d) => d.id);
+    const statsMap = new Map<string, { assetCount: number; techStack: string[] }>();
 
-        const techResult = await this.db.execute(
-          sql`select array(select distinct unnest(tech_stack) from asm_assets where domain_id = ${domain.id} and tech_stack is not null) as techs`,
-        );
-        const techs = (techResult.rows?.[0] as { techs: string[] } | undefined)?.techs ?? [];
+    if (domainIds.length > 0) {
+      const statsRows = await this.db.execute(sql`
+        SELECT
+          domain_id,
+          COUNT(*)::int AS asset_count,
+          COALESCE(
+            ARRAY(SELECT DISTINCT unnest FROM unnest(array_agg(DISTINCT t.tech)) AS unnest WHERE unnest IS NOT NULL),
+            '{}'
+          ) AS techs
+        FROM asm_assets a
+        LEFT JOIN LATERAL unnest(a.tech_stack) AS t(tech) ON true
+        WHERE a.domain_id = ANY(${domainIds})
+        GROUP BY domain_id
+      `);
 
-        return {
-          ...domain,
-          lastScanAt: lastScanByDomain.get(domain.domain) ?? domain.lastScanAt,
-          assetCount: assetStats?.count ?? 0,
-          techStack: techs,
-        };
-      }),
-    );
+      for (const row of statsRows.rows as {
+        domain_id: string;
+        asset_count: number;
+        techs: string[];
+      }[]) {
+        statsMap.set(row.domain_id, {
+          assetCount: row.asset_count,
+          techStack: row.techs ?? [],
+        });
+      }
+    }
 
-    return domainsWithStats;
+    return domains.map((domain) => {
+      const stats = statsMap.get(domain.id);
+      return {
+        ...domain,
+        lastScanAt: lastScanByDomain.get(domain.domain) ?? domain.lastScanAt,
+        assetCount: stats?.assetCount ?? 0,
+        techStack: stats?.techStack ?? [],
+      };
+    });
   }
 
   /**

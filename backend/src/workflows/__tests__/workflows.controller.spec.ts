@@ -130,6 +130,22 @@ describe('WorkflowsController', () => {
         : list;
       return filtered.length > 0 ? filtered[filtered.length - 1] : undefined;
     },
+    async findLatestByWorkflowIds(
+      workflowIds: string[],
+      options: { organizationId?: string | null } = {},
+    ) {
+      const result = new Map<string, any>();
+      for (const wfId of workflowIds) {
+        const list = versionsByWorkflow.get(wfId) ?? [];
+        const filtered = options.organizationId
+          ? list.filter((record: any) => record.organizationId === options.organizationId)
+          : list;
+        if (filtered.length > 0) {
+          result.set(wfId, filtered[filtered.length - 1]);
+        }
+      }
+      return result;
+    },
     async findById(id: string, options: { organizationId?: string | null } = {}) {
       const record = versionStore.get(id);
       if (!record) return undefined;

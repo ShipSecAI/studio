@@ -602,13 +602,12 @@ export class WorkflowsService {
   async list(auth?: AuthContext | null): Promise<ServiceWorkflowResponse[]> {
     const organizationId = this.requireOrganizationId(auth);
     const records = await this.repository.list({ organizationId });
-    const versions = await Promise.all(
-      records.map((record) =>
-        this.versionRepository.findLatestByWorkflowId(record.id, { organizationId }),
-      ),
+    const versionMap = await this.versionRepository.findLatestByWorkflowIds(
+      records.map((r) => r.id),
+      { organizationId },
     );
-    const responses = records.map((record, index) =>
-      this.buildWorkflowResponse(record, versions[index] ?? null),
+    const responses = records.map((record) =>
+      this.buildWorkflowResponse(record, versionMap.get(record.id) ?? null),
     );
     this.logger.log(`Loaded ${responses.length} workflow(s) from repository`);
     return responses;
@@ -750,6 +749,170 @@ export class WorkflowsService {
     };
   }
 
+  /**
+   * Batch version of buildRunSummary — resolves all runs in ~6 queries instead of ~7N.
+   *
+   * Queries performed (regardless of run count):
+   *  1. Batch workflow lookup (IN clause)
+   *  2. Batch version lookup by ID (IN clause)
+   *  3. Batch latest-version lookup for runs without versionId (DISTINCT ON)
+   *  4. Batch trace counts grouped by runId (single aggregate)
+   *  5. Batch event time ranges grouped by runId (single aggregate)
+   *  6. Temporal RPCs only for non-terminal runs (parallelized)
+   */
+  private async buildRunSummariesBatch(
+    runs: WorkflowRunRecord[],
+    organizationId: string,
+  ): Promise<WorkflowRunSummary[]> {
+    if (runs.length === 0) return [];
+
+    const runIds = runs.map((r) => r.runId);
+    const workflowIds = [...new Set(runs.map((r) => r.workflowId))];
+    const versionIds = runs
+      .map((r) => r.workflowVersionId)
+      .filter((id): id is string => id != null);
+    const workflowIdsNeedingLatest = runs
+      .filter((r) => !r.workflowVersionId)
+      .map((r) => r.workflowId);
+
+    // 1-5: All batch queries in parallel
+    const [workflowMap, versionByIdMap, latestVersionMap, traceCounts, timeRanges] =
+      await Promise.all([
+        this.repository.findByIds(workflowIds, { organizationId }),
+        this.versionRepository.findByIds(versionIds, { organizationId }),
+        this.versionRepository.findLatestByWorkflowIds([...new Set(workflowIdsNeedingLatest)], {
+          organizationId,
+        }),
+        this.traceRepository.countByTypeForRuns(runIds, organizationId),
+        this.traceRepository.getEventTimeRangeForRuns(runIds, organizationId),
+      ]);
+
+    // 6: Temporal RPCs only for non-terminal runs (parallelized)
+    const temporalResults = new Map<
+      string,
+      { status: ExecutionStatus; closeTime: string | null }
+    >();
+    const nonTerminalRuns = runs.filter(
+      (r) => !r.status || !(TERMINAL_STATUSES as readonly string[]).includes(r.status),
+    );
+
+    if (nonTerminalRuns.length > 0) {
+      const temporalPromises = nonTerminalRuns.map(async (run) => {
+        try {
+          const desc = await this.temporalService.describeWorkflow({
+            workflowId: run.runId,
+            runId: run.temporalRunId ?? undefined,
+          });
+          const status = this.normalizeStatus(desc.status);
+          temporalResults.set(run.runId, {
+            status,
+            closeTime: desc.closeTime ?? null,
+          });
+
+          // Cache terminal statuses
+          if ((TERMINAL_STATUSES as readonly string[]).includes(status)) {
+            this.runRepository
+              .cacheTerminalStatus(
+                run.runId,
+                status,
+                desc.closeTime ? new Date(desc.closeTime) : undefined,
+              )
+              .catch((err) => this.logger.warn(`Failed to cache status for ${run.runId}: ${err}`));
+          }
+        } catch (_error) {
+          // Will be handled below with trace-based inference
+        }
+      });
+      await Promise.all(temporalPromises);
+    }
+
+    // Assemble summaries
+    return runs.map((run) => {
+      const workflow = workflowMap.get(run.workflowId);
+      const workflowName = workflow?.name ?? 'Unknown Workflow';
+
+      const version = run.workflowVersionId
+        ? versionByIdMap.get(run.workflowVersionId)
+        : workflow
+          ? latestVersionMap.get(workflow.id)
+          : undefined;
+
+      const graph = (version?.graph ?? workflow?.graph) as { nodes?: unknown[] } | undefined;
+      const nodeCount = graph?.nodes && Array.isArray(graph.nodes) ? graph.nodes.length : 0;
+
+      const counts = traceCounts.get(run.runId) ?? {
+        NODE_STARTED: 0,
+        NODE_COMPLETED: 0,
+        NODE_FAILED: 0,
+      };
+      const startedActions = counts.NODE_STARTED;
+      const completedActions = counts.NODE_COMPLETED;
+      const failedActions = counts.NODE_FAILED;
+
+      const eventTimeRange = timeRanges.get(run.runId) ?? {
+        firstTimestamp: null,
+        lastTimestamp: null,
+      };
+      const duration =
+        eventTimeRange.firstTimestamp && eventTimeRange.lastTimestamp
+          ? this.computeDuration(eventTimeRange.firstTimestamp, eventTimeRange.lastTimestamp)
+          : this.computeDuration(run.createdAt, run.updatedAt);
+
+      let currentStatus: ExecutionStatus = 'RUNNING';
+      let resolvedCloseTime: string | null = null;
+
+      if (run.status && (TERMINAL_STATUSES as readonly string[]).includes(run.status)) {
+        currentStatus = run.status as ExecutionStatus;
+        resolvedCloseTime = run.closeTime?.toISOString() ?? null;
+      } else if (temporalResults.has(run.runId)) {
+        const temporal = temporalResults.get(run.runId)!;
+        currentStatus = temporal.status;
+        resolvedCloseTime = temporal.closeTime;
+      } else if (!run.status || !(TERMINAL_STATUSES as readonly string[]).includes(run.status)) {
+        // Temporal RPC failed — infer from traces
+        currentStatus = this.inferStatusFromTraceEvents({
+          runId: run.runId,
+          totalActions: run.totalActions ?? nodeCount,
+          completedActions,
+          failedActions,
+          startedActions,
+        });
+      }
+
+      const triggerType = (run.triggerType as ExecutionTriggerType) ?? 'manual';
+      const triggerSource = run.triggerSource ?? null;
+      const triggerLabel = run.triggerLabel ?? (triggerType === 'manual' ? 'Manual run' : null);
+      const inputPreview: ExecutionInputPreview = run.inputPreview ?? {
+        runtimeInputs: {},
+        nodeOverrides: {},
+      };
+
+      return {
+        id: run.runId,
+        workflowId: run.workflowId,
+        organizationId,
+        workflowVersionId: run.workflowVersionId ?? null,
+        workflowVersion: run.workflowVersion ?? null,
+        status: currentStatus,
+        startTime: run.createdAt,
+        endTime: resolvedCloseTime
+          ? new Date(resolvedCloseTime)
+          : (run.closeTime ?? run.updatedAt ?? null),
+        temporalRunId: run.temporalRunId ?? undefined,
+        workflowName,
+        eventCount: startedActions,
+        nodeCount,
+        duration,
+        triggerType,
+        triggerSource,
+        triggerLabel,
+        inputPreview,
+        parentRunId: run.parentRunId ?? null,
+        parentNodeRef: run.parentNodeRef ?? null,
+      };
+    });
+  }
+
   async getRunActivity(auth: AuthContext | null, days: number) {
     const organizationId = this.requireOrganizationId(auth);
     const activity = await this.runRepository.getActivityByDay(organizationId, days);
@@ -782,7 +945,7 @@ export class WorkflowsService {
     };
 
     // When status filter is set, use chunked fetching because status is resolved
-    // dynamically via buildRunSummary (Temporal lookup), not stored reliably in DB.
+    // dynamically via Temporal lookup, not stored reliably in DB.
     if (options.status) {
       const target = offset + limit;
       const CHUNK = 200;
@@ -796,9 +959,7 @@ export class WorkflowsService {
           offset: dbOffset,
         });
         if (chunk.length === 0) break;
-        const summaries = await Promise.all(
-          chunk.map((r) => this.buildRunSummary(r, organizationId)),
-        );
+        const summaries = await this.buildRunSummariesBatch(chunk, organizationId);
         matches.push(...summaries.filter((s) => s.status === options.status));
         dbOffset += CHUNK;
       }
@@ -817,9 +978,7 @@ export class WorkflowsService {
       limit,
       offset,
     });
-    const summaries = await Promise.all(
-      runs.map((run) => this.buildRunSummary(run, organizationId)),
-    );
+    const summaries = await this.buildRunSummariesBatch(runs, organizationId);
 
     summaries.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
     this.logger.log(`Loaded ${summaries.length} workflow run(s) for timeline`);
@@ -847,9 +1006,7 @@ export class WorkflowsService {
       limit: options.limit,
     });
 
-    const summaries = await Promise.all(
-      children.map((run) => this.buildRunSummary(run, organizationId)),
-    );
+    const summaries = await this.buildRunSummariesBatch(children, organizationId);
 
     const runs = summaries.map((summary, index) => ({
       runId: summary.id,

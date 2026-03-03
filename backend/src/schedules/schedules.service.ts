@@ -32,15 +32,10 @@ export class SchedulesService {
       ...filters,
       organizationId,
     });
-    // Sync times from Temporal in parallel for all active schedules
-    const synced = await Promise.all(
-      records.map((record) =>
-        record.status === 'active'
-          ? this.syncTimesFromTemporal(record).catch(() => record)
-          : record,
-      ),
-    );
-    return synced.map((record) => this.mapRecord(record));
+    // Use cached nextRunAt/lastRunAt from DB — these are synced from Temporal
+    // on every create/update/pause/resume/trigger and on individual get().
+    // Avoids N Temporal RPCs + N DB writes on every list call.
+    return records.map((record) => this.mapRecord(record));
   }
 
   async get(auth: AuthContext | null, id: string): Promise<WorkflowSchedule> {

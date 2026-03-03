@@ -123,6 +123,13 @@ We use **`drizzle-kit generate` + `drizzle-kit migrate`** for both dev and produ
 
 **SQL migration files in `backend/drizzle/` are the source of truth** and are applied by `migration:migrate`.
 
+### Backend Query Safety (N+1 Prevention)
+
+**Never** call a repository or service method inside `.map()`, `for`, or `forEach` on a list of records in service methods that handle list endpoints. This creates N+1 query patterns that scale linearly with data.
+
+- If a batch method doesn't exist, **create one** (using `IN` / `GROUP BY` / `DISTINCT ON`) before using it in a list context.
+- See `docs/development/performance-patterns.md` § "Preventing N+1 Regressions" for patterns and conventions.
+
 ## Rules
 
 1. TypeScript, 2-space indent

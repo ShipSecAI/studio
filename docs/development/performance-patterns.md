@@ -208,6 +208,108 @@ The workflow builder has two modes: **design** and **execution**. Runs data is o
 
 ---
 
+## 8. Batched Run Summaries (N+1 Query Elimination)
+
+### Problem
+
+The `listRuns` endpoint calls `buildRunSummary()` per-row, which issues ~7 queries per run:
+
+1. Workflow lookup
+2. Workflow version lookup
+3. 3× trace count queries (NODE_STARTED, NODE_COMPLETED, NODE_FAILED)
+4. Event time range query (MIN/MAX)
+5. Temporal `describeWorkflow` RPC (for non-terminal runs)
+
+For a page of 25 runs, this meant **~175 queries/RPCs** per request. The status-filtered path was worse — it fetched runs in 200-row chunks and processed each through `buildRunSummary` before filtering.
+
+### Solution: `buildRunSummariesBatch()`
+
+A single method that resolves all runs in **~6 total queries** regardless of run count:
+
+| Query            | Before (25 runs)               | After (25 runs)                               |
+| ---------------- | ------------------------------ | --------------------------------------------- |
+| Workflow lookup  | 25 × `findById`                | 1 × `findByIds` (IN clause)                   |
+| Version lookup   | 25 × `findById` / `findLatest` | 1-2 × `findByIds` + `findLatestByWorkflowIds` |
+| Trace counts     | 75 × `countByType`             | 1 × `countByTypeForRuns` (GROUP BY)           |
+| Event time range | 25 × `getEventTimeRange`       | 1 × `getEventTimeRangeForRuns` (GROUP BY)     |
+| Temporal RPC     | Up to 25 sequential            | Only non-terminal, parallelized               |
+
+**Key files:**
+
+- `backend/src/workflows/workflows.service.ts` — `buildRunSummariesBatch()` method
+- `backend/src/trace/trace.repository.ts` — `countByTypeForRuns()`, `getEventTimeRangeForRuns()`
+- `backend/src/workflows/repository/workflow.repository.ts` — `findByIds()`
+- `backend/src/workflows/repository/workflow-version.repository.ts` — `findByIds()`, `findLatestByWorkflowIds()`
+
+### Rules
+
+- **Always** use `buildRunSummariesBatch()` when resolving multiple runs. The single-run `buildRunSummary()` is kept for `getRun()` which loads a single run.
+- **New batch repository methods** should use `IN` clauses or `GROUP BY` — never loop with individual queries.
+- **Temporal RPCs** are only needed for non-terminal runs and are already parallelized with `Promise.all`.
+
+---
+
+## Known N+1 Issues (Backlog)
+
+The following N+1 patterns still exist and should be addressed:
+
+| Priority  | Location                   | Method          | Pattern                             | Impact          |
+| --------- | -------------------------- | --------------- | ----------------------------------- | --------------- |
+| 🟡 Medium | `node-io.service.ts:69-72` | `listDetails()` | N × `storage.downloadFilePreview()` | Run detail page |
+
+**Previously fixed:**
+
+- ~~`listRuns()`~~ → `buildRunSummariesBatch()` (batched all DB queries + Temporal RPCs)
+- ~~`listDomains()`~~ → Single `GROUP BY domain_id` query for counts + tech stack
+- ~~`list()` (workflows)~~ → `findLatestByWorkflowIds()` batch method
+- ~~`list()` (schedules)~~ → Uses cached `nextRunAt`/`lastRunAt` from DB instead of N Temporal RPCs
+
+---
+
+## Preventing N+1 Regressions
+
+### The Rule
+
+> **Never call a repository/service method inside `.map()`, `for`, or `forEach` on a list of records.**
+> Instead, add a batch method (using `IN` / `GROUP BY` / `DISTINCT ON`) and call it once.
+
+### Red Flags in Code Review
+
+Reject PRs containing these patterns in **service methods that handle list endpoints**:
+
+```typescript
+// ❌ BAD: N+1 — individual query per item
+const results = await Promise.all(items.map((item) => this.repo.findById(item.id)));
+
+// ❌ BAD: N+1 — sequential loop
+for (const item of items) {
+  const detail = await this.repo.findById(item.id);
+}
+
+// ✅ GOOD: Single batch query
+const resultMap = await this.repo.findByIds(items.map((i) => i.id));
+```
+
+### Batch Method Convention
+
+When adding repository methods, always provide a batch variant for any method used in list contexts:
+
+| Single                       | Batch                              | Pattern                     |
+| ---------------------------- | ---------------------------------- | --------------------------- |
+| `findById(id)`               | `findByIds(ids)`                   | `WHERE id IN (...)`         |
+| `countByType(runId, type)`   | `countByTypeForRuns(runIds)`       | `GROUP BY run_id, type`     |
+| `getEventTimeRange(runId)`   | `getEventTimeRangeForRuns(runIds)` | `GROUP BY run_id`           |
+| `findLatestByWorkflowId(id)` | `findLatestByWorkflowIds(ids)`     | `DISTINCT ON (workflow_id)` |
+
+### AI Agent Instructions
+
+Add to CLAUDE.md or equivalent:
+
+- When writing a service method that processes a list, **never** loop individual DB/RPC calls
+- If a batch repository method doesn't exist, **create one** before using it
+
+---
+
 ## Checklist for New Features
 
 When building a new feature, verify:
@@ -219,4 +321,6 @@ When building a new feature, verify:
 - [ ] **Polling** stops for terminal/completed states
 - [ ] **Terminal status checks** use `TERMINAL_STATUSES` from `@shipsec/shared`
 - [ ] **Backend services** check cached status before calling Temporal
+- [ ] **Batch queries** when resolving multiple records (use IN / GROUP BY, not N loops)
+- [ ] **No N+1 patterns** — never call repo methods inside `.map()` / `for` on lists
 - [ ] **Data fetching** is conditional on the active view/mode

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { desc, eq, and } from 'drizzle-orm';
+import { desc, eq, and, inArray, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { DRIZZLE_TOKEN } from '../../database/database.module';
@@ -106,6 +106,61 @@ export class WorkflowVersionRepository {
       .returning();
 
     return record;
+  }
+
+  /**
+   * Batch: fetch specific versions by ID in a single query.
+   */
+  async findByIds(
+    ids: string[],
+    options: { organizationId?: string | null } = {},
+  ): Promise<Map<string, WorkflowVersionRecord>> {
+    if (ids.length === 0) return new Map();
+
+    const unique = [...new Set(ids)];
+    const conditions = [inArray(workflowVersionsTable.id, unique)];
+    if (options.organizationId) {
+      conditions.push(eq(workflowVersionsTable.organizationId, options.organizationId));
+    }
+
+    const records = await this.db
+      .select()
+      .from(workflowVersionsTable)
+      .where(and(...conditions));
+
+    return new Map(records.map((r) => [r.id, r]));
+  }
+
+  /**
+   * Batch: fetch the latest version for each workflow ID in a single query.
+   * Uses a window function to pick the max version per workflow.
+   */
+  async findLatestByWorkflowIds(
+    workflowIds: string[],
+    options: { organizationId?: string | null } = {},
+  ): Promise<Map<string, WorkflowVersionRecord>> {
+    if (workflowIds.length === 0) return new Map();
+
+    const unique = [...new Set(workflowIds)];
+    const conditions = [inArray(workflowVersionsTable.workflowId, unique)];
+    if (options.organizationId) {
+      conditions.push(eq(workflowVersionsTable.organizationId, options.organizationId));
+    }
+
+    // Use DISTINCT ON to get the latest version per workflow
+    const rows = await this.db.execute(sql`
+      SELECT DISTINCT ON (workflow_id) *
+      FROM workflow_versions
+      WHERE workflow_id = ANY(${unique})
+        ${options.organizationId ? sql`AND organization_id = ${options.organizationId}` : sql``}
+      ORDER BY workflow_id, version DESC
+    `);
+
+    const result = new Map<string, WorkflowVersionRecord>();
+    for (const row of rows.rows as WorkflowVersionRecord[]) {
+      result.set(row.workflowId, row);
+    }
+    return result;
   }
 
   private buildWorkflowFilter(workflowId: string, organizationId?: string | null) {

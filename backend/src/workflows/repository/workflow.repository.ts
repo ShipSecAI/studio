@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { z } from 'zod';
 
@@ -232,6 +232,29 @@ export class WorkflowRepository {
     }
 
     return record;
+  }
+
+  /**
+   * Batch: fetch multiple workflows by ID in a single query.
+   */
+  async findByIds(
+    ids: string[],
+    options: WorkflowRepositoryOptions = {},
+  ): Promise<Map<string, WorkflowRecord>> {
+    if (ids.length === 0) return new Map();
+
+    const unique = [...new Set(ids)];
+    const conditions = [inArray(workflowsTable.id, unique)];
+    if (options.organizationId) {
+      conditions.push(eq(workflowsTable.organizationId, options.organizationId));
+    }
+
+    const records = await this.db
+      .select()
+      .from(workflowsTable)
+      .where(and(...conditions));
+
+    return new Map(records.map((r) => [r.id, r]));
   }
 
   private buildIdFilter(id: string, organizationId?: string | null) {

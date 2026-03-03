@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
-import { eq, and, gt, desc } from 'drizzle-orm';
+import { eq, and, gt, desc, inArray } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { workflowTracesTable, type WorkflowTraceRecord } from '../database/schema';
@@ -165,6 +165,92 @@ export class TraceRepository implements OnModuleDestroy {
       firstTimestamp: result?.firstTimestamp ?? null,
       lastTimestamp: result?.lastTimestamp ?? null,
     };
+  }
+
+  /**
+   * Batch: count trace events by type for multiple runs in a single query.
+   * Returns a map of runId → { NODE_STARTED, NODE_COMPLETED, NODE_FAILED }.
+   */
+  async countByTypeForRuns(
+    runIds: string[],
+    organizationId?: string | null,
+  ): Promise<Map<string, { NODE_STARTED: number; NODE_COMPLETED: number; NODE_FAILED: number }>> {
+    if (runIds.length === 0) return new Map();
+
+    const conditions = [inArray(workflowTracesTable.runId, runIds)];
+    if (organizationId) {
+      conditions.push(eq(workflowTracesTable.organizationId, organizationId));
+    }
+
+    const rows = await this.db
+      .select({
+        runId: workflowTracesTable.runId,
+        type: workflowTracesTable.type,
+        count: sql<number>`count(*)`,
+      })
+      .from(workflowTracesTable)
+      .where(
+        and(
+          ...conditions,
+          inArray(workflowTracesTable.type, ['NODE_STARTED', 'NODE_COMPLETED', 'NODE_FAILED']),
+        ),
+      )
+      .groupBy(workflowTracesTable.runId, workflowTracesTable.type);
+
+    const result = new Map<
+      string,
+      { NODE_STARTED: number; NODE_COMPLETED: number; NODE_FAILED: number }
+    >();
+    for (const id of runIds) {
+      result.set(id, { NODE_STARTED: 0, NODE_COMPLETED: 0, NODE_FAILED: 0 });
+    }
+    for (const row of rows) {
+      const entry = result.get(row.runId);
+      if (
+        entry &&
+        (row.type === 'NODE_STARTED' || row.type === 'NODE_COMPLETED' || row.type === 'NODE_FAILED')
+      ) {
+        entry[row.type] = Number(row.count);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Batch: get event time ranges for multiple runs in a single query.
+   */
+  async getEventTimeRangeForRuns(
+    runIds: string[],
+    organizationId?: string | null,
+  ): Promise<Map<string, { firstTimestamp: Date | null; lastTimestamp: Date | null }>> {
+    if (runIds.length === 0) return new Map();
+
+    const conditions = [inArray(workflowTracesTable.runId, runIds)];
+    if (organizationId) {
+      conditions.push(eq(workflowTracesTable.organizationId, organizationId));
+    }
+
+    const rows = await this.db
+      .select({
+        runId: workflowTracesTable.runId,
+        firstTimestamp: sql<Date>`min(${workflowTracesTable.timestamp})`,
+        lastTimestamp: sql<Date>`max(${workflowTracesTable.timestamp})`,
+      })
+      .from(workflowTracesTable)
+      .where(and(...conditions))
+      .groupBy(workflowTracesTable.runId);
+
+    const result = new Map<string, { firstTimestamp: Date | null; lastTimestamp: Date | null }>();
+    for (const id of runIds) {
+      result.set(id, { firstTimestamp: null, lastTimestamp: null });
+    }
+    for (const row of rows) {
+      result.set(row.runId, {
+        firstTimestamp: row.firstTimestamp ?? null,
+        lastTimestamp: row.lastTimestamp ?? null,
+      });
+    }
+    return result;
   }
 
   async getLastSequence(runId: string, organizationId?: string | null): Promise<number> {
