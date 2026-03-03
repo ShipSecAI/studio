@@ -140,6 +140,9 @@ export const INITIAL_SEVERITY_COUNTS: SeverityCounts = {
 
 // --- Helpers ---
 
+/** Scanners that emit a `status` field (e.g. FAILED / PASSED). */
+const STATUS_AWARE_SCANNERS = new Set(['prowler', 'supabase-scanner']);
+
 export function buildBaseFilter(
   filters: SecurityDashboardFilters,
   viewFilter?: SecurityViewFilter,
@@ -174,7 +177,26 @@ export function buildBaseFilter(
   }
 
   if (filters.status.length > 0) {
-    filter.push({ terms: { status: filters.status } });
+    const viewScanners = viewFilter?.scannerTerms ?? [];
+    const allStatusAware =
+      viewScanners.length > 0 && viewScanners.every((s) => STATUS_AWARE_SCANNERS.has(s));
+
+    if (allStatusAware) {
+      // Pure cloud view — every doc has a status field, simple filter works
+      filter.push({ terms: { status: filters.status } });
+    } else {
+      // Mixed or all-findings view — also include docs that have no status field
+      // (e.g. opengrep, trufflehog) so they aren't silently excluded
+      filter.push({
+        bool: {
+          should: [
+            { terms: { status: filters.status } },
+            { bool: { must_not: [{ exists: { field: 'status' } }] } },
+          ],
+          minimum_should_match: 1,
+        },
+      });
+    }
   }
 
   if (filters.region.length > 0) {
