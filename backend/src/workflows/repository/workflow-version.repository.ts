@@ -148,8 +148,16 @@ export class WorkflowVersionRepository {
     }
 
     // Use DISTINCT ON to get the latest version per workflow
+    // Alias snake_case columns to camelCase so the result matches WorkflowVersionRecord
     const rows = await this.db.execute(sql`
-      SELECT DISTINCT ON (workflow_id) *
+      SELECT DISTINCT ON (workflow_id)
+        id,
+        workflow_id AS "workflowId",
+        version,
+        graph,
+        compiled_definition AS "compiledDefinition",
+        organization_id AS "organizationId",
+        created_at AS "createdAt"
       FROM workflow_versions
       WHERE workflow_id = ANY(${unique})
         ${options.organizationId ? sql`AND organization_id = ${options.organizationId}` : sql``}

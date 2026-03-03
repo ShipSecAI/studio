@@ -38,7 +38,7 @@ export function useSecurityFindings(
           accounts: { terms: { field: 'account_id', size: 50 } },
           regions: { terms: { field: 'region', size: 50 } },
           services: { terms: { field: 'service_name', size: 100 } },
-          compliance_frameworks: { terms: { field: 'compliance', size: 50 } },
+          compliance_frameworks: { terms: { field: 'compliance.keyword', size: 50 } },
           check_names: { terms: { field: 'check_name', size: 200 } },
           status_counts: { terms: { field: 'status' } },
           scanners: { terms: { field: 'scanner', size: 50 } },
