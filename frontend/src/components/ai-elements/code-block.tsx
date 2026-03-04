@@ -295,7 +295,6 @@ CodeBlockBody.displayName = 'CodeBlockBody';
 export const CodeBlockContainer = ({
   className,
   language,
-  style,
   ...props
 }: HTMLAttributes<HTMLDivElement> & { language: string }) => (
   <div
@@ -304,11 +303,6 @@ export const CodeBlockContainer = ({
       className,
     )}
     data-language={language}
-    style={{
-      containIntrinsicSize: 'auto 200px',
-      contentVisibility: 'auto',
-      ...style,
-    }}
     {...props}
   />
 );
