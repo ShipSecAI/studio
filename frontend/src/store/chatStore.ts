@@ -42,6 +42,10 @@ interface ChatState {
   selectedRunId: string | null;
   isSidebarOpen: boolean;
 
+  // Queue state (for steer UX)
+  pendingCount: number;
+  currentGenerationId: number | null;
+
   // Server-backed actions (async)
   loadSessions: () => Promise<void>;
   createSession: (title?: string) => Promise<string>;
@@ -61,6 +65,8 @@ interface ChatState {
   setSelectedRun: (id: string | null) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
+  setQueueState: (pendingCount: number, generationId: number | null) => void;
+  clearQueueState: () => void;
 
   // Getters
   getCurrentSession: () => ChatSession | null;
@@ -97,6 +103,8 @@ export const useChatStore = create<ChatState>()(
       isRunInspectorOpen: false,
       selectedRunId: null,
       isSidebarOpen: true,
+      pendingCount: 0,
+      currentGenerationId: null,
 
       loadSessions: async () => {
         set({ isLoadingSessions: true });
@@ -206,6 +214,14 @@ export const useChatStore = create<ChatState>()(
 
       setSidebarOpen: (open) => {
         set({ isSidebarOpen: open });
+      },
+
+      setQueueState: (pendingCount, generationId) => {
+        set({ pendingCount, currentGenerationId: generationId });
+      },
+
+      clearQueueState: () => {
+        set({ pendingCount: 0, currentGenerationId: null });
       },
 
       getCurrentSession: () => {

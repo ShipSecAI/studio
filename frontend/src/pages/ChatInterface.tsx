@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import {
   PanelLeftClose,
   PanelLeftOpen,
@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   Plus,
+  StopCircle,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -73,6 +74,100 @@ function getMessageText(message: UIMessage): string {
     .join('');
 }
 
+function ThrottledMessageResponse({ text, isStreaming }: { text: string; isStreaming: boolean }) {
+  const [renderedText, setRenderedText] = useState(text);
+  const flushTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (flushTimerRef.current !== null) {
+      window.clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+
+    if (!isStreaming) {
+      setRenderedText(text);
+      return;
+    }
+
+    // Keep the first chunk immediate so streaming doesn't feel blank.
+    if (!renderedText) {
+      setRenderedText(text);
+      return;
+    }
+
+    if (text.length < renderedText.length) {
+      setRenderedText(text);
+      return;
+    }
+
+    if (text === renderedText) {
+      return;
+    }
+
+    // When deltas arrive rapidly, cap markdown re-parsing frequency.
+    flushTimerRef.current = window.setTimeout(() => {
+      setRenderedText(text);
+      flushTimerRef.current = null;
+    }, 120);
+
+    return () => {
+      if (flushTimerRef.current !== null) {
+        window.clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+    };
+  }, [text, isStreaming, renderedText]);
+
+  return <MessageResponse>{renderedText}</MessageResponse>;
+}
+
+// Memoized tool part — skips re-render when the part object reference hasn't changed.
+// During streaming, text-delta updates create a new message but reuse the same part
+// objects for completed tool calls, so this avoids re-rendering 50+ tool cards on
+// every keystroke of the growing text response.
+const ToolPartRenderer = memo(function ToolPartRenderer({ part, idx }: { part: any; idx: number }) {
+  const toolId = part.toolCallId ?? `tool-${idx}`;
+  const displayState =
+    part.state === 'output-available' && 'preliminary' in part && part.preliminary === true
+      ? 'input-available'
+      : part.state;
+  const partToolName = 'toolName' in part ? (part.toolName as string) : undefined;
+
+  const parsedWorkflowRun =
+    (part.state === 'output-available' || part.state === 'output-error') && 'output' in part
+      ? parseWorkflowRunOutput((part as any).output)
+      : null;
+  const shouldRenderWorkflowRunCard =
+    parsedWorkflowRun !== null &&
+    (partToolName === 'run_workflow' ||
+      Boolean(parsedWorkflowRun.runId) ||
+      Boolean(parsedWorkflowRun.workflowId) ||
+      Boolean(parsedWorkflowRun.taskId));
+  return (
+    <Tool key={toolId}>
+      <ToolHeader
+        type={part.type as 'tool-invocation'}
+        state={displayState}
+        title={partToolName ?? part.type.split('-').slice(1).join('-')}
+      />
+      <ToolContent>
+        {'input' in part && part.input !== undefined && <ToolInput input={part.input} />}
+        {shouldRenderWorkflowRunCard && parsedWorkflowRun ? (
+          <WorkflowRunStatusCard run={parsedWorkflowRun} />
+        ) : (
+          (part.state === 'output-available' || part.state === 'output-error') &&
+          'output' in part && (
+            <ToolOutput
+              output={part.output}
+              errorText={'errorText' in part ? (part.errorText as string) : undefined}
+            />
+          )
+        )}
+      </ToolContent>
+    </Tool>
+  );
+});
+
 // Message component using AI Elements
 interface ChatMessageProps {
   message: UIMessage;
@@ -80,130 +175,114 @@ interface ChatMessageProps {
   userImageUrl?: string;
 }
 
-function ChatMessageItem({ message, isStreaming, userImageUrl }: ChatMessageProps) {
-  const isAssistant = message.role === 'assistant';
-  const hasContent = message.parts.some(
-    (p) => (p.type === 'text' && p.text) || isToolOrDynamicToolUIPart(p),
-  );
-  const isEmptyAssistant = isAssistant && !hasContent;
+const ChatMessageItem = memo(
+  function ChatMessageItem({ message, isStreaming, userImageUrl }: ChatMessageProps) {
+    const isAssistant = message.role === 'assistant';
+    const hasContent = message.parts.some(
+      (p) => (p.type === 'text' && p.text) || isToolOrDynamicToolUIPart(p),
+    );
+    const isEmptyAssistant = isAssistant && !hasContent;
 
-  return (
-    <div className={`flex gap-3 ${isAssistant ? 'justify-start' : 'justify-end'}`}>
-      {/* AI avatar on left */}
-      {isAssistant && (
-        <Avatar className="h-8 w-8 mt-1 shrink-0">
-          <AvatarImage src="/favicon.ico" alt="ShipSec AI" />
-          <AvatarFallback className="bg-primary/10 text-primary text-xs">AI</AvatarFallback>
-        </Avatar>
-      )}
+    return (
+      <div
+        className={`flex gap-3 ${isAssistant ? 'justify-start' : 'justify-end'}`}
+        style={
+          // Do not apply content-visibility to assistant messages.
+          // Large markdown responses can otherwise remain blank while the browser defers paint.
+          !isAssistant && !isStreaming
+            ? { contentVisibility: 'auto', containIntrinsicSize: 'auto 200px' }
+            : undefined
+        }
+      >
+        {/* AI avatar on left */}
+        {isAssistant && (
+          <Avatar className="h-8 w-8 mt-1 shrink-0">
+            <AvatarImage src="/favicon.ico" alt="ShipSec AI" />
+            <AvatarFallback className="bg-primary/10 text-primary text-xs">AI</AvatarFallback>
+          </Avatar>
+        )}
 
-      <div className={isAssistant ? 'max-w-[85%] min-w-0' : 'max-w-[70%] min-w-0'}>
-        <Message from={message.role} className="max-w-full">
-          <MessageContent
-            className={
-              isAssistant
-                ? ''
-                : 'group-[.is-user]:rounded-2xl group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground [&_*]:text-primary-foreground'
-            }
-          >
-            {isEmptyAssistant && isStreaming ? (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-                <span>Thinking...</span>
-              </div>
-            ) : (
-              <>
-                {message.parts.map((part, idx) => {
-                  if (part.type === 'text') {
-                    if (!part.text) return null;
-                    return <MessageResponse key={`text-${idx}`}>{part.text}</MessageResponse>;
-                  }
-
-                  if (part.type === 'reasoning') {
-                    if (!part.text) return null;
-                    return (
-                      <Reasoning key={`reasoning-${idx}`} isStreaming={part.state === 'streaming'}>
-                        <ReasoningTrigger />
-                        <ReasoningContent>{part.text}</ReasoningContent>
-                      </Reasoning>
-                    );
-                  }
-
-                  if (isToolOrDynamicToolUIPart(part)) {
-                    const toolId = part.toolCallId ?? `tool-${idx}`;
-                    const displayState =
-                      part.state === 'output-available' &&
-                      'preliminary' in part &&
-                      part.preliminary === true
-                        ? 'input-available'
-                        : part.state;
-                    const partToolName = 'toolName' in part ? (part.toolName as string) : undefined;
-
-                    const parsedWorkflowRun =
-                      (part.state === 'output-available' || part.state === 'output-error') &&
-                      'output' in part
-                        ? parseWorkflowRunOutput((part as any).output)
-                        : null;
-                    const shouldRenderWorkflowRunCard =
-                      parsedWorkflowRun !== null &&
-                      (partToolName === 'run_workflow' ||
-                        Boolean(parsedWorkflowRun.runId) ||
-                        Boolean(parsedWorkflowRun.workflowId) ||
-                        Boolean(parsedWorkflowRun.taskId));
-                    return (
-                      <Tool key={toolId}>
-                        <ToolHeader
-                          type={part.type as 'tool-invocation'}
-                          state={displayState}
-                          title={partToolName ?? part.type.split('-').slice(1).join('-')}
+        <div className={isAssistant ? 'max-w-[85%] min-w-0' : 'max-w-[70%] min-w-0'}>
+          <Message from={message.role} className="max-w-full">
+            <MessageContent
+              className={
+                isAssistant
+                  ? ''
+                  : 'group-[.is-user]:rounded-2xl group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground [&_*]:text-primary-foreground'
+              }
+            >
+              {isEmptyAssistant && isStreaming ? (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                  <span>Thinking...</span>
+                </div>
+              ) : (
+                <>
+                  {message.parts.map((part, idx) => {
+                    if (part.type === 'text') {
+                      if (!part.text) return null;
+                      return (
+                        <ThrottledMessageResponse
+                          key={`text-${idx}`}
+                          text={part.text}
+                          isStreaming={isStreaming}
                         />
-                        <ToolContent>
-                          {'input' in part && part.input !== undefined && (
-                            <ToolInput input={part.input} />
-                          )}
-                          {shouldRenderWorkflowRunCard && parsedWorkflowRun ? (
-                            <WorkflowRunStatusCard run={parsedWorkflowRun} />
-                          ) : (
-                            (part.state === 'output-available' || part.state === 'output-error') &&
-                            'output' in part && (
-                              <ToolOutput
-                                output={part.output}
-                                errorText={
-                                  'errorText' in part ? (part.errorText as string) : undefined
-                                }
-                              />
-                            )
-                          )}
-                        </ToolContent>
-                      </Tool>
-                    );
-                  }
+                      );
+                    }
 
-                  return null;
-                })}
+                    if (part.type === 'reasoning') {
+                      if (!part.text) return null;
+                      return (
+                        <Reasoning
+                          key={`reasoning-${idx}`}
+                          isStreaming={part.state === 'streaming'}
+                        >
+                          <ReasoningTrigger />
+                          <ReasoningContent>{part.text}</ReasoningContent>
+                        </Reasoning>
+                      );
+                    }
 
-                {/* Streaming cursor for assistant */}
-                {isAssistant && isStreaming && getMessageText(message) && (
-                  <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
-                )}
-              </>
-            )}
-          </MessageContent>
-        </Message>
+                    if (isToolOrDynamicToolUIPart(part)) {
+                      const toolId = part.toolCallId ?? `tool-${idx}`;
+                      return <ToolPartRenderer key={toolId} part={part} idx={idx} />;
+                    }
+
+                    return null;
+                  })}
+
+                  {/* Streaming cursor for assistant */}
+                  {isAssistant && isStreaming && getMessageText(message) && (
+                    <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
+                  )}
+                </>
+              )}
+            </MessageContent>
+          </Message>
+        </div>
+
+        {/* User avatar on right */}
+        {!isAssistant && (
+          <Avatar className="h-8 w-8 mt-1 shrink-0">
+            {userImageUrl && <AvatarImage src={userImageUrl} alt="You" />}
+            <AvatarFallback className="bg-muted text-muted-foreground text-xs">
+              <User className="h-4 w-4" />
+            </AvatarFallback>
+          </Avatar>
+        )}
       </div>
-
-      {/* User avatar on right */}
-      {!isAssistant && (
-        <Avatar className="h-8 w-8 mt-1 shrink-0">
-          {userImageUrl && <AvatarImage src={userImageUrl} alt="You" />}
-          <AvatarFallback className="bg-muted text-muted-foreground text-xs">
-            <User className="h-4 w-4" />
-          </AvatarFallback>
-        </Avatar>
-      )}
-    </div>
-  );
-}
+    );
+  },
+  (prev, next) => {
+    // Skip re-render if the message identity and streaming state haven't changed.
+    // During streaming only the last (streaming) message changes — all others
+    // keep the same parts reference so this short-circuits the diff.
+    if (prev.isStreaming !== next.isStreaming) return false;
+    if (prev.message !== next.message) return false;
+    if (prev.userImageUrl !== next.userImageUrl) return false;
+    return true;
+  },
+);
 
 // Welcome screen action cards
 const welcomeActions = [
@@ -302,10 +381,15 @@ export function ChatInterface() {
     newConversationToken,
     selectedRunId,
     isRunInspectorOpen,
+    pendingCount,
+    setQueueState,
+    clearQueueState,
   } = useChatStore();
   const { data: selectedRunData } = useExecutionRun(selectedRunId);
 
   const currentSession = getCurrentSession();
+  const isPersistedSessionId = (id: string | null | undefined): id is string =>
+    Boolean(id) && !id!.startsWith('new-') && !id!.startsWith('chat-');
 
   // Ref to always have the latest sessionId available in the transport callback
   const sessionIdRef = useRef(currentSessionId);
@@ -372,12 +456,13 @@ export function ChatInterface() {
   const [sessionProcessingStartedAtMs, setSessionProcessingStartedAtMs] = useState<number | null>(
     null,
   );
+  const canResumeDurableStream = messagesLoaded && isPersistedSessionId(chatId);
 
   const { messages, sendMessage, status, error, stop, setMessages } = useChat({
     transport: chatTransport,
     id: chatId,
     messages: initialMessages,
-    resume: messagesLoaded, // Only auto-reconnect after messages are loaded
+    resume: canResumeDurableStream, // Never resume on draft/local ids (new-*, chat-*)
   });
 
   const fetchMessagesForSession = useCallback(
@@ -541,7 +626,7 @@ export function ChatInterface() {
   }, [workingElapsedSeconds]);
 
   useEffect(() => {
-    if (!currentSessionId || !messagesLoaded) return;
+    if (!isPersistedSessionId(currentSessionId) || !messagesLoaded) return;
 
     let cancelled = false;
     let streamAbortController: AbortController | null = null;
@@ -564,7 +649,9 @@ export function ChatInterface() {
 
     const attachPassiveStream = async (runId: string) => {
       if (cancelled) return;
-      if (statusRef.current === 'streaming') return; // local tab already owns an active stream
+      // Local tab owns the active stream — don't duplicate it with a passive reconnect
+      const localStatus = statusRef.current;
+      if (localStatus === 'streaming' || localStatus === 'submitted') return;
       // Bug 3: guard with ref so re-runs of this effect don't re-attach the same run
       if (activePassiveRunIdRef.current === runId) return;
 
@@ -575,8 +662,16 @@ export function ChatInterface() {
       // Pull latest persisted messages first so remote user messages show immediately.
       await hydrateActiveSessionSafely();
 
-      const stream = await chatTransport.reconnectToStream({ chatId: currentSessionId });
-      if (!stream || cancelled) return;
+      const stream = await chatTransport.reconnectToStream(
+        { chatId: currentSessionId },
+        streamAbortController.signal,
+      );
+      if (!stream || cancelled) {
+        if (activePassiveRunIdRef.current === runId) {
+          activePassiveRunIdRef.current = null;
+        }
+        return;
+      }
 
       try {
         const iterator = readUIMessageStream({ stream });
@@ -600,30 +695,70 @@ export function ChatInterface() {
       }
     };
 
-    // Bug 2: reset staleness counter when a new session/effect starts
-    processingTicksRef.current = 0;
+    // Bug 2: reset staleness timestamp when a new session/effect starts
+    processingStartTimeRef.current = null;
     setPollingStale(false);
 
-    const poll = async () => {
+    let consecutiveFailures = 0;
+    let pollIntervalMs = 1500;
+    let pollTimer: number | null = null;
+    let pollInFlight = false;
+    let stopPolling = false;
+
+    const scheduleNextPoll = (delayMs: number) => {
       if (cancelled) return;
+      if (pollTimer !== null) {
+        window.clearTimeout(pollTimer);
+      }
+      pollTimer = window.setTimeout(() => {
+        void poll();
+      }, delayMs);
+    };
+
+    const poll = async () => {
+      if (cancelled || pollInFlight) return;
+      pollInFlight = true;
       try {
         const authHeaders = await getApiAuthHeaders();
         const res = await fetch(`${API_V1_URL}/chat/sessions/${currentSessionId}/status`, {
           headers: { ...authHeaders },
         });
-        if (!res.ok || cancelled) return;
+        if (!res.ok || cancelled) {
+          consecutiveFailures += 1;
+          pollIntervalMs = Math.min(
+            1500 * Math.pow(2, Math.max(consecutiveFailures - 4, 0)),
+            30000,
+          );
+          return;
+        }
+
+        consecutiveFailures = 0;
+        pollIntervalMs =
+          statusRef.current === 'streaming' || statusRef.current === 'submitted' ? 5000 : 1500;
 
         const body = (await res.json()) as {
           processingStatus: 'idle' | 'processing';
           activeRunId?: string | null;
           activeRunStartedAt?: string | null;
+          pendingCount?: number;
+          generationId?: number | null;
         };
 
         if (body.processingStatus === 'processing' && body.activeRunId) {
+          if (processingRunIdRef.current !== body.activeRunId) {
+            processingRunIdRef.current = body.activeRunId;
+            processingStartTimeRef.current = Date.now();
+            setPollingStale(false);
+          }
           // Bug 2: detect zombie sessions — if we've been processing for > 5 min stop polling
-          processingTicksRef.current += 1;
-          if (processingTicksRef.current > 200) {
-            window.clearInterval(intervalId);
+          if (!processingStartTimeRef.current) {
+            processingStartTimeRef.current = Date.now();
+          }
+          if (Date.now() - processingStartTimeRef.current > 5 * 60 * 1000) {
+            if (pollTimer !== null) {
+              window.clearTimeout(pollTimer);
+            }
+            stopPolling = true;
             setPollingStale(true);
             return;
           }
@@ -632,33 +767,52 @@ export function ChatInterface() {
           setSessionProcessingStartedAtMs(
             body.activeRunStartedAt ? new Date(body.activeRunStartedAt).getTime() : null,
           );
+          setQueueState(body.pendingCount ?? 0, body.generationId ?? null);
           void attachPassiveStream(body.activeRunId);
           return;
         }
 
-        // Status returned to idle — reset staleness counter
-        processingTicksRef.current = 0;
+        // Status returned to idle — reset staleness
         setPollingStale(false);
+        processingStartTimeRef.current = null;
+        processingRunIdRef.current = null;
         setSessionProcessing(false);
         setSessionProcessingStartedAtMs(null);
+        clearQueueState();
+
+        // If the stream transport is stuck in submitted/streaming while backend
+        // has already gone idle, force-close the local stream so UI can settle.
+        const localStatus = statusRef.current;
+        if (localStatus === 'submitted' || localStatus === 'streaming') {
+          stop();
+        }
+
         if (activePassiveRunIdRef.current) {
           closePassiveStream();
-          await hydrateActiveSessionSafely();
+          // Only hydrate from DB if the local tab wasn't the one streaming
+          // (useChat already has the messages in that case)
+          if (localStatus !== 'ready') {
+            await hydrateActiveSessionSafely();
+          }
         }
       } catch {
-        // Ignore transient polling errors
+        consecutiveFailures += 1;
+        pollIntervalMs = Math.min(1500 * Math.pow(2, Math.max(consecutiveFailures - 4, 0)), 30000);
+      } finally {
+        pollInFlight = false;
+        if (!cancelled && !stopPolling) {
+          scheduleNextPoll(pollIntervalMs);
+        }
       }
     };
 
     void poll();
-    // eslint-disable-next-line prefer-const -- intervalId is referenced inside poll() before it's assigned
-    let intervalId = window.setInterval(() => {
-      void poll();
-    }, 1500);
 
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
+      if (pollTimer !== null) {
+        window.clearTimeout(pollTimer);
+      }
       closePassiveStream();
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
@@ -666,12 +820,32 @@ export function ChatInterface() {
 
     // statusRef to avoid restarting the polling loop (and resetting activePassiveRunIdRef) on every
     // status transition (submitted→streaming→ready). See ENG-218.
-  }, [currentSessionId, messagesLoaded, chatTransport, fetchMessagesForSession, setMessages]);
+  }, [currentSessionId, messagesLoaded, chatTransport, fetchMessagesForSession, setMessages, stop]);
 
   const messagesRef = useRef(messages);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // Auto-scroll: track if user is near bottom, scroll on new content
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    // "Near bottom" = within 150px of the bottom
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+  }, []);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    // Respect manual scroll-up during streaming; only stick to bottom if already near bottom.
+    if (isNearBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages, status]);
 
   // Keep a ref to status so the polling effect can read it without being in its deps.
   const statusRef = useRef(status);
@@ -682,8 +856,9 @@ export function ChatInterface() {
   // Ref to deduplicate passive stream attachment across effect re-runs (Bug 3).
   const activePassiveRunIdRef = useRef<string | null>(null);
 
-  // Staleness counter: how many consecutive 1.5s ticks the session has been 'processing' (Bug 2).
-  const processingTicksRef = useRef(0);
+  // Wall-clock timestamp for when we first observed 'processing' status (Bug 2).
+  const processingStartTimeRef = useRef<number | null>(null);
+  const processingRunIdRef = useRef<string | null>(null);
   const [pollingStale, setPollingStale] = useState(false);
 
   // Reload sessions when streaming finishes to pick up AI-generated title
@@ -701,9 +876,23 @@ export function ChatInterface() {
     null,
   );
   const [isGraphPanelOpen, setIsGraphPanelOpen] = useState(false);
+  const [isInterrupting, setIsInterrupting] = useState(false);
   const handleSelectPrompt = useCallback((prompt: string) => {
     setPendingPrompt(prompt + ' ');
   }, []);
+
+  const handleInterrupt = useCallback(async () => {
+    if (!currentSessionId || isInterrupting) return;
+    setIsInterrupting(true);
+    try {
+      await chatTransport.interruptGeneration(currentSessionId);
+    } catch (err) {
+      console.warn('Failed to interrupt generation:', err);
+    } finally {
+      // Small delay before clearing to prevent double-clicks
+      setTimeout(() => setIsInterrupting(false), 1000);
+    }
+  }, [currentSessionId, isInterrupting, chatTransport]);
 
   const graphPanelUrl = useMemo(() => {
     if (!graphPanelRun) return '';
@@ -754,9 +943,16 @@ export function ChatInterface() {
         }
       }
 
+      if (isAgentWorking) {
+        toast({
+          title: 'Message queued',
+          description:
+            'Your message will be processed when the current response completes, or click Steer to redirect now.',
+        });
+      }
       sendMessage({ text });
     },
-    [sendMessage, createSession, navigate],
+    [sendMessage, createSession, navigate, isAgentWorking, toast],
   );
 
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
@@ -888,6 +1084,20 @@ export function ChatInterface() {
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">New Chat</span>
         </Button>
+        {isAgentWorking && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+            onClick={handleInterrupt}
+            disabled={isInterrupting}
+          >
+            <StopCircle className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">
+              {isInterrupting ? 'Stopping...' : pendingCount > 0 ? 'Steer' : 'Stop'}
+            </span>
+          </Button>
+        )}
         <StatusBar className="border-b-0" />
       </div>
       {/* Body: chat + history + inspector side-by-side */}
@@ -956,14 +1166,18 @@ export function ChatInterface() {
           {displayMessages.length === 0 ? (
             <EmptyState userName={getUserName(user)} onSelectPrompt={handleSelectPrompt} />
           ) : (
-            <div className="flex-1 overflow-y-auto">
+            <div
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+              className="flex-1 overflow-y-auto"
+            >
               <div className="mx-auto flex min-h-full max-w-5xl flex-col justify-end gap-4 px-4 py-4 md:px-6">
                 {displayMessages.map((msg, idx) => (
                   <ChatMessageItem
                     key={msg.id}
                     message={msg}
                     isStreaming={
-                      effectiveStatus === 'streaming' &&
+                      (effectiveStatus === 'streaming' || sessionProcessing) &&
                       msg.role === 'assistant' &&
                       idx === displayMessages.length - 1
                     }
@@ -1018,6 +1232,13 @@ export function ChatInterface() {
                   <div aria-hidden className="h-6" />
                 )}
               </div>
+              {pendingCount > 0 && isAgentWorking && (
+                <div className="flex items-center justify-center py-1">
+                  <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                    {pendingCount} message{pendingCount > 1 ? 's' : ''} queued
+                  </span>
+                </div>
+              )}
               <PromptInput
                 onSubmit={handleSubmit}
                 className="rounded-xl border border-border/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 shadow-sm transition-all duration-200"

@@ -8,10 +8,14 @@ export interface DurableChatTransportOptions {
 interface StatusResponse {
   processingStatus: 'idle' | 'processing';
   activeRunId?: string | null;
+  pendingCount?: number;
+  generationId?: number | null;
 }
 
 interface SendMessageResponse {
-  runId: string;
+  runId?: string;
+  queued?: boolean;
+  activeRunId?: string;
 }
 
 /**
@@ -26,6 +30,9 @@ interface SendMessageResponse {
  */
 export class DurableChatTransport implements ChatTransport<UIMessage> {
   constructor(private options: DurableChatTransportOptions) {}
+  private isEphemeralChatId(chatId: string): boolean {
+    return chatId.startsWith('new-') || chatId.startsWith('chat-');
+  }
 
   async sendMessages(options: {
     trigger: 'submit-message' | 'regenerate-message';
@@ -52,22 +59,51 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
       throw new Error(`Failed to send message: ${postRes.status} - ${errorText}`);
     }
 
-    const { runId } = (await postRes.json()) as SendMessageResponse;
+    const responseData = (await postRes.json()) as SendMessageResponse;
+
+    if (responseData.queued) {
+      // Message was queued — return an empty stream that closes immediately.
+      // The polling loop in ChatInterface will detect the generation transition
+      // and reconnect to the new stream when it starts.
+      return new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.close();
+        },
+      });
+    }
+
+    if (!responseData.runId) {
+      throw new Error('No runId in response and message was not queued');
+    }
 
     // Step 2: GET the stream - unified streaming path
-    return this.fetchStream(sessionId, runId, 0, headers);
+    return this.fetchStream(sessionId, responseData.runId, 0, headers);
   }
 
-  async reconnectToStream(options: {
-    chatId: string;
-  }): Promise<ReadableStream<UIMessageChunk> | null> {
-    const { chatId: sessionId } = options;
+  async reconnectToStream(
+    options: {
+      chatId: string;
+      runId?: string | null;
+      afterSeq?: number;
+    },
+    signal?: AbortSignal,
+  ): Promise<ReadableStream<UIMessageChunk> | null> {
+    const { chatId: sessionId, runId, afterSeq = 0 } = options;
+    if (this.isEphemeralChatId(sessionId)) {
+      return null;
+    }
 
     const headers = await this.options.getAuthHeaders();
+
+    // If caller already knows the runId, skip the extra status fetch.
+    if (runId) {
+      return this.fetchStream(sessionId, runId, afterSeq, headers, signal);
+    }
 
     // Step 1: Check if there's an active stream
     const statusRes = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/status`, {
       headers,
+      signal,
     });
 
     if (!statusRes.ok) {
@@ -81,7 +117,29 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     }
 
     // Step 2: GET the stream from the beginning
-    return this.fetchStream(sessionId, activeRunId, 0, headers);
+    return this.fetchStream(sessionId, activeRunId, 0, headers, signal);
+  }
+
+  async interruptGeneration(sessionId: string): Promise<{ success: boolean }> {
+    const headers = await this.options.getAuthHeaders();
+    const res = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/interrupt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+    });
+    if (!res.ok) {
+      return { success: false };
+    }
+    return (await res.json()) as { success: boolean };
+  }
+
+  async getStatus(sessionId: string): Promise<StatusResponse | null> {
+    if (this.isEphemeralChatId(sessionId)) return null;
+    const headers = await this.options.getAuthHeaders();
+    const res = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/status`, {
+      headers,
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as StatusResponse;
   }
 
   /**
@@ -97,6 +155,7 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     runId: string,
     afterSeq: number,
     headers: Record<string, string>,
+    signal?: AbortSignal,
   ): ReadableStream<UIMessageChunk> {
     const url = new URL(
       `${this.options.apiBase}/chat/sessions/${sessionId}/stream`,
@@ -106,11 +165,98 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     url.searchParams.set('afterSeq', String(afterSeq));
 
     const textDecoder = new TextDecoder();
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
     return new ReadableStream<UIMessageChunk>({
       start: async (controller) => {
+        const pendingTextDeltas = new Map<string, string>();
+        const pendingReasoningDeltas = new Map<string, string>();
+        const pendingToolInputDeltas = new Map<string, string>();
+        let flushTimer: ReturnType<typeof setTimeout> | null = null;
+        const FLUSH_INTERVAL_MS = 120;
+
+        const clearFlushTimer = () => {
+          if (flushTimer !== null) {
+            clearTimeout(flushTimer);
+            flushTimer = null;
+          }
+        };
+
+        const flushPendingDeltas = () => {
+          clearFlushTimer();
+
+          if (pendingTextDeltas.size > 0) {
+            for (const [id, delta] of pendingTextDeltas) {
+              controller.enqueue({ type: 'text-delta', id, delta });
+            }
+            pendingTextDeltas.clear();
+          }
+
+          if (pendingReasoningDeltas.size > 0) {
+            for (const [id, delta] of pendingReasoningDeltas) {
+              controller.enqueue({ type: 'reasoning-delta', id, delta });
+            }
+            pendingReasoningDeltas.clear();
+          }
+
+          if (pendingToolInputDeltas.size > 0) {
+            for (const [toolCallId, inputTextDelta] of pendingToolInputDeltas) {
+              controller.enqueue({ type: 'tool-input-delta', toolCallId, inputTextDelta });
+            }
+            pendingToolInputDeltas.clear();
+          }
+        };
+
+        const scheduleFlush = () => {
+          if (flushTimer !== null) {
+            return;
+          }
+          flushTimer = setTimeout(() => {
+            flushTimer = null;
+            flushPendingDeltas();
+          }, FLUSH_INTERVAL_MS);
+        };
+
+        const handleChunk = (chunk: UIMessageChunk | 'DONE'): 'continue' | 'done' => {
+          if (chunk === 'DONE') {
+            flushPendingDeltas();
+            controller.close();
+            return 'done';
+          }
+
+          if (chunk.type === 'text-delta') {
+            pendingTextDeltas.set(chunk.id, (pendingTextDeltas.get(chunk.id) ?? '') + chunk.delta);
+            scheduleFlush();
+            return 'continue';
+          }
+
+          if (chunk.type === 'reasoning-delta') {
+            pendingReasoningDeltas.set(
+              chunk.id,
+              (pendingReasoningDeltas.get(chunk.id) ?? '') + chunk.delta,
+            );
+            scheduleFlush();
+            return 'continue';
+          }
+
+          if (chunk.type === 'tool-input-delta') {
+            pendingToolInputDeltas.set(
+              chunk.toolCallId,
+              (pendingToolInputDeltas.get(chunk.toolCallId) ?? '') + chunk.inputTextDelta,
+            );
+            scheduleFlush();
+            return 'continue';
+          }
+
+          // Preserve event ordering by flushing accumulated deltas before
+          // non-delta chunks (tool boundaries, step markers, finish, etc).
+          flushPendingDeltas();
+          controller.enqueue(chunk);
+          return 'continue';
+        };
+
         try {
-          const res = await fetch(url.toString(), { headers });
+          const res = await fetch(url.toString(), { headers, signal });
 
           if (!res.ok) {
             controller.error(new Error(`Stream fetch failed: ${res.status}`));
@@ -122,17 +268,26 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
             return;
           }
 
-          const reader = res.body.getReader();
+          reader = res.body.getReader();
           let buffer = '';
 
-          const pump = async (): Promise<void> => {
+          while (true) {
             const { done, value } = await reader.read();
 
             if (done) {
-              // Flush any remaining buffer
-              if (buffer.trim()) {
-                this.processBuffer(buffer, controller);
+              // Flush any remaining buffer and pending delta batches.
+              if (buffer.trim().length > 0) {
+                const lines = buffer.split('\n');
+                for (const line of lines) {
+                  const chunk = this.parseSseLine(line);
+                  if (!chunk) continue;
+                  const state = handleChunk(chunk);
+                  if (state === 'done') {
+                    return;
+                  }
+                }
               }
+              flushPendingDeltas();
               controller.close();
               return;
             }
@@ -143,22 +298,21 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
 
             for (const line of lines) {
               const chunk = this.parseSseLine(line);
-              if (chunk) {
-                if (chunk === 'DONE') {
-                  controller.close();
-                  return;
-                }
-                controller.enqueue(chunk);
+              if (!chunk) continue;
+
+              const state = handleChunk(chunk);
+              if (state === 'done') {
+                return;
               }
             }
-
-            return pump();
-          };
-
-          await pump();
+          }
         } catch (error) {
+          clearFlushTimer();
           controller.error(error instanceof Error ? error : new Error(String(error)));
         }
+      },
+      cancel() {
+        reader?.cancel();
       },
     });
   }
@@ -178,23 +332,6 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
       return JSON.parse(data) as UIMessageChunk;
     } catch {
       return null;
-    }
-  }
-
-  private processBuffer(
-    buffer: string,
-    controller: ReadableStreamDefaultController<UIMessageChunk>,
-  ): void {
-    const lines = buffer.split('\n');
-    for (const line of lines) {
-      const chunk = this.parseSseLine(line);
-      if (chunk) {
-        if (chunk === 'DONE') {
-          controller.close();
-          return;
-        }
-        controller.enqueue(chunk);
-      }
     }
   }
 }
