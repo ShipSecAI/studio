@@ -11,6 +11,8 @@ export const chatSessionsTable = pgTable(
     processingStatus: text('processing_status').notNull().default('idle'), // idle | processing
     activeRunId: uuid('active_run_id'),
     nextEventSeq: integer('next_event_seq').notNull().default(1),
+    steerTargetTurnId: uuid('steer_target_turn_id'),
+    steerRequestedAt: timestamp('steer_requested_at', { withTimezone: true }),
     temporalWorkflowId: text('temporal_workflow_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

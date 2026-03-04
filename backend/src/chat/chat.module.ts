@@ -3,8 +3,9 @@ import { Module } from '@nestjs/common';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatSessionRepository } from './chat-session.repository';
-import { ChatPartialRepository } from './chat-partial.repository';
-import { ChatStreamEventRepository } from './chat-stream-event.repository';
+import { ChatTurnRepository } from './chat-turn.repository';
+import { ChatSessionEventRepository } from './chat-session-event.repository';
+import { ChatTurnDraftRepository } from './chat-turn-draft.repository';
 import { ChatStreamService } from './chat-stream.service';
 import { TerminalModule } from '../terminal/terminal.module';
 
@@ -14,8 +15,9 @@ import { TerminalModule } from '../terminal/terminal.module';
   providers: [
     ChatService,
     ChatSessionRepository,
-    ChatPartialRepository,
-    ChatStreamEventRepository,
+    ChatTurnRepository,
+    ChatSessionEventRepository,
+    ChatTurnDraftRepository,
     ChatStreamService,
   ],
 })

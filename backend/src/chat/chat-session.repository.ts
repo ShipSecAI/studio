@@ -146,7 +146,28 @@ export class ChatSessionRepository {
       .set({
         processingStatus: 'processing',
         activeRunId: runId,
-        nextEventSeq: 1,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(chatSessionsTable.id, id));
+  }
+
+  async setSteerIntent(id: string, targetTurnId: string | null): Promise<void> {
+    await this.db
+      .update(chatSessionsTable)
+      .set({
+        steerTargetTurnId: targetTurnId,
+        steerRequestedAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(chatSessionsTable.id, id));
+  }
+
+  async clearSteerIntent(id: string): Promise<void> {
+    await this.db
+      .update(chatSessionsTable)
+      .set({
+        steerTargetTurnId: null,
+        steerRequestedAt: null,
         updatedAt: sql`now()`,
       })
       .where(eq(chatSessionsTable.id, id));
