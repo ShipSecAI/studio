@@ -208,6 +208,72 @@ describe('ChatService Unit Tests', () => {
         expect.any(String),
       );
     });
+
+    it('queues message on active run without starting a new run', async () => {
+      (sessionRepository.getSession as jest.Mock).mockResolvedValue({
+        ...mockSession,
+        processingStatus: 'processing',
+        activeRunId: 'run-active-1',
+      });
+
+      const message = {
+        id: 'msg-queued-1',
+        role: 'user' as const,
+        parts: [{ type: 'text', text: 'Queue this' }],
+      };
+
+      const result = await service.sendMessage('session-1', message as any, mockAuthContext);
+
+      expect(result).toEqual({ queued: true, activeRunId: 'run-active-1' });
+      expect(sessionRepository.startRun).not.toHaveBeenCalled();
+      expect(temporalService.signalChatWorkflow).toHaveBeenCalledWith(
+        'session-1',
+        {
+          id: 'msg-queued-1',
+          role: 'user',
+          parts: [{ type: 'text', text: 'Queue this' }],
+        },
+        'run-active-1',
+      );
+    });
+
+    it('restarts workflow and retries queued signal when active workflow signal fails', async () => {
+      (sessionRepository.getSession as jest.Mock).mockResolvedValue({
+        ...mockSession,
+        processingStatus: 'processing',
+        activeRunId: 'run-active-1',
+      });
+
+      (temporalService.signalChatWorkflow as jest.Mock)
+        .mockRejectedValueOnce(new Error('signal failed #1'))
+        .mockRejectedValueOnce(new Error('signal failed #2'))
+        .mockResolvedValueOnce(undefined);
+
+      (temporalService.startChatWorkflow as jest.Mock).mockResolvedValue({
+        workflowId: 'chat-session-1-restarted',
+        runId: 'run-restarted',
+      });
+
+      const message = {
+        id: 'msg-queued-retry',
+        role: 'user' as const,
+        parts: [{ type: 'text', text: 'Retry queue signal' }],
+      };
+
+      const result = await service.sendMessage('session-1', message as any, mockAuthContext);
+
+      expect(result).toEqual({ queued: true, activeRunId: 'run-active-1' });
+      expect(temporalService.startChatWorkflow).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        organizationId: 'test-org-id',
+        systemPrompt: expect.any(String),
+        initialMessages: expect.any(Array),
+      });
+      expect(sessionRepository.setTemporalWorkflowId).toHaveBeenCalledWith(
+        'session-1',
+        'chat-session-1-restarted',
+      );
+    });
   });
 
   describe('streamToResponse', () => {

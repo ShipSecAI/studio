@@ -287,6 +287,51 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
   // Message sending (non-streaming - returns runId)
   // ---------------------------------------------------------------------------
 
+  private toWorkflowMessage(message: UIMessage): { id?: string; role: string; parts: unknown[] } {
+    return {
+      id: message.id,
+      role: message.role,
+      parts: message.parts,
+    };
+  }
+
+  private async signalChatWorkflowWithRetry(
+    sessionId: string,
+    message: { id?: string; role: string; parts: unknown[] },
+    runId: string,
+    attempts = 2,
+  ): Promise<void> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        await this.temporalService.signalChatWorkflow(sessionId, message, runId);
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError;
+  }
+
+  private async restartWorkflowWithHistory(sessionId: string, auth: AuthContext): Promise<void> {
+    const existingMessages = await this.sessionRepository.getMessages(sessionId);
+    const initialMessages = existingMessages.map((m) => ({
+      role: m.role,
+      parts: m.parts,
+    }));
+
+    const result = await this.temporalService.startChatWorkflow({
+      sessionId,
+      organizationId: auth.organizationId,
+      systemPrompt: SYSTEM_PROMPT,
+      initialMessages,
+    });
+    await this.sessionRepository.setTemporalWorkflowId(sessionId, result.workflowId);
+    this.logger.log(
+      `Restarted Temporal chat workflow ${result.workflowId} for session ${sessionId} with ${initialMessages.length} existing messages`,
+    );
+  }
+
   /**
    * Send a message and return the runId.
    * The actual streaming happens via GET /stream endpoint.
@@ -303,6 +348,8 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       organizationId: auth.organizationId,
     });
 
+    const workflowMessage = this.toWorkflowMessage(message);
+
     // Save the user message to DB always
     if (message && message.role === 'user') {
       await this.sessionRepository.saveMessage(sessionId, {
@@ -314,19 +361,18 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     if (session.processingStatus === 'processing' && session.activeRunId) {
       // Already processing — queue the message in the workflow, don't create a new run
       try {
-        await this.temporalService.signalChatWorkflow(
+        await this.signalChatWorkflowWithRetry(
           sessionId,
-          {
-            id: message.id,
-            role: message.role,
-            parts: message.parts,
-          },
+          workflowMessage,
           session.activeRunId, // pass existing runId for signal routing
         );
       } catch (signalError) {
         this.logger.warn(`Signal failed for queued message in session ${sessionId}`, signalError);
-        // If signal fails, the message is still saved to DB.
-        // The workflow will pick it up on next restart.
+
+        // Recovery path: restart workflow with DB-backed history and retry signal.
+        // If this still fails, surface the error instead of silently reporting "queued".
+        await this.restartWorkflowWithHistory(sessionId, auth);
+        await this.signalChatWorkflowWithRetry(sessionId, workflowMessage, session.activeRunId);
       }
       return { queued: true, activeRunId: session.activeRunId };
     }
@@ -338,50 +384,18 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     // Signal the Temporal workflow with the new message.
     // If the workflow timed out (idle 30 min), restart it with history from DB.
     try {
-      await this.temporalService.signalChatWorkflow(
-        sessionId,
-        {
-          id: message.id,
-          role: message.role,
-          parts: message.parts,
-        },
-        runId,
-      );
+      await this.signalChatWorkflowWithRetry(sessionId, workflowMessage, runId);
     } catch (signalError) {
       this.logger.warn(
         `Signal failed for session ${sessionId}, workflow may have timed out. Restarting...`,
         signalError,
       );
 
-      // Load existing messages from DB so the new workflow has full context
-      const existingMessages = await this.sessionRepository.getMessages(sessionId);
-      const initialMessages = existingMessages.map((m) => ({
-        role: m.role,
-        parts: m.parts,
-      }));
-
       // Start a fresh workflow (Temporal allows reuse of the workflow ID once completed)
-      const result = await this.temporalService.startChatWorkflow({
-        sessionId,
-        organizationId: auth.organizationId,
-        systemPrompt: SYSTEM_PROMPT,
-        initialMessages,
-      });
-      await this.sessionRepository.setTemporalWorkflowId(sessionId, result.workflowId);
-      this.logger.log(
-        `Restarted Temporal chat workflow ${result.workflowId} for session ${sessionId} with ${initialMessages.length} existing messages`,
-      );
+      await this.restartWorkflowWithHistory(sessionId, auth);
 
       // Now signal the newly started workflow
-      await this.temporalService.signalChatWorkflow(
-        sessionId,
-        {
-          id: message.id,
-          role: message.role,
-          parts: message.parts,
-        },
-        runId,
-      );
+      await this.signalChatWorkflowWithRetry(sessionId, workflowMessage, runId);
     }
 
     return { runId };
