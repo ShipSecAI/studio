@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { spawn } from 'node:child_process';
 import { resolveDockerPath } from '@shipsec/component-sdk';
-import type { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import type { IsolatedVolume } from '../../utils/isolated-volume';
 
 // ---------------------------------------------------------------------------
 // Severity & Status enums
@@ -394,7 +394,7 @@ export function buildMemberRoleArn(roleNameOrTemplate: string, accountId: string
 // Docker volume helpers
 // ---------------------------------------------------------------------------
 
-export async function listVolumeFiles(volume: IsolatedContainerVolume): Promise<string[]> {
+export async function listVolumeFiles(volume: IsolatedVolume): Promise<string[]> {
   const volumeName = volume.getVolumeName();
   if (!volumeName) return [];
 
@@ -443,7 +443,7 @@ export async function listVolumeFiles(volume: IsolatedContainerVolume): Promise<
 }
 
 export async function setVolumeOwnership(
-  volume: IsolatedContainerVolume,
+  volume: IsolatedVolume,
   uid = 1000,
   gid = 1000,
 ): Promise<void> {

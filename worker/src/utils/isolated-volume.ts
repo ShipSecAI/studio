@@ -8,6 +8,26 @@ import { IsolatedGcsVolume } from './gcs-volume';
 const exec = promisify(execCallback);
 
 /**
+ * Common interface for all isolated volume implementations.
+ * Used by components that don't care about the underlying storage backend.
+ */
+export interface IsolatedVolume {
+  initialize(files: Record<string, string | Buffer>): Promise<string>;
+  readFiles(filenames: string[]): Promise<Record<string, string>>;
+  getBindMount?(containerPath?: string, readOnly?: boolean): string;
+  getVolumeConfig(
+    containerPath?: string,
+    readOnly?: boolean,
+  ): {
+    source: string;
+    target: string;
+    readOnly: boolean;
+  };
+  cleanup(): Promise<void>;
+  getVolumeName(): string | undefined;
+}
+
+/**
  * Manages isolated Docker volumes for multi-tenant SaaS environments.
  *
  * Features:
@@ -555,10 +575,7 @@ export async function cleanupOrphanedVolumes(olderThanHours = 24): Promise<numbe
  * - 'k8s' → IsolatedK8sVolume (ConfigMap-backed, no Docker daemon needed)
  * - anything else → IsolatedContainerVolume (Docker named volumes)
  */
-export function createIsolatedVolume(
-  tenantId: string,
-  runId: string,
-): IsolatedContainerVolume | IsolatedK8sVolume | IsolatedGcsVolume {
+export function createIsolatedVolume(tenantId: string, runId: string): IsolatedVolume {
   if (process.env.EXECUTION_MODE === 'k8s') {
     if (process.env.GCS_VOLUME_BUCKET) {
       return new IsolatedGcsVolume(tenantId, runId);
