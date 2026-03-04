@@ -6,6 +6,8 @@ import {
   proxyActivities,
   workflowInfo,
   continueAsNew,
+  CancellationScope,
+  isCancellation,
 } from '@temporalio/workflow';
 
 // ---------------------------------------------------------------------------
@@ -27,14 +29,23 @@ export interface ChatUIMessage {
 interface ChatAgentStepInput {
   sessionId: string;
   runId: string;
+  generationId: number;
   organizationId?: string;
   systemPrompt: string;
   messages: ChatUIMessage[];
   maxSteps: number;
+  compactionState?: {
+    summary: string;
+    compactedUpToIndex: number;
+  };
 }
 
 interface ChatAgentStepOutput {
   assistantMessages: ChatUIMessage[];
+  compactionState?: {
+    summary: string;
+    compactedUpToIndex: number;
+  };
 }
 
 interface SaveChatMessagesInput {
@@ -58,7 +69,7 @@ const { runChatAgentStepActivity, saveChatMessagesActivity, markChatRunCompleteA
     saveChatMessagesActivity(input: SaveChatMessagesInput): Promise<void>;
     markChatRunCompleteActivity(input: { sessionId: string; runId: string }): Promise<void>;
   }>({
-    startToCloseTimeout: '5 minutes',
+    startToCloseTimeout: '15 minutes',
     heartbeatTimeout: '30 seconds',
     retry: {
       initialInterval: '2 seconds',
@@ -72,6 +83,11 @@ const { generateSessionTitleActivity } = proxyActivities<{
   generateSessionTitleActivity(input: GenerateSessionTitleInput): Promise<string>;
 }>({
   startToCloseTimeout: '30 seconds',
+  retry: {
+    initialInterval: '1 second',
+    backoffCoefficient: 2,
+    maximumAttempts: 3,
+  },
 });
 
 interface ChatUserTurn {
@@ -85,9 +101,12 @@ interface ChatUserTurn {
 
 export const userMessageSignal = defineSignal<[ChatUserTurn]>('userMessage');
 export const endChatSignal = defineSignal('endChat');
+export const interruptGenerationSignal = defineSignal('interruptGeneration');
 
 export const getMessagesQuery = defineQuery<ChatUIMessage[]>('getMessages');
 export const getStatusQuery = defineQuery<string>('getStatus');
+export const getGenerationIdQuery = defineQuery<number>('getGenerationId');
+export const getPendingCountQuery = defineQuery<number>('getPendingCount');
 
 // ---------------------------------------------------------------------------
 // Workflow Input
@@ -99,6 +118,15 @@ export interface ChatAgentWorkflowInput {
   systemPrompt: string;
   /** Pre-loaded messages when continuing-as-new */
   initialMessages?: ChatUIMessage[];
+  /** Pending user messages that arrived during processing, forwarded across continue-as-new */
+  pendingMessages?: ChatUserTurn[];
+  /** Persisted compaction state across continue-as-new */
+  compactionState?: {
+    summary: string;
+    compactedUpToIndex: number;
+  };
+  /** Monotonic generation counter, forwarded across continue-as-new */
+  initialGenerationId?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,10 +153,15 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
   const { sessionId, organizationId, systemPrompt } = input;
 
   const messages: ChatUIMessage[] = input.initialMessages ?? [];
+  let compactionState: { summary: string; compactedUpToIndex: number } | undefined =
+    input.compactionState;
   let status: 'idle' | 'processing' | 'done' = 'idle';
   let chatEnded = false;
   let titleGenerated = (input.initialMessages?.length ?? 0) > 0; // skip if continuing
-  const pendingUserMessages: ChatUserTurn[] = [];
+  const pendingUserMessages: ChatUserTurn[] = input.pendingMessages ?? [];
+  let generationId: number = input.initialGenerationId ?? 0;
+  let activeScope: CancellationScope | null = null;
+
   const seenUserMessageIds = new Set(
     messages
       .filter((message) => message.role === 'user')
@@ -176,9 +209,17 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     chatEnded = true;
   });
 
+  setHandler(interruptGenerationSignal, () => {
+    if (activeScope) {
+      activeScope.cancel();
+    }
+  });
+
   // ---- Query handlers ----
-  setHandler(getMessagesQuery, () => messages);
+  setHandler(getMessagesQuery, () => [...messages]);
   setHandler(getStatusQuery, () => status);
+  setHandler(getGenerationIdQuery, () => generationId);
+  setHandler(getPendingCountQuery, () => pendingUserMessages.length);
 
   // ---- Main loop ----
   const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes idle → auto-close
@@ -194,30 +235,46 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     if (!gotMessage) break;
     if (chatEnded) break;
 
-    // Process the next pending user message
-    const userTurn = pendingUserMessages.shift()!;
-    const userMsg = userTurn.message;
-    const runId = userTurn.runId;
-    messages.push(userMsg);
+    // Bundle ALL pending messages for this generation
+    const userTurns: ChatUserTurn[] = [];
+    while (pendingUserMessages.length > 0) {
+      userTurns.push(pendingUserMessages.shift()!);
+    }
+
+    const runId = userTurns[0]?.runId ?? 'gen-' + generationId;
+    generationId++;
+
+    // Add all user messages to history
+    for (const turn of userTurns) {
+      messages.push(turn.message);
+    }
+
     status = 'processing';
 
+    activeScope = new CancellationScope();
     try {
-      // Run the AI agent step (LLM calls + tool execution)
-      const result = await runChatAgentStepActivity({
-        sessionId,
-        runId,
-        organizationId: organizationId ?? undefined,
-        systemPrompt,
-        messages,
-        maxSteps: 60,
+      const result = await activeScope.run(async () => {
+        return await runChatAgentStepActivity({
+          sessionId,
+          runId,
+          generationId,
+          organizationId: organizationId ?? undefined,
+          systemPrompt,
+          messages,
+          maxSteps: 60,
+          compactionState,
+        });
       });
 
-      // Append assistant messages to conversation history
+      // Natural completion — process result
+      if (result.compactionState) {
+        compactionState = result.compactionState;
+      }
+
       if (result.assistantMessages && result.assistantMessages.length > 0) {
         messages.push(...result.assistantMessages);
       }
 
-      // Save assistant messages to DB (durable)
       await saveChatMessagesActivity({
         sessionId,
         messages: result.assistantMessages ?? [],
@@ -226,7 +283,8 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
       // Generate AI title after the first exchange
       if (!titleGenerated) {
         titleGenerated = true;
-        const userText = userMsg.parts
+        const firstUserMsg = userTurns[0]?.message;
+        const userText = (firstUserMsg?.parts ?? [])
           .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
           .map((p) => p.text)
           .join('\n');
@@ -237,33 +295,54 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
           .join('\n');
 
         if (userText && assistantText) {
-          // Fire-and-forget — don't block the chat on title generation
-          generateSessionTitleActivity({
-            sessionId,
-            userMessage: userText,
-            assistantMessage: assistantText,
-          }).catch(() => {
+          try {
+            await generateSessionTitleActivity({
+              sessionId,
+              userMessage: userText,
+              assistantMessage: assistantText,
+            });
+          } catch {
             // Title generation failure is non-critical
-          });
+          }
         }
       }
     } catch (err) {
-      try {
-        await markChatRunCompleteActivity({ sessionId, runId });
-      } catch {
-        // Best-effort: avoid masking the original failure path.
-      }
+      if (isCancellation(err)) {
+        // Interrupted — activity cancellation handler already flushed partial state
+        try {
+          await CancellationScope.nonCancellable(async () => {
+            await markChatRunCompleteActivity({ sessionId, runId });
+          });
+        } catch {
+          // Best-effort
+        }
+      } else {
+        // Existing error handling
+        try {
+          await markChatRunCompleteActivity({ sessionId, runId });
+        } catch {
+          // Best-effort: avoid masking the original failure path.
+        }
 
-      // On error, add an error message so the user sees feedback
-      messages.push({
-        role: 'assistant',
-        parts: [
-          {
-            type: 'text',
-            text: `Error: ${err instanceof Error ? err.message : String(err)}`,
-          },
-        ],
-      });
+        messages.push({
+          role: 'assistant',
+          parts: [
+            {
+              type: 'text',
+              text: `Error: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+        });
+
+        await saveChatMessagesActivity({
+          sessionId,
+          messages: [messages[messages.length - 1]],
+        }).catch(() => {
+          // Best-effort: don't fail the workflow if error persistence fails
+        });
+      }
+    } finally {
+      activeScope = null;
     }
 
     status = 'idle';
@@ -275,6 +354,9 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
         organizationId,
         systemPrompt,
         initialMessages: messages,
+        pendingMessages: pendingUserMessages,
+        compactionState,
+        initialGenerationId: generationId,
       });
     }
   }
