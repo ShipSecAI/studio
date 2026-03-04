@@ -12,7 +12,7 @@ import {
   port,
   param,
 } from '@shipsec/component-sdk';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 import { sanitizeForLogging, fetchInstallationToken } from './github-auth';
 
 /**
@@ -242,7 +242,7 @@ const definition = defineComponent({
 
     // Get tenant ID for isolated volume
     const tenantId = (context as any).tenantId ?? context.runId;
-    let volume: IsolatedContainerVolume | null = null;
+    let volume: ReturnType<typeof createIsolatedVolume> | null = null;
 
     try {
       // Create isolated volume for the clone
@@ -252,7 +252,7 @@ const definition = defineComponent({
         data: { repository, stage: 'volume' },
       });
 
-      volume = new IsolatedContainerVolume(tenantId, context.runId);
+      volume = createIsolatedVolume(tenantId, context.runId);
       await volume.initialize({});
 
       context.logger.info(`[GitHub Clone] Created isolated volume: ${volume.getVolumeName()}`);

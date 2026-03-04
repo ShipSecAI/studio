@@ -23,9 +23,14 @@ export class KafkaTopicResolver {
   private enableInstanceSuffix: boolean;
 
   constructor(config: TopicResolverConfig = {}) {
-    this.instanceId = config.instanceId ?? process.env.SHIPSEC_INSTANCE;
-    // Enable instance suffix only if SHIPSEC_INSTANCE is set
-    this.enableInstanceSuffix = config.enableInstanceSuffix ?? Boolean(this.instanceId);
+    // Instance scoping is strictly for local dev. Staging/prod must never use instance suffixes.
+    const env = process.env.SHIPSEC_ENV;
+    const isNonLocal = env && env !== 'local';
+
+    this.instanceId = isNonLocal ? undefined : (config.instanceId ?? process.env.SHIPSEC_INSTANCE);
+    this.enableInstanceSuffix = isNonLocal
+      ? false
+      : (config.enableInstanceSuffix ?? Boolean(this.instanceId));
   }
 
   /**

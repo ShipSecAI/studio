@@ -13,7 +13,7 @@ import {
   param,
   type DockerRunnerConfig,
 } from '@shipsec/component-sdk';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 const NOTIFY_IMAGE = 'ghcr.io/shipsecai/notify:latest';
 const INPUT_MOUNT_NAME = 'inputs';
@@ -368,7 +368,7 @@ const definition = defineComponent({
     );
 
     const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const volume = createIsolatedVolume(tenantId, context.runId);
     const baseRunner = definition.runner;
 
     if (baseRunner.kind !== 'docker') {

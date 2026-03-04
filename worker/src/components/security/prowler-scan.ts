@@ -19,7 +19,7 @@ import {
 
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 import { awsCredentialSchema } from '@shipsec/contracts';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 import { discoverOrgAccounts } from '../core/aws-org-discovery';
 import { assumeRole } from '../core/aws-assume-role';
 import {
@@ -484,7 +484,7 @@ async function executeSingleAccountScan(
 
   const tenantId = (context as any).tenantId ?? 'default-tenant';
   const awsCredsVolume = parsedInputs.credentials
-    ? new IsolatedContainerVolume(tenantId, `${context.runId}-prowler-aws`)
+    ? createIsolatedVolume(tenantId, `${context.runId}-prowler-aws`)
     : null;
 
   const awsEnv = parsedInputs.credentials
@@ -523,7 +523,7 @@ async function executeSingleAccountScan(
   let rawSegments: string[] = [];
   let commandForOutput: string[] = cmd;
   let stderrCombined = '';
-  const outputVolume = new IsolatedContainerVolume(tenantId, `${context.runId}-prowler-out`);
+  const outputVolume = createIsolatedVolume(tenantId, `${context.runId}-prowler-out`);
   let outputVolumeInitialized = false;
   let awsVolumeInitialized = false;
 
@@ -709,8 +709,8 @@ async function scanSingleOrgAccount(
   resolvedFlagArgs: string[],
   context: any,
 ): Promise<AccountScanResult> {
-  let awsVolume: IsolatedContainerVolume | undefined;
-  let outVolume: IsolatedContainerVolume | undefined;
+  let awsVolume: ReturnType<typeof createIsolatedVolume> | undefined;
+  let outVolume: ReturnType<typeof createIsolatedVolume> | undefined;
   const tenantId = (context as any).tenantId ?? 'default-tenant';
 
   try {
@@ -732,8 +732,8 @@ async function scanSingleOrgAccount(
       parsedParams.customFlags,
     );
 
-    awsVolume = new IsolatedContainerVolume(tenantId, `${context.runId}-prowler-aws-${account.id}`);
-    outVolume = new IsolatedContainerVolume(tenantId, `${context.runId}-prowler-out-${account.id}`);
+    awsVolume = createIsolatedVolume(tenantId, `${context.runId}-prowler-aws-${account.id}`);
+    outVolume = createIsolatedVolume(tenantId, `${context.runId}-prowler-out-${account.id}`);
 
     // Initialize AWS creds volume
     const credsLines = [
