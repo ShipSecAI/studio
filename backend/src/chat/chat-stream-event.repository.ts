@@ -5,6 +5,13 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DRIZZLE_TOKEN } from '../database/database.module';
 import { chatSessionsTable, chatStreamEventsTable } from '../database/schema';
 
+export class RunMismatchError extends Error {
+  constructor(sessionId: string, expectedRunId: string) {
+    super(`Run mismatch: session ${sessionId} is not running ${expectedRunId}`);
+    this.name = 'RunMismatchError';
+  }
+}
+
 @Injectable()
 export class ChatStreamEventRepository {
   constructor(
@@ -24,7 +31,7 @@ export class ChatStreamEventRepository {
         .returning({ nextEventSeq: chatSessionsTable.nextEventSeq });
 
       if (!updatedSession) {
-        throw new Error(`Unable to append event: session ${sessionId} is not running ${runId}`);
+        throw new RunMismatchError(sessionId, runId);
       }
 
       const seq = updatedSession.nextEventSeq - 1;

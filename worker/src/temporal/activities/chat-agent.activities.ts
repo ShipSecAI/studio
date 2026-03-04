@@ -34,14 +34,29 @@ interface ChatUIMessage {
 interface ChatAgentStepInput {
   sessionId: string;
   runId: string;
+  generationId: number;
   organizationId?: string;
   systemPrompt: string;
   messages: ChatUIMessage[];
   maxSteps: number;
+  compactionState?: {
+    summary: string;
+    compactedUpToIndex: number;
+  };
 }
 
 interface ChatAgentStepOutput {
   assistantMessages: ChatUIMessage[];
+  interrupted?: boolean;
+  compactionState?: {
+    summary: string;
+    compactedUpToIndex: number;
+  };
+}
+
+interface AppendResult {
+  seq: number | null;
+  staleMismatch: boolean;
 }
 
 interface SaveChatMessagesInput {
@@ -77,6 +92,15 @@ export function initializeChatAgentActivities(services: ChatAgentActivityService
 // Helpers
 // ---------------------------------------------------------------------------
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
 function getModel() {
   const baseURL = process.env.CHAT_AI_BASE_URL;
   const apiKey = process.env.CHAT_AI_API_KEY;
@@ -96,8 +120,8 @@ function getModel() {
 /** Publish a streaming chunk to Redis pub/sub for real-time relay */
 function publishStreamChunk(sessionId: string, chunk: string): void {
   if (globalRedis) {
-    globalRedis.publish(`chat:stream:${sessionId}`, chunk).catch(() => {
-      // Best-effort streaming - don't fail the activity if Redis publish fails
+    globalRedis.publish(`chat:stream:${sessionId}`, chunk).catch((err) => {
+      console.warn(`[chat-agent] Redis publish failed for session ${sessionId}:`, err.message);
     });
   }
 }
@@ -106,8 +130,8 @@ async function appendStreamEvent(
   sessionId: string,
   runId: string,
   event: Record<string, unknown>,
-): Promise<number | null> {
-  if (!globalBackendUrl) return null;
+): Promise<AppendResult> {
+  if (!globalBackendUrl) return { seq: null, staleMismatch: false };
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
   try {
     const res = await fetch(`${globalBackendUrl}/api/v1/chat/sessions/${sessionId}/events`, {
@@ -117,29 +141,20 @@ async function appendStreamEvent(
         'x-internal-token': internalToken,
       },
       body: JSON.stringify({ runId, event }),
+      signal: AbortSignal.timeout(2000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (res.status === 409) {
+        return { seq: null, staleMismatch: true };
+      }
+      return { seq: null, staleMismatch: false };
+    }
     const data = (await res.json()) as { seq?: number };
-    return typeof data.seq === 'number' ? data.seq : null;
+    const seq = typeof data.seq === 'number' ? data.seq : null;
+    return { seq, staleMismatch: false };
   } catch {
-    return null;
+    return { seq: null, staleMismatch: false };
   }
-}
-
-async function emitStreamEvent(
-  sessionId: string,
-  runId: string,
-  event: Record<string, unknown>,
-): Promise<void> {
-  const seq = await appendStreamEvent(sessionId, runId, event);
-  publishStreamChunk(
-    sessionId,
-    JSON.stringify({
-      ...event,
-      runId,
-      ...(typeof seq === 'number' ? { seq } : {}),
-    }),
-  );
 }
 
 /**
@@ -157,6 +172,7 @@ async function flushPartialResponse(sessionId: string, parts: unknown[]): Promis
         'x-internal-token': internalToken,
       },
       body: JSON.stringify({ parts }),
+      signal: AbortSignal.timeout(5000),
     });
   } catch {
     // Best-effort flush — don't fail the activity
@@ -175,6 +191,7 @@ async function notifySessionComplete(sessionId: string, runId: string): Promise<
         'x-internal-token': internalToken,
       },
       body: JSON.stringify({ runId }),
+      signal: AbortSignal.timeout(5000),
     });
   } catch {
     // Best-effort
@@ -258,6 +275,249 @@ async function toAISDKMessages(messages: ChatUIMessage[]) {
 }
 
 // ---------------------------------------------------------------------------
+// Message compaction (token-aware)
+// ---------------------------------------------------------------------------
+
+/** Rough token estimate: ~4 characters per token for English text. */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/** Estimate the token footprint of a single ChatUIMessage. */
+function estimateMessageTokens(msg: ChatUIMessage): number {
+  let chars = msg.role.length + 4; // role + structural overhead
+  for (const part of msg.parts) {
+    if (part.type === 'text' && typeof part.text === 'string') {
+      chars += part.text.length;
+    } else if (part.type === 'tool-invocation') {
+      // Count tool name + brief input/output representation
+      chars += typeof part.toolName === 'string' ? part.toolName.length : 0;
+      chars += part.input ? JSON.stringify(part.input).length : 0;
+      chars += part.output ? JSON.stringify(part.output).length : 0;
+    } else {
+      // Fallback: serialize the part
+      chars += JSON.stringify(part).length;
+    }
+  }
+  return Math.ceil(chars / 4);
+}
+
+/** Serialize messages into a text representation for the compaction prompt. */
+function serializeMessagesForCompaction(messages: ChatUIMessage[]): string {
+  const lines: string[] = [];
+  for (const msg of messages) {
+    const role = msg.role.toUpperCase();
+    for (const part of msg.parts) {
+      if (part.type === 'text' && typeof part.text === 'string') {
+        lines.push(`[${role}]: ${part.text}`);
+      } else if (part.type === 'tool-invocation') {
+        const name = typeof part.toolName === 'string' ? part.toolName : 'unknown-tool';
+        const state = typeof part.state === 'string' ? part.state : 'unknown';
+        let outputSummary = '';
+        if (state === 'output-available' && part.output != null) {
+          const raw = JSON.stringify(part.output);
+          outputSummary = raw.length > 300 ? raw.slice(0, 300) + '…' : raw;
+        } else if (state === 'output-error' && typeof part.errorText === 'string') {
+          outputSummary = `ERROR: ${part.errorText}`;
+        }
+        lines.push(`[TOOL ${name}]: ${state}${outputSummary ? ' → ' + outputSummary : ''}`);
+      }
+      // Skip other part types (e.g. source, reasoning) — not critical for summary
+    }
+  }
+  return lines.join('\n');
+}
+
+const COMPACTION_SYSTEM_PROMPT = `You are a conversation summarizer. Given a conversation history, produce a concise summary that preserves:
+- Key decisions made and their rationale
+- Important facts, numbers, and configurations discussed
+- Tool calls that were made and their outcomes (success/failure + key results)
+- User preferences and constraints stated
+- Any pending tasks or open questions
+
+Format: Write a dense, factual summary in third person. Use bullet points for distinct topics. Do NOT include pleasantries or filler. Keep it under 500 words.`;
+
+/**
+ * Compact messages for LLM context using token-aware splitting.
+ *
+ * Strategy:
+ * 1. If total tokens < 70% of context window → pass through unchanged
+ * 2. Otherwise, keep as many recent messages as fit in ~50% of context,
+ *    summarize everything before that into a single system message
+ * 3. On compaction failure, fall back to keeping only the recent tail
+ */
+async function compactMessages(
+  messages: ChatUIMessage[],
+  systemPromptTokens: number,
+  existingCompaction?: { summary: string; compactedUpToIndex: number },
+): Promise<{
+  messages: ChatUIMessage[];
+  compactionState?: { summary: string; compactedUpToIndex: number };
+}> {
+  const contextWindow = parseInt(process.env.CHAT_AI_CONTEXT_WINDOW ?? '128000', 10);
+  // Reserve space for: system prompt, tool schemas (~2k), and model response (~4k)
+  const reservedTokens = systemPromptTokens + 6000;
+  const availableTokens = contextWindow - reservedTokens;
+  const compactionThreshold = Math.floor(availableTokens * 0.7);
+  const recentBudget = Math.floor(availableTokens * 0.5);
+
+  // Estimate total tokens (include existing summary if present instead of compacted messages)
+  const messageSizes = messages.map((m) => estimateMessageTokens(m));
+  let totalTokens: number;
+  if (existingCompaction && existingCompaction.compactedUpToIndex > 0) {
+    // Already-compacted messages are replaced by the summary in the LLM context
+    const summaryTokens = estimateTokens(existingCompaction.summary);
+    const unconsumedTokens = messageSizes
+      .slice(existingCompaction.compactedUpToIndex)
+      .reduce((sum, t) => sum + t, 0);
+    totalTokens = summaryTokens + unconsumedTokens;
+  } else {
+    totalTokens = messageSizes.reduce((sum, t) => sum + t, 0);
+  }
+
+  if (totalTokens <= compactionThreshold) {
+    // Under threshold — if we have existing compaction, prepend summary and pass state through
+    if (existingCompaction) {
+      const summaryMessage: ChatUIMessage = {
+        role: 'system',
+        parts: [
+          {
+            type: 'text',
+            text: `[Conversation summary of earlier messages]\n\n${existingCompaction.summary}`,
+          },
+        ],
+      };
+      return {
+        messages: [summaryMessage, ...messages.slice(existingCompaction.compactedUpToIndex)],
+        compactionState: existingCompaction,
+      };
+    }
+    return { messages };
+  }
+
+  console.log(
+    `[chat-agent] Compacting messages: ${totalTokens} tokens > ${compactionThreshold} threshold (context window: ${contextWindow})`,
+  );
+
+  // Find the split point: walk backwards from the end until we fill the recent budget
+  let recentTokens = 0;
+  let splitIndex = messages.length;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msgTokens = messageSizes[i];
+    if (recentTokens + msgTokens > recentBudget) break;
+    recentTokens += msgTokens;
+    splitIndex = i;
+  }
+
+  // Ensure we keep at least the last message
+  if (splitIndex >= messages.length) {
+    splitIndex = messages.length - 1;
+  }
+
+  // Ensure split point is beyond what's already compacted
+  if (existingCompaction && splitIndex < existingCompaction.compactedUpToIndex) {
+    splitIndex = existingCompaction.compactedUpToIndex;
+  }
+
+  const recentMessages = messages.slice(splitIndex);
+
+  if (splitIndex === 0) {
+    // Nothing to compact — all messages fit in the recent budget
+    return { messages };
+  }
+
+  try {
+    let summary: string;
+
+    if (existingCompaction && existingCompaction.compactedUpToIndex > 0) {
+      // Incremental compaction: only summarize new messages between the old boundary and the new split
+      const newMessagesToCompact = messages.slice(
+        existingCompaction.compactedUpToIndex,
+        splitIndex,
+      );
+
+      if (newMessagesToCompact.length === 0) {
+        // Nothing new to compact — reuse existing summary
+        const summaryMessage: ChatUIMessage = {
+          role: 'system',
+          parts: [
+            {
+              type: 'text',
+              text: `[Conversation summary of earlier messages]\n\n${existingCompaction.summary}`,
+            },
+          ],
+        };
+        return {
+          messages: [summaryMessage, ...recentMessages],
+          compactionState: existingCompaction,
+        };
+      }
+
+      const serialized = serializeMessagesForCompaction(newMessagesToCompact);
+      const compactionResult = await generateText({
+        model: getModel(),
+        system: COMPACTION_SYSTEM_PROMPT,
+        prompt: `Here is a previous summary of the conversation so far:\n${existingCompaction.summary}\n\nHere are additional messages to incorporate:\n${serialized}\n\nProduce an updated summary that merges the previous summary with the new messages.`,
+        maxOutputTokens: 1024,
+        abortSignal: AbortSignal.timeout(30000),
+      });
+
+      summary = compactionResult.text.trim();
+      if (!summary) {
+        console.warn(
+          '[chat-agent] Incremental compaction returned empty summary, falling back to truncation',
+        );
+        return { messages: recentMessages, compactionState: existingCompaction };
+      }
+
+      console.log(
+        `[chat-agent] Incrementally compacted ${newMessagesToCompact.length} new messages (indices ${existingCompaction.compactedUpToIndex}-${splitIndex}) into ~${estimateTokens(summary)} token summary, keeping ${recentMessages.length} recent messages`,
+      );
+    } else {
+      // Fresh compaction: summarize all older messages (original behavior)
+      const olderMessages = messages.slice(0, splitIndex);
+      const serialized = serializeMessagesForCompaction(olderMessages);
+      const compactionResult = await generateText({
+        model: getModel(),
+        system: COMPACTION_SYSTEM_PROMPT,
+        prompt: serialized,
+        maxOutputTokens: 1024,
+        abortSignal: AbortSignal.timeout(30000),
+      });
+
+      summary = compactionResult.text.trim();
+      if (!summary) {
+        console.warn('[chat-agent] Compaction returned empty summary, falling back to truncation');
+        return { messages: recentMessages };
+      }
+
+      console.log(
+        `[chat-agent] Compacted ${olderMessages.length} messages into ~${estimateTokens(summary)} token summary, keeping ${recentMessages.length} recent messages`,
+      );
+    }
+
+    const summaryMessage: ChatUIMessage = {
+      role: 'system',
+      parts: [
+        {
+          type: 'text',
+          text: `[Conversation summary of earlier messages]\n\n${summary}`,
+        },
+      ],
+    };
+
+    return {
+      messages: [summaryMessage, ...recentMessages],
+      compactionState: { summary, compactedUpToIndex: splitIndex },
+    };
+  } catch (error) {
+    console.error('[chat-agent] Compaction LLM call failed, falling back to truncation:', error);
+    // Fallback: just use the recent messages without summary, preserve existing state if any
+    return { messages: recentMessages, compactionState: existingCompaction };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Activities
 // ---------------------------------------------------------------------------
 
@@ -269,7 +529,50 @@ async function toAISDKMessages(messages: ChatUIMessage[]) {
 export async function runChatAgentStepActivity(
   input: ChatAgentStepInput,
 ): Promise<ChatAgentStepOutput> {
-  const { sessionId, runId, organizationId, systemPrompt, messages, maxSteps } = input;
+  const { sessionId, runId, generationId, organizationId, systemPrompt, messages, maxSteps } =
+    input;
+  const cancellationSignal = Context.current().cancellationSignal;
+
+  // Per-invocation stale-run circuit breaker state
+  let staleRun = false;
+  let consecutiveAppendFailures = 0;
+  const MAX_CONSECUTIVE_FAILURES = 3;
+
+  // Local wrappers that check staleRun and track consecutive failures
+  async function emitEvent(event: Record<string, unknown>): Promise<{ stale: boolean }> {
+    if (staleRun) return { stale: true };
+    const result = await appendStreamEvent(sessionId, runId, event);
+    if (result.staleMismatch) {
+      staleRun = true;
+      consecutiveAppendFailures = 0;
+      console.warn(
+        `[chat-agent] Stale run detected (409) for session ${sessionId}, stopping emission`,
+      );
+      return { stale: true };
+    }
+    if (result.seq === null) {
+      consecutiveAppendFailures++;
+      if (consecutiveAppendFailures >= MAX_CONSECUTIVE_FAILURES) {
+        staleRun = true;
+        console.warn(
+          `[chat-agent] ${MAX_CONSECUTIVE_FAILURES} consecutive append failures for session ${sessionId}, stopping emission`,
+        );
+        return { stale: true };
+      }
+    } else {
+      consecutiveAppendFailures = 0;
+    }
+    publishStreamChunk(
+      sessionId,
+      JSON.stringify({
+        ...event,
+        runId,
+        ...(typeof result.seq === 'number' ? { seq: result.seq } : {}),
+      }),
+    );
+    return { stale: false };
+  }
+
   Context.current().heartbeat('activity-start');
   const heartbeatTimer = setInterval(() => {
     try {
@@ -280,13 +583,22 @@ export async function runChatAgentStepActivity(
   }, 10000);
 
   // Publish "processing" status
-  await emitStreamEvent(sessionId, runId, { type: 'status', status: 'processing' });
+  await emitEvent({ type: 'status', status: 'processing' });
 
   // Connect to the backend's MCP servers for tool discovery + execution
-  const mcpClient = await createStudioMcpClient(organizationId);
-  const taskClient = await createStudioTaskMcpClient(organizationId);
-
+  const mcpClient = await withTimeout(
+    createStudioMcpClient(organizationId),
+    15000,
+    'MCP client connect',
+  );
+  let taskClient: Client | undefined;
+  let completionNotified = false;
   try {
+    taskClient = await withTimeout(
+      createStudioTaskMcpClient(organizationId),
+      15000,
+      'MCP task client connect',
+    );
     const tools = await mcpClient.tools();
     const pendingTaskEvents = new Map<string, TaskToolEvent[]>();
     const startedToolCalls = new Set<string>();
@@ -294,6 +606,7 @@ export async function runChatAgentStepActivity(
     // Accumulate parts for periodic flush to Postgres
     const accumulatedParts: any[] = [];
     let lastFlushTime = Date.now();
+    let lastFlushedLength = 0;
     const FLUSH_INTERVAL_MS = 500;
 
     const publishTaskEvent = (event: TaskToolEvent) => {
@@ -306,7 +619,7 @@ export async function runChatAgentStepActivity(
         pollInterval: event.pollInterval,
       };
 
-      void emitStreamEvent(sessionId, runId, {
+      void emitEvent({
         type: 'tool-progress',
         toolCallId: event.toolCallId,
         toolName: event.toolName,
@@ -432,11 +745,15 @@ export async function runChatAgentStepActivity(
     // Heartbeat before LLM call
     Context.current().heartbeat('llm-call-start');
 
-    // Cap messages to last 50 for LLM context (full history stays in workflow state).
-    // Prevents token exhaustion and context-limit errors in long conversations.
-    const MAX_LLM_MESSAGES = 50;
-    const llmMessages =
-      messages.length > MAX_LLM_MESSAGES ? messages.slice(-MAX_LLM_MESSAGES) : messages;
+    // Token-aware compaction: summarize older messages when approaching context limits.
+    // Full history stays in workflow state — compaction is read-only for the LLM call.
+    const systemPromptTokens = estimateTokens(systemPrompt);
+    const compactionResult = await compactMessages(
+      messages,
+      systemPromptTokens,
+      input.compactionState,
+    );
+    const llmMessages = compactionResult.messages;
 
     // Convert messages for AI SDK (preserves tool call/result context)
     const aiMessages = await toAISDKMessages(llmMessages);
@@ -450,6 +767,7 @@ export async function runChatAgentStepActivity(
         tools: taskAwareTools as any,
         stopWhen: stepCountIs(maxSteps),
         experimental_transform: smoothStream(),
+        abortSignal: cancellationSignal,
         onStepFinish: () => {
           Context.current().heartbeat('step-complete');
         },
@@ -470,11 +788,14 @@ export async function runChatAgentStepActivity(
       // We already have accumulatedParts from the top level.
 
       for await (const chunk of uiStream) {
+        // Check for cooperative cancellation at the top of each iteration
+        if (cancellationSignal.aborted) break;
+
         Context.current().heartbeat('stream-chunk');
         const c = chunk as any;
 
         if (c.type === 'text-delta') {
-          await emitStreamEvent(sessionId, runId, { type: 'text-delta', text: c.delta });
+          await emitEvent({ type: 'text-delta', text: c.delta });
           // Accumulate text delta into accumulated parts
           const lastPart = accumulatedParts[accumulatedParts.length - 1] as any;
           if (lastPart?.type === 'text') {
@@ -484,14 +805,13 @@ export async function runChatAgentStepActivity(
           }
         } else if (c.type === 'tool-input-start') {
           markToolCallStarted(c.toolCallId);
-          await emitStreamEvent(sessionId, runId, {
-            type: 'tool-call',
-            toolCallId: c.toolCallId,
-            toolName: c.toolName,
-          });
+          // Don't emit tool-call yet — wait for tool-input-available which has the args.
+          // Emitting a tool-call without args here would cause the backend's
+          // ensureToolInvocation to create the tool with empty input: {},
+          // and then skip the second call that has the actual args.
         } else if (c.type === 'tool-input-available') {
           markToolCallStarted(c.toolCallId);
-          await emitStreamEvent(sessionId, runId, {
+          await emitEvent({
             type: 'tool-call',
             toolCallId: c.toolCallId,
             toolName: c.toolName,
@@ -505,7 +825,7 @@ export async function runChatAgentStepActivity(
             input: c.input,
           });
         } else if (c.type === 'tool-output-available') {
-          await emitStreamEvent(sessionId, runId, {
+          await emitEvent({
             type: 'tool-result',
             toolCallId: c.toolCallId,
             result: c.output,
@@ -521,7 +841,7 @@ export async function runChatAgentStepActivity(
             toolPart.preliminary = c.preliminary === true;
           }
         } else if (c.type === 'tool-output-error') {
-          await emitStreamEvent(sessionId, runId, {
+          await emitEvent({
             type: 'tool-error',
             toolCallId: c.toolCallId,
             errorText: c.errorText,
@@ -537,10 +857,41 @@ export async function runChatAgentStepActivity(
 
         // Periodic flush to Postgres
         const now = Date.now();
-        if (now - lastFlushTime >= FLUSH_INTERVAL_MS && accumulatedParts.length > 0) {
+        if (
+          now - lastFlushTime >= FLUSH_INTERVAL_MS &&
+          accumulatedParts.length > lastFlushedLength
+        ) {
           flushPartialResponse(sessionId, accumulatedParts).catch(() => {});
           lastFlushTime = now;
+          lastFlushedLength = accumulatedParts.length;
         }
+      }
+
+      // Check if we exited the loop due to cancellation
+      if (cancellationSignal.aborted) {
+        console.log(
+          `[chat-agent] Generation interrupted by cancellation signal for session ${sessionId}`,
+        );
+        // Flush any accumulated partial state
+        if (accumulatedParts.length > 0) {
+          await flushPartialResponse(sessionId, accumulatedParts);
+        }
+        // Emit interrupted event and reset status
+        await emitEvent({ type: 'generation-interrupted', generationId });
+        await emitEvent({ type: 'status', status: 'idle' });
+        await notifySessionComplete(sessionId, runId);
+        completionNotified = true;
+
+        // Build partial assistant message from accumulated parts
+        const interruptedMessages: ChatUIMessage[] = [];
+        if (accumulatedParts.length > 0) {
+          interruptedMessages.push({ role: 'assistant', parts: accumulatedParts });
+        }
+        return {
+          assistantMessages: interruptedMessages,
+          interrupted: true,
+          compactionState: compactionResult.compactionState,
+        };
       }
 
       // Final flush of accumulated parts
@@ -549,8 +900,9 @@ export async function runChatAgentStepActivity(
       }
 
       // Publish completion and notify backend
-      await emitStreamEvent(sessionId, runId, { type: 'status', status: 'idle' });
+      await emitEvent({ type: 'status', status: 'idle' });
       await notifySessionComplete(sessionId, runId);
+      completionNotified = true;
 
       // Use the SDK-provided responseMessage (properly formatted UIMessage with dynamic-tool parts)
       const assistantMessages: ChatUIMessage[] = [];
@@ -570,8 +922,30 @@ export async function runChatAgentStepActivity(
         }
       }
 
-      return { assistantMessages };
+      return { assistantMessages, compactionState: compactionResult.compactionState };
     } catch (error: any) {
+      // Handle cooperative cancellation / abort errors
+      if (cancellationSignal.aborted || error?.name === 'AbortError') {
+        console.log(`[chat-agent] Generation interrupted (caught abort) for session ${sessionId}`);
+        if (accumulatedParts.length > 0) {
+          await flushPartialResponse(sessionId, accumulatedParts);
+        }
+        await emitEvent({ type: 'generation-interrupted', generationId });
+        await emitEvent({ type: 'status', status: 'idle' });
+        await notifySessionComplete(sessionId, runId);
+        completionNotified = true;
+
+        const interruptedMessages: ChatUIMessage[] = [];
+        if (accumulatedParts.length > 0) {
+          interruptedMessages.push({ role: 'assistant', parts: accumulatedParts });
+        }
+        return {
+          assistantMessages: interruptedMessages,
+          interrupted: true,
+          compactionState: compactionResult.compactionState,
+        };
+      }
+
       // Handle NoOutputGeneratedError from AI SDK
       if (
         error?.name === 'AI_NoOutputGeneratedError' ||
@@ -583,8 +957,9 @@ export async function runChatAgentStepActivity(
         );
 
         // Publish completion even on error and notify backend
-        await emitStreamEvent(sessionId, runId, { type: 'status', status: 'idle' });
+        await emitEvent({ type: 'status', status: 'idle' });
         await notifySessionComplete(sessionId, runId);
+        completionNotified = true;
 
         // Return a friendly error message to the user
         return {
@@ -602,12 +977,40 @@ export async function runChatAgentStepActivity(
         };
       }
 
+      // Handle context length / bad request errors (non-retriable)
+      if (error?.statusCode === 400 || error?.name === 'AI_InvalidToolArgumentsError') {
+        console.error(
+          `[chat-agent] Non-retriable LLM error for session ${sessionId}:`,
+          error.message,
+        );
+        await emitEvent({ type: 'status', status: 'idle' });
+        await notifySessionComplete(sessionId, runId);
+        completionNotified = true;
+        return {
+          assistantMessages: [
+            {
+              role: 'assistant' as const,
+              parts: [
+                {
+                  type: 'text' as const,
+                  text: '⚠️ The AI encountered an error it cannot recover from. This may be due to the conversation being too long or an invalid tool response. Please try starting a new conversation or rephrasing your request.',
+                },
+              ],
+            },
+          ],
+        };
+      }
+
       // Re-throw other errors for Temporal to handle
       throw error;
     }
   } finally {
     clearInterval(heartbeatTimer);
-    await taskClient.close().catch(() => {
+    if (!completionNotified) {
+      await emitEvent({ type: 'status', status: 'idle' }).catch(() => {});
+      await notifySessionComplete(sessionId, runId).catch(() => {});
+    }
+    await taskClient?.close().catch(() => {
       // Best-effort cleanup
     });
     await mcpClient.close().catch(() => {
