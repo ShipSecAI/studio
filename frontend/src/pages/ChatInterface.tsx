@@ -77,46 +77,78 @@ function getMessageText(message: UIMessage): string {
 function ThrottledMessageResponse({ text, isStreaming }: { text: string; isStreaming: boolean }) {
   const [renderedText, setRenderedText] = useState(text);
   const flushTimerRef = useRef<number | null>(null);
+  const renderedTextRef = useRef(text);
+  const latestTextRef = useRef(text);
+  const lastFlushAtRef = useRef(
+    typeof performance !== 'undefined' ? performance.now() : Date.now(),
+  );
 
-  useEffect(() => {
+  const clearFlushTimer = () => {
     if (flushTimerRef.current !== null) {
       window.clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
     }
+  };
+
+  const flushNow = () => {
+    clearFlushTimer();
+    const nextText = latestTextRef.current;
+    renderedTextRef.current = nextText;
+    setRenderedText(nextText);
+    lastFlushAtRef.current = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  };
+
+  useEffect(() => {
+    renderedTextRef.current = renderedText;
+  }, [renderedText]);
+
+  useEffect(() => {
+    latestTextRef.current = text;
+    const currentRendered = renderedTextRef.current;
 
     if (!isStreaming) {
-      setRenderedText(text);
+      flushNow();
       return;
     }
 
     // Keep the first chunk immediate so streaming doesn't feel blank.
-    if (!renderedText) {
-      setRenderedText(text);
+    if (!currentRendered) {
+      flushNow();
       return;
     }
 
-    if (text.length < renderedText.length) {
-      setRenderedText(text);
+    // Handle truncation/reset immediately.
+    if (text.length < currentRendered.length) {
+      flushNow();
       return;
     }
 
-    if (text === renderedText) {
+    if (text === currentRendered) {
       return;
     }
 
-    // When deltas arrive rapidly, cap markdown re-parsing frequency.
-    flushTimerRef.current = window.setTimeout(() => {
-      setRenderedText(text);
-      flushTimerRef.current = null;
-    }, 120);
+    // True throttle (not debounce): stream paints at most once per interval,
+    // but never waits indefinitely under continuous delta traffic.
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const FLUSH_INTERVAL_MS = 120;
+    const elapsed = now - lastFlushAtRef.current;
+    if (elapsed >= FLUSH_INTERVAL_MS) {
+      flushNow();
+      return;
+    }
 
+    if (flushTimerRef.current === null) {
+      flushTimerRef.current = window.setTimeout(() => {
+        flushNow();
+      }, FLUSH_INTERVAL_MS - elapsed);
+    }
+  }, [text, isStreaming]);
+
+  useEffect(() => {
     return () => {
-      if (flushTimerRef.current !== null) {
-        window.clearTimeout(flushTimerRef.current);
-        flushTimerRef.current = null;
-      }
+      clearFlushTimer();
     };
-  }, [text, isStreaming, renderedText]);
+  }, []);
 
   return <MessageResponse>{renderedText}</MessageResponse>;
 }
@@ -663,7 +695,7 @@ export function ChatInterface() {
       await hydrateActiveSessionSafely();
 
       const stream = await chatTransport.reconnectToStream(
-        { chatId: currentSessionId },
+        { chatId: currentSessionId, runId },
         streamAbortController.signal,
       );
       if (!stream || cancelled) {
@@ -691,7 +723,11 @@ export function ChatInterface() {
       } catch {
         // Best-effort passive stream
       } finally {
-        closePassiveStream();
+        // Clean up the abort controller but keep activePassiveRunIdRef set
+        // so the poll guard prevents re-attaching the same runId every cycle.
+        // The ref is reset when: poll detects idle, or a new runId appears.
+        streamAbortController?.abort();
+        streamAbortController = null;
       }
     };
 
@@ -1084,20 +1120,6 @@ export function ChatInterface() {
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">New Chat</span>
         </Button>
-        {isAgentWorking && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
-            onClick={handleInterrupt}
-            disabled={isInterrupting}
-          >
-            <StopCircle className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">
-              {isInterrupting ? 'Stopping...' : pendingCount > 0 ? 'Steer' : 'Stop'}
-            </span>
-          </Button>
-        )}
         <StatusBar className="border-b-0" />
       </div>
       {/* Body: chat + history + inspector side-by-side */}
@@ -1213,7 +1235,7 @@ export function ChatInterface() {
             <div className="mx-auto max-w-5xl space-y-2">
               <div className="min-h-5">
                 {isAgentWorking ? (
-                  <div className="flex justify-start">
+                  <div className="flex items-center gap-2 justify-start">
                     <div className="relative overflow-hidden rounded-full border border-border/70 bg-muted/70 px-3 py-1 text-xs text-muted-foreground">
                       <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shipsec-shimmer_1.8s_linear_infinite]" />
                       <div className="relative flex items-center">
@@ -1227,6 +1249,14 @@ export function ChatInterface() {
                         </span>
                       </div>
                     </div>
+                    <button
+                      className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-background px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                      onClick={handleInterrupt}
+                      disabled={isInterrupting}
+                    >
+                      <StopCircle className="h-3 w-3" />
+                      {isInterrupting ? 'Stopping...' : pendingCount > 0 ? 'Steer' : 'Stop'}
+                    </button>
                   </div>
                 ) : (
                   <div aria-hidden className="h-6" />
