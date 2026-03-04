@@ -4,7 +4,7 @@ import { createMCPClient } from '@ai-sdk/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { streamText, generateText, stepCountIs, convertToModelMessages, smoothStream } from 'ai';
-import type { ToolExecutionOptions, UIMessage } from 'ai';
+import type { ToolExecutionOptions, UIMessage, UIMessageChunk } from 'ai';
 import type Redis from 'ioredis';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, asc } from 'drizzle-orm';
@@ -33,12 +33,14 @@ interface ChatUIMessage {
 
 interface ChatAgentStepInput {
   sessionId: string;
+  turnId: string;
   runId: string;
   generationId: number;
   organizationId?: string;
   systemPrompt: string;
   messages: ChatUIMessage[];
   maxSteps: number;
+  queuedAt?: string;
   compactionState?: {
     summary: string;
     compactedUpToIndex: number;
@@ -46,6 +48,9 @@ interface ChatAgentStepInput {
 }
 
 interface ChatAgentStepOutput {
+  turnId: string;
+  runId: string;
+  generationId: number;
   assistantMessages: ChatUIMessage[];
   interrupted?: boolean;
   compactionState?: {
@@ -57,6 +62,25 @@ interface ChatAgentStepOutput {
 interface AppendResult {
   seq: number | null;
   staleMismatch: boolean;
+}
+
+type TurnLifecycleStatus = 'queued' | 'running' | 'completed' | 'interrupted' | 'failed';
+
+interface TurnStatusPayload {
+  turnId: string;
+  status: TurnLifecycleStatus;
+  reason?: string;
+  queuedAt?: string;
+  startedAt?: string;
+  endedAt?: string;
+}
+
+interface ChatChunkEnvelope {
+  turnId: string;
+  runId: string;
+  generationId: number;
+  eventId: string;
+  chunk: UIMessageChunk;
 }
 
 interface SaveChatMessagesInput {
@@ -128,21 +152,23 @@ function publishStreamChunk(sessionId: string, chunk: string): void {
 
 async function appendStreamEvent(
   sessionId: string,
-  runId: string,
-  event: Record<string, unknown>,
+  envelope: ChatChunkEnvelope,
 ): Promise<AppendResult> {
   if (!globalBackendUrl) return { seq: null, staleMismatch: false };
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
   try {
-    const res = await fetch(`${globalBackendUrl}/api/v1/chat/sessions/${sessionId}/events`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-internal-token': internalToken,
+    const res = await fetch(
+      `${globalBackendUrl}/api/v1/chat/sessions/${sessionId}/internal/events`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-token': internalToken,
+        },
+        body: JSON.stringify(envelope),
+        signal: AbortSignal.timeout(2000),
       },
-      body: JSON.stringify({ runId, event }),
-      signal: AbortSignal.timeout(2000),
-    });
+    );
     if (!res.ok) {
       if (res.status === 409) {
         return { seq: null, staleMismatch: true };
@@ -157,23 +183,11 @@ async function appendStreamEvent(
   }
 }
 
-async function appendAndPublishStreamEvent(
-  sessionId: string,
-  runId: string,
-  event: Record<string, unknown>,
-): Promise<AppendResult> {
-  const result = await appendStreamEvent(sessionId, runId, event);
-  if (!result.staleMismatch) {
-    publishStreamChunk(
-      sessionId,
-      JSON.stringify({
-        ...event,
-        runId,
-        ...(typeof result.seq === 'number' ? { seq: result.seq } : {}),
-      }),
-    );
-  }
-  return result;
+function createTurnStatusChunk(status: TurnStatusPayload): UIMessageChunk {
+  return {
+    type: 'data-turn-status',
+    data: status,
+  } as UIMessageChunk;
 }
 
 /**
@@ -548,49 +562,105 @@ async function compactMessages(
 export async function runChatAgentStepActivity(
   input: ChatAgentStepInput,
 ): Promise<ChatAgentStepOutput> {
-  const { sessionId, runId, generationId, organizationId, systemPrompt, messages, maxSteps } =
-    input;
+  const {
+    sessionId,
+    turnId,
+    runId,
+    generationId,
+    organizationId,
+    systemPrompt,
+    messages,
+    maxSteps,
+    queuedAt,
+  } = input;
   const cancellationSignal = Context.current().cancellationSignal;
 
-  // Per-invocation stale-run circuit breaker state
-  let staleRun = false;
+  // Per-invocation emission state
+  let emissionHalted = false;
   let consecutiveAppendFailures = 0;
+  let eventCounter = 0;
   const MAX_CONSECUTIVE_FAILURES = 3;
+  const startedAt = new Date().toISOString();
 
-  // Local wrappers that check staleRun and track consecutive failures
-  async function emitEvent(event: Record<string, unknown>): Promise<{ stale: boolean }> {
-    if (staleRun) return { stale: true };
-    const result = await appendStreamEvent(sessionId, runId, event);
+  const nextEventId = () => `${generationId}:${turnId}:${++eventCounter}`;
+
+  class EmissionHaltError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'EmissionHaltError';
+    }
+  }
+
+  async function appendChunk(
+    chunk: UIMessageChunk,
+    options: { allowAfterHalt?: boolean; ignoreCircuitBreaker?: boolean } = {},
+  ): Promise<void> {
+    if (emissionHalted && !options.allowAfterHalt) {
+      throw new EmissionHaltError('Emission halted');
+    }
+
+    const result = await appendStreamEvent(sessionId, {
+      turnId,
+      runId,
+      generationId,
+      eventId: nextEventId(),
+      chunk,
+    });
+
     if (result.staleMismatch) {
-      staleRun = true;
+      emissionHalted = true;
       consecutiveAppendFailures = 0;
       console.warn(
-        `[chat-agent] Stale run detected (409) for session ${sessionId}, stopping emission`,
+        `[chat-agent] Run mismatch (409) for session ${sessionId}, run ${runId}, halting emission`,
       );
-      return { stale: true };
+      throw new EmissionHaltError('Run mismatch (409)');
     }
-    if (result.seq === null) {
+
+    if (result.seq === null && !options.ignoreCircuitBreaker) {
       consecutiveAppendFailures++;
       if (consecutiveAppendFailures >= MAX_CONSECUTIVE_FAILURES) {
-        staleRun = true;
+        emissionHalted = true;
+        const endedAt = new Date().toISOString();
         console.warn(
-          `[chat-agent] ${MAX_CONSECUTIVE_FAILURES} consecutive append failures for session ${sessionId}, stopping emission`,
+          `[chat-agent] ${MAX_CONSECUTIVE_FAILURES} consecutive append failures for session ${sessionId}, halting emission`,
         );
-        return { stale: true };
+        // Best-effort lifecycle failure marker on breaker open.
+        await appendChunk(
+          createTurnStatusChunk({
+            turnId,
+            status: 'failed',
+            reason: 'append-circuit-breaker-open',
+            queuedAt,
+            startedAt,
+            endedAt,
+          }),
+          { allowAfterHalt: true, ignoreCircuitBreaker: true },
+        ).catch(() => {
+          // Best-effort marker.
+        });
+        throw new EmissionHaltError('Append circuit breaker opened');
       }
     } else {
       consecutiveAppendFailures = 0;
     }
-    publishStreamChunk(
-      sessionId,
-      JSON.stringify({
-        ...event,
-        runId,
-        ...(typeof result.seq === 'number' ? { seq: result.seq } : {}),
-      }),
-    );
-    return { stale: false };
   }
+
+  const emitTurnStatus = async (
+    status: TurnLifecycleStatus,
+    options: { reason?: string; endedAt?: string; allowAfterHalt?: boolean } = {},
+  ) => {
+    await appendChunk(
+      createTurnStatusChunk({
+        turnId,
+        status,
+        reason: options.reason,
+        queuedAt,
+        startedAt,
+        endedAt: options.endedAt,
+      }),
+      { allowAfterHalt: options.allowAfterHalt },
+    );
+  };
 
   Context.current().heartbeat('activity-start');
   const heartbeatTimer = setInterval(() => {
@@ -601,8 +671,8 @@ export async function runChatAgentStepActivity(
     }
   }, 10000);
 
-  // Publish "processing" status
-  await emitEvent({ type: 'status', status: 'processing' });
+  // Lifecycle marker: turn entered running state.
+  await emitTurnStatus('running');
 
   // Connect to the backend's MCP servers for tool discovery + execution
   const mcpClient = await withTimeout(
@@ -620,6 +690,7 @@ export async function runChatAgentStepActivity(
     const tools = await mcpClient.tools();
     const pendingTaskEvents = new Map<string, TaskToolEvent[]>();
     const startedToolCalls = new Set<string>();
+    const emittedTaskInvocationChunks = new Set<string>();
 
     // Accumulate parts for periodic flush to Postgres
     const accumulatedParts: any[] = [];
@@ -637,12 +708,39 @@ export async function runChatAgentStepActivity(
         pollInterval: event.pollInterval,
       };
 
-      void emitEvent({
-        type: 'tool-progress',
+      void appendChunk({
+        type: 'tool-output-available',
         toolCallId: event.toolCallId,
-        toolName: event.toolName,
         output,
+        preliminary: true,
+        dynamic: true,
+      } as UIMessageChunk).catch((error) => {
+        if (!(error instanceof EmissionHaltError)) {
+          console.warn('[chat-agent] Failed to append task progress chunk:', error);
+        }
       });
+
+      if (!emittedTaskInvocationChunks.has(event.toolCallId)) {
+        emittedTaskInvocationChunks.add(event.toolCallId);
+        void appendChunk({
+          type: 'tool-input-start',
+          toolCallId: event.toolCallId,
+          toolName: event.toolName ?? 'unknown_tool',
+          dynamic: true,
+        } as UIMessageChunk).catch(() => {
+          // Best-effort.
+        });
+
+        void appendChunk({
+          type: 'tool-input-available',
+          toolCallId: event.toolCallId,
+          toolName: event.toolName ?? 'unknown_tool',
+          input: {},
+          dynamic: true,
+        } as UIMessageChunk).catch(() => {
+          // Best-effort.
+        });
+      }
 
       // Update the matching tool invocation part in accumulated history so DB has the newest state
       const toolPart = accumulatedParts.find(
@@ -794,6 +892,7 @@ export async function runChatAgentStepActivity(
       // Use toUIMessageStream to get properly formatted UIMessage chunks
       // AND the final responseMessage via onFinish — no custom converter needed.
       let responseMessage: UIMessage | null = null;
+      let sawFinishChunk = false;
 
       const uiStream = result.toUIMessageStream({
         onFinish: ({ responseMessage: msg }) => {
@@ -811,9 +910,12 @@ export async function runChatAgentStepActivity(
 
         Context.current().heartbeat('stream-chunk');
         const c = chunk as any;
+        if (c.type === 'finish') {
+          sawFinishChunk = true;
+        }
+        await appendChunk(chunk as UIMessageChunk);
 
         if (c.type === 'text-delta') {
-          await emitEvent({ type: 'text-delta', text: c.delta });
           // Accumulate text delta into accumulated parts
           const lastPart = accumulatedParts[accumulatedParts.length - 1] as any;
           if (lastPart?.type === 'text') {
@@ -824,17 +926,8 @@ export async function runChatAgentStepActivity(
         } else if (c.type === 'tool-input-start') {
           markToolCallStarted(c.toolCallId);
           // Don't emit tool-call yet — wait for tool-input-available which has the args.
-          // Emitting a tool-call without args here would cause the backend's
-          // ensureToolInvocation to create the tool with empty input: {},
-          // and then skip the second call that has the actual args.
         } else if (c.type === 'tool-input-available') {
           markToolCallStarted(c.toolCallId);
-          await emitEvent({
-            type: 'tool-call',
-            toolCallId: c.toolCallId,
-            toolName: c.toolName,
-            args: c.input,
-          });
           accumulatedParts.push({
             type: 'tool-invocation',
             toolCallId: c.toolCallId,
@@ -843,12 +936,6 @@ export async function runChatAgentStepActivity(
             input: c.input,
           });
         } else if (c.type === 'tool-output-available') {
-          await emitEvent({
-            type: 'tool-result',
-            toolCallId: c.toolCallId,
-            result: c.output,
-            preliminary: c.preliminary,
-          });
           // Update the matching tool invocation part
           const toolPart = accumulatedParts.find(
             (p: any) => p.type === 'tool-invocation' && p.toolCallId === c.toolCallId,
@@ -859,11 +946,6 @@ export async function runChatAgentStepActivity(
             toolPart.preliminary = c.preliminary === true;
           }
         } else if (c.type === 'tool-output-error') {
-          await emitEvent({
-            type: 'tool-error',
-            toolCallId: c.toolCallId,
-            errorText: c.errorText,
-          });
           const toolPart = accumulatedParts.find(
             (p: any) => p.type === 'tool-invocation' && p.toolCallId === c.toolCallId,
           ) as any;
@@ -894,9 +976,10 @@ export async function runChatAgentStepActivity(
         if (accumulatedParts.length > 0) {
           await flushPartialResponse(sessionId, accumulatedParts);
         }
-        // Emit interrupted event so workflow can decide whether to continue
-        // with queued turns or close out the run.
-        await emitEvent({ type: 'generation-interrupted', generationId });
+        await emitTurnStatus('interrupted', {
+          reason: 'cancellation-signal',
+          endedAt: new Date().toISOString(),
+        });
 
         // Build partial assistant message from accumulated parts
         const interruptedMessages: ChatUIMessage[] = [];
@@ -904,6 +987,9 @@ export async function runChatAgentStepActivity(
           interruptedMessages.push({ role: 'assistant', parts: accumulatedParts });
         }
         return {
+          turnId,
+          runId,
+          generationId,
           assistantMessages: interruptedMessages,
           interrupted: true,
           compactionState: compactionResult.compactionState,
@@ -914,6 +1000,11 @@ export async function runChatAgentStepActivity(
       if (accumulatedParts.length > 0) {
         await flushPartialResponse(sessionId, accumulatedParts);
       }
+
+      if (!sawFinishChunk) {
+        await appendChunk({ type: 'finish' } as UIMessageChunk);
+      }
+      await emitTurnStatus('completed', { endedAt: new Date().toISOString() });
 
       // Use the SDK-provided responseMessage (properly formatted UIMessage with dynamic-tool parts)
       const assistantMessages: ChatUIMessage[] = [];
@@ -933,21 +1024,50 @@ export async function runChatAgentStepActivity(
         }
       }
 
-      return { assistantMessages, compactionState: compactionResult.compactionState };
+      return {
+        turnId,
+        runId,
+        generationId,
+        assistantMessages,
+        compactionState: compactionResult.compactionState,
+      };
     } catch (error: any) {
+      if (error instanceof EmissionHaltError) {
+        const interruptedMessages: ChatUIMessage[] = [];
+        if (accumulatedParts.length > 0) {
+          interruptedMessages.push({ role: 'assistant', parts: accumulatedParts });
+        }
+        return {
+          turnId,
+          runId,
+          generationId,
+          assistantMessages: interruptedMessages,
+          interrupted: true,
+          compactionState: compactionResult.compactionState,
+        };
+      }
+
       // Handle cooperative cancellation / abort errors
       if (cancellationSignal.aborted || error?.name === 'AbortError') {
         console.log(`[chat-agent] Generation interrupted (caught abort) for session ${sessionId}`);
         if (accumulatedParts.length > 0) {
           await flushPartialResponse(sessionId, accumulatedParts);
         }
-        await emitEvent({ type: 'generation-interrupted', generationId });
+        await emitTurnStatus('interrupted', {
+          reason: 'abort-error',
+          endedAt: new Date().toISOString(),
+        }).catch(() => {
+          // Best-effort lifecycle marker.
+        });
 
         const interruptedMessages: ChatUIMessage[] = [];
         if (accumulatedParts.length > 0) {
           interruptedMessages.push({ role: 'assistant', parts: accumulatedParts });
         }
         return {
+          turnId,
+          runId,
+          generationId,
           assistantMessages: interruptedMessages,
           interrupted: true,
           compactionState: compactionResult.compactionState,
@@ -966,6 +1086,9 @@ export async function runChatAgentStepActivity(
 
         // Return a friendly error message to the user
         return {
+          turnId,
+          runId,
+          generationId,
           assistantMessages: [
             {
               role: 'assistant' as const,
@@ -987,6 +1110,9 @@ export async function runChatAgentStepActivity(
           error.message,
         );
         return {
+          turnId,
+          runId,
+          generationId,
           assistantMessages: [
             {
               role: 'assistant' as const,
@@ -1002,6 +1128,12 @@ export async function runChatAgentStepActivity(
       }
 
       // Re-throw other errors for Temporal to handle
+      await emitTurnStatus('failed', {
+        reason: error instanceof Error ? error.message : String(error),
+        endedAt: new Date().toISOString(),
+      }).catch(() => {
+        // Best-effort lifecycle marker.
+      });
       throw error;
     }
   } finally {
@@ -1112,11 +1244,6 @@ export async function markChatRunCompleteActivity(input: {
   sessionId: string;
   runId: string;
 }): Promise<void> {
-  await appendAndPublishStreamEvent(input.sessionId, input.runId, {
-    type: 'status',
-    status: 'idle',
-  }).catch(() => {
-    // Best-effort status signal; completion cleanup still proceeds.
-  });
+  // Run completion bookkeeping is best-effort and decoupled from turn chunk emission.
   await notifySessionComplete(input.sessionId, input.runId);
 }

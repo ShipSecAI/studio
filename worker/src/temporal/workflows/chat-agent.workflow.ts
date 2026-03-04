@@ -28,12 +28,14 @@ export interface ChatUIMessage {
 
 interface ChatAgentStepInput {
   sessionId: string;
+  turnId: string;
   runId: string;
   generationId: number;
   organizationId?: string;
   systemPrompt: string;
   messages: ChatUIMessage[];
   maxSteps: number;
+  queuedAt?: string;
   compactionState?: {
     summary: string;
     compactedUpToIndex: number;
@@ -41,7 +43,11 @@ interface ChatAgentStepInput {
 }
 
 interface ChatAgentStepOutput {
+  turnId: string;
+  runId: string;
+  generationId: number;
   assistantMessages: ChatUIMessage[];
+  interrupted?: boolean;
   compactionState?: {
     summary: string;
     compactedUpToIndex: number;
@@ -91,8 +97,11 @@ const { generateSessionTitleActivity } = proxyActivities<{
 });
 
 interface ChatUserTurn {
+  turnId: string;
   message: ChatUIMessage;
   runId: string;
+  steerTarget?: boolean;
+  queuedAt?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +109,7 @@ interface ChatUserTurn {
 // ---------------------------------------------------------------------------
 
 export const userMessageSignal = defineSignal<[ChatUserTurn]>('userMessage');
+export const steerTurnSignal = defineSignal<[string]>('steerTurn');
 export const endChatSignal = defineSignal('endChat');
 export const interruptGenerationSignal = defineSignal('interruptGeneration');
 
@@ -127,6 +137,8 @@ export interface ChatAgentWorkflowInput {
   };
   /** Monotonic generation counter, forwarded across continue-as-new */
   initialGenerationId?: number;
+  /** Active run while queued turns drain, forwarded across continue-as-new */
+  activeRunId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +172,7 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
   let titleGenerated = (input.initialMessages?.length ?? 0) > 0; // skip if continuing
   const pendingUserMessages: ChatUserTurn[] = input.pendingMessages ?? [];
   let generationId: number = input.initialGenerationId ?? 0;
+  let activeRunId: string | null = input.activeRunId ?? null;
   let activeScope: CancellationScope | null = null;
 
   const seenUserMessageIds = new Set(
@@ -202,7 +215,16 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     if (messageId) {
       seenUserMessageIds.add(messageId);
     }
-    pendingUserMessages.push(turn);
+    const normalizedTurnId =
+      typeof turn.turnId === 'string' && turn.turnId.trim().length > 0
+        ? turn.turnId
+        : `legacy-turn-${turn.runId}-${generationId}-${pendingUserMessages.length + 1}`;
+
+    pendingUserMessages.push({
+      ...turn,
+      turnId: normalizedTurnId,
+      queuedAt: turn.queuedAt ?? new Date().toISOString(),
+    });
   });
 
   setHandler(endChatSignal, () => {
@@ -213,6 +235,17 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     if (activeScope) {
       activeScope.cancel();
     }
+  });
+
+  setHandler(steerTurnSignal, (turnId: string) => {
+    if (!turnId) return;
+    const idx = pendingUserMessages.findIndex((turn) => turn.turnId === turnId);
+    if (idx < 0) return;
+
+    pendingUserMessages[idx] = {
+      ...pendingUserMessages[idx],
+      steerTarget: true,
+    };
   });
 
   // ---- Query handlers ----
@@ -235,19 +268,18 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     if (!gotMessage) break;
     if (chatEnded) break;
 
-    // Bundle ALL pending messages for this generation
-    const userTurns: ChatUserTurn[] = [];
-    while (pendingUserMessages.length > 0) {
-      userTurns.push(pendingUserMessages.shift()!);
-    }
+    const steerIdx = pendingUserMessages.findIndex((turn) => turn.steerTarget === true);
+    const nextTurn =
+      steerIdx >= 0
+        ? pendingUserMessages.splice(steerIdx, 1)[0]
+        : (pendingUserMessages.shift() as ChatUserTurn);
 
-    const runId = userTurns[0]?.runId ?? 'gen-' + generationId;
+    const runId = activeRunId ?? nextTurn?.runId ?? 'gen-' + generationId;
+    activeRunId = runId;
     generationId++;
 
-    // Add all user messages to history
-    for (const turn of userTurns) {
-      messages.push(turn.message);
-    }
+    // Add user message to history
+    messages.push(nextTurn.message);
 
     status = 'processing';
 
@@ -256,12 +288,14 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
       const result = await activeScope.run(async () => {
         return await runChatAgentStepActivity({
           sessionId,
+          turnId: nextTurn.turnId,
           runId,
           generationId,
           organizationId: organizationId ?? undefined,
           systemPrompt,
           messages,
           maxSteps: 60,
+          queuedAt: nextTurn.queuedAt,
           compactionState,
         });
       });
@@ -283,7 +317,7 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
       // Generate AI title after the first exchange
       if (!titleGenerated) {
         titleGenerated = true;
-        const firstUserMsg = userTurns[0]?.message;
+        const firstUserMsg = nextTurn?.message;
         const userText = (firstUserMsg?.parts ?? [])
           .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
           .map((p) => p.text)
@@ -342,6 +376,7 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
         await CancellationScope.nonCancellable(async () => {
           await markChatRunCompleteActivity({ sessionId, runId });
         });
+        activeRunId = null;
       } catch {
         // Best-effort: do not block chat loop on completion marker failures.
       }
@@ -357,6 +392,7 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
         pendingMessages: pendingUserMessages,
         compactionState,
         initialGenerationId: generationId,
+        activeRunId: activeRunId ?? undefined,
       });
     }
   }

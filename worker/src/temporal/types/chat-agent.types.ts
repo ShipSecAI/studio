@@ -19,16 +19,23 @@ export type ChatMessagePart =
 /** Input for the runChatAgentStep activity */
 export interface ChatAgentStepInput {
   sessionId: string;
+  turnId: string;
   runId: string;
+  generationId: number;
   organizationId?: string;
   systemPrompt: string;
   messages: ChatUIMessage[];
   maxSteps: number;
+  queuedAt?: string;
 }
 
 /** Output from the runChatAgentStep activity */
 export interface ChatAgentStepOutput {
+  turnId: string;
+  runId: string;
+  generationId: number;
   assistantMessages: ChatUIMessage[];
+  interrupted?: boolean;
 }
 
 /** Input for saveChatMessages activity */
