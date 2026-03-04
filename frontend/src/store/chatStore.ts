@@ -27,6 +27,24 @@ export interface QuickAction {
   category: 'workflow' | 'navigation' | 'settings';
 }
 
+export interface QueueTurn {
+  turnId: string;
+  clientMessageId: string | null;
+  queuePosition: number | null;
+  status: string;
+  queuedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface QueueStateSnapshot {
+  pendingCount: number;
+  generationId: number | null;
+  steerTargetTurnId: string | null;
+  queueOrder: string[];
+  queuedTurns: QueueTurn[];
+}
+
 interface ChatState {
   // Sessions (from server)
   sessions: ChatSession[];
@@ -45,6 +63,9 @@ interface ChatState {
   // Queue state (for steer UX)
   pendingCount: number;
   currentGenerationId: number | null;
+  steerTargetTurnId: string | null;
+  queueOrder: string[];
+  queuedTurns: QueueTurn[];
 
   // Server-backed actions (async)
   loadSessions: () => Promise<void>;
@@ -65,7 +86,7 @@ interface ChatState {
   setSelectedRun: (id: string | null) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
-  setQueueState: (pendingCount: number, generationId: number | null) => void;
+  setQueueState: (snapshot: Partial<QueueStateSnapshot>) => void;
   clearQueueState: () => void;
 
   // Getters
@@ -105,6 +126,9 @@ export const useChatStore = create<ChatState>()(
       isSidebarOpen: true,
       pendingCount: 0,
       currentGenerationId: null,
+      steerTargetTurnId: null,
+      queueOrder: [],
+      queuedTurns: [],
 
       loadSessions: async () => {
         set({ isLoadingSessions: true });
@@ -216,12 +240,24 @@ export const useChatStore = create<ChatState>()(
         set({ isSidebarOpen: open });
       },
 
-      setQueueState: (pendingCount, generationId) => {
-        set({ pendingCount, currentGenerationId: generationId });
+      setQueueState: (snapshot) => {
+        set((state) => ({
+          pendingCount: snapshot.pendingCount ?? state.pendingCount,
+          currentGenerationId: snapshot.generationId ?? state.currentGenerationId,
+          steerTargetTurnId: snapshot.steerTargetTurnId ?? state.steerTargetTurnId,
+          queueOrder: snapshot.queueOrder ?? state.queueOrder,
+          queuedTurns: snapshot.queuedTurns ?? state.queuedTurns,
+        }));
       },
 
       clearQueueState: () => {
-        set({ pendingCount: 0, currentGenerationId: null });
+        set({
+          pendingCount: 0,
+          currentGenerationId: null,
+          steerTargetTurnId: null,
+          queueOrder: [],
+          queuedTurns: [],
+        });
       },
 
       getCurrentSession: () => {

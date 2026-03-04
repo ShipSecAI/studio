@@ -34,7 +34,11 @@ import type { UIMessage } from 'ai';
 import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
 import { StatusBar } from '@/components/agent/StatusBar';
 import { useToast } from '@/components/ui/use-toast';
-import { DurableChatTransport } from '@/lib/durable-chat-transport';
+import {
+  DurableChatTransport,
+  type ChatSessionStateResponse,
+  type QueueTurnIdentity,
+} from '@/lib/durable-chat-transport';
 
 // AI Elements
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
@@ -74,83 +78,73 @@ function getMessageText(message: UIMessage): string {
     .join('');
 }
 
-function ThrottledMessageResponse({ text, isStreaming }: { text: string; isStreaming: boolean }) {
-  const [renderedText, setRenderedText] = useState(text);
-  const flushTimerRef = useRef<number | null>(null);
-  const renderedTextRef = useRef(text);
-  const latestTextRef = useRef(text);
-  const lastFlushAtRef = useRef(
-    typeof performance !== 'undefined' ? performance.now() : Date.now(),
-  );
+interface TurnStatusPayload {
+  turnId?: string;
+  status?: 'queued' | 'running' | 'completed' | 'interrupted' | 'failed' | 'cancelled';
+  reason?: string;
+  processingStatus?: 'idle' | 'processing';
+  activeRunId?: string | null;
+  activeRunStartedAt?: string | null;
+  pendingCount?: number;
+  generationId?: number | null;
+  steerTargetTurnId?: string | null;
+  queue?: QueueTurnIdentity[];
+  queuedTurns?: QueueTurnIdentity[];
+  afterSeq?: number;
+  lastSeq?: number;
+  seq?: number;
+}
 
-  const clearFlushTimer = () => {
-    if (flushTimerRef.current !== null) {
-      window.clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = null;
-    }
-  };
+function hydrateMessages(messages: ChatSessionStateResponse['messages']): UIMessage[] {
+  if (!Array.isArray(messages)) {
+    return [];
+  }
+  return messages.map((m) => ({
+    id: m.id,
+    role: m.role,
+    parts: m.parts,
+    createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
+  }));
+}
 
-  const flushNow = () => {
-    clearFlushTimer();
-    const nextText = latestTextRef.current;
-    renderedTextRef.current = nextText;
-    setRenderedText(nextText);
-    lastFlushAtRef.current = typeof performance !== 'undefined' ? performance.now() : Date.now();
-  };
+function normalizeQueue(
+  queue: QueueTurnIdentity[] | undefined,
+  steerTargetTurnId: string | null | undefined,
+) {
+  const queuedTurns = (queue ?? [])
+    .filter((item): item is QueueTurnIdentity & { turnId: string } => Boolean(item.turnId))
+    .map((item, index) => ({
+      turnId: item.turnId,
+      clientMessageId: item.clientMessageId ?? null,
+      queuePosition: item.queuePosition ?? index + 1,
+      status: item.status ?? 'queued',
+      queuedAt: item.queuedAt ?? null,
+      startedAt: item.startedAt ?? null,
+      completedAt: item.completedAt ?? null,
+    }))
+    .sort((a, b) => {
+      const aPos = a.queuePosition ?? Number.MAX_SAFE_INTEGER;
+      const bPos = b.queuePosition ?? Number.MAX_SAFE_INTEGER;
+      return aPos - bPos;
+    });
+  const queueOrder = queuedTurns.map((turn) => turn.turnId);
+  const targetTurnId =
+    steerTargetTurnId ?? queuedTurns.find((turn) => turn.status === 'running')?.turnId ?? null;
+  return { queuedTurns, queueOrder, steerTargetTurnId: targetTurnId };
+}
 
-  useEffect(() => {
-    renderedTextRef.current = renderedText;
-  }, [renderedText]);
-
-  useEffect(() => {
-    latestTextRef.current = text;
-    const currentRendered = renderedTextRef.current;
-
-    if (!isStreaming) {
-      flushNow();
-      return;
-    }
-
-    // Keep the first chunk immediate so streaming doesn't feel blank.
-    if (!currentRendered) {
-      flushNow();
-      return;
-    }
-
-    // Handle truncation/reset immediately.
-    if (text.length < currentRendered.length) {
-      flushNow();
-      return;
-    }
-
-    if (text === currentRendered) {
-      return;
-    }
-
-    // True throttle (not debounce): stream paints at most once per interval,
-    // but never waits indefinitely under continuous delta traffic.
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const FLUSH_INTERVAL_MS = 120;
-    const elapsed = now - lastFlushAtRef.current;
-    if (elapsed >= FLUSH_INTERVAL_MS) {
-      flushNow();
-      return;
-    }
-
-    if (flushTimerRef.current === null) {
-      flushTimerRef.current = window.setTimeout(() => {
-        flushNow();
-      }, FLUSH_INTERVAL_MS - elapsed);
-    }
-  }, [text, isStreaming]);
-
-  useEffect(() => {
-    return () => {
-      clearFlushTimer();
-    };
-  }, []);
-
-  return <MessageResponse>{renderedText}</MessageResponse>;
+function getTurnStatusChunkPayload(chunk: unknown): TurnStatusPayload | null {
+  if (!chunk || typeof chunk !== 'object') {
+    return null;
+  }
+  const typed = chunk as { type?: unknown; data?: unknown };
+  if (typed.type !== 'data-turn-status') {
+    return null;
+  }
+  if (typed.data && typeof typed.data === 'object') {
+    return typed.data as TurnStatusPayload;
+  }
+  return typed as TurnStatusPayload;
 }
 
 // Memoized tool part — skips re-render when the part object reference hasn't changed.
@@ -253,13 +247,7 @@ const ChatMessageItem = memo(
                   {message.parts.map((part, idx) => {
                     if (part.type === 'text') {
                       if (!part.text) return null;
-                      return (
-                        <ThrottledMessageResponse
-                          key={`text-${idx}`}
-                          text={part.text}
-                          isStreaming={isStreaming}
-                        />
-                      );
+                      return <MessageResponse key={`text-${idx}`}>{part.text}</MessageResponse>;
                     }
 
                     if (part.type === 'reasoning') {
@@ -414,6 +402,9 @@ export function ChatInterface() {
     selectedRunId,
     isRunInspectorOpen,
     pendingCount,
+    queuedTurns,
+    queueOrder,
+    steerTargetTurnId,
     setQueueState,
     clearQueueState,
   } = useChatStore();
@@ -468,37 +459,235 @@ export function ChatInterface() {
     navigate(currentSessionId ? `/chat/${currentSessionId}` : '/chat/new', { replace: true });
   }, [routeSessionId, currentSessionId, navigate]);
 
-  // Create DurableChatTransport - handles both sending and reconnection
-  const chatTransport = useMemo(
-    () =>
-      new DurableChatTransport({
-        apiBase: API_V1_URL,
-        getAuthHeaders: getApiAuthHeaders,
-      }),
-    [],
-  );
-
   // Load messages for current session
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [chatId, setChatId] = useState(() =>
     currentSessionId ? currentSessionId : `chat-${Date.now()}`,
   );
-  const [messagesLoaded, setMessagesLoaded] = useState(false);
   const [sessionProcessing, setSessionProcessing] = useState(false);
   const [sessionProcessingStartedAtMs, setSessionProcessingStartedAtMs] = useState<number | null>(
     null,
   );
-  const canResumeDurableStream = messagesLoaded && isPersistedSessionId(chatId);
+  const streamCursorRef = useRef(0);
+  const activePassiveRunIdRef = useRef<string | null>(null);
+  const passiveStreamAbortRef = useRef<AbortController | null>(null);
+  const attachPassiveStreamRef = useRef<(runId: string, afterSeq?: number) => Promise<void>>(
+    async () => {},
+  );
+
+  // Create DurableChatTransport - handles sending + reconnect from durable cursor.
+  const chatTransport = useMemo(
+    () =>
+      new DurableChatTransport({
+        apiBase: API_V1_URL,
+        getAuthHeaders: getApiAuthHeaders,
+        onChunk: (chunk) => {
+          const payload = getTurnStatusChunkPayload(chunk);
+          if (!payload) return;
+
+          const nextSeq = payload.seq ?? payload.lastSeq ?? payload.afterSeq;
+          if (typeof nextSeq === 'number' && Number.isFinite(nextSeq)) {
+            streamCursorRef.current = Math.max(streamCursorRef.current, nextSeq);
+          }
+
+          // Lifecycle-only chunks can omit queue snapshots; keep local queue state in that case.
+          const hasQueueSnapshot =
+            Array.isArray(payload.queue) ||
+            Array.isArray(payload.queuedTurns) ||
+            typeof payload.pendingCount === 'number' ||
+            payload.processingStatus != null ||
+            payload.activeRunId != null;
+
+          if (!hasQueueSnapshot) {
+            if (payload.status === 'running') {
+              setSessionProcessing(true);
+            }
+            if (
+              payload.status === 'completed' ||
+              payload.status === 'interrupted' ||
+              payload.status === 'failed' ||
+              payload.status === 'cancelled'
+            ) {
+              const existing = useChatStore.getState().queuedTurns;
+              if (existing.length > 0) {
+                setQueueState({
+                  pendingCount: existing.length,
+                  queueOrder: existing.map((turn) => turn.turnId),
+                  queuedTurns: existing,
+                  steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
+                });
+              } else {
+                clearQueueState();
+              }
+            }
+            return;
+          }
+
+          const normalizedQueue = normalizeQueue(
+            payload.queue ?? payload.queuedTurns,
+            payload.steerTargetTurnId,
+          );
+          const pendingCountFromQueue = normalizedQueue.queuedTurns.length;
+
+          if (payload.processingStatus === 'idle') {
+            setSessionProcessing(false);
+            setSessionProcessingStartedAtMs(null);
+            clearQueueState();
+            return;
+          }
+
+          setQueueState({
+            pendingCount: payload.pendingCount ?? pendingCountFromQueue,
+            generationId: payload.generationId ?? null,
+            steerTargetTurnId: normalizedQueue.steerTargetTurnId,
+            queueOrder: normalizedQueue.queueOrder,
+            queuedTurns: normalizedQueue.queuedTurns,
+          });
+
+          if (payload.processingStatus === 'processing') {
+            setSessionProcessing(true);
+            setSessionProcessingStartedAtMs(
+              payload.activeRunStartedAt ? new Date(payload.activeRunStartedAt).getTime() : null,
+            );
+            if (payload.activeRunId) {
+              void attachPassiveStreamRef.current(payload.activeRunId, streamCursorRef.current);
+            }
+          }
+        },
+        onQueuedTurn: (response) => {
+          setSessionProcessing(true);
+          const turnId = response.turnId;
+          const existing = useChatStore.getState().queuedTurns;
+          if (!turnId) {
+            setQueueState({
+              pendingCount: response.pendingCount ?? existing.length,
+              generationId: response.generationId ?? null,
+            });
+            if (response.activeRunId) {
+              void attachPassiveStreamRef.current(response.activeRunId, streamCursorRef.current);
+            }
+            return;
+          }
+
+          const deduped = existing.filter((turn) => turn.turnId !== turnId);
+          const queuePosition = response.queuePosition ?? deduped.length + 1;
+          const queuedTurns = [
+            ...deduped,
+            {
+              turnId,
+              clientMessageId: response.clientMessageId ?? null,
+              queuePosition,
+              status: 'queued',
+              queuedAt: null,
+              startedAt: null,
+              completedAt: null,
+            },
+          ].sort(
+            (a, b) =>
+              (a.queuePosition ?? Number.MAX_SAFE_INTEGER) -
+              (b.queuePosition ?? Number.MAX_SAFE_INTEGER),
+          );
+
+          setQueueState({
+            pendingCount: response.pendingCount ?? queuedTurns.length,
+            generationId: response.generationId ?? null,
+            steerTargetTurnId: response.steerTargetTurnId ?? null,
+            queueOrder: queuedTurns.map((turn) => turn.turnId),
+            queuedTurns,
+          });
+
+          if (response.activeRunId) {
+            void attachPassiveStreamRef.current(response.activeRunId, streamCursorRef.current);
+          }
+        },
+      }),
+    [clearQueueState, setQueueState],
+  );
 
   const { messages, sendMessage, status, error, stop, setMessages } = useChat({
     transport: chatTransport,
     id: chatId,
     messages: initialMessages,
-    resume: canResumeDurableStream, // Never resume on draft/local ids (new-*, chat-*)
+    experimental_throttle: 80,
+    resume: false,
   });
 
-  const fetchMessagesForSession = useCallback(
-    async (sessionId: string): Promise<UIMessage[] | null> => {
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const statusRef = useRef(status);
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  const closePassiveStream = useCallback(() => {
+    passiveStreamAbortRef.current?.abort();
+    passiveStreamAbortRef.current = null;
+    activePassiveRunIdRef.current = null;
+  }, []);
+
+  const attachPassiveStream = useCallback(
+    async (runId: string, afterSeq = streamCursorRef.current) => {
+      if (!currentSessionId || !isPersistedSessionId(currentSessionId)) return;
+      const localStatus = statusRef.current;
+      if (localStatus === 'streaming' || localStatus === 'submitted') return;
+      if (activePassiveRunIdRef.current === runId) return;
+
+      closePassiveStream();
+      activePassiveRunIdRef.current = runId;
+      const controller = new AbortController();
+      passiveStreamAbortRef.current = controller;
+
+      const stream = await chatTransport.reconnectToStream(
+        { chatId: currentSessionId, runId, afterSeq },
+        controller.signal,
+      );
+      if (!stream || controller.signal.aborted) {
+        if (activePassiveRunIdRef.current === runId) {
+          activePassiveRunIdRef.current = null;
+        }
+        return;
+      }
+
+      try {
+        const iterator = readUIMessageStream({ stream });
+        for await (const snapshot of iterator) {
+          if (controller.signal.aborted) break;
+          if (routeSessionIdRef.current !== currentSessionId) break;
+
+          const current = messagesRef.current;
+          const existingIndex = current.findIndex((message) => message.id === snapshot.id);
+          if (existingIndex >= 0) {
+            const next = [...current];
+            next[existingIndex] = snapshot;
+            setMessages(next);
+          } else {
+            setMessages([...current, snapshot]);
+          }
+        }
+      } catch {
+        // Best-effort passive stream replay.
+      } finally {
+        if (passiveStreamAbortRef.current === controller) {
+          passiveStreamAbortRef.current = null;
+        }
+      }
+    },
+    [chatTransport, closePassiveStream, currentSessionId, setMessages],
+  );
+
+  useEffect(() => {
+    attachPassiveStreamRef.current = attachPassiveStream;
+  }, [attachPassiveStream]);
+
+  const fetchSessionState = useCallback(
+    async (sessionId: string): Promise<ChatSessionStateResponse | null> => {
+      const state = await chatTransport.getState(sessionId);
+      if (state) return state;
+
+      // Compatibility fallback while backend rollout is in flight.
       try {
         const authHeaders = await getApiAuthHeaders();
         const res = await fetch(`${API_V1_URL}/chat/sessions/${sessionId}/messages`, {
@@ -506,18 +695,12 @@ export function ChatInterface() {
         });
         if (!res.ok) return null;
         const msgs = await res.json();
-        const hydratedMessages = msgs.map((m: any) => ({
-          id: m.id,
-          role: m.role,
-          parts: m.parts,
-          createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
-        }));
-        return hydratedMessages;
+        return { messages: msgs, processingStatus: 'idle', afterSeq: 0, lastSeq: 0 };
       } catch {
         return null;
       }
     },
-    [],
+    [chatTransport],
   );
 
   useEffect(() => {
@@ -525,13 +708,15 @@ export function ChatInterface() {
       setChatId(`new-${Date.now()}`);
       setInitialMessages([]);
       setMessages([]);
-      setMessagesLoaded(true);
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
+      streamCursorRef.current = 0;
+      closePassiveStream();
+      clearQueueState();
       pendingFirstMessageRef.current = null;
       isCreatingSessionRef.current = false;
     }
-  }, [newConversationToken, currentSessionId, setMessages]);
+  }, [newConversationToken, currentSessionId, setMessages, clearQueueState, closePassiveStream]);
 
   useEffect(() => {
     if (routeSessionId === 'new') {
@@ -539,9 +724,11 @@ export function ChatInterface() {
       setChatId(`new-${Date.now()}`);
       setInitialMessages([]);
       setMessages([]);
-      setMessagesLoaded(true);
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
+      streamCursorRef.current = 0;
+      closePassiveStream();
+      clearQueueState();
       pendingFirstMessageRef.current = null;
       isCreatingSessionRef.current = false;
       sessionIdRef.current = null;
@@ -553,9 +740,11 @@ export function ChatInterface() {
       setChatId(`new-${Date.now()}`);
       setInitialMessages([]);
       setMessages([]);
-      setMessagesLoaded(true);
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
+      streamCursorRef.current = 0;
+      closePassiveStream();
+      clearQueueState();
       return;
     }
 
@@ -564,41 +753,70 @@ export function ChatInterface() {
     // and re-hydrating too early can reset the chat to a partial server snapshot.
     if (lazyCreatedSessionRef.current === currentSessionId) {
       setChatId(currentSessionId);
-      setMessagesLoaded(true);
       return;
     }
 
     // Session switch — load messages from server and reset useChat
     const targetSessionId = currentSessionId;
     let cancelled = false;
+    closePassiveStream();
     setChatId(targetSessionId);
     setInitialMessages([]);
     setMessages([]);
-    setMessagesLoaded(false);
     setSessionProcessing(false);
     setSessionProcessingStartedAtMs(null);
 
     (async () => {
-      const hydrated = await fetchMessagesForSession(targetSessionId);
+      const state = await fetchSessionState(targetSessionId);
       if (cancelled || routeSessionIdRef.current !== targetSessionId) {
         return;
       }
 
-      if (hydrated) {
+      if (state) {
+        const hydrated = hydrateMessages(state.messages);
         setInitialMessages(hydrated);
         setMessages(hydrated);
+
+        streamCursorRef.current = Math.max(0, state.afterSeq ?? state.lastSeq ?? 0);
+        const normalizedQueue = normalizeQueue(
+          state.queue ?? state.queuedTurns,
+          state.steerTargetTurnId,
+        );
+        setQueueState({
+          pendingCount: state.pendingCount ?? normalizedQueue.queuedTurns.length,
+          generationId: state.generationId ?? null,
+          steerTargetTurnId: normalizedQueue.steerTargetTurnId,
+          queueOrder: normalizedQueue.queueOrder,
+          queuedTurns: normalizedQueue.queuedTurns,
+        });
+        const isProcessing = state.processingStatus === 'processing';
+        setSessionProcessing(isProcessing);
+        setSessionProcessingStartedAtMs(
+          state.activeRunStartedAt ? new Date(state.activeRunStartedAt).getTime() : null,
+        );
+        if (isProcessing && state.activeRunId) {
+          void attachPassiveStream(state.activeRunId, streamCursorRef.current);
+        }
       } else {
         setInitialMessages([]);
         setMessages([]);
+        clearQueueState();
       }
-
-      setMessagesLoaded(true);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [currentSessionId, routeSessionId, fetchMessagesForSession, setMessages]);
+  }, [
+    currentSessionId,
+    routeSessionId,
+    fetchSessionState,
+    setMessages,
+    setQueueState,
+    clearQueueState,
+    closePassiveStream,
+    attachPassiveStream,
+  ]);
 
   // Once the user switches away from the just-created session, clear the
   // marker so future visits hydrate from backend as usual.
@@ -617,7 +835,6 @@ export function ChatInterface() {
     sendMessage({ text: pendingMessage });
   }, [chatId, currentSessionId, sendMessage]);
 
-  // No more useChatReconnect hook - useChat with resume: true handles everything
   const displayMessages = messages;
   const effectiveStatus = status;
   const isAgentWorking = effectiveStatus === 'streaming' || sessionProcessing;
@@ -658,210 +875,10 @@ export function ChatInterface() {
   }, [workingElapsedSeconds]);
 
   useEffect(() => {
-    if (!isPersistedSessionId(currentSessionId) || !messagesLoaded) return;
-
-    let cancelled = false;
-    let streamAbortController: AbortController | null = null;
-
-    const closePassiveStream = () => {
-      streamAbortController?.abort();
-      streamAbortController = null;
-      activePassiveRunIdRef.current = null;
-    };
-
-    const hydrateActiveSessionSafely = async () => {
-      const hydrated = await fetchMessagesForSession(currentSessionId);
-      if (cancelled || routeSessionIdRef.current !== currentSessionId || !hydrated) {
-        return null;
-      }
-      setInitialMessages(hydrated);
-      setMessages(hydrated);
-      return hydrated;
-    };
-
-    const attachPassiveStream = async (runId: string) => {
-      if (cancelled) return;
-      // Local tab owns the active stream — don't duplicate it with a passive reconnect
-      const localStatus = statusRef.current;
-      if (localStatus === 'streaming' || localStatus === 'submitted') return;
-      // Bug 3: guard with ref so re-runs of this effect don't re-attach the same run
-      if (activePassiveRunIdRef.current === runId) return;
-
-      closePassiveStream();
-      activePassiveRunIdRef.current = runId;
-      streamAbortController = new AbortController();
-
-      // Pull latest persisted messages first so remote user messages show immediately.
-      await hydrateActiveSessionSafely();
-
-      const stream = await chatTransport.reconnectToStream(
-        { chatId: currentSessionId, runId },
-        streamAbortController.signal,
-      );
-      if (!stream || cancelled) {
-        if (activePassiveRunIdRef.current === runId) {
-          activePassiveRunIdRef.current = null;
-        }
-        return;
-      }
-
-      try {
-        const iterator = readUIMessageStream({ stream });
-        for await (const snapshot of iterator) {
-          if (cancelled || activePassiveRunIdRef.current !== runId) break;
-          if (routeSessionIdRef.current !== currentSessionId) break;
-          const current = messagesRef.current;
-          const existingIndex = current.findIndex((message) => message.id === snapshot.id);
-          if (existingIndex >= 0) {
-            const next = [...current];
-            next[existingIndex] = snapshot;
-            setMessages(next);
-          } else {
-            setMessages([...current, snapshot]);
-          }
-        }
-      } catch {
-        // Best-effort passive stream
-      } finally {
-        // Clean up the abort controller but keep activePassiveRunIdRef set
-        // so the poll guard prevents re-attaching the same runId every cycle.
-        // The ref is reset when: poll detects idle, or a new runId appears.
-        streamAbortController?.abort();
-        streamAbortController = null;
-      }
-    };
-
-    // Bug 2: reset staleness timestamp when a new session/effect starts
-    processingStartTimeRef.current = null;
-    setPollingStale(false);
-
-    let consecutiveFailures = 0;
-    let pollIntervalMs = 1500;
-    let pollTimer: number | null = null;
-    let pollInFlight = false;
-    let stopPolling = false;
-
-    const scheduleNextPoll = (delayMs: number) => {
-      if (cancelled) return;
-      if (pollTimer !== null) {
-        window.clearTimeout(pollTimer);
-      }
-      pollTimer = window.setTimeout(() => {
-        void poll();
-      }, delayMs);
-    };
-
-    const poll = async () => {
-      if (cancelled || pollInFlight) return;
-      pollInFlight = true;
-      try {
-        const authHeaders = await getApiAuthHeaders();
-        const res = await fetch(`${API_V1_URL}/chat/sessions/${currentSessionId}/status`, {
-          headers: { ...authHeaders },
-        });
-        if (!res.ok || cancelled) {
-          consecutiveFailures += 1;
-          pollIntervalMs = Math.min(
-            1500 * Math.pow(2, Math.max(consecutiveFailures - 4, 0)),
-            30000,
-          );
-          return;
-        }
-
-        consecutiveFailures = 0;
-        pollIntervalMs =
-          statusRef.current === 'streaming' || statusRef.current === 'submitted' ? 5000 : 1500;
-
-        const body = (await res.json()) as {
-          processingStatus: 'idle' | 'processing';
-          activeRunId?: string | null;
-          activeRunStartedAt?: string | null;
-          pendingCount?: number;
-          generationId?: number | null;
-        };
-
-        if (body.processingStatus === 'processing' && body.activeRunId) {
-          if (processingRunIdRef.current !== body.activeRunId) {
-            processingRunIdRef.current = body.activeRunId;
-            processingStartTimeRef.current = Date.now();
-            setPollingStale(false);
-          }
-          // Bug 2: detect zombie sessions — if we've been processing for > 5 min stop polling
-          if (!processingStartTimeRef.current) {
-            processingStartTimeRef.current = Date.now();
-          }
-          if (Date.now() - processingStartTimeRef.current > 5 * 60 * 1000) {
-            if (pollTimer !== null) {
-              window.clearTimeout(pollTimer);
-            }
-            stopPolling = true;
-            setPollingStale(true);
-            return;
-          }
-
-          setSessionProcessing(true);
-          setSessionProcessingStartedAtMs(
-            body.activeRunStartedAt ? new Date(body.activeRunStartedAt).getTime() : null,
-          );
-          setQueueState(body.pendingCount ?? 0, body.generationId ?? null);
-          void attachPassiveStream(body.activeRunId);
-          return;
-        }
-
-        // Status returned to idle — reset staleness
-        setPollingStale(false);
-        processingStartTimeRef.current = null;
-        processingRunIdRef.current = null;
-        setSessionProcessing(false);
-        setSessionProcessingStartedAtMs(null);
-        clearQueueState();
-
-        // If the stream transport is stuck in submitted/streaming while backend
-        // has already gone idle, force-close the local stream so UI can settle.
-        const localStatus = statusRef.current;
-        if (localStatus === 'submitted' || localStatus === 'streaming') {
-          stop();
-        }
-
-        if (activePassiveRunIdRef.current) {
-          closePassiveStream();
-          // Only hydrate from DB if the local tab wasn't the one streaming
-          // (useChat already has the messages in that case)
-          if (localStatus !== 'ready') {
-            await hydrateActiveSessionSafely();
-          }
-        }
-      } catch {
-        consecutiveFailures += 1;
-        pollIntervalMs = Math.min(1500 * Math.pow(2, Math.max(consecutiveFailures - 4, 0)), 30000);
-      } finally {
-        pollInFlight = false;
-        if (!cancelled && !stopPolling) {
-          scheduleNextPoll(pollIntervalMs);
-        }
-      }
-    };
-
-    void poll();
-
     return () => {
-      cancelled = true;
-      if (pollTimer !== null) {
-        window.clearTimeout(pollTimer);
-      }
       closePassiveStream();
-      setSessionProcessing(false);
-      setSessionProcessingStartedAtMs(null);
     };
-
-    // statusRef to avoid restarting the polling loop (and resetting activePassiveRunIdRef) on every
-    // status transition (submitted→streaming→ready). See ENG-218.
-  }, [currentSessionId, messagesLoaded, chatTransport, fetchMessagesForSession, setMessages, stop]);
-
-  const messagesRef = useRef(messages);
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
+  }, [closePassiveStream]);
 
   // Auto-scroll: track if user is near bottom, scroll on new content
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -883,20 +900,6 @@ export function ChatInterface() {
     }
   }, [messages, status]);
 
-  // Keep a ref to status so the polling effect can read it without being in its deps.
-  const statusRef = useRef(status);
-  useEffect(() => {
-    statusRef.current = status;
-  }, [status]);
-
-  // Ref to deduplicate passive stream attachment across effect re-runs (Bug 3).
-  const activePassiveRunIdRef = useRef<string | null>(null);
-
-  // Wall-clock timestamp for when we first observed 'processing' status (Bug 2).
-  const processingStartTimeRef = useRef<number | null>(null);
-  const processingRunIdRef = useRef<string | null>(null);
-  const [pollingStale, setPollingStale] = useState(false);
-
   // Reload sessions when streaming finishes to pick up AI-generated title
   const prevStatusRef = useRef(status);
   useEffect(() => {
@@ -913,6 +916,7 @@ export function ChatInterface() {
   );
   const [isGraphPanelOpen, setIsGraphPanelOpen] = useState(false);
   const [isInterrupting, setIsInterrupting] = useState(false);
+  const [steeringTurnId, setSteeringTurnId] = useState<string | null>(null);
   const handleSelectPrompt = useCallback((prompt: string) => {
     setPendingPrompt(prompt + ' ');
   }, []);
@@ -921,14 +925,53 @@ export function ChatInterface() {
     if (!currentSessionId || isInterrupting) return;
     setIsInterrupting(true);
     try {
-      await chatTransport.interruptGeneration(currentSessionId);
+      if (steerTargetTurnId) {
+        await chatTransport.interruptTurn(currentSessionId, steerTargetTurnId);
+      } else {
+        await chatTransport.interruptGeneration(currentSessionId);
+      }
     } catch (err) {
       console.warn('Failed to interrupt generation:', err);
     } finally {
       // Small delay before clearing to prevent double-clicks
       setTimeout(() => setIsInterrupting(false), 1000);
     }
-  }, [currentSessionId, isInterrupting, chatTransport]);
+  }, [currentSessionId, isInterrupting, chatTransport, steerTargetTurnId]);
+
+  const handleSteerTurn = useCallback(
+    async (turnId: string) => {
+      if (!currentSessionId || steeringTurnId) return;
+      setSteeringTurnId(turnId);
+      try {
+        await chatTransport.steerTurn(currentSessionId, turnId);
+      } catch (err) {
+        console.warn('Failed to steer turn:', err);
+        toast({
+          variant: 'destructive',
+          title: 'Steer failed',
+          description: 'Unable to move steer target to this queued turn.',
+        });
+      } finally {
+        setSteeringTurnId(null);
+      }
+    },
+    [currentSessionId, steeringTurnId, chatTransport, toast],
+  );
+
+  const orderedQueuedTurns = useMemo(() => {
+    if (queueOrder.length === 0) {
+      return queuedTurns;
+    }
+    const rank = new Map(queueOrder.map((id, index) => [id, index]));
+    return [...queuedTurns].sort((a, b) => {
+      const aRank = rank.get(a.turnId) ?? Number.MAX_SAFE_INTEGER;
+      const bRank = rank.get(b.turnId) ?? Number.MAX_SAFE_INTEGER;
+      if (aRank !== bRank) return aRank - bRank;
+      return (
+        (a.queuePosition ?? Number.MAX_SAFE_INTEGER) - (b.queuePosition ?? Number.MAX_SAFE_INTEGER)
+      );
+    });
+  }, [queueOrder, queuedTurns]);
 
   const graphPanelUrl = useMemo(() => {
     if (!graphPanelRun) return '';
@@ -969,7 +1012,6 @@ export function ChatInterface() {
           lazyCreatedSessionRef.current = newSessionId;
           sessionIdRef.current = newSessionId;
           setChatId(newSessionId);
-          setMessagesLoaded(true);
           pendingFirstMessageRef.current = text;
           // Route transition is explicit to avoid relying on effect timing.
           navigate(`/chat/${newSessionId}`, { replace: true });
@@ -1219,17 +1261,6 @@ export function ChatInterface() {
             </div>
           )}
 
-          {/* Stale polling warning — shown when the session has been stuck in 'processing' for >5 min */}
-          {pollingStale && (
-            <div className="shrink-0 px-4">
-              <div className="max-w-5xl mx-auto mb-2 px-3 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded-md text-sm text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                This session has been processing for over 5 minutes. It may be stuck. Try refreshing
-                or starting a new session.
-              </div>
-            </div>
-          )}
-
           {/* Input Area */}
           <div className="shrink-0 border-t bg-background/85 px-3 py-2 backdrop-blur-sm md:px-4 md:py-3">
             <div className="mx-auto max-w-5xl space-y-2">
@@ -1255,7 +1286,7 @@ export function ChatInterface() {
                       disabled={isInterrupting}
                     >
                       <StopCircle className="h-3 w-3" />
-                      {isInterrupting ? 'Stopping...' : pendingCount > 0 ? 'Steer' : 'Stop'}
+                      {isInterrupting ? 'Stopping...' : 'Stop'}
                     </button>
                   </div>
                 ) : (
@@ -1263,10 +1294,55 @@ export function ChatInterface() {
                 )}
               </div>
               {pendingCount > 0 && isAgentWorking && (
-                <div className="flex items-center justify-center py-1">
-                  <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                    {pendingCount} message{pendingCount > 1 ? 's' : ''} queued
-                  </span>
+                <div className="rounded-lg border border-border/60 bg-muted/30 px-2 py-2">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-xs font-medium text-foreground/80">
+                      Queue ({pendingCount})
+                    </span>
+                    {steerTargetTurnId ? (
+                      <span className="text-[11px] text-muted-foreground font-mono">
+                        target: {steerTargetTurnId.slice(0, 8)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {orderedQueuedTurns.length === 0 && (
+                      <span className="text-[11px] text-muted-foreground">
+                        Waiting for queue details from stream...
+                      </span>
+                    )}
+                    {orderedQueuedTurns.map((turn, index) => {
+                      const displayPosition = turn.queuePosition ?? index + 1;
+                      const isTarget = turn.turnId === steerTargetTurnId;
+                      const shortTurnId = turn.turnId.slice(0, 8);
+                      const shortClientId = turn.clientMessageId?.slice(0, 8) ?? 'no-client-id';
+                      return (
+                        <button
+                          key={turn.turnId}
+                          type="button"
+                          onClick={() => void handleSteerTurn(turn.turnId)}
+                          disabled={isTarget || steeringTurnId === turn.turnId}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                            isTarget
+                              ? 'border-primary/50 bg-primary/10 text-primary'
+                              : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                          }`}
+                        >
+                          <span className="font-semibold">#{displayPosition}</span>
+                          <span className="font-mono">{shortTurnId}</span>
+                          <span className="text-muted-foreground/80">({shortClientId})</span>
+                          <span className="uppercase tracking-wide">{turn.status}</span>
+                          {isTarget ? (
+                            <span className="text-primary">steer</span>
+                          ) : steeringTurnId === turn.turnId ? (
+                            <span>...</span>
+                          ) : (
+                            <span>set</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
               <PromptInput

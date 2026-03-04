@@ -125,6 +125,11 @@ describe('chatStore', () => {
       isWorkflowPreviewOpen: false,
       selectedWorkflowId: null,
       isSidebarOpen: true,
+      pendingCount: 0,
+      currentGenerationId: null,
+      steerTargetTurnId: null,
+      queueOrder: [],
+      queuedTurns: [],
     });
   });
 
@@ -148,6 +153,11 @@ describe('chatStore', () => {
       isWorkflowPreviewOpen: false,
       selectedWorkflowId: null,
       isSidebarOpen: true,
+      pendingCount: 0,
+      currentGenerationId: null,
+      steerTargetTurnId: null,
+      queueOrder: [],
+      queuedTurns: [],
     });
   });
 
@@ -401,6 +411,72 @@ describe('chatStore', () => {
         useChatStore.getState().setSidebarOpen(true);
         expect(useChatStore.getState().isSidebarOpen).toBe(true);
       });
+    });
+  });
+
+  describe('Queue State', () => {
+    it('stores queue identities/order and steer target', () => {
+      useChatStore.getState().setQueueState({
+        pendingCount: 2,
+        generationId: 9,
+        steerTargetTurnId: 'turn-2',
+        queueOrder: ['turn-1', 'turn-2'],
+        queuedTurns: [
+          {
+            turnId: 'turn-1',
+            clientMessageId: 'client-1',
+            queuePosition: 1,
+            status: 'queued',
+            queuedAt: '2026-01-01T00:00:00.000Z',
+            startedAt: null,
+            completedAt: null,
+          },
+          {
+            turnId: 'turn-2',
+            clientMessageId: 'client-2',
+            queuePosition: 2,
+            status: 'queued',
+            queuedAt: '2026-01-01T00:00:01.000Z',
+            startedAt: null,
+            completedAt: null,
+          },
+        ],
+      });
+
+      const state = useChatStore.getState();
+      expect(state.pendingCount).toBe(2);
+      expect(state.currentGenerationId).toBe(9);
+      expect(state.steerTargetTurnId).toBe('turn-2');
+      expect(state.queueOrder).toEqual(['turn-1', 'turn-2']);
+      expect(state.queuedTurns.map((turn) => turn.turnId)).toEqual(['turn-1', 'turn-2']);
+    });
+
+    it('clears queue metadata', () => {
+      useChatStore.getState().setQueueState({
+        pendingCount: 1,
+        generationId: 4,
+        steerTargetTurnId: 'turn-99',
+        queueOrder: ['turn-99'],
+        queuedTurns: [
+          {
+            turnId: 'turn-99',
+            clientMessageId: 'client-99',
+            queuePosition: 1,
+            status: 'queued',
+            queuedAt: null,
+            startedAt: null,
+            completedAt: null,
+          },
+        ],
+      });
+
+      useChatStore.getState().clearQueueState();
+      const state = useChatStore.getState();
+      expect(state.pendingCount).toBe(0);
+      expect(state.currentGenerationId).toBeNull();
+      expect(state.steerTargetTurnId).toBeNull();
+      expect(state.queueOrder).toEqual([]);
+      expect(state.queuedTurns).toEqual([]);
     });
   });
 
