@@ -308,22 +308,9 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
       }
     } catch (err) {
       if (isCancellation(err)) {
-        // Interrupted — activity cancellation handler already flushed partial state
-        try {
-          await CancellationScope.nonCancellable(async () => {
-            await markChatRunCompleteActivity({ sessionId, runId });
-          });
-        } catch {
-          // Best-effort
-        }
+        // Interrupted — the activity already flushed partial state.
+        // Run completion is decided after we see whether new queued turns exist.
       } else {
-        // Existing error handling
-        try {
-          await markChatRunCompleteActivity({ sessionId, runId });
-        } catch {
-          // Best-effort: avoid masking the original failure path.
-        }
-
         messages.push({
           role: 'assistant',
           parts: [
@@ -346,6 +333,19 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     }
 
     status = 'idle';
+
+    // Complete the durable run only once the queue is drained.
+    // While there are queued turns, keep the same run active so appended
+    // events continue to match session.activeRunId.
+    if (pendingUserMessages.length === 0) {
+      try {
+        await CancellationScope.nonCancellable(async () => {
+          await markChatRunCompleteActivity({ sessionId, runId });
+        });
+      } catch {
+        // Best-effort: do not block chat loop on completion marker failures.
+      }
+    }
 
     // Continue-as-new if history is getting too large
     if (workflowInfo().historyLength > MAX_HISTORY_EVENTS) {

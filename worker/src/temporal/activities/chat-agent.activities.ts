@@ -157,6 +157,25 @@ async function appendStreamEvent(
   }
 }
 
+async function appendAndPublishStreamEvent(
+  sessionId: string,
+  runId: string,
+  event: Record<string, unknown>,
+): Promise<AppendResult> {
+  const result = await appendStreamEvent(sessionId, runId, event);
+  if (!result.staleMismatch) {
+    publishStreamChunk(
+      sessionId,
+      JSON.stringify({
+        ...event,
+        runId,
+        ...(typeof result.seq === 'number' ? { seq: result.seq } : {}),
+      }),
+    );
+  }
+  return result;
+}
+
 /**
  * Flush the accumulated partial response parts to the backend so that
  * reconnecting clients (refresh / second tab / CLI) can read the progress.
@@ -592,7 +611,6 @@ export async function runChatAgentStepActivity(
     'MCP client connect',
   );
   let taskClient: Client | undefined;
-  let completionNotified = false;
   try {
     taskClient = await withTimeout(
       createStudioTaskMcpClient(organizationId),
@@ -876,11 +894,9 @@ export async function runChatAgentStepActivity(
         if (accumulatedParts.length > 0) {
           await flushPartialResponse(sessionId, accumulatedParts);
         }
-        // Emit interrupted event and reset status
+        // Emit interrupted event so workflow can decide whether to continue
+        // with queued turns or close out the run.
         await emitEvent({ type: 'generation-interrupted', generationId });
-        await emitEvent({ type: 'status', status: 'idle' });
-        await notifySessionComplete(sessionId, runId);
-        completionNotified = true;
 
         // Build partial assistant message from accumulated parts
         const interruptedMessages: ChatUIMessage[] = [];
@@ -898,11 +914,6 @@ export async function runChatAgentStepActivity(
       if (accumulatedParts.length > 0) {
         await flushPartialResponse(sessionId, accumulatedParts);
       }
-
-      // Publish completion and notify backend
-      await emitEvent({ type: 'status', status: 'idle' });
-      await notifySessionComplete(sessionId, runId);
-      completionNotified = true;
 
       // Use the SDK-provided responseMessage (properly formatted UIMessage with dynamic-tool parts)
       const assistantMessages: ChatUIMessage[] = [];
@@ -931,9 +942,6 @@ export async function runChatAgentStepActivity(
           await flushPartialResponse(sessionId, accumulatedParts);
         }
         await emitEvent({ type: 'generation-interrupted', generationId });
-        await emitEvent({ type: 'status', status: 'idle' });
-        await notifySessionComplete(sessionId, runId);
-        completionNotified = true;
 
         const interruptedMessages: ChatUIMessage[] = [];
         if (accumulatedParts.length > 0) {
@@ -955,11 +963,6 @@ export async function runChatAgentStepActivity(
           `[chat-agent] LLM returned empty response for session ${sessionId}:`,
           error.message,
         );
-
-        // Publish completion even on error and notify backend
-        await emitEvent({ type: 'status', status: 'idle' });
-        await notifySessionComplete(sessionId, runId);
-        completionNotified = true;
 
         // Return a friendly error message to the user
         return {
@@ -983,9 +986,6 @@ export async function runChatAgentStepActivity(
           `[chat-agent] Non-retriable LLM error for session ${sessionId}:`,
           error.message,
         );
-        await emitEvent({ type: 'status', status: 'idle' });
-        await notifySessionComplete(sessionId, runId);
-        completionNotified = true;
         return {
           assistantMessages: [
             {
@@ -1006,10 +1006,6 @@ export async function runChatAgentStepActivity(
     }
   } finally {
     clearInterval(heartbeatTimer);
-    if (!completionNotified) {
-      await emitEvent({ type: 'status', status: 'idle' }).catch(() => {});
-      await notifySessionComplete(sessionId, runId).catch(() => {});
-    }
     await taskClient?.close().catch(() => {
       // Best-effort cleanup
     });
@@ -1116,5 +1112,11 @@ export async function markChatRunCompleteActivity(input: {
   sessionId: string;
   runId: string;
 }): Promise<void> {
+  await appendAndPublishStreamEvent(input.sessionId, input.runId, {
+    type: 'status',
+    status: 'idle',
+  }).catch(() => {
+    // Best-effort status signal; completion cleanup still proceeds.
+  });
   await notifySessionComplete(input.sessionId, input.runId);
 }
