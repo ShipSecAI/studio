@@ -261,12 +261,28 @@ export class TemporalService implements OnModuleDestroy {
     sessionId: string,
     message: { id?: string; role: string; parts: unknown[] },
     runId: string,
+    options?: { turnId?: string; queuedAt?: string; steerTarget?: boolean },
   ): Promise<void> {
     const workflowId = `chat-${sessionId}`;
     await this.signalWorkflow({
       workflowId,
       signalName: 'userMessage',
-      args: { message, runId },
+      args: {
+        turnId: options?.turnId,
+        message,
+        runId,
+        queuedAt: options?.queuedAt,
+        steerTarget: options?.steerTarget ?? false,
+      },
+    });
+  }
+
+  async signalChatSteerTurn(sessionId: string, turnId: string): Promise<void> {
+    const workflowId = `chat-${sessionId}`;
+    await this.signalWorkflow({
+      workflowId,
+      signalName: 'steerTurn',
+      args: turnId,
     });
   }
 

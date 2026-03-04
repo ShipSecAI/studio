@@ -121,4 +121,16 @@ export class ChatStreamService {
 
     return { unsubscribe: cleanup };
   }
+
+  isAvailable(): boolean {
+    return this.subscriber != null;
+  }
+
+  async publish(sessionId: string, event: Record<string, unknown>): Promise<void> {
+    if (!this.redis) {
+      return;
+    }
+
+    await this.redis.publish(`chat:stream:${sessionId}`, JSON.stringify(event));
+  }
 }

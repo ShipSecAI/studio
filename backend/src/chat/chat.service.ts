@@ -1,17 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import {
-  Injectable,
-  OnModuleInit,
-  OnModuleDestroy,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
-import type { UIMessage } from 'ai';
+import { Injectable, Logger } from '@nestjs/common';
 import type { ServerResponse } from 'node:http';
 
 import { ChatSessionRepository } from './chat-session.repository';
-import { ChatPartialRepository } from './chat-partial.repository';
-import { ChatStreamEventRepository } from './chat-stream-event.repository';
+import { ChatTurnRepository, type ChatTurnStatus } from './chat-turn.repository';
+import { ChatSessionEventRepository } from './chat-session-event.repository';
+import { ChatTurnDraftRepository } from './chat-turn-draft.repository';
 import { ChatStreamService } from './chat-stream.service';
 import { TemporalService } from '../temporal/temporal.service';
 import type { AuthContext } from '../auth/types';
@@ -26,53 +20,17 @@ Be concise and helpful. When a user asks to run a workflow, confirm the workflow
 and any required inputs before executing. Always show run IDs so users can track progress.`;
 
 @Injectable()
-export class ChatService implements OnModuleInit, OnModuleDestroy {
+export class ChatService {
   private readonly logger = new Logger(ChatService.name);
-  private reconcileInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly sessionRepository: ChatSessionRepository,
-    private readonly partialRepository: ChatPartialRepository,
-    private readonly streamEventRepository: ChatStreamEventRepository,
+    private readonly turnRepository: ChatTurnRepository,
+    private readonly sessionEventRepository: ChatSessionEventRepository,
+    private readonly turnDraftRepository: ChatTurnDraftRepository,
     private readonly chatStreamService: ChatStreamService,
     private readonly temporalService: TemporalService,
   ) {}
-
-  onModuleInit() {
-    this.logger.log('Chat agent mode: Temporal (durable workflows)');
-    this.reconcileInterval = setInterval(() => {
-      this.reconcileZombieSessions().catch((err) => {
-        this.logger.error('Zombie session reconciliation failed', err);
-      });
-    }, 60_000);
-  }
-
-  onModuleDestroy() {
-    if (this.reconcileInterval) {
-      clearInterval(this.reconcileInterval);
-      this.reconcileInterval = null;
-    }
-  }
-
-  private async reconcileZombieSessions(): Promise<void> {
-    const staleSessions = await this.sessionRepository.findStaleProcessingSessions(10);
-    if (staleSessions.length === 0) return;
-
-    for (const session of staleSessions) {
-      try {
-        await this.temporalService.queryChatStatus(session.id);
-        // Workflow is still running — leave it alone
-      } catch {
-        // Workflow not found or dead — reset the session
-        this.logger.warn(
-          `Resetting zombie session ${session.id} (processingStatus=processing but workflow is gone)`,
-        );
-        await this.sessionRepository.completeRun(session.id);
-      }
-    }
-  }
-
-  // --- Session CRUD ---
 
   async createSession(auth: AuthContext, title?: string) {
     const session = await this.sessionRepository.createSession(
@@ -88,9 +46,6 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         systemPrompt: SYSTEM_PROMPT,
       });
       await this.sessionRepository.setTemporalWorkflowId(session.id, result.workflowId);
-      this.logger.log(
-        `Started Temporal chat workflow ${result.workflowId} for session ${session.id}`,
-      );
     } catch (error) {
       this.logger.error(`Failed to start Temporal chat workflow for session ${session.id}`, error);
       throw error;
@@ -111,6 +66,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       userId: auth.userId ?? 'anonymous',
       organizationId: auth.organizationId,
     });
+
     return sessions.map((s) => ({
       id: s.id,
       title: s.title,
@@ -126,6 +82,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       userId: auth.userId ?? 'anonymous',
       organizationId: auth.organizationId,
     });
+
     return {
       id: session.id,
       title: session.title,
@@ -141,6 +98,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       userId: auth.userId ?? 'anonymous',
       organizationId: auth.organizationId,
     });
+
     return {
       id: session.id,
       title: session.title,
@@ -155,7 +113,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.temporalService.terminateChatWorkflow(id);
     } catch {
-      // Workflow may not exist or already be terminated
+      // Workflow may not exist or already be terminated.
     }
 
     await this.sessionRepository.deleteSession(id, {
@@ -165,14 +123,10 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getMessages(sessionId: string, auth: AuthContext) {
-    // Verify ownership
-    await this.sessionRepository.getSession(sessionId, {
-      userId: auth.userId ?? 'anonymous',
-      organizationId: auth.organizationId,
-    });
-
+    await this.assertSessionAccess(sessionId, auth);
     const messages = await this.sessionRepository.getMessages(sessionId);
-    return messages.map((m: any) => ({
+
+    return messages.map((m) => ({
       id: m.id,
       role: m.role,
       parts: m.parts,
@@ -180,535 +134,592 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     }));
   }
 
-  // --- Streaming chat (Temporal-backed) ---
-  //
-  // AI SDK v6 DefaultChatTransport expects the UI Message Stream protocol:
-  //   Content-Type: text/event-stream
-  //   Header: x-vercel-ai-ui-message-stream: v1
-  //   Format: SSE lines — `data: {json}\n\n`
-  //   Events: text-start, text-delta, text-end, tool-input-start,
-  //           tool-input-available, tool-output-available, error
-  //   End marker: `data: [DONE]\n\n`
+  async enqueueTurn(
+    sessionId: string,
+    input: { message: string; clientMessageId?: string },
+    auth: AuthContext,
+  ) {
+    const session = await this.assertSessionAccess(sessionId, auth);
 
-  /** Write one SSE event */
-  private writeSseEvent(res: ServerResponse, data: Record<string, unknown>): void {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
-  }
-
-  /** End SSE stream with [DONE] marker */
-  private endSseStream(res: ServerResponse): void {
-    res.write('data: [DONE]\n\n');
-    res.end();
-  }
-
-  // ---------------------------------------------------------------------------
-  // Detachable session support
-  // ---------------------------------------------------------------------------
-
-  async getProcessingStatus(sessionId: string, auth: AuthContext) {
-    const session = await this.sessionRepository.getSession(sessionId, {
-      userId: auth.userId ?? 'anonymous',
-      organizationId: auth.organizationId,
+    const queued = await this.turnRepository.enqueueTurnWithUserMessage({
+      sessionId,
+      message: input.message,
+      clientMessageId: input.clientMessageId,
     });
-    const activeRunId = session.activeRunId ?? null;
-    const activeRunStartedAt =
-      session.processingStatus === 'processing' && activeRunId
-        ? await this.streamEventRepository.getRunStartedAt(sessionId, activeRunId)
-        : null;
 
-    // Query workflow for queue state (best-effort, don't fail status on query error)
-    let pendingCount = 0;
-    let generationId: number | null = null;
-    if (session.processingStatus === 'processing') {
-      try {
-        [pendingCount, generationId] = await Promise.all([
-          this.temporalService.queryChatPendingCount(sessionId),
-          this.temporalService.queryChatGenerationId(sessionId),
-        ]);
-      } catch {
-        // Workflow may be completing — use defaults
-      }
+    let runId = session.activeRunId ?? null;
+    const isQueued = Boolean(runId);
+    const createdRun = !runId;
+
+    if (!runId) {
+      runId = randomUUID();
+      await this.sessionRepository.startRun(sessionId, runId);
     }
 
+    try {
+      await this.temporalService.signalChatWorkflow(
+        sessionId,
+        {
+          id: input.clientMessageId,
+          role: 'user',
+          parts: [{ type: 'text', text: input.message }],
+        },
+        runId,
+        {
+          turnId: queued.turn.id,
+          queuedAt: queued.turn.queuedAt.toISOString(),
+        },
+      );
+    } catch (error) {
+      if (createdRun) {
+        await this.sessionRepository.completeRun(sessionId, runId);
+      }
+      throw error;
+    }
+
+    const [queuedTurns, lastSeq] = await Promise.all([
+      this.turnRepository.listQueuedTurns(sessionId),
+      this.sessionEventRepository.getLastSeq(sessionId),
+    ]);
+
     return {
-      processingStatus: session.processingStatus,
-      activeRunId,
-      activeRunStartedAt: activeRunStartedAt ? activeRunStartedAt.toISOString() : null,
-      pendingCount,
-      generationId,
+      turnId: queued.turn.id,
+      status: queued.turn.status,
+      queuedAt: queued.turn.queuedAt,
+      position: queued.position,
+      queued: isQueued,
+      ...(isQueued ? { activeRunId: runId } : { runId }),
+      pendingCount: queuedTurns.length,
+      afterSeq: lastSeq,
+      lastSeq,
     };
   }
 
-  async getRunEvents(sessionId: string, runId: string, afterSeq: number, auth: AuthContext) {
-    await this.sessionRepository.getSession(sessionId, {
-      userId: auth.userId ?? 'anonymous',
-      organizationId: auth.organizationId,
-    });
-    const rows = await this.streamEventRepository.listAfter(sessionId, runId, afterSeq);
+  async sendMessage(sessionId: string, message: unknown, auth: AuthContext) {
+    const text = this.extractTextFromUIMessage(message);
+    if (!text) {
+      return { error: 'No text message provided' };
+    }
+
+    return this.enqueueTurn(sessionId, { message: text }, auth);
+  }
+
+  async steerSession(
+    sessionId: string,
+    targetTurnId: string | undefined,
+    auth: AuthContext,
+  ): Promise<{ ok: boolean; targetTurnId: string | null; interruptedTurnId?: string }> {
+    await this.assertSessionAccess(sessionId, auth);
+
+    if (targetTurnId) {
+      await this.turnRepository.getTurn(sessionId, targetTurnId);
+    }
+
+    await this.sessionRepository.setSteerIntent(sessionId, targetTurnId ?? null);
+    if (targetTurnId) {
+      await this.temporalService.signalChatSteerTurn(sessionId, targetTurnId);
+    }
+
+    const runningTurn = await this.turnRepository.getRunningTurn(sessionId);
+    if (!runningTurn) {
+      return { ok: true, targetTurnId: targetTurnId ?? null };
+    }
+
+    await this.temporalService.signalChatInterrupt(sessionId);
+
     return {
-      runId,
+      ok: true,
+      targetTurnId: targetTurnId ?? null,
+      interruptedTurnId: runningTurn.id,
+    };
+  }
+
+  async interruptGeneration(
+    sessionId: string,
+    auth: AuthContext,
+  ): Promise<{ ok: boolean; interruptedTurnId?: string }> {
+    await this.assertSessionAccess(sessionId, auth);
+    const runningTurn = await this.turnRepository.getRunningTurn(sessionId);
+
+    if (!runningTurn) {
+      return { ok: false };
+    }
+
+    await this.temporalService.signalChatInterrupt(sessionId);
+
+    return { ok: true, interruptedTurnId: runningTurn.id };
+  }
+
+  async getState(sessionId: string, auth: AuthContext) {
+    const session = await this.assertSessionAccess(sessionId, auth);
+    const [messages, activeTurn, queuedTurns, lastSeq] = await Promise.all([
+      this.sessionRepository.getMessages(sessionId),
+      this.turnRepository.getRunningTurn(sessionId),
+      this.turnRepository.listQueuedTurns(sessionId),
+      this.sessionEventRepository.getLastSeq(sessionId),
+    ]);
+
+    const queue = queuedTurns.map((turn, index) => ({
+      turnId: turn.id,
+      clientMessageId: turn.clientMessageId,
+      queuePosition: index + 1,
+      status: turn.status,
+      queuedAt: turn.queuedAt,
+      startedAt: turn.startedAt,
+      completedAt: turn.endedAt,
+    }));
+    const parsedGenerationId =
+      activeTurn?.generationId && Number.isFinite(Number(activeTurn.generationId))
+        ? Number(activeTurn.generationId)
+        : null;
+    const processingStatus =
+      activeTurn || queue.length > 0 || session.processingStatus === 'processing'
+        ? 'processing'
+        : 'idle';
+    const activeRunId = activeTurn?.runId ?? session.activeRunId ?? null;
+
+    return {
+      messages: messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        parts: m.parts,
+        createdAt: m.createdAt,
+      })),
+      activeTurn: activeTurn
+        ? {
+            turnId: activeTurn.id,
+            status: activeTurn.status,
+            runId: activeTurn.runId,
+            generationId: activeTurn.generationId,
+            startedAt: activeTurn.startedAt,
+          }
+        : null,
+      activeRunId,
+      activeRunStartedAt: activeTurn?.startedAt ?? null,
+      generationId: parsedGenerationId,
+      pendingCount: queue.length,
+      steerTargetTurnId: session.steerTargetTurnId ?? null,
+      queue,
+      queuedTurns: queue,
+      queueOrder: queue.map((turn) => turn.turnId),
+      afterSeq: lastSeq,
+      lastSeq,
+      processingStatus,
+    };
+  }
+
+  async getProcessingStatus(sessionId: string, auth: AuthContext) {
+    return this.getState(sessionId, auth);
+  }
+
+  async getRunEvents(
+    sessionId: string,
+    _runId: string | undefined,
+    afterSeq: number,
+    auth: AuthContext,
+  ) {
+    await this.assertSessionAccess(sessionId, auth);
+    const rows = await this.sessionEventRepository.listAfter(sessionId, afterSeq);
+
+    return {
       events: rows.map((row) => ({
-        ...(row.event as Record<string, unknown>),
-        runId,
         seq: row.seq,
+        turnId: row.turnId,
+        runId: row.runId,
+        generationId: row.generationId,
+        eventId: row.eventId,
+        chunk: row.chunk,
       })),
     };
   }
 
-  async getPartialResponse(sessionId: string, auth: AuthContext) {
-    await this.sessionRepository.getSession(sessionId, {
-      userId: auth.userId ?? 'anonymous',
-      organizationId: auth.organizationId,
-    });
-    const partial = await this.partialRepository.get(sessionId);
-    if (!partial) {
-      throw new NotFoundException('No partial response in progress');
-    }
-    return { parts: partial.parts, updatedAt: partial.updatedAt };
-  }
-
-  /** Internal: called by worker to flush accumulated partial response */
-  async upsertPartialResponse(sessionId: string, parts: unknown[]) {
-    await this.partialRepository.upsert(sessionId, parts);
-  }
-
-  /** Internal: called by worker for each durable stream event */
-  async appendStreamEvent(sessionId: string, runId: string, event: Record<string, unknown>) {
-    return this.streamEventRepository.append(sessionId, runId, event);
-  }
-
-  /** Internal: called by worker on completion/error to clean up */
-  async clearPartialResponse(sessionId: string, runId?: string) {
-    await this.partialRepository.delete(sessionId);
+  async completeRun(sessionId: string, runId?: string): Promise<void> {
     await this.sessionRepository.completeRun(sessionId, runId);
+    await this.sessionRepository.clearSteerIntent(sessionId);
   }
 
-  // ---------------------------------------------------------------------------
-  // Message sending (non-streaming - returns runId)
-  // ---------------------------------------------------------------------------
-
-  private toWorkflowMessage(message: UIMessage): { id?: string; role: string; parts: unknown[] } {
-    return {
-      id: message.id,
-      role: message.role,
-      parts: message.parts,
-    };
-  }
-
-  private async signalChatWorkflowWithRetry(
+  async appendInternalEvent(
     sessionId: string,
-    message: { id?: string; role: string; parts: unknown[] },
-    runId: string,
-    attempts = 2,
-  ): Promise<void> {
-    let lastError: unknown;
-    for (let attempt = 1; attempt <= attempts; attempt++) {
-      try {
-        await this.temporalService.signalChatWorkflow(sessionId, message, runId);
-        return;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw lastError;
-  }
+    input: {
+      turnId: string;
+      runId?: string;
+      generationId?: string | number;
+      eventId: string;
+      chunk: Record<string, unknown>;
+    },
+  ): Promise<number> {
+    const turn = await this.turnRepository.getTurn(sessionId, input.turnId);
+    const generationId =
+      input.generationId === undefined || input.generationId === null
+        ? undefined
+        : String(input.generationId);
 
-  private async restartWorkflowWithHistory(sessionId: string, auth: AuthContext): Promise<void> {
-    const existingMessages = await this.sessionRepository.getMessages(sessionId);
-    const initialMessages = existingMessages.map((m) => ({
-      role: m.role,
-      parts: m.parts,
-    }));
-
-    const result = await this.temporalService.startChatWorkflow({
+    const seq = await this.sessionEventRepository.append({
       sessionId,
-      organizationId: auth.organizationId,
-      systemPrompt: SYSTEM_PROMPT,
-      initialMessages,
-    });
-    await this.sessionRepository.setTemporalWorkflowId(sessionId, result.workflowId);
-    this.logger.log(
-      `Restarted Temporal chat workflow ${result.workflowId} for session ${sessionId} with ${initialMessages.length} existing messages`,
-    );
-  }
-
-  /**
-   * Send a message and return the runId.
-   * The actual streaming happens via GET /stream endpoint.
-   * This allows multiple clients to attach to the same stream.
-   */
-  async sendMessage(
-    sessionId: string,
-    message: UIMessage,
-    auth: AuthContext,
-  ): Promise<{ runId?: string; queued?: boolean; activeRunId?: string }> {
-    // Verify session ownership
-    const session = await this.sessionRepository.getSession(sessionId, {
-      userId: auth.userId ?? 'anonymous',
-      organizationId: auth.organizationId,
+      turnId: input.turnId,
+      runId: input.runId,
+      generationId,
+      eventId: input.eventId,
+      chunk: input.chunk,
     });
 
-    const workflowMessage = this.toWorkflowMessage(message);
+    await this.turnDraftRepository.upsert(turn.id, input.chunk, seq);
+    await this.applyTurnStatusFromChunk(sessionId, turn.id, input.chunk, input.runId, generationId);
 
-    // Save the user message to DB always
-    if (message && message.role === 'user') {
-      await this.sessionRepository.saveMessage(sessionId, {
-        role: message.role,
-        parts: message.parts,
-      });
-    }
-
-    if (session.processingStatus === 'processing' && session.activeRunId) {
-      // Already processing — queue the message in the workflow, don't create a new run
-      try {
-        await this.signalChatWorkflowWithRetry(
-          sessionId,
-          workflowMessage,
-          session.activeRunId, // pass existing runId for signal routing
-        );
-      } catch (signalError) {
-        this.logger.warn(`Signal failed for queued message in session ${sessionId}`, signalError);
-
-        // Recovery path: restart workflow with DB-backed history and retry signal.
-        // If this still fails, surface the error instead of silently reporting "queued".
-        await this.restartWorkflowWithHistory(sessionId, auth);
-        await this.signalChatWorkflowWithRetry(sessionId, workflowMessage, session.activeRunId);
-      }
-      return { queued: true, activeRunId: session.activeRunId };
-    }
-
-    // Session is idle — start a new run
-    const runId = randomUUID();
-    await this.sessionRepository.startRun(sessionId, runId);
-
-    // Signal the Temporal workflow with the new message.
-    // If the workflow timed out (idle 30 min), restart it with history from DB.
-    try {
-      await this.signalChatWorkflowWithRetry(sessionId, workflowMessage, runId);
-    } catch (signalError) {
-      this.logger.warn(
-        `Signal failed for session ${sessionId}, workflow may have timed out. Restarting...`,
-        signalError,
-      );
-
-      // Start a fresh workflow (Temporal allows reuse of the workflow ID once completed)
-      await this.restartWorkflowWithHistory(sessionId, auth);
-
-      // Now signal the newly started workflow
-      await this.signalChatWorkflowWithRetry(sessionId, workflowMessage, runId);
-    }
-
-    return { runId };
-  }
-
-  async interruptGeneration(sessionId: string, auth: AuthContext): Promise<{ success: boolean }> {
-    const session = await this.sessionRepository.getSession(sessionId, {
-      userId: auth.userId ?? 'anonymous',
-      organizationId: auth.organizationId,
+    await this.chatStreamService.publish(sessionId, {
+      seq,
+      turnId: input.turnId,
+      runId: input.runId ?? null,
+      generationId: generationId ?? null,
+      eventId: input.eventId,
+      chunk: input.chunk,
     });
 
-    if (session.processingStatus !== 'processing') {
-      return { success: false };
-    }
-
-    await this.temporalService.signalChatInterrupt(sessionId);
-    return { success: true };
+    return seq;
   }
 
-  // ---------------------------------------------------------------------------
-  // Unified streaming endpoint (AI SDK v6 UIMessageChunk format)
-  // ---------------------------------------------------------------------------
+  async appendLegacyStreamEvent(sessionId: string, runId: string, event: Record<string, unknown>) {
+    const runningTurn = await this.turnRepository.getRunningTurn(sessionId);
+    const queuedTurn =
+      runningTurn ?? (await this.turnRepository.listQueuedTurns(sessionId, 1))[0] ?? null;
 
-  /**
-   * Stream events to SSE response in AI SDK v6 UIMessageChunk format.
-   *
-   * This is the unified streaming path used by:
-   * - Tab 1 after sending a message (via DurableChatTransport.sendMessages)
-   * - Tab 2+ joining mid-stream (via DurableChatTransport.reconnectToStream)
-   * - Any tab after refresh (via DurableChatTransport.reconnectToStream)
-   *
-   * All clients receive identical events from:
-   * 1. PostgreSQL replay (historical events)
-   * 2. Redis pub/sub (live events)
-   */
+    if (!queuedTurn) {
+      throw new Error(`No active or queued turn for session ${sessionId}`);
+    }
+
+    const eventId = this.resolveLegacyEventId(event, runId);
+    return this.appendInternalEvent(sessionId, {
+      turnId: queuedTurn.id,
+      runId,
+      generationId:
+        typeof event.generationId === 'string' || typeof event.generationId === 'number'
+          ? event.generationId
+          : undefined,
+      eventId,
+      chunk: event,
+    });
+  }
+
   async streamToResponse(
     sessionId: string,
     auth: AuthContext,
     res: ServerResponse,
-    options: { runId?: string; afterSeq?: number } = {},
+    options: { afterSeq?: number } = {},
   ): Promise<void> {
-    const session = await this.sessionRepository.getSession(sessionId, {
-      userId: auth.userId ?? 'anonymous',
-      organizationId: auth.organizationId,
-    });
+    await this.assertSessionAccess(sessionId, auth);
 
-    const targetRunId = options.runId ?? session.activeRunId ?? null;
-    const initialAfterSeq = Math.max(0, options.afterSeq ?? 0);
+    let lastSeq = Math.max(0, options.afterSeq ?? 0);
+    let closed = false;
 
-    // Set up AI SDK v6 UI Message Stream headers
+    const writeChunk = (chunk: Record<string, unknown>) => {
+      if (closed) return;
+      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+    };
+
+    const writeDoneAndClose = () => {
+      if (closed) return;
+      res.write('data: [DONE]\n\n');
+      res.end();
+      close();
+    };
+
+    const close = () => {
+      closed = true;
+    };
+
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
       'X-Vercel-AI-UI-Message-Stream': 'v1',
       'X-Accel-Buffering': 'no',
-      'X-Chat-Run-Id': targetRunId ?? '',
     });
 
-    // If no active run, return idle immediately
-    if (!targetRunId) {
-      this.writeSseEvent(res, { type: 'status', status: 'idle' });
-      this.endSseStream(res);
-      return;
-    }
-
-    // Track text part IDs for proper streaming (AI SDK expects text-start/text-end pairs)
-    let textPartCounter = 0;
-    let currentTextId: string | null = null;
-    const seenToolCalls = new Set<string>();
-
-    const startTextPart = (): string => {
-      textPartCounter++;
-      currentTextId = `text-${Date.now()}-${textPartCounter}`;
-      this.writeSseEvent(res, { type: 'text-start', id: currentTextId });
-      return currentTextId;
-    };
-
-    const endTextPart = (): void => {
-      if (currentTextId) {
-        this.writeSseEvent(res, { type: 'text-end', id: currentTextId });
-        currentTextId = null;
-      }
-    };
-
-    let lastSeq = initialAfterSeq;
-    let closed = false;
-    const bufferedLiveEvents: Record<string, unknown>[] = [];
-
-    const closeStream = () => {
-      if (closed) return;
-      closed = true;
-      endTextPart();
-      this.endSseStream(res);
-    };
-
-    const ensureToolInvocation = (
-      toolCallId: string,
-      toolName: string | undefined,
-      input: unknown = {},
-    ): void => {
-      if (seenToolCalls.has(toolCallId)) return;
-      this.writeSseEvent(res, {
-        type: 'tool-input-start',
-        toolCallId,
-        toolName: toolName ?? 'unknown_tool',
-        dynamic: true,
+    const replayRows = await this.sessionEventRepository.listAfter(sessionId, lastSeq);
+    for (const row of replayRows) {
+      lastSeq = row.seq;
+      const chunk = this.decorateStreamChunk(row.chunk, {
+        seq: row.seq,
+        runId: row.runId,
+        generationId: row.generationId,
       });
-      this.writeSseEvent(res, {
-        type: 'tool-input-available',
-        toolCallId,
-        toolName: toolName ?? 'unknown_tool',
-        input,
-        dynamic: true,
-      });
-      seenToolCalls.add(toolCallId);
-    };
-
-    /**
-     * Convert a worker event to AI SDK UIMessageChunk format and write to SSE.
-     */
-    const emitEvent = (event: Record<string, unknown>): boolean => {
-      if (closed) return true;
-
-      // Filter by runId
-      if (event.runId !== targetRunId) {
-        return false;
-      }
-
-      // Skip already-seen events
-      const seq = typeof event.seq === 'number' ? event.seq : undefined;
-      if (typeof seq === 'number' && seq <= lastSeq) {
-        return false;
-      }
-      if (typeof seq === 'number') {
-        lastSeq = seq;
-      }
-
-      // Convert to AI SDK format
-      if (event.type === 'text-delta' && typeof event.text === 'string') {
-        if (!currentTextId) startTextPart();
-        this.writeSseEvent(res, {
-          type: 'text-delta',
-          id: currentTextId,
-          delta: event.text,
-        });
-      } else if (event.type === 'tool-call') {
-        endTextPart();
-        const toolCallId = (event.toolCallId as string) ?? `call-${Date.now()}`;
-        const toolName = (event.toolName as string) ?? 'unknown_tool';
-        if (!seenToolCalls.has(toolCallId)) {
-          // First time seeing this tool — emit start + available
-          this.writeSseEvent(res, {
-            type: 'tool-input-start',
-            toolCallId,
-            toolName,
-            dynamic: true,
-          });
-          this.writeSseEvent(res, {
-            type: 'tool-input-available',
-            toolCallId,
-            toolName,
-            input: event.args ?? {},
-            dynamic: true,
-          });
-          seenToolCalls.add(toolCallId);
-        } else if (event.args != null) {
-          // Tool already seen (e.g. via tool-progress), but now we have the actual args.
-          // Emit tool-input-available so the frontend updates the input.
-          this.writeSseEvent(res, {
-            type: 'tool-input-available',
-            toolCallId,
-            toolName,
-            input: event.args,
-            dynamic: true,
-          });
-        }
-      } else if (event.type === 'tool-result') {
-        const toolCallId = (event.toolCallId as string) ?? `call-${Date.now()}`;
-        ensureToolInvocation(toolCallId, event.toolName as string | undefined);
-        this.writeSseEvent(res, {
-          type: 'tool-output-available',
-          toolCallId,
-          output: event.result ?? {},
-          preliminary: event.preliminary === true,
-          dynamic: true,
-        });
-      } else if (event.type === 'tool-progress') {
-        const toolCallId = event.toolCallId as string | undefined;
-        if (!toolCallId) return false;
-        ensureToolInvocation(toolCallId, event.toolName as string | undefined);
-        this.writeSseEvent(res, {
-          type: 'tool-output-available',
-          toolCallId,
-          output: event.output ?? {},
-          preliminary: true,
-          dynamic: true,
-        });
-      } else if (event.type === 'tool-error') {
-        const toolCallId = event.toolCallId as string | undefined;
-        if (!toolCallId) return false;
-        ensureToolInvocation(toolCallId, event.toolName as string | undefined);
-        this.writeSseEvent(res, {
-          type: 'tool-output-error',
-          toolCallId,
-          errorText:
-            typeof event.errorText === 'string' ? event.errorText : 'Tool execution failed',
-          dynamic: true,
-        });
-      } else if (event.type === 'status' && event.status === 'idle') {
-        endTextPart();
-        this.writeSseEvent(res, { type: 'status', status: 'idle' });
-        return true; // Signal to close
-      }
-
-      return false;
-    };
-
-    // Subscribe to Redis for live events (buffered during replay)
-    let replaying = true;
-    const subscription = this.chatStreamService.subscribe(sessionId, {
-      onEvent: (event) => {
-        try {
-          if (replaying) {
-            bufferedLiveEvents.push(event as Record<string, unknown>);
-            return;
-          }
-          const shouldClose = emitEvent(event as Record<string, unknown>);
-          if (shouldClose) {
-            closeStream();
-            subscription.unsubscribe();
-          }
-        } catch {
-          // Best-effort streaming
-        }
-      },
-      onComplete: () => {
-        closeStream();
-      },
-      onError: (err) => {
-        this.logger.error(`Live stream error for session ${sessionId}:`, err);
-        endTextPart();
-        this.writeSseEvent(res, { type: 'error', errorText: String(err) });
-        closeStream();
-      },
-    });
-
-    // Replay historical events from PostgreSQL
-    try {
-      const replay = await this.streamEventRepository.listAfter(
-        sessionId,
-        targetRunId,
-        initialAfterSeq,
-      );
-
-      for (const row of replay) {
-        const event = {
-          ...(row.event as Record<string, unknown>),
-          runId: targetRunId,
-          seq: row.seq,
-        };
-        const shouldClose = emitEvent(event);
-        if (shouldClose) {
-          subscription.unsubscribe();
-          return;
-        }
-      }
-    } catch (err) {
-      this.logger.error(`Failed replay for session ${sessionId} run ${targetRunId}:`, err);
-      endTextPart();
-      this.writeSseEvent(res, { type: 'error', errorText: 'Failed to replay run events' });
-      closeStream();
-      subscription.unsubscribe();
-      return;
-    }
-
-    // Process buffered live events (sorted by seq)
-    bufferedLiveEvents.sort((a, b) => {
-      const aSeq = typeof a.seq === 'number' ? a.seq : Number.MAX_SAFE_INTEGER;
-      const bSeq = typeof b.seq === 'number' ? b.seq : Number.MAX_SAFE_INTEGER;
-      return aSeq - bSeq;
-    });
-    replaying = false;
-
-    for (const event of bufferedLiveEvents) {
-      const shouldClose = emitEvent(event);
-      if (shouldClose) {
-        subscription.unsubscribe();
+      writeChunk(chunk);
+      if (this.shouldCloseStream(chunk)) {
+        writeDoneAndClose();
         return;
       }
     }
 
-    // Check if run is already complete
-    if (session.processingStatus !== 'processing' || session.activeRunId !== targetRunId) {
-      endTextPart();
-      this.writeSseEvent(res, { type: 'status', status: 'idle', runId: targetRunId });
-      closeStream();
-      subscription.unsubscribe();
+    if (!this.chatStreamService.isAvailable()) {
+      await this.streamWithPollingFallback(
+        sessionId,
+        res,
+        lastSeq,
+        writeChunk,
+        writeDoneAndClose,
+        close,
+      );
       return;
     }
 
-    // Timeout: if no completion in 5 minutes, end the stream
-    const timer = setTimeout(() => {
-      subscription.unsubscribe();
-      endTextPart();
-      this.writeSseEvent(res, { type: 'status', status: 'timeout' });
-      closeStream();
-    }, 300_000);
+    await new Promise<void>((resolve) => {
+      const heartbeat = setInterval(() => {
+        if (!closed) {
+          res.write(': ping\n\n');
+        }
+      }, 15000);
 
-    // Handle client disconnect
-    res.on('close', () => {
-      clearTimeout(timer);
-      subscription.unsubscribe();
+      const subscription = this.chatStreamService.subscribe(sessionId, {
+        onEvent: (event) => {
+          const maybeSeq = typeof event.seq === 'number' ? event.seq : null;
+          if (maybeSeq != null && maybeSeq <= lastSeq) {
+            return;
+          }
+
+          if (maybeSeq != null) {
+            lastSeq = maybeSeq;
+          }
+
+          const rawChunk =
+            event.chunk && typeof event.chunk === 'object'
+              ? (event.chunk as Record<string, unknown>)
+              : (event as Record<string, unknown>);
+          const chunk = this.decorateStreamChunk(rawChunk, {
+            seq: maybeSeq ?? undefined,
+            runId: typeof event.runId === 'string' ? event.runId : undefined,
+            generationId: typeof event.generationId === 'string' ? event.generationId : undefined,
+          });
+          writeChunk(chunk);
+
+          if (this.shouldCloseStream(chunk)) {
+            clearInterval(heartbeat);
+            subscription.unsubscribe();
+            writeDoneAndClose();
+            resolve();
+          }
+        },
+        onComplete: () => {
+          clearInterval(heartbeat);
+          writeDoneAndClose();
+          resolve();
+        },
+        onError: (error) => {
+          this.logger.error(`Chat stream subscription error for ${sessionId}`, error);
+          clearInterval(heartbeat);
+          if (!closed) {
+            writeChunk({ type: 'error', errorText: String(error) });
+            writeDoneAndClose();
+          }
+          close();
+          resolve();
+        },
+      });
+
+      res.on('close', () => {
+        clearInterval(heartbeat);
+        subscription.unsubscribe();
+        close();
+        resolve();
+      });
     });
+  }
+
+  private async streamWithPollingFallback(
+    sessionId: string,
+    res: ServerResponse,
+    initialSeq: number,
+    writeChunk: (chunk: Record<string, unknown>) => void,
+    writeDoneAndClose: () => void,
+    close: () => void,
+  ): Promise<void> {
+    let lastSeq = initialSeq;
+
+    await new Promise<void>((resolve) => {
+      const poll = setInterval(async () => {
+        try {
+          const rows = await this.sessionEventRepository.listAfter(sessionId, lastSeq);
+          for (const row of rows) {
+            lastSeq = row.seq;
+            const chunk = this.decorateStreamChunk(row.chunk, {
+              seq: row.seq,
+              runId: row.runId,
+              generationId: row.generationId,
+            });
+            writeChunk(chunk);
+            if (this.shouldCloseStream(chunk)) {
+              clearInterval(poll);
+              writeDoneAndClose();
+              resolve();
+              return;
+            }
+          }
+        } catch (error) {
+          this.logger.error(`Polling stream fallback failed for ${sessionId}`, error);
+        }
+      }, 250);
+
+      res.on('close', () => {
+        clearInterval(poll);
+        close();
+        resolve();
+      });
+    });
+  }
+
+  private decorateStreamChunk(
+    chunk: Record<string, unknown>,
+    metadata: { seq?: number; runId?: string | null; generationId?: string | null },
+  ): Record<string, unknown> {
+    const baseChunk: Record<string, unknown> = {
+      ...chunk,
+      ...(metadata.seq != null ? { seq: metadata.seq } : {}),
+      ...(metadata.runId ? { runId: metadata.runId } : {}),
+      ...(metadata.generationId ? { generationId: metadata.generationId } : {}),
+    };
+
+    if (baseChunk.type !== 'data-turn-status') {
+      return baseChunk;
+    }
+
+    const rawData =
+      baseChunk.data && typeof baseChunk.data === 'object'
+        ? (baseChunk.data as Record<string, unknown>)
+        : {};
+
+    return {
+      ...baseChunk,
+      data: {
+        ...rawData,
+        ...(metadata.seq != null ? { seq: metadata.seq } : {}),
+        ...(metadata.runId ? { activeRunId: metadata.runId, runId: metadata.runId } : {}),
+        ...(metadata.generationId ? { generationId: metadata.generationId } : {}),
+      },
+    };
+  }
+
+  private shouldCloseStream(chunk: Record<string, unknown>): boolean {
+    if (chunk.type === 'finish') {
+      return true;
+    }
+
+    if (chunk.type !== 'data-turn-status') {
+      return false;
+    }
+
+    const rawData =
+      chunk.data && typeof chunk.data === 'object' ? (chunk.data as Record<string, unknown>) : null;
+    const status = typeof rawData?.status === 'string' ? rawData.status : null;
+    return (
+      status === 'completed' ||
+      status === 'interrupted' ||
+      status === 'failed' ||
+      status === 'cancelled'
+    );
+  }
+
+  private async applyTurnStatusFromChunk(
+    sessionId: string,
+    turnId: string,
+    chunk: Record<string, unknown>,
+    runId?: string,
+    generationId?: string,
+  ): Promise<void> {
+    const status = this.extractTurnStatus(chunk);
+
+    if (status === 'running') {
+      await this.turnRepository.setTurnRunning(sessionId, turnId, runId, generationId);
+      await this.sessionRepository.setProcessingStatus(sessionId, 'processing');
+      return;
+    }
+
+    if (status) {
+      await this.turnRepository.setTurnStatus(sessionId, turnId, status);
+      const [runningTurn, queuedTurns] = await Promise.all([
+        this.turnRepository.getRunningTurn(sessionId),
+        this.turnRepository.listQueuedTurns(sessionId),
+      ]);
+
+      if (runningTurn || queuedTurns.length > 0) {
+        await this.sessionRepository.setProcessingStatus(sessionId, 'processing');
+      } else {
+        await this.sessionRepository.setProcessingStatus(sessionId, 'idle');
+        await this.sessionRepository.completeRun(sessionId, runId);
+      }
+
+      await this.sessionRepository.clearSteerIntent(sessionId);
+    }
+  }
+
+  private extractTurnStatus(chunk: Record<string, unknown>): ChatTurnStatus | null {
+    const directStatus = typeof chunk.status === 'string' ? chunk.status : null;
+    const typeStatus = typeof chunk.type === 'string' ? chunk.type : null;
+    const dataStatus =
+      typeStatus === 'data-turn-status' &&
+      chunk.data &&
+      typeof chunk.data === 'object' &&
+      typeof (chunk.data as Record<string, unknown>).status === 'string'
+        ? ((chunk.data as Record<string, unknown>).status as string)
+        : null;
+    const candidate = dataStatus ?? directStatus ?? typeStatus;
+
+    if (!candidate) {
+      return null;
+    }
+
+    if (
+      candidate === 'queued' ||
+      candidate === 'running' ||
+      candidate === 'completed' ||
+      candidate === 'interrupted' ||
+      candidate === 'failed' ||
+      candidate === 'cancelled'
+    ) {
+      return candidate;
+    }
+
+    if (candidate === 'idle' || candidate === 'done') {
+      return 'completed';
+    }
+
+    return null;
+  }
+
+  private async assertSessionAccess(sessionId: string, auth: AuthContext) {
+    return this.sessionRepository.getSession(sessionId, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+  }
+
+  private extractTextFromUIMessage(message: unknown): string {
+    if (!message || typeof message !== 'object') {
+      return '';
+    }
+
+    const msg = message as { parts?: unknown[] };
+    if (!Array.isArray(msg.parts)) {
+      return '';
+    }
+
+    const textParts = msg.parts
+      .filter((part) => part && typeof part === 'object')
+      .map((part) => part as { type?: string; text?: string })
+      .filter((part) => part.type === 'text' && typeof part.text === 'string')
+      .map((part) => part.text!.trim())
+      .filter(Boolean);
+
+    return textParts.join('\n').trim();
+  }
+
+  private resolveLegacyEventId(event: Record<string, unknown>, runId: string): string {
+    if (typeof event.eventId === 'string' && event.eventId.length > 0) {
+      return event.eventId;
+    }
+
+    if (typeof event.id === 'string' && event.id.length > 0) {
+      return event.id;
+    }
+
+    return `${runId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
   }
 }
