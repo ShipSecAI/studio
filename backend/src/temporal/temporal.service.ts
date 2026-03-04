@@ -286,6 +286,31 @@ export class TemporalService implements OnModuleDestroy {
     });
   }
 
+  async signalChatInterrupt(sessionId: string): Promise<void> {
+    const workflowId = `chat-${sessionId}`;
+    await this.signalWorkflow({
+      workflowId,
+      signalName: 'interruptGeneration',
+      args: undefined,
+    });
+  }
+
+  async queryChatGenerationId(sessionId: string): Promise<number> {
+    const workflowId = `chat-${sessionId}`;
+    return this.queryWorkflow<number>({
+      workflowId,
+      queryType: 'getGenerationId',
+    });
+  }
+
+  async queryChatPendingCount(sessionId: string): Promise<number> {
+    const workflowId = `chat-${sessionId}`;
+    return this.queryWorkflow<number>({
+      workflowId,
+      queryType: 'getPendingCount',
+    });
+  }
+
   async terminateChatWorkflow(sessionId: string): Promise<void> {
     const workflowId = `chat-${sessionId}`;
     try {

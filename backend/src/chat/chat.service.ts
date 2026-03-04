@@ -215,10 +215,27 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       session.processingStatus === 'processing' && activeRunId
         ? await this.streamEventRepository.getRunStartedAt(sessionId, activeRunId)
         : null;
+
+    // Query workflow for queue state (best-effort, don't fail status on query error)
+    let pendingCount = 0;
+    let generationId: number | null = null;
+    if (session.processingStatus === 'processing') {
+      try {
+        [pendingCount, generationId] = await Promise.all([
+          this.temporalService.queryChatPendingCount(sessionId),
+          this.temporalService.queryChatGenerationId(sessionId),
+        ]);
+      } catch {
+        // Workflow may be completing — use defaults
+      }
+    }
+
     return {
       processingStatus: session.processingStatus,
       activeRunId,
       activeRunStartedAt: activeRunStartedAt ? activeRunStartedAt.toISOString() : null,
+      pendingCount,
+      generationId,
     };
   }
 
@@ -279,24 +296,44 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     sessionId: string,
     message: UIMessage,
     auth: AuthContext,
-  ): Promise<{ runId: string }> {
+  ): Promise<{ runId?: string; queued?: boolean; activeRunId?: string }> {
     // Verify session ownership
-    await this.sessionRepository.getSession(sessionId, {
+    const session = await this.sessionRepository.getSession(sessionId, {
       userId: auth.userId ?? 'anonymous',
       organizationId: auth.organizationId,
     });
 
-    // Start a new durable run for this message
-    const runId = randomUUID();
-    await this.sessionRepository.startRun(sessionId, runId);
-
-    // Save the user message to DB
+    // Save the user message to DB always
     if (message && message.role === 'user') {
       await this.sessionRepository.saveMessage(sessionId, {
         role: message.role,
         parts: message.parts,
       });
     }
+
+    if (session.processingStatus === 'processing' && session.activeRunId) {
+      // Already processing — queue the message in the workflow, don't create a new run
+      try {
+        await this.temporalService.signalChatWorkflow(
+          sessionId,
+          {
+            id: message.id,
+            role: message.role,
+            parts: message.parts,
+          },
+          session.activeRunId, // pass existing runId for signal routing
+        );
+      } catch (signalError) {
+        this.logger.warn(`Signal failed for queued message in session ${sessionId}`, signalError);
+        // If signal fails, the message is still saved to DB.
+        // The workflow will pick it up on next restart.
+      }
+      return { queued: true, activeRunId: session.activeRunId };
+    }
+
+    // Session is idle — start a new run
+    const runId = randomUUID();
+    await this.sessionRepository.startRun(sessionId, runId);
 
     // Signal the Temporal workflow with the new message.
     // If the workflow timed out (idle 30 min), restart it with history from DB.
@@ -348,6 +385,20 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     }
 
     return { runId };
+  }
+
+  async interruptGeneration(sessionId: string, auth: AuthContext): Promise<{ success: boolean }> {
+    const session = await this.sessionRepository.getSession(sessionId, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+
+    if (session.processingStatus !== 'processing') {
+      return { success: false };
+    }
+
+    await this.temporalService.signalChatInterrupt(sessionId);
+    return { success: true };
   }
 
   // ---------------------------------------------------------------------------
@@ -437,12 +488,14 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         type: 'tool-input-start',
         toolCallId,
         toolName: toolName ?? 'unknown_tool',
+        dynamic: true,
       });
       this.writeSseEvent(res, {
         type: 'tool-input-available',
         toolCallId,
         toolName: toolName ?? 'unknown_tool',
         input,
+        dynamic: true,
       });
       seenToolCalls.add(toolCallId);
     };
@@ -478,7 +531,34 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       } else if (event.type === 'tool-call') {
         endTextPart();
         const toolCallId = (event.toolCallId as string) ?? `call-${Date.now()}`;
-        ensureToolInvocation(toolCallId, event.toolName as string | undefined, event.args ?? {});
+        const toolName = (event.toolName as string) ?? 'unknown_tool';
+        if (!seenToolCalls.has(toolCallId)) {
+          // First time seeing this tool — emit start + available
+          this.writeSseEvent(res, {
+            type: 'tool-input-start',
+            toolCallId,
+            toolName,
+            dynamic: true,
+          });
+          this.writeSseEvent(res, {
+            type: 'tool-input-available',
+            toolCallId,
+            toolName,
+            input: event.args ?? {},
+            dynamic: true,
+          });
+          seenToolCalls.add(toolCallId);
+        } else if (event.args != null) {
+          // Tool already seen (e.g. via tool-progress), but now we have the actual args.
+          // Emit tool-input-available so the frontend updates the input.
+          this.writeSseEvent(res, {
+            type: 'tool-input-available',
+            toolCallId,
+            toolName,
+            input: event.args,
+            dynamic: true,
+          });
+        }
       } else if (event.type === 'tool-result') {
         const toolCallId = (event.toolCallId as string) ?? `call-${Date.now()}`;
         ensureToolInvocation(toolCallId, event.toolName as string | undefined);
@@ -487,6 +567,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
           toolCallId,
           output: event.result ?? {},
           preliminary: event.preliminary === true,
+          dynamic: true,
         });
       } else if (event.type === 'tool-progress') {
         const toolCallId = event.toolCallId as string | undefined;
@@ -497,6 +578,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
           toolCallId,
           output: event.output ?? {},
           preliminary: true,
+          dynamic: true,
         });
       } else if (event.type === 'tool-error') {
         const toolCallId = event.toolCallId as string | undefined;
@@ -507,6 +589,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
           toolCallId,
           errorText:
             typeof event.errorText === 'string' ? event.errorText : 'Tool execution failed',
+          dynamic: true,
         });
       } else if (event.type === 'status' && event.status === 'idle') {
         endTextPart();

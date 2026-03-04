@@ -15,6 +15,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import type { Response } from 'express';
 
 import { ChatService } from './chat.service';
+import { RunMismatchError } from './chat-stream-event.repository';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
 import {
@@ -88,6 +89,12 @@ export class ChatController {
       return { error: 'No message provided' };
     }
     return this.chatService.sendMessage(id, lastMessage, auth);
+  }
+
+  @Post(':id/interrupt')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  async interruptGeneration(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
+    return this.chatService.interruptGeneration(id, auth);
   }
 
   // ---------------------------------------------------------------------------
@@ -176,9 +183,20 @@ export class ChatController {
   async appendRunEvent(
     @Param('id') id: string,
     @Body() body: { runId: string; event: Record<string, unknown> },
+    @Res() res: Response,
   ) {
-    const seq = await this.chatService.appendStreamEvent(id, body.runId, body.event);
-    return { seq };
+    try {
+      const seq = await this.chatService.appendStreamEvent(id, body.runId, body.event);
+      return res.status(HttpStatus.OK).json({ seq });
+    } catch (error) {
+      if (error instanceof RunMismatchError) {
+        return res.status(HttpStatus.CONFLICT).json({
+          error: 'GENERATION_SUPERSEDED',
+          message: error.message,
+        });
+      }
+      throw error;
+    }
   }
 
   /** Internal endpoint: worker signals completion and cleans up partial */
