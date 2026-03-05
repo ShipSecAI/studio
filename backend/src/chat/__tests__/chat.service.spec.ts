@@ -261,6 +261,43 @@ describe('ChatService Unit Tests', () => {
     );
   });
 
+  it('recovers active assistant response from partial snapshot before event replay', async () => {
+    (sessionRepository.getMessages as jest.Mock).mockResolvedValue([
+      {
+        id: 'msg-user',
+        role: 'user',
+        parts: [{ type: 'text', text: 'hello' }],
+        createdAt: new Date('2026-03-04T10:00:00.000Z'),
+      },
+    ]);
+    (turnRepository.getRunningTurn as jest.Mock).mockResolvedValue({
+      id: 'turn-running',
+      status: 'running',
+      runId: 'run-1',
+      generationId: 'gen-1',
+      startedAt: new Date('2026-03-04T10:01:00.000Z'),
+    });
+    (partialRepository.get as jest.Mock).mockResolvedValue({
+      parts: [{ type: 'text', text: 'in-progress answer' }],
+      updatedAt: new Date('2026-03-04T10:01:30.000Z'),
+    });
+
+    const result = await service.getState('session-1', mockAuthContext);
+
+    expect(result.messages).toEqual([
+      expect.objectContaining({
+        id: 'msg-user',
+        role: 'user',
+      }),
+      expect.objectContaining({
+        id: 'turn-turn-running',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'in-progress answer' }],
+      }),
+    ]);
+    expect(sessionEventRepository.listByTurn).not.toHaveBeenCalled();
+  });
+
   it('appends internal event with atomic seq and publishes it', async () => {
     const seq = await service.appendInternalEvent('session-1', {
       turnId: 'turn-1',
@@ -326,5 +363,16 @@ describe('ChatService Unit Tests', () => {
     // signalChatInterrupt called for BOTH invocations
     expect(temporalService.signalChatInterrupt).toHaveBeenCalledTimes(2);
     expect(temporalService.signalChatInterrupt).toHaveBeenCalledWith('session-1');
+  });
+
+  it('clears partial response state when completing a run', async () => {
+    (turnRepository.getRunningTurn as jest.Mock).mockResolvedValue(null);
+    (turnRepository.getLatestTurn as jest.Mock).mockResolvedValue(null);
+
+    await service.completeRun('session-1', 'run-1');
+
+    expect(sessionRepository.completeRun).toHaveBeenCalledWith('session-1', 'run-1');
+    expect(sessionRepository.clearSteerIntent).toHaveBeenCalledWith('session-1');
+    expect(partialRepository.delete).toHaveBeenCalledWith('session-1');
   });
 });
