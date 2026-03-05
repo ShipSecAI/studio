@@ -7,6 +7,7 @@ import { ChatTurnRepository } from './chat-turn.repository';
 import { ChatSessionEventRepository } from './chat-session-event.repository';
 import { ChatTurnDraftRepository } from './chat-turn-draft.repository';
 import { ChatStreamService } from './chat-stream.service';
+import { ChatStreamIngestService } from './chat-stream-ingest.service';
 import { TerminalModule } from '../terminal/terminal.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { TerminalModule } from '../terminal/terminal.module';
     ChatSessionEventRepository,
     ChatTurnDraftRepository,
     ChatStreamService,
+    ChatStreamIngestService,
   ],
 })
 export class ChatModule {}

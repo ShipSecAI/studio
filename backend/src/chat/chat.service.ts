@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import type { ServerResponse } from 'node:http';
+import { readUIMessageStream } from 'ai';
+import type { UIMessage, UIMessageChunk } from 'ai';
 
 import { ChatSessionRepository } from './chat-session.repository';
-import { ChatTurnRepository, type ChatTurnStatus } from './chat-turn.repository';
+import { ChatTurnRepository } from './chat-turn.repository';
 import { ChatSessionEventRepository } from './chat-session-event.repository';
 import { ChatTurnDraftRepository } from './chat-turn-draft.repository';
 import { ChatStreamService } from './chat-stream.service';
 import { TemporalService } from '../temporal/temporal.service';
+import { applyTurnStatus } from './chat-turn-status.util';
 import type { AuthContext } from '../auth/types';
 
 const SYSTEM_PROMPT = `You are ShipSec AI, an intelligent assistant embedded in ShipSec Studio.
@@ -148,15 +151,16 @@ export class ChatService {
     });
 
     let runId = session.activeRunId ?? null;
-    const isQueued = Boolean(runId);
-    const createdRun = !runId;
+    let queuedOnExistingRun = Boolean(runId);
+    let createdRun = false;
 
     if (!runId) {
       runId = randomUUID();
+      createdRun = true;
       await this.sessionRepository.startRun(sessionId, runId);
     }
 
-    try {
+    const signalTurn = async (targetRunId: string) => {
       await this.temporalService.signalChatWorkflow(
         sessionId,
         {
@@ -164,17 +168,61 @@ export class ChatService {
           role: 'user',
           parts: [{ type: 'text', text: input.message }],
         },
-        runId,
+        targetRunId,
         {
           turnId: queued.turn.id,
           queuedAt: queued.turn.queuedAt.toISOString(),
         },
       );
+    };
+
+    try {
+      await signalTurn(runId);
     } catch (error) {
-      if (createdRun) {
+      if (this.isTemporalWorkflowClosedError(error)) {
+        this.logger.warn(
+          `Chat workflow for session ${sessionId} closed while enqueueing turn ${queued.turn.id}; recovering with a new run`,
+        );
+
         await this.sessionRepository.completeRun(sessionId, runId);
+        await this.ensureChatWorkflowRunning(sessionId, session.organizationId);
+
+        runId = randomUUID();
+        queuedOnExistingRun = false;
+        createdRun = true;
+        await this.sessionRepository.startRun(sessionId, runId);
+
+        try {
+          await signalTurn(runId);
+        } catch (retryError) {
+          if (createdRun) {
+            await this.sessionRepository.completeRun(sessionId, runId);
+          }
+          throw retryError;
+        }
+      } else {
+        if (createdRun) {
+          await this.sessionRepository.completeRun(sessionId, runId);
+        }
+        throw error;
       }
-      throw error;
+    }
+
+    if (queued.created) {
+      await this.appendInternalEvent(sessionId, {
+        turnId: queued.turn.id,
+        runId,
+        eventId: `queued:${queued.turn.id}`,
+        chunk: {
+          type: 'data-turn-status',
+          data: {
+            turnId: queued.turn.id,
+            status: 'queued',
+            queuedAt: queued.turn.queuedAt.toISOString(),
+            preview: queued.turn.userMessage,
+          },
+        },
+      });
     }
 
     const [queuedTurns, lastSeq] = await Promise.all([
@@ -185,10 +233,12 @@ export class ChatService {
     return {
       turnId: queued.turn.id,
       status: queued.turn.status,
+      preview: queued.turn.userMessage,
       queuedAt: queued.turn.queuedAt,
       position: queued.position,
-      queued: isQueued,
-      ...(isQueued ? { activeRunId: runId } : { runId }),
+      queuePosition: queued.position,
+      queued: queuedOnExistingRun,
+      ...(queuedOnExistingRun ? { activeRunId: runId } : { runId }),
       pendingCount: queuedTurns.length,
       afterSeq: lastSeq,
       lastSeq,
@@ -220,17 +270,14 @@ export class ChatService {
       await this.temporalService.signalChatSteerTurn(sessionId, targetTurnId);
     }
 
-    const runningTurn = await this.turnRepository.getRunningTurn(sessionId);
-    if (!runningTurn) {
-      return { ok: true, targetTurnId: targetTurnId ?? null };
-    }
-
+    // Always interrupt — workflow handler is idempotent (activeScope?.cancel() is a no-op when null)
     await this.temporalService.signalChatInterrupt(sessionId);
 
+    const runningTurn = await this.turnRepository.getRunningTurn(sessionId);
     return {
       ok: true,
       targetTurnId: targetTurnId ?? null,
-      interruptedTurnId: runningTurn.id,
+      interruptedTurnId: runningTurn?.id,
     };
   }
 
@@ -239,29 +286,70 @@ export class ChatService {
     auth: AuthContext,
   ): Promise<{ ok: boolean; interruptedTurnId?: string }> {
     await this.assertSessionAccess(sessionId, auth);
+    // Always signal — workflow handler is idempotent (activeScope?.cancel() is a no-op when null)
+    await this.temporalService.signalChatInterrupt(sessionId);
     const runningTurn = await this.turnRepository.getRunningTurn(sessionId);
 
-    if (!runningTurn) {
-      return { ok: false };
+    // Persist "stopping" state so all tabs see it immediately via SSE
+    await this.sessionRepository.setProcessingStatus(sessionId, 'stopping');
+
+    if (runningTurn) {
+      // Emit stopping event so all SSE clients show "Stopping..." immediately
+      await this.appendInternalEvent(sessionId, {
+        turnId: runningTurn.id,
+        eventId: `stopping:${runningTurn.id}`,
+        chunk: {
+          type: 'data-turn-status',
+          data: {
+            turnId: runningTurn.id,
+            status: 'stopping',
+          },
+        },
+      });
     }
 
-    await this.temporalService.signalChatInterrupt(sessionId);
-
-    return { ok: true, interruptedTurnId: runningTurn.id };
+    return { ok: true, interruptedTurnId: runningTurn?.id };
   }
 
   async getState(sessionId: string, auth: AuthContext) {
     const session = await this.assertSessionAccess(sessionId, auth);
-    const [messages, activeTurn, queuedTurns, lastSeq] = await Promise.all([
+    const [messages, activeTurn, latestTurn, queuedTurns, lastSeq] = await Promise.all([
       this.sessionRepository.getMessages(sessionId),
       this.turnRepository.getRunningTurn(sessionId),
+      this.turnRepository.getLatestTurn(sessionId),
       this.turnRepository.listQueuedTurns(sessionId),
       this.sessionEventRepository.getLastSeq(sessionId),
     ]);
 
+    let hydratedMessages = messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      parts: m.parts,
+      createdAt: m.createdAt,
+    }));
+
+    const recoveryTurn = activeTurn ?? latestTurn;
+    const lastHydrated = hydratedMessages[hydratedMessages.length - 1];
+    const shouldRecoverAssistant =
+      Boolean(recoveryTurn) &&
+      (!lastHydrated || lastHydrated.role !== 'assistant') &&
+      recoveryTurn?.status !== 'queued';
+
+    if (shouldRecoverAssistant && recoveryTurn) {
+      const recovered = await this.recoverAssistantMessageFromTurnEvents(
+        sessionId,
+        recoveryTurn.id,
+        recoveryTurn.startedAt ?? recoveryTurn.endedAt ?? recoveryTurn.queuedAt ?? null,
+      );
+      if (recovered) {
+        hydratedMessages = [...hydratedMessages, recovered];
+      }
+    }
+
     const queue = queuedTurns.map((turn, index) => ({
       turnId: turn.id,
       clientMessageId: turn.clientMessageId,
+      preview: turn.userMessage,
       queuePosition: index + 1,
       status: turn.status,
       queuedAt: turn.queuedAt,
@@ -279,12 +367,7 @@ export class ChatService {
     const activeRunId = activeTurn?.runId ?? session.activeRunId ?? null;
 
     return {
-      messages: messages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        parts: m.parts,
-        createdAt: m.createdAt,
-      })),
+      messages: hydratedMessages,
       activeTurn: activeTurn
         ? {
             turnId: activeTurn.id,
@@ -308,18 +391,91 @@ export class ChatService {
     };
   }
 
+  private async recoverAssistantMessageFromTurnEvents(
+    sessionId: string,
+    turnId: string,
+    createdAt: Date | null,
+  ): Promise<{ id: string; role: 'assistant'; parts: unknown[]; createdAt: Date } | null> {
+    const rows = await this.sessionEventRepository.listByTurn(sessionId, turnId);
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const chunks = rows
+      .map((row) => row.chunk)
+      .filter((chunk): chunk is UIMessageChunk => Boolean(chunk) && typeof chunk === 'object');
+
+    if (chunks.length === 0) {
+      return null;
+    }
+
+    const stream = new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(chunk);
+        }
+        controller.close();
+      },
+    });
+
+    let latestSnapshot: UIMessage | null = null;
+    try {
+      for await (const snapshot of readUIMessageStream({ stream })) {
+        latestSnapshot = snapshot;
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to reconstruct assistant snapshot for session=${sessionId} turn=${turnId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    }
+
+    if (!latestSnapshot) {
+      return null;
+    }
+
+    const parts = (latestSnapshot.parts ?? []).filter((part) => {
+      if (!part || typeof part !== 'object') return false;
+      const typed = part as { type?: string; text?: string };
+      if (!typed.type) return false;
+      if (typed.type === 'data-turn-status') return false;
+      if (typed.type === 'text') {
+        return typeof typed.text === 'string' && typed.text.length > 0;
+      }
+      return true;
+    });
+
+    if (parts.length === 0) {
+      return null;
+    }
+
+    return {
+      id: `turn-${turnId}`,
+      role: 'assistant',
+      parts: parts as unknown[],
+      createdAt: createdAt ?? new Date(),
+    };
+  }
+
   async getProcessingStatus(sessionId: string, auth: AuthContext) {
     return this.getState(sessionId, auth);
   }
 
   async getRunEvents(
     sessionId: string,
-    _runId: string | undefined,
+    runId: string | undefined,
     afterSeq: number,
     auth: AuthContext,
   ) {
     await this.assertSessionAccess(sessionId, auth);
-    const rows = await this.sessionEventRepository.listAfter(sessionId, afterSeq);
+    const rows = await this.sessionEventRepository.listAfter(
+      sessionId,
+      afterSeq,
+      500,
+      runId?.trim() || undefined,
+    );
 
     return {
       events: rows.map((row) => ({
@@ -334,8 +490,40 @@ export class ChatService {
   }
 
   async completeRun(sessionId: string, runId?: string): Promise<void> {
+    // Find the active turn — check running first, fall back to latest turn.
+    // The Kafka consumer may have already marked the turn as interrupted/completed
+    // before this method is called, so getRunningTurn() can return null.
+    const activeTurn =
+      (await this.turnRepository.getRunningTurn(sessionId)) ??
+      (await this.turnRepository.getLatestTurn(sessionId));
+
     await this.sessionRepository.completeRun(sessionId, runId);
     await this.sessionRepository.clearSteerIntent(sessionId);
+
+    // Emit a reliable terminal event via Redis so all SSE clients close their turn streams
+    // and clear the "Stopping..." state. Duplicate events are harmless.
+    if (activeTurn) {
+      const isTerminal = ['completed', 'interrupted', 'failed', 'cancelled'].includes(
+        activeTurn.status,
+      );
+      const status = isTerminal ? activeTurn.status : 'completed';
+      await this.appendInternalEvent(sessionId, {
+        turnId: activeTurn.id,
+        runId,
+        eventId: `complete-fallback:${activeTurn.id}`,
+        chunk: {
+          type: 'data-turn-status',
+          data: {
+            turnId: activeTurn.id,
+            status,
+            endedAt: new Date().toISOString(),
+            processingStatus: 'idle',
+          },
+        },
+      }).catch((err) => {
+        this.logger.warn(`Failed to emit terminal event for turn ${activeTurn.id}: ${err}`);
+      });
+    }
   }
 
   async appendInternalEvent(
@@ -416,13 +604,6 @@ export class ChatService {
       res.write(`data: ${JSON.stringify(chunk)}\n\n`);
     };
 
-    const writeDoneAndClose = () => {
-      if (closed) return;
-      res.write('data: [DONE]\n\n');
-      res.end();
-      close();
-    };
-
     const close = () => {
       closed = true;
     };
@@ -435,7 +616,8 @@ export class ChatService {
       'X-Accel-Buffering': 'no',
     });
 
-    const replayRows = await this.sessionEventRepository.listAfter(sessionId, lastSeq);
+    // Replay all session events (no runId filtering — session-level SSE)
+    const replayRows = await this.sessionEventRepository.listAfter(sessionId, lastSeq, 500);
     for (const row of replayRows) {
       lastSeq = row.seq;
       const chunk = this.decorateStreamChunk(row.chunk, {
@@ -444,24 +626,14 @@ export class ChatService {
         generationId: row.generationId,
       });
       writeChunk(chunk);
-      if (this.shouldCloseStream(chunk)) {
-        writeDoneAndClose();
-        return;
-      }
     }
 
     if (!this.chatStreamService.isAvailable()) {
-      await this.streamWithPollingFallback(
-        sessionId,
-        res,
-        lastSeq,
-        writeChunk,
-        writeDoneAndClose,
-        close,
-      );
+      await this.streamWithPollingFallback(sessionId, res, lastSeq, writeChunk, close);
       return;
     }
 
+    // Long-lived SSE — stays open until client disconnects (no auto-close on turn completion)
     await new Promise<void>((resolve) => {
       const heartbeat = setInterval(() => {
         if (!closed) {
@@ -490,17 +662,10 @@ export class ChatService {
             generationId: typeof event.generationId === 'string' ? event.generationId : undefined,
           });
           writeChunk(chunk);
-
-          if (this.shouldCloseStream(chunk)) {
-            clearInterval(heartbeat);
-            subscription.unsubscribe();
-            writeDoneAndClose();
-            resolve();
-          }
         },
         onComplete: () => {
           clearInterval(heartbeat);
-          writeDoneAndClose();
+          close();
           resolve();
         },
         onError: (error) => {
@@ -508,7 +673,6 @@ export class ChatService {
           clearInterval(heartbeat);
           if (!closed) {
             writeChunk({ type: 'error', errorText: String(error) });
-            writeDoneAndClose();
           }
           close();
           resolve();
@@ -529,15 +693,20 @@ export class ChatService {
     res: ServerResponse,
     initialSeq: number,
     writeChunk: (chunk: Record<string, unknown>) => void,
-    writeDoneAndClose: () => void,
     close: () => void,
   ): Promise<void> {
     let lastSeq = initialSeq;
 
     await new Promise<void>((resolve) => {
+      const heartbeat = setInterval(() => {
+        if (!res.closed) {
+          res.write(': ping\n\n');
+        }
+      }, 15000);
+
       const poll = setInterval(async () => {
         try {
-          const rows = await this.sessionEventRepository.listAfter(sessionId, lastSeq);
+          const rows = await this.sessionEventRepository.listAfter(sessionId, lastSeq, 500);
           for (const row of rows) {
             lastSeq = row.seq;
             const chunk = this.decorateStreamChunk(row.chunk, {
@@ -546,12 +715,6 @@ export class ChatService {
               generationId: row.generationId,
             });
             writeChunk(chunk);
-            if (this.shouldCloseStream(chunk)) {
-              clearInterval(poll);
-              writeDoneAndClose();
-              resolve();
-              return;
-            }
           }
         } catch (error) {
           this.logger.error(`Polling stream fallback failed for ${sessionId}`, error);
@@ -560,6 +723,7 @@ export class ChatService {
 
       res.on('close', () => {
         clearInterval(poll);
+        clearInterval(heartbeat);
         close();
         resolve();
       });
@@ -597,26 +761,6 @@ export class ChatService {
     };
   }
 
-  private shouldCloseStream(chunk: Record<string, unknown>): boolean {
-    if (chunk.type === 'finish') {
-      return true;
-    }
-
-    if (chunk.type !== 'data-turn-status') {
-      return false;
-    }
-
-    const rawData =
-      chunk.data && typeof chunk.data === 'object' ? (chunk.data as Record<string, unknown>) : null;
-    const status = typeof rawData?.status === 'string' ? rawData.status : null;
-    return (
-      status === 'completed' ||
-      status === 'interrupted' ||
-      status === 'failed' ||
-      status === 'cancelled'
-    );
-  }
-
   private async applyTurnStatusFromChunk(
     sessionId: string,
     turnId: string,
@@ -624,64 +768,51 @@ export class ChatService {
     runId?: string,
     generationId?: string,
   ): Promise<void> {
-    const status = this.extractTurnStatus(chunk);
+    await applyTurnStatus(
+      {
+        turnRepository: this.turnRepository,
+        sessionRepository: this.sessionRepository,
+      },
+      sessionId,
+      turnId,
+      chunk,
+      runId,
+      generationId,
+    );
+  }
 
-    if (status === 'running') {
-      await this.turnRepository.setTurnRunning(sessionId, turnId, runId, generationId);
-      await this.sessionRepository.setProcessingStatus(sessionId, 'processing');
-      return;
-    }
-
-    if (status) {
-      await this.turnRepository.setTurnStatus(sessionId, turnId, status);
-      const [runningTurn, queuedTurns] = await Promise.all([
-        this.turnRepository.getRunningTurn(sessionId),
-        this.turnRepository.listQueuedTurns(sessionId),
-      ]);
-
-      if (runningTurn || queuedTurns.length > 0) {
-        await this.sessionRepository.setProcessingStatus(sessionId, 'processing');
-      } else {
-        await this.sessionRepository.setProcessingStatus(sessionId, 'idle');
-        await this.sessionRepository.completeRun(sessionId, runId);
+  private async ensureChatWorkflowRunning(
+    sessionId: string,
+    organizationId: string | null | undefined,
+  ): Promise<void> {
+    try {
+      await this.temporalService.startChatWorkflow({
+        sessionId,
+        organizationId,
+        systemPrompt: SYSTEM_PROMPT,
+      });
+    } catch (error) {
+      if (this.isTemporalWorkflowAlreadyStartedError(error)) {
+        return;
       }
-
-      await this.sessionRepository.clearSteerIntent(sessionId);
+      throw error;
     }
   }
 
-  private extractTurnStatus(chunk: Record<string, unknown>): ChatTurnStatus | null {
-    const directStatus = typeof chunk.status === 'string' ? chunk.status : null;
-    const typeStatus = typeof chunk.type === 'string' ? chunk.type : null;
-    const dataStatus =
-      typeStatus === 'data-turn-status' &&
-      chunk.data &&
-      typeof chunk.data === 'object' &&
-      typeof (chunk.data as Record<string, unknown>).status === 'string'
-        ? ((chunk.data as Record<string, unknown>).status as string)
-        : null;
-    const candidate = dataStatus ?? directStatus ?? typeStatus;
+  private isTemporalWorkflowAlreadyStartedError(error: unknown): boolean {
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    return message.includes('already started');
+  }
 
-    if (!candidate) {
-      return null;
-    }
-
-    if (
-      candidate === 'queued' ||
-      candidate === 'running' ||
-      candidate === 'completed' ||
-      candidate === 'interrupted' ||
-      candidate === 'failed' ||
-      candidate === 'cancelled'
-    ) {
-      return candidate;
-    }
-
-    if (candidate === 'idle' || candidate === 'done') {
-      return 'completed';
-    }
-
-    return null;
+  private isTemporalWorkflowClosedError(error: unknown): boolean {
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    return (
+      message.includes('workflow execution already completed') ||
+      message.includes('workflow not found') ||
+      message.includes('execution not found')
+    );
   }
 
   private async assertSessionAccess(sessionId: string, auth: AuthContext) {

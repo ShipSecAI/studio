@@ -76,7 +76,7 @@ const { runChatAgentStepActivity, saveChatMessagesActivity, markChatRunCompleteA
     markChatRunCompleteActivity(input: { sessionId: string; runId: string }): Promise<void>;
   }>({
     startToCloseTimeout: '15 minutes',
-    heartbeatTimeout: '30 seconds',
+    heartbeatTimeout: '10 seconds',
     retry: {
       initialInterval: '2 seconds',
       backoffCoefficient: 2,

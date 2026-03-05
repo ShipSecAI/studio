@@ -29,7 +29,6 @@ import { useAuth } from '@/auth/auth-context';
 import { useSidebar } from '@/components/layout/sidebar-context';
 import { useChat } from '@ai-sdk/react';
 import { isToolOrDynamicToolUIPart } from 'ai';
-import { readUIMessageStream } from 'ai';
 import type { UIMessage } from 'ai';
 import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
 import { StatusBar } from '@/components/agent/StatusBar';
@@ -80,9 +79,13 @@ function getMessageText(message: UIMessage): string {
 
 interface TurnStatusPayload {
   turnId?: string;
-  status?: 'queued' | 'running' | 'completed' | 'interrupted' | 'failed' | 'cancelled';
+  status?: 'queued' | 'running' | 'stopping' | 'completed' | 'interrupted' | 'failed' | 'cancelled';
   reason?: string;
-  processingStatus?: 'idle' | 'processing';
+  preview?: string;
+  queuedAt?: string;
+  startedAt?: string;
+  endedAt?: string;
+  processingStatus?: 'idle' | 'processing' | 'stopping';
   activeRunId?: string | null;
   activeRunStartedAt?: string | null;
   pendingCount?: number;
@@ -116,6 +119,7 @@ function normalizeQueue(
     .map((item, index) => ({
       turnId: item.turnId,
       clientMessageId: item.clientMessageId ?? null,
+      preview: item.preview ?? null,
       queuePosition: item.queuePosition ?? index + 1,
       status: item.status ?? 'queued',
       queuedAt: item.queuedAt ?? null,
@@ -145,6 +149,18 @@ function getTurnStatusChunkPayload(chunk: unknown): TurnStatusPayload | null {
     return typed.data as TurnStatusPayload;
   }
   return typed as TurnStatusPayload;
+}
+
+function getChunkSeq(chunk: unknown): number | null {
+  if (!chunk || typeof chunk !== 'object') {
+    return null;
+  }
+  const typed = chunk as { seq?: unknown; lastSeq?: unknown; afterSeq?: unknown };
+  const candidate = typed.seq ?? typed.lastSeq ?? typed.afterSeq;
+  if (typeof candidate !== 'number' || !Number.isFinite(candidate)) {
+    return null;
+  }
+  return candidate;
 }
 
 // Memoized tool part — skips re-render when the part object reference hasn't changed.
@@ -198,11 +214,17 @@ const ToolPartRenderer = memo(function ToolPartRenderer({ part, idx }: { part: a
 interface ChatMessageProps {
   message: UIMessage;
   isStreaming: boolean;
+  isInterrupted?: boolean;
   userImageUrl?: string;
 }
 
 const ChatMessageItem = memo(
-  function ChatMessageItem({ message, isStreaming, userImageUrl }: ChatMessageProps) {
+  function ChatMessageItem({
+    message,
+    isStreaming,
+    isInterrupted,
+    userImageUrl,
+  }: ChatMessageProps) {
     const isAssistant = message.role === 'assistant';
     const hasContent = message.parts.some(
       (p) => (p.type === 'text' && p.text) || isToolOrDynamicToolUIPart(p),
@@ -274,6 +296,14 @@ const ChatMessageItem = memo(
                   {/* Streaming cursor for assistant */}
                   {isAssistant && isStreaming && getMessageText(message) && (
                     <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
+                  )}
+
+                  {/* Interrupted annotation */}
+                  {isAssistant && isInterrupted && !isStreaming && (
+                    <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground border-t border-border/50 pt-2">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      Response interrupted by user
+                    </div>
                   )}
                 </>
               )}
@@ -411,8 +441,6 @@ export function ChatInterface() {
   const { data: selectedRunData } = useExecutionRun(selectedRunId);
 
   const currentSession = getCurrentSession();
-  const isPersistedSessionId = (id: string | null | undefined): id is string =>
-    Boolean(id) && !id!.startsWith('new-') && !id!.startsWith('chat-');
 
   // Ref to always have the latest sessionId available in the transport callback
   const sessionIdRef = useRef(currentSessionId);
@@ -469,11 +497,6 @@ export function ChatInterface() {
     null,
   );
   const streamCursorRef = useRef(0);
-  const activePassiveRunIdRef = useRef<string | null>(null);
-  const passiveStreamAbortRef = useRef<AbortController | null>(null);
-  const attachPassiveStreamRef = useRef<(runId: string, afterSeq?: number) => Promise<void>>(
-    async () => {},
-  );
 
   // Create DurableChatTransport - handles sending + reconnect from durable cursor.
   const chatTransport = useMemo(
@@ -481,7 +504,17 @@ export function ChatInterface() {
       new DurableChatTransport({
         apiBase: API_V1_URL,
         getAuthHeaders: getApiAuthHeaders,
-        onChunk: (chunk) => {
+        onChunk: (chunk, context) => {
+          const activeSessionId = routeSessionIdRef.current ?? sessionIdRef.current;
+          if (activeSessionId && context.sessionId !== activeSessionId) {
+            return;
+          }
+
+          const chunkSeq = getChunkSeq(chunk);
+          if (chunkSeq != null) {
+            streamCursorRef.current = Math.max(streamCursorRef.current, chunkSeq);
+          }
+
           const payload = getTurnStatusChunkPayload(chunk);
           if (!payload) return;
 
@@ -499,8 +532,64 @@ export function ChatInterface() {
             payload.activeRunId != null;
 
           if (!hasQueueSnapshot) {
+            if (payload.status === 'queued') {
+              const turnId = payload.turnId;
+              if (turnId) {
+                const existing = useChatStore.getState().queuedTurns;
+                const deduped = existing.filter((turn) => turn.turnId !== turnId);
+                const queuePosition = deduped.length + 1;
+                const queuedTurns = [
+                  ...deduped,
+                  {
+                    turnId,
+                    clientMessageId: null,
+                    preview: payload.preview ?? null,
+                    queuePosition,
+                    status: 'queued',
+                    queuedAt: payload.queuedAt ?? null,
+                    startedAt: null,
+                    completedAt: null,
+                  },
+                ].sort(
+                  (a, b) =>
+                    (a.queuePosition ?? Number.MAX_SAFE_INTEGER) -
+                    (b.queuePosition ?? Number.MAX_SAFE_INTEGER),
+                );
+                setQueueState(
+                  {
+                    pendingCount: queuedTurns.length,
+                    queueOrder: queuedTurns.map((turn) => turn.turnId),
+                    queuedTurns,
+                    steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
+                  },
+                  activeSessionId,
+                );
+                setSessionProcessing(true);
+              }
+            }
             if (payload.status === 'running') {
+              setIsStopping(false);
+              const existing = useChatStore.getState().queuedTurns;
+              const turnId = payload.turnId;
+              if (turnId) {
+                const startedAt = payload.startedAt ?? new Date().toISOString();
+                const nextQueuedTurns = existing.map((turn) =>
+                  turn.turnId === turnId ? { ...turn, status: 'running', startedAt } : turn,
+                );
+                setQueueState(
+                  {
+                    pendingCount: nextQueuedTurns.length,
+                    queueOrder: nextQueuedTurns.map((turn) => turn.turnId),
+                    queuedTurns: nextQueuedTurns,
+                    steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
+                  },
+                  activeSessionId,
+                );
+              }
               setSessionProcessing(true);
+            }
+            if (payload.status === 'stopping') {
+              setIsStopping(true);
             }
             if (
               payload.status === 'completed' ||
@@ -508,16 +597,37 @@ export function ChatInterface() {
               payload.status === 'failed' ||
               payload.status === 'cancelled'
             ) {
+              setIsStopping(false);
+              // Mark the last assistant message as interrupted for inline annotation
+              if (payload.status === 'interrupted') {
+                const msgs = messagesRef.current;
+                for (let i = msgs.length - 1; i >= 0; i--) {
+                  if (msgs[i].role === 'assistant') {
+                    setInterruptedMessageIds((prev) => new Set(prev).add(msgs[i].id));
+                    break;
+                  }
+                }
+              }
               const existing = useChatStore.getState().queuedTurns;
-              if (existing.length > 0) {
-                setQueueState({
-                  pendingCount: existing.length,
-                  queueOrder: existing.map((turn) => turn.turnId),
-                  queuedTurns: existing,
-                  steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
-                });
+              const terminalTurnId = payload.turnId;
+              const nextQueuedTurns = terminalTurnId
+                ? existing.filter((turn) => turn.turnId !== terminalTurnId)
+                : existing.filter((turn) => turn.status !== 'running');
+              if (nextQueuedTurns.length > 0) {
+                setQueueState(
+                  {
+                    pendingCount: nextQueuedTurns.length,
+                    queueOrder: nextQueuedTurns.map((turn) => turn.turnId),
+                    queuedTurns: nextQueuedTurns,
+                    steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
+                  },
+                  activeSessionId,
+                );
+                setSessionProcessing(true);
               } else {
-                clearQueueState();
+                clearQueueState(activeSessionId);
+                setSessionProcessing(false);
+                setSessionProcessingStartedAtMs(null);
               }
             }
             return;
@@ -532,40 +642,51 @@ export function ChatInterface() {
           if (payload.processingStatus === 'idle') {
             setSessionProcessing(false);
             setSessionProcessingStartedAtMs(null);
-            clearQueueState();
+            setIsStopping(false);
+            clearQueueState(activeSessionId);
             return;
           }
 
-          setQueueState({
-            pendingCount: payload.pendingCount ?? pendingCountFromQueue,
-            generationId: payload.generationId ?? null,
-            steerTargetTurnId: normalizedQueue.steerTargetTurnId,
-            queueOrder: normalizedQueue.queueOrder,
-            queuedTurns: normalizedQueue.queuedTurns,
-          });
+          setQueueState(
+            {
+              pendingCount: payload.pendingCount ?? pendingCountFromQueue,
+              generationId: payload.generationId ?? null,
+              steerTargetTurnId: normalizedQueue.steerTargetTurnId,
+              queueOrder: normalizedQueue.queueOrder,
+              queuedTurns: normalizedQueue.queuedTurns,
+            },
+            activeSessionId,
+          );
 
-          if (payload.processingStatus === 'processing') {
+          if (
+            payload.processingStatus === 'processing' ||
+            payload.processingStatus === 'stopping'
+          ) {
             setSessionProcessing(true);
+            if (payload.processingStatus === 'stopping') {
+              setIsStopping(true);
+            }
             setSessionProcessingStartedAtMs(
               payload.activeRunStartedAt ? new Date(payload.activeRunStartedAt).getTime() : null,
             );
-            if (payload.activeRunId) {
-              void attachPassiveStreamRef.current(payload.activeRunId, streamCursorRef.current);
-            }
           }
         },
-        onQueuedTurn: (response) => {
+        onQueuedTurn: (response, context) => {
+          const activeSessionId = routeSessionIdRef.current ?? sessionIdRef.current;
+          if (activeSessionId && context.sessionId !== activeSessionId) {
+            return;
+          }
           setSessionProcessing(true);
           const turnId = response.turnId;
           const existing = useChatStore.getState().queuedTurns;
           if (!turnId) {
-            setQueueState({
-              pendingCount: response.pendingCount ?? existing.length,
-              generationId: response.generationId ?? null,
-            });
-            if (response.activeRunId) {
-              void attachPassiveStreamRef.current(response.activeRunId, streamCursorRef.current);
-            }
+            setQueueState(
+              {
+                pendingCount: response.pendingCount ?? existing.length,
+                generationId: response.generationId ?? null,
+              },
+              activeSessionId,
+            );
             return;
           }
 
@@ -576,6 +697,7 @@ export function ChatInterface() {
             {
               turnId,
               clientMessageId: response.clientMessageId ?? null,
+              preview: response.preview ?? null,
               queuePosition,
               status: 'queued',
               queuedAt: null,
@@ -588,28 +710,27 @@ export function ChatInterface() {
               (b.queuePosition ?? Number.MAX_SAFE_INTEGER),
           );
 
-          setQueueState({
-            pendingCount: response.pendingCount ?? queuedTurns.length,
-            generationId: response.generationId ?? null,
-            steerTargetTurnId: response.steerTargetTurnId ?? null,
-            queueOrder: queuedTurns.map((turn) => turn.turnId),
-            queuedTurns,
-          });
-
-          if (response.activeRunId) {
-            void attachPassiveStreamRef.current(response.activeRunId, streamCursorRef.current);
-          }
+          setQueueState(
+            {
+              pendingCount: response.pendingCount ?? queuedTurns.length,
+              generationId: response.generationId ?? null,
+              steerTargetTurnId: response.steerTargetTurnId ?? null,
+              queueOrder: queuedTurns.map((turn) => turn.turnId),
+              queuedTurns,
+            },
+            activeSessionId,
+          );
         },
       }),
     [clearQueueState, setQueueState],
   );
 
-  const { messages, sendMessage, status, error, stop, setMessages } = useChat({
+  const { messages, sendMessage, status, error, setMessages } = useChat({
     transport: chatTransport,
     id: chatId,
     messages: initialMessages,
     experimental_throttle: 80,
-    resume: false,
+    resume: true,
   });
 
   const messagesRef = useRef(messages);
@@ -622,65 +743,12 @@ export function ChatInterface() {
     statusRef.current = status;
   }, [status]);
 
-  const closePassiveStream = useCallback(() => {
-    passiveStreamAbortRef.current?.abort();
-    passiveStreamAbortRef.current = null;
-    activePassiveRunIdRef.current = null;
-  }, []);
-
-  const attachPassiveStream = useCallback(
-    async (runId: string, afterSeq = streamCursorRef.current) => {
-      if (!currentSessionId || !isPersistedSessionId(currentSessionId)) return;
-      const localStatus = statusRef.current;
-      if (localStatus === 'streaming' || localStatus === 'submitted') return;
-      if (activePassiveRunIdRef.current === runId) return;
-
-      closePassiveStream();
-      activePassiveRunIdRef.current = runId;
-      const controller = new AbortController();
-      passiveStreamAbortRef.current = controller;
-
-      const stream = await chatTransport.reconnectToStream(
-        { chatId: currentSessionId, runId, afterSeq },
-        controller.signal,
-      );
-      if (!stream || controller.signal.aborted) {
-        if (activePassiveRunIdRef.current === runId) {
-          activePassiveRunIdRef.current = null;
-        }
-        return;
-      }
-
-      try {
-        const iterator = readUIMessageStream({ stream });
-        for await (const snapshot of iterator) {
-          if (controller.signal.aborted) break;
-          if (routeSessionIdRef.current !== currentSessionId) break;
-
-          const current = messagesRef.current;
-          const existingIndex = current.findIndex((message) => message.id === snapshot.id);
-          if (existingIndex >= 0) {
-            const next = [...current];
-            next[existingIndex] = snapshot;
-            setMessages(next);
-          } else {
-            setMessages([...current, snapshot]);
-          }
-        }
-      } catch {
-        // Best-effort passive stream replay.
-      } finally {
-        if (passiveStreamAbortRef.current === controller) {
-          passiveStreamAbortRef.current = null;
-        }
-      }
-    },
-    [chatTransport, closePassiveStream, currentSessionId, setMessages],
-  );
-
+  // Session SSE lifecycle: close on unmount
   useEffect(() => {
-    attachPassiveStreamRef.current = attachPassiveStream;
-  }, [attachPassiveStream]);
+    return () => {
+      chatTransport.closeSessionStream();
+    };
+  }, [chatTransport]);
 
   const fetchSessionState = useCallback(
     async (sessionId: string): Promise<ChatSessionStateResponse | null> => {
@@ -711,12 +779,12 @@ export function ChatInterface() {
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
       streamCursorRef.current = 0;
-      closePassiveStream();
+      chatTransport.closeSessionStream();
       clearQueueState();
       pendingFirstMessageRef.current = null;
       isCreatingSessionRef.current = false;
     }
-  }, [newConversationToken, currentSessionId, setMessages, clearQueueState, closePassiveStream]);
+  }, [newConversationToken, currentSessionId, setMessages, clearQueueState, chatTransport]);
 
   useEffect(() => {
     if (routeSessionId === 'new') {
@@ -727,7 +795,7 @@ export function ChatInterface() {
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
       streamCursorRef.current = 0;
-      closePassiveStream();
+      chatTransport.closeSessionStream();
       clearQueueState();
       pendingFirstMessageRef.current = null;
       isCreatingSessionRef.current = false;
@@ -743,7 +811,7 @@ export function ChatInterface() {
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
       streamCursorRef.current = 0;
-      closePassiveStream();
+      chatTransport.closeSessionStream();
       clearQueueState();
       return;
     }
@@ -759,12 +827,14 @@ export function ChatInterface() {
     // Session switch — load messages from server and reset useChat
     const targetSessionId = currentSessionId;
     let cancelled = false;
-    closePassiveStream();
+    chatTransport.closeSessionStream();
     setChatId(targetSessionId);
     setInitialMessages([]);
     setMessages([]);
     setSessionProcessing(false);
     setSessionProcessingStartedAtMs(null);
+    setIsStopping(false);
+    setInterruptedMessageIds(new Set());
 
     (async () => {
       const state = await fetchSessionState(targetSessionId);
@@ -777,30 +847,35 @@ export function ChatInterface() {
         setInitialMessages(hydrated);
         setMessages(hydrated);
 
-        streamCursorRef.current = Math.max(0, state.afterSeq ?? state.lastSeq ?? 0);
+        const latestSeqFromState = Math.max(0, state.afterSeq ?? state.lastSeq ?? 0);
+        streamCursorRef.current = latestSeqFromState;
         const normalizedQueue = normalizeQueue(
           state.queue ?? state.queuedTurns,
           state.steerTargetTurnId,
         );
-        setQueueState({
-          pendingCount: state.pendingCount ?? normalizedQueue.queuedTurns.length,
-          generationId: state.generationId ?? null,
-          steerTargetTurnId: normalizedQueue.steerTargetTurnId,
-          queueOrder: normalizedQueue.queueOrder,
-          queuedTurns: normalizedQueue.queuedTurns,
-        });
-        const isProcessing = state.processingStatus === 'processing';
+        setQueueState(
+          {
+            pendingCount: state.pendingCount ?? normalizedQueue.queuedTurns.length,
+            generationId: state.generationId ?? null,
+            steerTargetTurnId: normalizedQueue.steerTargetTurnId,
+            queueOrder: normalizedQueue.queueOrder,
+            queuedTurns: normalizedQueue.queuedTurns,
+          },
+          targetSessionId,
+        );
+        const isProcessing =
+          state.processingStatus === 'processing' || state.processingStatus === 'stopping';
         setSessionProcessing(isProcessing);
+        setIsStopping(state.processingStatus === 'stopping');
         setSessionProcessingStartedAtMs(
           state.activeRunStartedAt ? new Date(state.activeRunStartedAt).getTime() : null,
         );
-        if (isProcessing && state.activeRunId) {
-          void attachPassiveStream(state.activeRunId, streamCursorRef.current);
-        }
+        // Open session SSE — events for all turns (including active) will flow through
+        chatTransport.openSessionStream(targetSessionId, latestSeqFromState);
       } else {
         setInitialMessages([]);
         setMessages([]);
-        clearQueueState();
+        clearQueueState(targetSessionId);
       }
     })();
 
@@ -814,8 +889,7 @@ export function ChatInterface() {
     setMessages,
     setQueueState,
     clearQueueState,
-    closePassiveStream,
-    attachPassiveStream,
+    chatTransport,
   ]);
 
   // Once the user switches away from the just-created session, clear the
@@ -876,9 +950,9 @@ export function ChatInterface() {
 
   useEffect(() => {
     return () => {
-      closePassiveStream();
+      chatTransport.closeSessionStream();
     };
-  }, [closePassiveStream]);
+  }, [chatTransport]);
 
   // Auto-scroll: track if user is near bottom, scroll on new content
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -915,15 +989,16 @@ export function ChatInterface() {
     null,
   );
   const [isGraphPanelOpen, setIsGraphPanelOpen] = useState(false);
-  const [isInterrupting, setIsInterrupting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
+  const [interruptedMessageIds, setInterruptedMessageIds] = useState<Set<string>>(new Set());
   const [steeringTurnId, setSteeringTurnId] = useState<string | null>(null);
   const handleSelectPrompt = useCallback((prompt: string) => {
     setPendingPrompt(prompt + ' ');
   }, []);
 
   const handleInterrupt = useCallback(async () => {
-    if (!currentSessionId || isInterrupting) return;
-    setIsInterrupting(true);
+    if (!currentSessionId || isStopping) return;
+    setIsStopping(true); // Optimistic — will be confirmed/cleared by SSE events
     try {
       if (steerTargetTurnId) {
         await chatTransport.interruptTurn(currentSessionId, steerTargetTurnId);
@@ -932,11 +1007,9 @@ export function ChatInterface() {
       }
     } catch (err) {
       console.warn('Failed to interrupt generation:', err);
-    } finally {
-      // Small delay before clearing to prevent double-clicks
-      setTimeout(() => setIsInterrupting(false), 1000);
+      setIsStopping(false);
     }
-  }, [currentSessionId, isInterrupting, chatTransport, steerTargetTurnId]);
+  }, [currentSessionId, isStopping, chatTransport, steerTargetTurnId]);
 
   const handleSteerTurn = useCallback(
     async (turnId: string) => {
@@ -1028,6 +1101,7 @@ export function ChatInterface() {
             'Your message will be processed when the current response completes, or click Steer to redirect now.',
         });
       }
+      setIsStopping(false);
       sendMessage({ text });
     },
     [sendMessage, createSession, navigate, isAgentWorking, toast],
@@ -1240,6 +1314,7 @@ export function ChatInterface() {
                   <ChatMessageItem
                     key={msg.id}
                     message={msg}
+                    isInterrupted={interruptedMessageIds.has(msg.id)}
                     isStreaming={
                       (effectiveStatus === 'streaming' || sessionProcessing) &&
                       msg.role === 'assistant' &&
@@ -1283,10 +1358,10 @@ export function ChatInterface() {
                     <button
                       className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-background px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
                       onClick={handleInterrupt}
-                      disabled={isInterrupting}
+                      disabled={isStopping}
                     >
                       <StopCircle className="h-3 w-3" />
-                      {isInterrupting ? 'Stopping...' : 'Stop'}
+                      {isStopping ? 'Stopping...' : 'Stop'}
                     </button>
                   </div>
                 ) : (
@@ -1294,7 +1369,7 @@ export function ChatInterface() {
                 )}
               </div>
               {pendingCount > 0 && isAgentWorking && (
-                <div className="rounded-lg border border-border/60 bg-muted/30 px-2 py-2">
+                <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-3">
                   <div className="mb-1 flex items-center justify-between">
                     <span className="text-xs font-medium text-foreground/80">
                       Queue ({pendingCount})
@@ -1305,7 +1380,7 @@ export function ChatInterface() {
                       </span>
                     ) : null}
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
                     {orderedQueuedTurns.length === 0 && (
                       <span className="text-[11px] text-muted-foreground">
                         Waiting for queue details from stream...
@@ -1314,32 +1389,42 @@ export function ChatInterface() {
                     {orderedQueuedTurns.map((turn, index) => {
                       const displayPosition = turn.queuePosition ?? index + 1;
                       const isTarget = turn.turnId === steerTargetTurnId;
-                      const shortTurnId = turn.turnId.slice(0, 8);
-                      const shortClientId = turn.clientMessageId?.slice(0, 8) ?? 'no-client-id';
+                      const preview =
+                        turn.preview?.trim() && turn.preview.trim().length > 0
+                          ? turn.preview.trim()
+                          : `Queued message ${displayPosition}`;
                       return (
-                        <button
+                        <div
                           key={turn.turnId}
-                          type="button"
-                          onClick={() => void handleSteerTurn(turn.turnId)}
-                          disabled={isTarget || steeringTurnId === turn.turnId}
-                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                          className={`flex items-start justify-between gap-3 rounded-md border px-2.5 py-2 ${
                             isTarget
-                              ? 'border-primary/50 bg-primary/10 text-primary'
-                              : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                              ? 'border-primary/50 bg-primary/5'
+                              : 'border-border/70 bg-background/70'
                           }`}
                         >
-                          <span className="font-semibold">#{displayPosition}</span>
-                          <span className="font-mono">{shortTurnId}</span>
-                          <span className="text-muted-foreground/80">({shortClientId})</span>
-                          <span className="uppercase tracking-wide">{turn.status}</span>
-                          {isTarget ? (
-                            <span className="text-primary">steer</span>
-                          ) : steeringTurnId === turn.turnId ? (
-                            <span>...</span>
-                          ) : (
-                            <span>set</span>
-                          )}
-                        </button>
+                          <div className="min-w-0">
+                            <div className="text-[11px] text-muted-foreground">
+                              #{displayPosition} · {turn.status.toUpperCase()}
+                            </div>
+                            <div className="text-sm text-foreground break-words">{preview}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void handleSteerTurn(turn.turnId)}
+                            disabled={isTarget || steeringTurnId === turn.turnId}
+                            className={`shrink-0 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+                              isTarget
+                                ? 'border-primary/50 bg-primary/10 text-primary'
+                                : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                            }`}
+                          >
+                            {isTarget
+                              ? 'Steer target'
+                              : steeringTurnId === turn.turnId
+                                ? '...'
+                                : 'Steer'}
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -1385,7 +1470,7 @@ export function ChatInterface() {
                     </PromptInputButton>
                   </div>
                   <div className="flex items-center gap-1">
-                    <PromptInputSubmit status={effectiveStatus} onStop={stop} />
+                    <PromptInputSubmit status={effectiveStatus} onStop={handleInterrupt} />
                   </div>
                 </PromptInputFooter>
               </PromptInput>

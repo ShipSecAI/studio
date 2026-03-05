@@ -96,20 +96,25 @@ interface LoadChatMessagesInput {
 // Global services (initialized by the worker)
 // ---------------------------------------------------------------------------
 
+import type { KafkaChatStreamAdapter } from '../../adapters/kafka-chat-stream.adapter';
+
 let globalDb: NodePgDatabase<typeof schema> | undefined;
 let globalRedis: Redis | undefined;
 let globalBackendUrl: string | undefined;
+let globalChatStreamAdapter: KafkaChatStreamAdapter | undefined;
 
 export interface ChatAgentActivityServices {
   database: NodePgDatabase<typeof schema>;
   redis?: Redis;
   backendUrl: string;
+  chatStreamAdapter?: KafkaChatStreamAdapter;
 }
 
 export function initializeChatAgentActivities(services: ChatAgentActivityServices): void {
   globalDb = services.database;
   globalRedis = services.redis;
   globalBackendUrl = services.backendUrl;
+  globalChatStreamAdapter = services.chatStreamAdapter;
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +159,20 @@ async function appendStreamEvent(
   sessionId: string,
   envelope: ChatChunkEnvelope,
 ): Promise<AppendResult> {
+  // Kafka path: fire-and-forget, backend consumer handles persistence + fan-out
+  // Return seq: 0 (not null) to avoid tripping the circuit breaker — seq is assigned by the consumer
+  if (globalChatStreamAdapter) {
+    globalChatStreamAdapter.emit(sessionId, {
+      turnId: envelope.turnId,
+      runId: envelope.runId ?? '',
+      generationId: String(envelope.generationId ?? ''),
+      eventId: envelope.eventId,
+      chunk: envelope.chunk,
+    });
+    return { seq: 0, staleMismatch: false };
+  }
+
+  // REST fallback
   if (!globalBackendUrl) return { seq: null, staleMismatch: false };
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
   try {
@@ -669,7 +688,7 @@ export async function runChatAgentStepActivity(
     } catch {
       // Best-effort periodic heartbeat.
     }
-  }, 10000);
+  }, 1000);
 
   // Lifecycle marker: turn entered running state.
   await emitTurnStatus('running');
@@ -981,10 +1000,22 @@ export async function runChatAgentStepActivity(
           endedAt: new Date().toISOString(),
         });
 
-        // Build partial assistant message from accumulated parts
+        // Build partial assistant message from accumulated parts and persist directly.
+        // The workflow's CancellationScope discards the activity return value, so we
+        // must save here to avoid losing streamed output on refresh.
         const interruptedMessages: ChatUIMessage[] = [];
         if (accumulatedParts.length > 0) {
           interruptedMessages.push({ role: 'assistant', parts: accumulatedParts });
+        }
+        if (interruptedMessages.length > 0) {
+          try {
+            await saveChatMessagesActivity({ sessionId, messages: interruptedMessages });
+          } catch (saveErr) {
+            console.warn(
+              `[chat-agent] Failed to persist interrupted messages for session ${sessionId}:`,
+              saveErr,
+            );
+          }
         }
         return {
           turnId,
@@ -1037,6 +1068,16 @@ export async function runChatAgentStepActivity(
         if (accumulatedParts.length > 0) {
           interruptedMessages.push({ role: 'assistant', parts: accumulatedParts });
         }
+        if (interruptedMessages.length > 0) {
+          try {
+            await saveChatMessagesActivity({ sessionId, messages: interruptedMessages });
+          } catch (saveErr) {
+            console.warn(
+              `[chat-agent] Failed to persist halted messages for session ${sessionId}:`,
+              saveErr,
+            );
+          }
+        }
         return {
           turnId,
           runId,
@@ -1063,6 +1104,16 @@ export async function runChatAgentStepActivity(
         const interruptedMessages: ChatUIMessage[] = [];
         if (accumulatedParts.length > 0) {
           interruptedMessages.push({ role: 'assistant', parts: accumulatedParts });
+        }
+        if (interruptedMessages.length > 0) {
+          try {
+            await saveChatMessagesActivity({ sessionId, messages: interruptedMessages });
+          } catch (saveErr) {
+            console.warn(
+              `[chat-agent] Failed to persist aborted messages for session ${sessionId}:`,
+              saveErr,
+            );
+          }
         }
         return {
           turnId,

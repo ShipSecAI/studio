@@ -23,14 +23,9 @@ export class KafkaTopicResolver {
   private enableInstanceSuffix: boolean;
 
   constructor(config: TopicResolverConfig = {}) {
-    // Instance scoping is strictly for local dev. Staging/prod must never use instance suffixes.
-    const env = process.env.SHIPSEC_ENV;
-    const isNonLocal = env && env !== 'local';
-
-    this.instanceId = isNonLocal ? undefined : (config.instanceId ?? process.env.SHIPSEC_INSTANCE);
-    this.enableInstanceSuffix = isNonLocal
-      ? false
-      : (config.enableInstanceSuffix ?? Boolean(this.instanceId));
+    this.instanceId = config.instanceId ?? process.env.SHIPSEC_INSTANCE;
+    // Enable instance suffix only if SHIPSEC_INSTANCE is set
+    this.enableInstanceSuffix = config.enableInstanceSuffix ?? Boolean(this.instanceId);
   }
 
   /**
@@ -82,6 +77,14 @@ export class KafkaTopicResolver {
    */
   getAssetEventsTopic(): string {
     const baseTopic = process.env.ASSET_EVENT_KAFKA_TOPIC ?? 'asset.events';
+    return this.resolveTopic(baseTopic);
+  }
+
+  /**
+   * Get chat stream topic
+   */
+  getChatStreamTopic(): string {
+    const baseTopic = process.env.CHAT_STREAM_KAFKA_TOPIC ?? 'chat.stream.events';
     return this.resolveTopic(baseTopic);
   }
 

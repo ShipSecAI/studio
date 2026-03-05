@@ -3,13 +3,17 @@ import type { ChatTransport, UIMessage, UIMessageChunk } from 'ai';
 export interface DurableChatTransportOptions {
   apiBase: string;
   getAuthHeaders: () => Promise<Record<string, string>>;
-  onChunk?: (chunk: unknown, context: { sessionId: string; runId: string }) => void;
-  onQueuedTurn?: (response: SendTurnResponse & { clientMessageId?: string }) => void;
+  onChunk?: (chunk: unknown, context: { sessionId: string; runId?: string }) => void;
+  onQueuedTurn?: (
+    response: SendTurnResponse & { clientMessageId?: string },
+    context: { sessionId: string },
+  ) => void;
 }
 
 export interface QueueTurnIdentity {
   turnId?: string;
   clientMessageId?: string | null;
+  preview?: string | null;
   queuePosition?: number | null;
   status?: string;
   queuedAt?: string | null;
@@ -26,7 +30,7 @@ export interface ChatSessionStateResponse {
   }[];
   afterSeq?: number;
   lastSeq?: number;
-  processingStatus: 'idle' | 'processing';
+  processingStatus: 'idle' | 'processing' | 'stopping';
   activeRunId?: string | null;
   activeRunStartedAt?: string | null;
   pendingCount?: number;
@@ -42,6 +46,7 @@ export interface SendTurnResponse {
   activeRunId?: string | null;
   turnId?: string;
   queuePosition?: number | null;
+  preview?: string | null;
   pendingCount?: number;
   generationId?: number | null;
   steerTargetTurnId?: string | null;
@@ -52,14 +57,22 @@ export interface SendTurnResponse {
 /**
  * Custom ChatTransport for multi-client durable streaming.
  *
- * How it works:
- * 1. sendMessages: POSTs the message, gets runId, then GETs the stream
- * 2. reconnectToStream: Checks for active run, then GETs the stream
+ * Session-level SSE: A single long-lived SSE connection per session streams
+ * ALL turn events. Per-turn ReadableStreams are created by filtering on turnId
+ * and completing on terminal turn status.
  *
- * Both paths use the same GET /stream endpoint, ensuring all clients
- * (sender, late-joiners, refreshers) receive identical event streams.
+ * Cross-tab sync: Each tab maintains its own SSE connection. The backend
+ * fans out all session events to every connected client via Redis pub/sub.
  */
 export class DurableChatTransport implements ChatTransport<UIMessage> {
+  // Session-level SSE state
+  private sessionSseController: AbortController | null = null;
+  private sessionEventTarget = new EventTarget();
+  private sessionSseSessionId: string | null = null;
+  private lastSeq = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private sseConnectedPromise: Promise<void> | null = null;
+
   constructor(private options: DurableChatTransportOptions) {}
 
   private isEphemeralChatId(chatId: string): boolean {
@@ -78,6 +91,187 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
       .join('');
   }
 
+  // ── Session SSE Management ──────────────────────────────────────────
+
+  /**
+   * Opens a long-lived SSE connection for the session. All turn events flow
+   * through this single connection. Safe to call multiple times — will no-op
+   * if already connected to the same session.
+   *
+   * Returns a promise that resolves once the SSE connection is established
+   * (or immediately if already connected).
+   */
+  openSessionStream(sessionId: string, afterSeq = 0): Promise<void> {
+    if (this.isEphemeralChatId(sessionId)) return Promise.resolve();
+    if (this.sessionSseSessionId === sessionId && this.sessionSseController) {
+      return this.sseConnectedPromise ?? Promise.resolve();
+    }
+
+    this.closeSessionStream();
+    this.sessionSseSessionId = sessionId;
+    this.lastSeq = afterSeq;
+    this.sseConnectedPromise = this.startSse(sessionId);
+    return this.sseConnectedPromise;
+  }
+
+  /** Closes the session SSE connection. */
+  closeSessionStream(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.sessionSseController?.abort();
+    this.sessionSseController = null;
+    this.sessionSseSessionId = null;
+  }
+
+  /**
+   * Creates a ReadableStream<UIMessageChunk> that filters session SSE events
+   * for a specific turn. The stream closes when a terminal turn status is received.
+   */
+  createTurnStream(turnId: string): ReadableStream<UIMessageChunk> {
+    const eventTarget = this.sessionEventTarget;
+
+    return new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        const handler = (event: Event) => {
+          const chunk = (event as CustomEvent).detail;
+          if (!chunk || typeof chunk !== 'object') return;
+
+          const chunkTurnId = (chunk as Record<string, unknown>).turnId;
+          if (chunkTurnId && chunkTurnId !== turnId) return;
+
+          controller.enqueue(chunk as UIMessageChunk);
+
+          // Close on terminal turn status
+          if ((chunk as Record<string, unknown>).type === 'data-turn-status') {
+            const data = (chunk as Record<string, unknown>).data;
+            const status =
+              data && typeof data === 'object' ? (data as Record<string, unknown>).status : null;
+            if (
+              status === 'completed' ||
+              status === 'interrupted' ||
+              status === 'failed' ||
+              status === 'cancelled'
+            ) {
+              eventTarget.removeEventListener('chunk', handler);
+              controller.close();
+            }
+          }
+
+          if ((chunk as Record<string, unknown>).type === 'finish') {
+            eventTarget.removeEventListener('chunk', handler);
+            controller.close();
+          }
+        };
+
+        eventTarget.addEventListener('chunk', handler);
+      },
+    });
+  }
+
+  /**
+   * Start SSE connection. Resolves once the HTTP response is received
+   * (connection established). The read loop continues in the background.
+   */
+  private async startSse(sessionId: string): Promise<void> {
+    const controller = new AbortController();
+    this.sessionSseController = controller;
+
+    const headers = await this.options.getAuthHeaders();
+    const url = new URL(
+      `${this.options.apiBase}/chat/sessions/${sessionId}/stream`,
+      window.location.origin,
+    );
+    url.searchParams.set('afterSeq', String(this.lastSeq));
+
+    let res: Response;
+    try {
+      res = await fetch(url.toString(), { headers, signal: controller.signal });
+      if (!res.ok || !res.body) return;
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      console.warn('[DurableChatTransport] SSE connection failed:', error);
+      this.scheduleReconnect(sessionId);
+      return;
+    }
+
+    // Connection established — run read loop in background (don't await)
+    void this.readSseLoop(res.body, sessionId, controller);
+  }
+
+  private async readSseLoop(
+    body: ReadableStream<Uint8Array>,
+    sessionId: string,
+    controller: AbortController,
+  ): Promise<void> {
+    const reader = body.getReader();
+    const textDecoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          if (buffer.trim().length > 0) {
+            for (const line of buffer.split('\n')) {
+              this.handleSseLine(line, sessionId);
+            }
+          }
+          break;
+        }
+
+        buffer += textDecoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          this.handleSseLine(line, sessionId);
+        }
+      }
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      console.warn('[DurableChatTransport] SSE read error:', error);
+    }
+
+    // Auto-reconnect if not explicitly closed
+    this.scheduleReconnect(sessionId);
+  }
+
+  private scheduleReconnect(sessionId: string): void {
+    if (this.sessionSseSessionId !== sessionId) return;
+    if (this.sessionSseController?.signal.aborted) return;
+
+    this.reconnectTimer = setTimeout(() => {
+      if (this.sessionSseSessionId === sessionId) {
+        this.sseConnectedPromise = this.startSse(sessionId);
+      }
+    }, 2000);
+  }
+
+  private handleSseLine(line: string, sessionId: string): void {
+    const parsed = this.parseSseLine(line);
+    if (!parsed || parsed === 'DONE') return;
+
+    const chunk = parsed as Record<string, unknown>;
+
+    // Track seq for reconnect cursor
+    const seq = typeof chunk.seq === 'number' ? chunk.seq : null;
+    if (seq != null && seq > this.lastSeq) {
+      this.lastSeq = seq;
+    }
+
+    // Global onChunk handler (queue state updates, cursor tracking)
+    const runId = typeof chunk.runId === 'string' ? chunk.runId : undefined;
+    this.options.onChunk?.(chunk, { sessionId, runId });
+
+    // Fan out to per-turn listeners
+    this.sessionEventTarget.dispatchEvent(new CustomEvent('chunk', { detail: chunk }));
+  }
+
+  // ── ChatTransport Interface ─────────────────────────────────────────
+
   async sendMessages(options: {
     trigger: 'submit-message' | 'regenerate-message';
     chatId: string;
@@ -92,7 +286,7 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     const clientMessageId = messageId ?? lastMessage?.id;
     const message = this.getLastUserText(lastMessage);
 
-    // Step 1: POST the turn and get run attachment info.
+    // POST the turn
     const postRes = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/turns`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
@@ -108,7 +302,7 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     const responseData = (await postRes.json()) as SendTurnResponse;
 
     if (responseData.queued) {
-      this.options.onQueuedTurn?.({ ...responseData, clientMessageId });
+      this.options.onQueuedTurn?.({ ...responseData, clientMessageId }, { sessionId });
       return new ReadableStream<UIMessageChunk>({
         start(controller) {
           controller.close();
@@ -116,42 +310,60 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
       });
     }
 
-    if (!responseData.runId) {
-      throw new Error('No runId in response and turn was not queued');
+    if (!responseData.turnId) {
+      throw new Error('No turnId in response and turn was not queued');
     }
 
-    // Step 2: GET the stream.
+    // Create the per-turn stream FIRST so listener is ready before SSE replays
+    const turnStream = this.createTurnStream(responseData.turnId);
     const afterSeq = Math.max(0, responseData.afterSeq ?? responseData.lastSeq ?? 0);
-    return this.fetchStream(sessionId, responseData.runId, afterSeq, headers);
+    await this.openSessionStream(sessionId, afterSeq);
+    return turnStream;
   }
 
   async reconnectToStream(
     options: {
       chatId: string;
-      runId?: string | null;
+      turnId?: string | null;
       afterSeq?: number;
     },
     signal?: AbortSignal,
   ): Promise<ReadableStream<UIMessageChunk> | null> {
-    const { chatId: sessionId, runId, afterSeq = 0 } = options;
+    const { chatId: sessionId, turnId, afterSeq = 0 } = options;
     if (this.isEphemeralChatId(sessionId)) {
       return null;
     }
 
-    const headers = await this.options.getAuthHeaders();
-
-    // If caller already knows the runId, skip the extra status fetch.
-    if (runId) {
-      return this.fetchStream(sessionId, runId, afterSeq, headers, signal);
+    if (turnId) {
+      // Create listener before opening SSE so replay events are captured
+      const turnStream = this.createTurnStream(turnId);
+      await this.openSessionStream(sessionId, afterSeq);
+      return turnStream;
     }
 
     const state = await this.getState(sessionId, signal);
-    if (!state || state.processingStatus !== 'processing' || !state.activeRunId) {
+    if (
+      !state ||
+      (state.processingStatus !== 'processing' && state.processingStatus !== 'stopping')
+    ) {
+      // Still open SSE for cross-tab sync even when idle
+      void this.openSessionStream(sessionId, afterSeq);
       return null;
     }
 
-    const resolvedAfterSeq = Math.max(afterSeq, state.afterSeq ?? state.lastSeq ?? 0);
-    return this.fetchStream(sessionId, state.activeRunId, resolvedAfterSeq, headers, signal);
+    // Find active turn to attach to
+    const activeTurn =
+      state.queue?.find((t) => t.status === 'running') ??
+      state.queuedTurns?.find((t) => t.status === 'running');
+    if (!activeTurn?.turnId) {
+      void this.openSessionStream(sessionId, afterSeq);
+      return null;
+    }
+
+    // Create listener before opening SSE so replay events are captured
+    const turnStream = this.createTurnStream(activeTurn.turnId);
+    await this.openSessionStream(sessionId, afterSeq);
+    return turnStream;
   }
 
   async interruptTurn(sessionId: string, _turnId: string): Promise<{ success: boolean }> {
@@ -197,104 +409,6 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     });
     if (!res.ok) return null;
     return (await res.json()) as ChatSessionStateResponse;
-  }
-
-  /**
-   * Fetches the SSE stream and converts it to a ReadableStream<UIMessageChunk>.
-   *
-   * This is the unified streaming path used by:
-   * - Tab 1 after sending a message
-   * - Tab 2+ joining mid-stream
-   * - Any tab after refresh
-   */
-  private fetchStream(
-    sessionId: string,
-    runId: string,
-    afterSeq: number,
-    headers: Record<string, string>,
-    signal?: AbortSignal,
-  ): ReadableStream<UIMessageChunk> {
-    const url = new URL(
-      `${this.options.apiBase}/chat/sessions/${sessionId}/stream`,
-      window.location.origin,
-    );
-    url.searchParams.set('runId', runId);
-    url.searchParams.set('afterSeq', String(afterSeq));
-
-    const textDecoder = new TextDecoder();
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-
-    return new ReadableStream<UIMessageChunk>({
-      start: async (controller) => {
-        const handleChunk = (chunk: unknown | 'DONE'): 'continue' | 'done' => {
-          if (chunk === 'DONE') {
-            controller.close();
-            return 'done';
-          }
-
-          this.options.onChunk?.(chunk, { sessionId, runId });
-          // Pass raw stream chunks through without transport-side batching.
-          controller.enqueue(chunk as UIMessageChunk);
-          return 'continue';
-        };
-
-        try {
-          const res = await fetch(url.toString(), { headers, signal });
-
-          if (!res.ok) {
-            controller.error(new Error(`Stream fetch failed: ${res.status}`));
-            return;
-          }
-
-          if (!res.body) {
-            controller.error(new Error('No response body'));
-            return;
-          }
-
-          reader = res.body.getReader();
-          let buffer = '';
-
-          while (true) {
-            const { done, value } = await reader.read();
-
-            if (done) {
-              if (buffer.trim().length > 0) {
-                const lines = buffer.split('\n');
-                for (const line of lines) {
-                  const chunk = this.parseSseLine(line);
-                  if (!chunk) continue;
-                  const state = handleChunk(chunk);
-                  if (state === 'done') {
-                    return;
-                  }
-                }
-              }
-              controller.close();
-              return;
-            }
-
-            buffer += textDecoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() ?? '';
-
-            for (const line of lines) {
-              const chunk = this.parseSseLine(line);
-              if (!chunk) continue;
-
-              const state = handleChunk(chunk);
-              if (state === 'done') {
-                return;
-              }
-            }
-          }
-        } catch (error) {
-          controller.error(error instanceof Error ? error : new Error(String(error)));
-        }
-      },
-      cancel() {
-        reader?.cancel();
-      },
-    });
   }
 
   private parseSseLine(line: string): unknown | 'DONE' | null {

@@ -30,7 +30,7 @@ export class ChatTurnRepository {
     sessionId: string;
     message: string;
     clientMessageId?: string;
-  }): Promise<{ turn: ChatTurn; position: number }> {
+  }): Promise<{ turn: ChatTurn; position: number; created: boolean }> {
     const existing =
       input.clientMessageId == null
         ? null
@@ -39,16 +39,11 @@ export class ChatTurnRepository {
       return {
         turn: existing,
         position: await this.getQueuePosition(input.sessionId, existing.id),
+        created: false,
       };
     }
 
     return this.db.transaction(async (tx) => {
-      await tx.insert(chatMessagesTable).values({
-        sessionId: input.sessionId,
-        role: 'user',
-        parts: [{ type: 'text', text: input.message }],
-      });
-
       const values: NewChatTurn = {
         sessionId: input.sessionId,
         clientMessageId: input.clientMessageId ?? null,
@@ -68,6 +63,7 @@ export class ChatTurnRepository {
       return {
         turn,
         position: Number(countRow?.value ?? 0),
+        created: true,
       };
     });
   }
@@ -111,6 +107,17 @@ export class ChatTurnRepository {
     return turn ?? null;
   }
 
+  async getLatestTurn(sessionId: string): Promise<ChatTurn | null> {
+    const [turn] = await this.db
+      .select()
+      .from(chatTurnsTable)
+      .where(eq(chatTurnsTable.sessionId, sessionId))
+      .orderBy(sql`${chatTurnsTable.queuedAt} desc`, sql`${chatTurnsTable.createdAt} desc`)
+      .limit(1);
+
+    return turn ?? null;
+  }
+
   async listQueuedTurns(sessionId: string, limit = 50): Promise<ChatTurn[]> {
     return this.db
       .select()
@@ -141,16 +148,53 @@ export class ChatTurnRepository {
   }
 
   async setTurnRunning(sessionId: string, turnId: string, runId?: string, generationId?: string) {
-    await this.db
-      .update(chatTurnsTable)
-      .set({
-        status: 'running',
-        runId: runId ?? null,
-        generationId: generationId ?? null,
-        startedAt: sql`now()`,
-        updatedAt: sql`now()`,
-      })
-      .where(and(eq(chatTurnsTable.id, turnId), eq(chatTurnsTable.sessionId, sessionId)));
+    await this.db.transaction(async (tx) => {
+      const [promotedTurn] = await tx
+        .update(chatTurnsTable)
+        .set({
+          status: 'running',
+          runId: runId ?? null,
+          generationId: generationId ?? null,
+          startedAt: sql`now()`,
+          updatedAt: sql`now()`,
+        })
+        .where(
+          and(
+            eq(chatTurnsTable.id, turnId),
+            eq(chatTurnsTable.sessionId, sessionId),
+            eq(chatTurnsTable.status, 'queued'),
+          ),
+        )
+        .returning({
+          sessionId: chatTurnsTable.sessionId,
+          userMessage: chatTurnsTable.userMessage,
+        });
+
+      if (promotedTurn) {
+        await tx.insert(chatMessagesTable).values({
+          sessionId: promotedTurn.sessionId,
+          role: 'user',
+          parts: [{ type: 'text', text: promotedTurn.userMessage }],
+        });
+        return;
+      }
+
+      await tx
+        .update(chatTurnsTable)
+        .set({
+          runId: runId ?? null,
+          generationId: generationId ?? null,
+          startedAt: sql`coalesce(${chatTurnsTable.startedAt}, now())`,
+          updatedAt: sql`now()`,
+        })
+        .where(
+          and(
+            eq(chatTurnsTable.id, turnId),
+            eq(chatTurnsTable.sessionId, sessionId),
+            eq(chatTurnsTable.status, 'running'),
+          ),
+        );
+    });
   }
 
   async setTurnStatus(sessionId: string, turnId: string, status: ChatTurnStatus) {

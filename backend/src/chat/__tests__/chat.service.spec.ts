@@ -65,13 +65,16 @@ describe('ChatService Unit Tests', () => {
       enqueueTurnWithUserMessage: jest.fn().mockResolvedValue({
         turn: {
           id: 'turn-1',
+          userMessage: 'hello',
           status: 'queued',
           queuedAt: new Date('2026-03-04T10:00:00.000Z'),
         },
         position: 1,
+        created: true,
       }),
       getTurn: jest.fn().mockResolvedValue({ id: 'turn-1' }),
       getRunningTurn: jest.fn().mockResolvedValue(null),
+      getLatestTurn: jest.fn().mockResolvedValue(null),
       listQueuedTurns: jest.fn().mockResolvedValue([]),
       setTurnStatus: jest.fn(),
       setTurnRunning: jest.fn(),
@@ -80,6 +83,7 @@ describe('ChatService Unit Tests', () => {
     sessionEventRepository = {
       append: jest.fn().mockResolvedValue(8),
       listAfter: jest.fn().mockResolvedValue([]),
+      listByTurn: jest.fn().mockResolvedValue([]),
       getLastSeq: jest.fn().mockResolvedValue(7),
     } as unknown as ChatSessionEventRepository;
 
@@ -142,14 +146,55 @@ describe('ChatService Unit Tests', () => {
     expect(result).toEqual({
       turnId: 'turn-1',
       status: 'queued',
+      preview: 'hello',
       queuedAt: new Date('2026-03-04T10:00:00.000Z'),
       position: 1,
+      queuePosition: 1,
       queued: false,
       runId: expect.any(String),
       pendingCount: 0,
       afterSeq: 7,
       lastSeq: 7,
     });
+  });
+
+  it('recovers from stale completed workflow when enqueueing a turn', async () => {
+    (sessionRepository.getSession as jest.Mock).mockResolvedValue({
+      id: 'session-1',
+      title: 'Session',
+      status: 'active',
+      processingStatus: 'processing',
+      activeRunId: 'run-stale',
+      organizationId: 'test-org-id',
+      steerTargetTurnId: null,
+      nextEventSeq: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    (temporalService.signalChatWorkflow as jest.Mock)
+      .mockRejectedValueOnce(new Error('workflow execution already completed'))
+      .mockResolvedValueOnce(undefined);
+
+    const result = await service.enqueueTurn(
+      'session-1',
+      { message: 'recover me', clientMessageId: 'client-recover' },
+      mockAuthContext,
+    );
+
+    expect(sessionRepository.completeRun).toHaveBeenCalledWith('session-1', 'run-stale');
+    expect(temporalService.startChatWorkflow).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      organizationId: 'test-org-id',
+      systemPrompt: expect.any(String),
+    });
+    expect(sessionRepository.startRun).toHaveBeenCalledWith('session-1', expect.any(String));
+    expect(temporalService.signalChatWorkflow).toHaveBeenCalledTimes(2);
+    expect(result).toEqual(
+      expect.objectContaining({
+        queued: false,
+        runId: expect.any(String),
+      }),
+    );
   });
 
   it('projects state with active turn, queue, and lastSeq', async () => {
@@ -193,6 +238,7 @@ describe('ChatService Unit Tests', () => {
     expect(result.queue[0]).toEqual(
       expect.objectContaining({
         turnId: 'turn-2',
+        preview: 'next turn',
         queuePosition: 1,
         status: 'queued',
       }),
@@ -250,7 +296,7 @@ describe('ChatService Unit Tests', () => {
     expect(sessionRepository.setProcessingStatus).toHaveBeenCalledWith('session-1', 'processing');
   });
 
-  it('interrupt endpoint interrupts only running turn', async () => {
+  it('interrupt always signals Temporal even when no running turn exists', async () => {
     (turnRepository.getRunningTurn as jest.Mock)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ id: 'turn-running' });
@@ -258,13 +304,11 @@ describe('ChatService Unit Tests', () => {
     const first = await service.interruptGeneration('session-1', mockAuthContext);
     const second = await service.interruptGeneration('session-1', mockAuthContext);
 
-    expect(first).toEqual({ ok: false });
+    // Both return ok: true — signal is always sent (workflow handler is idempotent)
+    expect(first).toEqual({ ok: true, interruptedTurnId: undefined });
     expect(second).toEqual({ ok: true, interruptedTurnId: 'turn-running' });
+    // signalChatInterrupt called for BOTH invocations
+    expect(temporalService.signalChatInterrupt).toHaveBeenCalledTimes(2);
     expect(temporalService.signalChatInterrupt).toHaveBeenCalledWith('session-1');
-    expect(turnRepository.setTurnStatus).not.toHaveBeenCalledWith(
-      'session-1',
-      'turn-running',
-      'interrupted',
-    );
   });
 });

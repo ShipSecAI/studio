@@ -425,6 +425,7 @@ describe('chatStore', () => {
           {
             turnId: 'turn-1',
             clientMessageId: 'client-1',
+            preview: 'first queued message',
             queuePosition: 1,
             status: 'queued',
             queuedAt: '2026-01-01T00:00:00.000Z',
@@ -434,6 +435,7 @@ describe('chatStore', () => {
           {
             turnId: 'turn-2',
             clientMessageId: 'client-2',
+            preview: 'second queued message',
             queuePosition: 2,
             status: 'queued',
             queuedAt: '2026-01-01T00:00:01.000Z',
@@ -461,6 +463,7 @@ describe('chatStore', () => {
           {
             turnId: 'turn-99',
             clientMessageId: 'client-99',
+            preview: 'queued turn',
             queuePosition: 1,
             status: 'queued',
             queuedAt: null,
@@ -481,7 +484,7 @@ describe('chatStore', () => {
   });
 
   describe('Persistence (partialize)', () => {
-    it('partializes only currentSessionId and isSidebarOpen', () => {
+    it('partializes only isSidebarOpen', () => {
       useChatStore.setState({
         currentSessionId: 'session-123',
         isSidebarOpen: false,
@@ -493,10 +496,10 @@ describe('chatStore', () => {
       const partialize = useChatStore.persist.getOptions().partialize!;
       const persisted = partialize(useChatStore.getState()) as Record<string, any>;
 
-      expect(persisted.currentSessionId).toBe('session-123');
       expect(persisted.isSidebarOpen).toBe(false);
 
       // Sessions are no longer persisted to localStorage (server is source of truth)
+      expect('currentSessionId' in persisted).toBe(false);
       expect('sessions' in persisted).toBe(false);
       expect('isCommandPaletteOpen' in persisted).toBe(false);
       expect('isWorkflowPreviewOpen' in persisted).toBe(false);

@@ -101,7 +101,7 @@ function getEnvFilePaths(): string[] {
             {
               name: 'default',
               ttl: seconds(60), // 60 seconds
-              limit: 100, // 100 requests per minute
+              limit: 500, // 500 requests per minute
             },
           ],
           storage: redisUrl ? new ThrottlerStorageRedisService(new Redis(redisUrl)) : undefined, // Falls back to in-memory storage if Redis not configured

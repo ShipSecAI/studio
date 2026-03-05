@@ -34,6 +34,8 @@ import {
 
 @Controller('chat/sessions')
 export class ChatController {
+  private static readonly MAX_ACTIVE_STREAMS_PER_SESSION = 12;
+
   private readonly activeStreams = new Map<string, number>();
 
   constructor(private readonly chatService: ChatService) {}
@@ -77,7 +79,7 @@ export class ChatController {
   }
 
   @Post(':id/messages')
-  @Throttle({ default: { limit: 200, ttl: 60000 } })
+  @Throttle({ default: { limit: 600, ttl: 60000 } })
   async sendMessage(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(SendMessageSchema)) body: SendMessageDto,
@@ -92,7 +94,7 @@ export class ChatController {
   }
 
   @Post(':id/turns')
-  @Throttle({ default: { limit: 200, ttl: 60000 } })
+  @Throttle({ default: { limit: 600, ttl: 60000 } })
   async enqueueTurn(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(EnqueueTurnSchema)) body: EnqueueTurnDto,
@@ -102,7 +104,7 @@ export class ChatController {
   }
 
   @Post(':id/steer')
-  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @Throttle({ default: { limit: 300, ttl: 60000 } })
   async steerSession(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(SteerSessionSchema)) body: SteerSessionDto,
@@ -112,7 +114,7 @@ export class ChatController {
   }
 
   @Post(':id/interrupt')
-  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @Throttle({ default: { limit: 300, ttl: 60000 } })
   async interruptGeneration(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
     return this.chatService.interruptGeneration(id, auth);
   }
@@ -128,7 +130,7 @@ export class ChatController {
   }
 
   @Get(':id/stream')
-  @Throttle({ default: { limit: 2000, ttl: 60000 } })
+  @Throttle({ default: { limit: 10000, ttl: 60000 } })
   async streamLive(
     @Param('id') id: string,
     @Query('afterSeq') afterSeqRaw: string | undefined,
@@ -136,7 +138,7 @@ export class ChatController {
     @Res() res: Response,
   ) {
     const current = this.activeStreams.get(id) ?? 0;
-    if (current >= 3) {
+    if (current >= ChatController.MAX_ACTIVE_STREAMS_PER_SESSION) {
       res.status(HttpStatus.TOO_MANY_REQUESTS).json({
         message: 'Too many concurrent stream connections for this session',
       });
@@ -160,7 +162,7 @@ export class ChatController {
   }
 
   @Get(':id/events')
-  @Throttle({ default: { limit: 2000, ttl: 60000 } })
+  @Throttle({ default: { limit: 10000, ttl: 60000 } })
   async listEvents(
     @Param('id') id: string,
     @Query('runId') runId: string | undefined,

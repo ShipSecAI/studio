@@ -123,7 +123,12 @@ export class ChatStreamService {
   }
 
   isAvailable(): boolean {
-    return this.subscriber != null;
+    return (
+      this.redis != null &&
+      this.subscriber != null &&
+      this.redis.status === 'ready' &&
+      this.subscriber.status === 'ready'
+    );
   }
 
   async publish(sessionId: string, event: Record<string, unknown>): Promise<void> {
@@ -131,6 +136,15 @@ export class ChatStreamService {
       return;
     }
 
-    await this.redis.publish(`chat:stream:${sessionId}`, JSON.stringify(event));
+    try {
+      await this.redis.publish(`chat:stream:${sessionId}`, JSON.stringify(event));
+    } catch (error) {
+      // DB-backed replay is authoritative; losing pub/sub fanout should not fail event ingestion.
+      this.logger.warn(
+        `Failed to publish chat stream event for session ${sessionId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 }

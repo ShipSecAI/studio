@@ -70,7 +70,13 @@ export class ChatSessionEventRepository {
     });
   }
 
-  async listAfter(sessionId: string, afterSeq: number, limit = 500) {
+  async listAfter(sessionId: string, afterSeq: number, limit = 500, runId?: string) {
+    const where = and(
+      eq(chatSessionEventsTable.sessionId, sessionId),
+      gt(chatSessionEventsTable.seq, afterSeq),
+      ...(runId ? [eq(chatSessionEventsTable.runId, runId)] : []),
+    );
+
     return this.db
       .select({
         seq: chatSessionEventsTable.seq,
@@ -81,12 +87,7 @@ export class ChatSessionEventRepository {
         chunk: chatSessionEventsTable.chunk,
       })
       .from(chatSessionEventsTable)
-      .where(
-        and(
-          eq(chatSessionEventsTable.sessionId, sessionId),
-          gt(chatSessionEventsTable.seq, afterSeq),
-        ),
-      )
+      .where(where)
       .orderBy(chatSessionEventsTable.seq)
       .limit(limit);
   }
@@ -100,5 +101,22 @@ export class ChatSessionEventRepository {
       .limit(1);
 
     return row?.seq ?? 0;
+  }
+
+  async listByTurn(sessionId: string, turnId: string, limit = 10000) {
+    return this.db
+      .select({
+        seq: chatSessionEventsTable.seq,
+        chunk: chatSessionEventsTable.chunk,
+      })
+      .from(chatSessionEventsTable)
+      .where(
+        and(
+          eq(chatSessionEventsTable.sessionId, sessionId),
+          eq(chatSessionEventsTable.turnId, turnId),
+        ),
+      )
+      .orderBy(chatSessionEventsTable.seq)
+      .limit(limit);
   }
 }

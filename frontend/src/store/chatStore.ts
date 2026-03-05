@@ -30,6 +30,7 @@ export interface QuickAction {
 export interface QueueTurn {
   turnId: string;
   clientMessageId: string | null;
+  preview: string | null;
   queuePosition: number | null;
   status: string;
   queuedAt: string | null;
@@ -61,6 +62,7 @@ interface ChatState {
   isSidebarOpen: boolean;
 
   // Queue state (for steer UX)
+  queueSessionId: string | null;
   pendingCount: number;
   currentGenerationId: number | null;
   steerTargetTurnId: string | null;
@@ -86,8 +88,8 @@ interface ChatState {
   setSelectedRun: (id: string | null) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
-  setQueueState: (snapshot: Partial<QueueStateSnapshot>) => void;
-  clearQueueState: () => void;
+  setQueueState: (snapshot: Partial<QueueStateSnapshot>, sessionId?: string | null) => void;
+  clearQueueState: (sessionId?: string | null) => void;
 
   // Getters
   getCurrentSession: () => ChatSession | null;
@@ -124,6 +126,7 @@ export const useChatStore = create<ChatState>()(
       isRunInspectorOpen: false,
       selectedRunId: null,
       isSidebarOpen: true,
+      queueSessionId: null,
       pendingCount: 0,
       currentGenerationId: null,
       steerTargetTurnId: null,
@@ -176,12 +179,31 @@ export const useChatStore = create<ChatState>()(
       },
 
       setCurrentSession: (id) => {
-        set({ currentSessionId: id });
+        set((state) => {
+          if (state.currentSessionId === id) {
+            return { currentSessionId: id };
+          }
+          return {
+            currentSessionId: id,
+            queueSessionId: null,
+            pendingCount: 0,
+            currentGenerationId: null,
+            steerTargetTurnId: null,
+            queueOrder: [],
+            queuedTurns: [],
+          };
+        });
       },
 
       startNewConversation: () => {
         set((state) => ({
           currentSessionId: null,
+          queueSessionId: null,
+          pendingCount: 0,
+          currentGenerationId: null,
+          steerTargetTurnId: null,
+          queueOrder: [],
+          queuedTurns: [],
           newConversationToken: state.newConversationToken + 1,
           selectedRunId: null,
           isRunInspectorOpen: false,
@@ -240,8 +262,9 @@ export const useChatStore = create<ChatState>()(
         set({ isSidebarOpen: open });
       },
 
-      setQueueState: (snapshot) => {
+      setQueueState: (snapshot, sessionId) => {
         set((state) => ({
+          queueSessionId: sessionId ?? state.currentSessionId ?? state.queueSessionId,
           pendingCount: snapshot.pendingCount ?? state.pendingCount,
           currentGenerationId: snapshot.generationId ?? state.currentGenerationId,
           steerTargetTurnId: snapshot.steerTargetTurnId ?? state.steerTargetTurnId,
@@ -250,8 +273,13 @@ export const useChatStore = create<ChatState>()(
         }));
       },
 
-      clearQueueState: () => {
+      clearQueueState: (sessionId) => {
+        const state = get();
+        if (sessionId && state.queueSessionId && state.queueSessionId !== sessionId) {
+          return;
+        }
         set({
+          queueSessionId: null,
           pendingCount: 0,
           currentGenerationId: null,
           steerTargetTurnId: null,
@@ -269,7 +297,6 @@ export const useChatStore = create<ChatState>()(
       name: 'shipsec-chat-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        currentSessionId: state.currentSessionId,
         isSidebarOpen: state.isSidebarOpen,
       }),
     },
