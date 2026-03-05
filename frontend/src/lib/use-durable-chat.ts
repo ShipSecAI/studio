@@ -602,7 +602,9 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
         parts: [{ type: 'text' as const, text: opts.text }],
       } satisfies UIMessage;
 
+      // Optimistic local echo so user message appears immediately in transcript.
       const outboundMessages = [...messagesRef.current, userMessage];
+      commitMessages(outboundMessages, 'immediate');
       setStatus('submitting');
 
       clearStreamingState();
