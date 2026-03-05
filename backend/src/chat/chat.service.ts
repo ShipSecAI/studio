@@ -1,14 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import type { ServerResponse } from 'node:http';
-import { readUIMessageStream } from 'ai';
-import type { UIMessage, UIMessageChunk } from 'ai';
+import type { UIMessage } from 'ai';
 
 import { ChatSessionRepository } from './chat-session.repository';
 import { ChatTurnRepository } from './chat-turn.repository';
 import { ChatSessionEventRepository } from './chat-session-event.repository';
 import { ChatTurnDraftRepository } from './chat-turn-draft.repository';
-import { ChatPartialRepository } from './chat-partial.repository';
 import { ChatStreamService } from './chat-stream.service';
 import { TemporalService } from '../temporal/temporal.service';
 import { applyTurnStatus } from './chat-turn-status.util';
@@ -25,6 +23,79 @@ and any required inputs before executing. Always show run IDs so users can track
 
 const STREAM_REPLAY_BATCH_SIZE = 500;
 
+type VNextOp = 'UserTurn' | 'Interrupt' | 'SteerNow';
+
+interface ThreadHistoryMessage {
+  id: string;
+  role: UIMessage['role'];
+  parts: UIMessage['parts'];
+  createdAt?: Date;
+}
+
+interface ThreadHistoryState {
+  messages: ThreadHistoryMessage[];
+  interruptionBoundaries: Array<{ turnId: string; beforeMessageIndex: number }>;
+  queue: Array<{
+    turnId: string;
+    queuePosition: number;
+    status: string;
+    preview?: string | null;
+    queuedAt?: string | null;
+    startedAt?: string | null;
+    completedAt?: string | null;
+  }>;
+  processingStatus: 'idle' | 'processing' | 'stopping';
+  activeTurn: { turnId: string; status: string; generationId: number | null } | null;
+  activeGenerationId: number;
+}
+
+function appendTextDelta(parts: UIMessage['parts'], delta: string): UIMessage['parts'] {
+  const next = [...parts];
+  const last = next[next.length - 1] as Record<string, unknown> | undefined;
+  if (last && last.type === 'text' && typeof last.text === 'string') {
+    next[next.length - 1] = { ...last, text: `${last.text}${delta}` } as UIMessage['parts'][number];
+    return next;
+  }
+  return [...next, { type: 'text', text: delta } as UIMessage['parts'][number]];
+}
+
+function upsertToolPart(
+  parts: UIMessage['parts'],
+  update: {
+    toolCallId: string;
+    toolName?: string;
+    state: 'input-available' | 'output-available' | 'output-error';
+    input?: unknown;
+    output?: unknown;
+    preliminary?: boolean;
+    errorText?: string;
+  },
+): UIMessage['parts'] {
+  const next = [...parts];
+  const idx = next.findIndex((part) => {
+    const typed = part as Record<string, unknown>;
+    return typed?.type === 'tool-invocation' && typed?.toolCallId === update.toolCallId;
+  });
+  const base: Record<string, unknown> =
+    idx >= 0 ? { ...(next[idx] as Record<string, unknown>) } : { type: 'tool-invocation' };
+  const merged: Record<string, unknown> = {
+    ...base,
+    type: 'tool-invocation',
+    toolCallId: update.toolCallId,
+    ...(update.toolName ? { toolName: update.toolName } : {}),
+    state: update.state,
+    ...(update.input !== undefined ? { input: update.input } : {}),
+    ...(update.output !== undefined ? { output: update.output } : {}),
+    ...(update.preliminary !== undefined ? { preliminary: update.preliminary } : {}),
+    ...(update.errorText ? { errorText: update.errorText } : {}),
+  };
+  if (idx >= 0) {
+    next[idx] = merged as UIMessage['parts'][number];
+    return next;
+  }
+  return [...next, merged as UIMessage['parts'][number]];
+}
+
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
@@ -34,7 +105,6 @@ export class ChatService {
     private readonly turnRepository: ChatTurnRepository,
     private readonly sessionEventRepository: ChatSessionEventRepository,
     private readonly turnDraftRepository: ChatTurnDraftRepository,
-    private readonly partialRepository: ChatPartialRepository,
     private readonly chatStreamService: ChatStreamService,
     private readonly temporalService: TemporalService,
   ) {}
@@ -129,158 +199,113 @@ export class ChatService {
     });
   }
 
-  async getMessages(sessionId: string, auth: AuthContext) {
-    await this.assertSessionAccess(sessionId, auth);
-    const messages = await this.sessionRepository.getMessages(sessionId);
-
-    return messages.map((m) => ({
-      id: m.id,
-      role: m.role,
-      parts: m.parts,
-      createdAt: m.createdAt,
-    }));
-  }
-
-  async enqueueTurn(
+  async submitOperation(
     sessionId: string,
-    input: { message: string; clientMessageId?: string },
+    input: {
+      op: VNextOp;
+      text?: string;
+      clientSubmissionId: string;
+      clientTurnHint?: string;
+    },
     auth: AuthContext,
   ) {
-    const session = await this.assertSessionAccess(sessionId, auth);
+    await this.assertSessionAccess(sessionId, auth);
+
+    if (input.op === 'Interrupt') {
+      const interrupted = await this.interruptGeneration(sessionId, auth);
+      const lastSeq = await this.sessionEventRepository.getLastSeq(sessionId);
+      return {
+        submissionId: input.clientSubmissionId,
+        operation: input.op,
+        interruptedTurnId: interrupted.interruptedTurnId ?? null,
+        acceptedAtSeq: lastSeq,
+      };
+    }
+
+    const text = input.text?.trim();
+    if (!text) {
+      throw new BadRequestException('text is required for UserTurn/SteerNow');
+    }
+
+    const session = await this.sessionRepository.getSession(sessionId, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+
+    const shouldBumpGeneration =
+      session.processingStatus === 'idle' ||
+      session.activeRunId == null ||
+      session.activeTurnId == null;
+    const generationId = shouldBumpGeneration
+      ? await this.sessionRepository.bumpGeneration(sessionId)
+      : Number(session.activeGenerationId ?? 0);
 
     const queued = await this.turnRepository.enqueueTurnWithUserMessage({
       sessionId,
-      message: input.message,
-      clientMessageId: input.clientMessageId,
+      message: text,
+      clientMessageId: input.clientSubmissionId,
     });
 
     const runningTurn = await this.turnRepository.getRunningTurn(sessionId);
-    const hasLiveRun = Boolean(runningTurn) || session.processingStatus === 'processing';
+    const hasLiveRun =
+      Boolean(runningTurn) || session.processingStatus === 'processing' || session.activeRunId != null;
     let runId = hasLiveRun ? (runningTurn?.runId ?? session.activeRunId ?? null) : null;
-    let queuedOnExistingRun = hasLiveRun && Boolean(runId);
-    let createdRun = false;
 
     if (!runId) {
       runId = randomUUID();
-      createdRun = true;
-      queuedOnExistingRun = false;
       await this.sessionRepository.startRun(sessionId, runId);
     }
 
-    const signalTurn = async (targetRunId: string) => {
-      await this.temporalService.signalChatWorkflow(
-        sessionId,
-        {
-          id: input.clientMessageId,
-          role: 'user',
-          parts: [{ type: 'text', text: input.message }],
-        },
-        targetRunId,
-        {
-          turnId: queued.turn.id,
-          queuedAt: queued.turn.queuedAt.toISOString(),
-        },
-      );
-    };
-
-    try {
-      await signalTurn(runId);
-    } catch (error) {
-      if (this.isTemporalWorkflowClosedError(error)) {
-        this.logger.warn(
-          `Chat workflow for session ${sessionId} closed while enqueueing turn ${queued.turn.id}; recovering with a new run`,
-        );
-
-        await this.sessionRepository.completeRun(sessionId, runId);
-        await this.ensureChatWorkflowRunning(sessionId, session.organizationId);
-
-        runId = randomUUID();
-        queuedOnExistingRun = false;
-        createdRun = true;
-        await this.sessionRepository.startRun(sessionId, runId);
-
-        try {
-          await signalTurn(runId);
-        } catch (retryError) {
-          if (createdRun) {
-            await this.sessionRepository.completeRun(sessionId, runId);
-          }
-          throw retryError;
-        }
-      } else {
-        if (createdRun) {
-          await this.sessionRepository.completeRun(sessionId, runId);
-        }
-        throw error;
-      }
-    }
-
-    if (queued.created) {
-      await this.appendInternalEvent(sessionId, {
+    await this.temporalService.signalChatWorkflow(
+      sessionId,
+      {
+        id: input.clientSubmissionId,
+        role: 'user',
+        parts: [{ type: 'text', text }],
+      },
+      runId,
+      {
         turnId: queued.turn.id,
-        runId,
-        eventId: `queued:${queued.turn.id}`,
-        chunk: {
-          type: 'data-turn-status',
-          data: {
-            turnId: queued.turn.id,
-            status: 'queued',
-            queuedAt: queued.turn.queuedAt.toISOString(),
-            preview: queued.turn.userMessage,
-          },
-        },
-      });
-    }
+        queuedAt: queued.turn.queuedAt.toISOString(),
+        generationId,
+        submissionId: input.clientSubmissionId,
+      },
+    );
 
-    const [queuedTurns, lastSeq] = await Promise.all([
-      this.turnRepository.listQueuedTurns(sessionId),
-      this.sessionEventRepository.getLastSeq(sessionId),
-    ]);
-
-    return {
+    await this.appendInternalEvent(sessionId, {
       turnId: queued.turn.id,
-      status: queued.turn.status,
-      preview: queued.turn.userMessage,
-      queuedAt: queued.turn.queuedAt,
-      position: queued.position,
-      queuePosition: queued.position,
-      queued: queuedOnExistingRun,
-      ...(queuedOnExistingRun ? { activeRunId: runId } : { runId }),
-      pendingCount: queuedTurns.length,
-      afterSeq: lastSeq,
-      lastSeq,
-    };
-  }
+      runId,
+      generationId,
+      eventId: `${input.clientSubmissionId}:TurnQueued`,
+      chunk: {
+        type: 'data-turn-status',
+        data: {
+          turnId: queued.turn.id,
+          status: 'queued',
+          op: input.op,
+          submissionId: input.clientSubmissionId,
+          clientSubmissionId: input.clientSubmissionId,
+          queuedAt: queued.turn.queuedAt.toISOString(),
+          preview: queued.turn.userMessage,
+          text,
+          generationId,
+        },
+      },
+    });
 
-  async sendMessage(sessionId: string, message: unknown, auth: AuthContext) {
-    const text = this.extractTextFromUIMessage(message);
-    if (!text) {
-      return { error: 'No text message provided' };
-    }
+    await this.sessionRepository.setActiveTurn(sessionId, {
+      turnId: runningTurn?.id ?? null,
+      generationId,
+      processingStatus: 'processing',
+    });
 
-    return this.enqueueTurn(sessionId, { message: text }, auth);
-  }
-
-  async steerSession(
-    sessionId: string,
-    _targetTurnId: string | undefined,
-    auth: AuthContext,
-  ): Promise<{ ok: boolean; targetTurnId: string | null; interruptedTurnId?: string }> {
-    await this.assertSessionAccess(sessionId, auth);
-
-    // Steer is a one-way operation:
-    // interrupt current generation now, then the workflow drains ALL queued
-    // user turns together for the next model run.
-    await this.sessionRepository.clearSteerIntent(sessionId);
-
-    // Always interrupt — workflow handler is idempotent (activeScope?.cancel() is a no-op when null)
-    await this.temporalService.signalChatInterrupt(sessionId);
-
-    const runningTurn = await this.turnRepository.getRunningTurn(sessionId);
+    const acceptedAtSeq = await this.sessionEventRepository.getLastSeq(sessionId);
     return {
-      ok: true,
-      targetTurnId: null,
-      interruptedTurnId: runningTurn?.id,
+      submissionId: input.clientSubmissionId,
+      operation: input.op,
+      turnId: queued.turn.id,
+      generationId,
+      acceptedAtSeq,
     };
   }
 
@@ -314,236 +339,208 @@ export class ChatService {
     return { ok: true, interruptedTurnId: runningTurn?.id };
   }
 
-  async getState(sessionId: string, auth: AuthContext) {
+  async getThreadHistory(sessionId: string, auth: AuthContext) {
     const session = await this.assertSessionAccess(sessionId, auth);
-    const [messages, activeTurn, latestTurn, queuedTurns, interruptedTurns, lastSeq, partial] =
-      await Promise.all([
-        this.sessionRepository.getMessages(sessionId),
-        this.turnRepository.getRunningTurn(sessionId),
-        this.turnRepository.getLatestTurn(sessionId),
-        this.turnRepository.listQueuedTurns(sessionId),
-        this.turnRepository.listInterruptedTurns(sessionId),
-        this.sessionEventRepository.getLastSeq(sessionId),
-        this.partialRepository.get(sessionId),
-      ]);
-
-    let hydratedMessages = messages.map((m) => ({
-      id: m.id,
-      role: m.role,
-      parts: m.parts,
-      createdAt: m.createdAt,
-    }));
-
-    const recoveryTurn = activeTurn ?? latestTurn;
-    const recoveryAnchorTime =
-      recoveryTurn?.startedAt ?? recoveryTurn?.endedAt ?? recoveryTurn?.queuedAt ?? null;
-    const hasPersistedAssistantForRecoveryTurn =
-      Boolean(recoveryAnchorTime) &&
-      hydratedMessages.some(
-        (message) =>
-          message.role === 'assistant' &&
-          message.createdAt instanceof Date &&
-          message.createdAt >= (recoveryAnchorTime as Date),
-      );
-    const shouldRecoverAssistant =
-      Boolean(recoveryTurn) &&
-      recoveryTurn?.status !== 'queued' &&
-      !hasPersistedAssistantForRecoveryTurn;
-
-    if (shouldRecoverAssistant && recoveryTurn) {
-      let recovered =
-        activeTurn != null
-          ? this.recoverAssistantMessageFromPartial(
-              recoveryTurn.id,
-              partial,
-              recoveryTurn.startedAt ?? recoveryTurn.endedAt ?? recoveryTurn.queuedAt ?? null,
-            )
-          : null;
-
-      if (!recovered) {
-        recovered = await this.recoverAssistantMessageFromTurnEvents(
-          sessionId,
-          recoveryTurn.id,
-          recoveryTurn.startedAt ?? recoveryTurn.endedAt ?? recoveryTurn.queuedAt ?? null,
-        );
-      }
-
-      if (recovered) {
-        hydratedMessages = [...hydratedMessages, recovered];
-      }
-    }
-
-    const queue = queuedTurns.map((turn, index) => ({
-      turnId: turn.id,
-      clientMessageId: turn.clientMessageId,
-      preview: turn.userMessage,
-      queuePosition: index + 1,
-      status: turn.status,
-      queuedAt: turn.queuedAt,
-      startedAt: turn.startedAt,
-      completedAt: turn.endedAt,
-    }));
-    const parsedGenerationId =
-      activeTurn?.generationId && Number.isFinite(Number(activeTurn.generationId))
-        ? Number(activeTurn.generationId)
-        : null;
-    const processingStatus =
-      session.processingStatus === 'stopping'
-        ? 'stopping'
-        : activeTurn || queue.length > 0 || session.processingStatus === 'processing'
-          ? 'processing'
-          : 'idle';
-    const activeRunId = activeTurn?.runId ?? session.activeRunId ?? null;
-    const interruptionBoundaries = this.buildInterruptionBoundaries(
-      hydratedMessages,
-      interruptedTurns,
-    );
+    const [rows, lastSeq] = await Promise.all([
+      this.sessionEventRepository.listAfter(sessionId, 0, 100000),
+      this.sessionEventRepository.getLastSeq(sessionId),
+    ]);
+    const projected = this.projectThreadHistory(rows);
 
     return {
-      messages: hydratedMessages,
-      interruptionBoundaries,
-      activeTurn: activeTurn
-        ? {
-            turnId: activeTurn.id,
-            status: activeTurn.status,
-            runId: activeTurn.runId,
-            generationId: activeTurn.generationId,
-            startedAt: activeTurn.startedAt,
-          }
-        : null,
-      activeRunId,
-      activeRunStartedAt: activeTurn?.startedAt ?? null,
-      generationId: parsedGenerationId,
-      pendingCount: queue.length,
-      steerTargetTurnId: session.steerTargetTurnId ?? null,
-      queue,
-      queuedTurns: queue,
-      queueOrder: queue.map((turn) => turn.turnId),
+      messages: projected.messages,
+      interruptionBoundaries: projected.interruptionBoundaries,
+      activeTurn: projected.activeTurn,
+      generationId: projected.activeGenerationId,
+      activeGeneration: projected.activeGenerationId,
+      pendingCount: projected.queue.length,
+      queue: projected.queue,
+      queuedTurns: projected.queue,
+      queueOrder: projected.queue.map((turn) => turn.turnId),
+      processingStatus:
+        projected.processingStatus === 'idle'
+          ? session.processingStatus === 'stopping'
+            ? 'stopping'
+            : 'idle'
+          : projected.processingStatus,
       afterSeq: lastSeq,
       lastSeq,
+    };
+  }
+
+  private projectThreadHistory(
+    rows: Array<{
+      seq: number;
+      turnId: string;
+      runId: string | null;
+      generationId: string | null;
+      eventId: string;
+      chunk: Record<string, unknown>;
+    }>,
+  ): ThreadHistoryState {
+    const messages: ThreadHistoryMessage[] = [];
+    const interruptionBoundaries: Array<{ turnId: string; beforeMessageIndex: number }> = [];
+    const assistantMsgIndexByTurn = new Map<string, number>();
+    const queueByTurn = new Map<
+      string,
+      {
+        turnId: string;
+        queuePosition: number;
+        status: string;
+        preview?: string | null;
+        queuedAt?: string | null;
+        startedAt?: string | null;
+        completedAt?: string | null;
+      }
+    >();
+
+    let activeTurn: { turnId: string; status: string; generationId: number | null } | null = null;
+    let activeGenerationId = 0;
+
+    const ensureAssistantMessage = (turnId: string): number => {
+      const existing = assistantMsgIndexByTurn.get(turnId);
+      if (existing != null) return existing;
+      const idx = messages.length;
+      messages.push({
+        id: `turn-${turnId}`,
+        role: 'assistant',
+        parts: [],
+      });
+      assistantMsgIndexByTurn.set(turnId, idx);
+      return idx;
+    };
+
+    const parseGeneration = (value: unknown): number | null => {
+      if (value == null) return null;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    for (const row of rows) {
+      const chunk = row.chunk ?? {};
+      const type = typeof chunk.type === 'string' ? chunk.type : null;
+      const data =
+        chunk.data && typeof chunk.data === 'object' ? (chunk.data as Record<string, unknown>) : {};
+      const generation =
+        parseGeneration(row.generationId) ?? parseGeneration(data.generationId) ?? activeGenerationId;
+      activeGenerationId = Math.max(activeGenerationId, generation ?? 0);
+
+      if (type === 'data-turn-status') {
+        const status = typeof data.status === 'string' ? data.status : null;
+        const preview = typeof data.preview === 'string' ? data.preview : null;
+        const queuedAt = typeof data.queuedAt === 'string' ? data.queuedAt : null;
+        const startedAt = typeof data.startedAt === 'string' ? data.startedAt : null;
+        const endedAt = typeof data.endedAt === 'string' ? data.endedAt : null;
+        const text = typeof data.text === 'string' ? data.text : null;
+
+        if (status === 'queued') {
+          if (text) {
+            messages.push({
+              id: `user-${row.turnId}`,
+              role: 'user',
+              parts: [{ type: 'text', text }],
+            });
+          }
+          queueByTurn.set(row.turnId, {
+            turnId: row.turnId,
+            queuePosition: queueByTurn.size + 1,
+            status,
+            preview,
+            queuedAt,
+            startedAt,
+            completedAt: endedAt,
+          });
+        } else {
+          const existing = queueByTurn.get(row.turnId);
+          if (existing) {
+            existing.status = status ?? existing.status;
+            existing.startedAt = startedAt ?? existing.startedAt;
+            existing.completedAt = endedAt ?? existing.completedAt;
+            if (status && status !== 'queued') {
+              queueByTurn.delete(row.turnId);
+            }
+          }
+        }
+
+        if (status === 'running') {
+          activeTurn = { turnId: row.turnId, status, generationId: generation };
+        }
+
+        if (status === 'interrupted') {
+          interruptionBoundaries.push({ turnId: row.turnId, beforeMessageIndex: messages.length });
+          if (activeTurn?.turnId === row.turnId) {
+            activeTurn = null;
+          }
+        }
+
+        if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+          if (activeTurn?.turnId === row.turnId) {
+            activeTurn = null;
+          }
+        }
+
+        continue;
+      }
+
+      if (type === 'text-delta') {
+        const delta = typeof chunk.delta === 'string' ? chunk.delta : '';
+        if (!delta) continue;
+        const idx = ensureAssistantMessage(row.turnId);
+        const message = messages[idx];
+        messages[idx] = { ...message, parts: appendTextDelta(message.parts, delta) };
+        continue;
+      }
+
+      if (
+        type === 'tool-input-start' ||
+        type === 'tool-input-available' ||
+        type === 'tool-output-available' ||
+        type === 'tool-output-error'
+      ) {
+        const toolCallId = typeof chunk.toolCallId === 'string' ? chunk.toolCallId : null;
+        if (!toolCallId) continue;
+        const toolName = typeof chunk.toolName === 'string' ? chunk.toolName : undefined;
+        const idx = ensureAssistantMessage(row.turnId);
+        const message = messages[idx];
+        const update =
+          type === 'tool-input-start'
+            ? { toolCallId, toolName, state: 'input-available' as const }
+            : type === 'tool-input-available'
+              ? { toolCallId, toolName, state: 'input-available' as const, input: chunk.input }
+              : type === 'tool-output-available'
+                ? {
+                    toolCallId,
+                    toolName,
+                    state: 'output-available' as const,
+                    output: chunk.output,
+                    preliminary: chunk.preliminary === true,
+                  }
+                : {
+                    toolCallId,
+                    toolName,
+                    state: 'output-error' as const,
+                    output: chunk.output,
+                    errorText: typeof chunk.errorText === 'string' ? chunk.errorText : undefined,
+                  };
+        messages[idx] = { ...message, parts: upsertToolPart(message.parts, update) };
+      }
+    }
+
+    const queue = [...queueByTurn.values()].map((entry, index) => ({
+      ...entry,
+      queuePosition: index + 1,
+    }));
+    const processingStatus: ThreadHistoryState['processingStatus'] =
+      activeTurn || queue.length > 0 ? 'processing' : 'idle';
+
+    return {
+      messages,
+      interruptionBoundaries,
+      queue,
       processingStatus,
+      activeTurn,
+      activeGenerationId,
     };
-  }
-
-  private buildInterruptionBoundaries(
-    messages: { role: string; createdAt?: Date }[],
-    interruptedTurns: {
-      id: string;
-      queuedAt: Date;
-      startedAt: Date | null;
-      endedAt: Date | null;
-    }[],
-  ): { turnId: string; beforeMessageIndex: number }[] {
-    if (messages.length === 0 || interruptedTurns.length === 0) return [];
-
-    const userMessageIndices: number[] = [];
-    for (let i = 0; i < messages.length; i += 1) {
-      if (messages[i]?.role === 'user') {
-        userMessageIndices.push(i);
-      }
-    }
-
-    return interruptedTurns.map((turn) => {
-      const boundaryTime = turn.endedAt ?? turn.startedAt ?? turn.queuedAt;
-      let beforeMessageIndex = messages.length;
-      for (const idx of userMessageIndices) {
-        const createdAt = messages[idx]?.createdAt;
-        if (createdAt && createdAt > boundaryTime) {
-          beforeMessageIndex = idx;
-          break;
-        }
-      }
-      return { turnId: turn.id, beforeMessageIndex };
-    });
-  }
-
-  private recoverAssistantMessageFromPartial(
-    turnId: string,
-    partial: { parts: unknown[]; updatedAt: Date } | null,
-    createdAt: Date | null,
-  ): { id: string; role: 'assistant'; parts: unknown[]; createdAt: Date } | null {
-    if (!partial || !Array.isArray(partial.parts) || partial.parts.length === 0) {
-      return null;
-    }
-
-    return {
-      id: `turn-${turnId}`,
-      role: 'assistant',
-      parts: partial.parts,
-      createdAt: partial.updatedAt ?? createdAt ?? new Date(),
-    };
-  }
-
-  private async recoverAssistantMessageFromTurnEvents(
-    sessionId: string,
-    turnId: string,
-    createdAt: Date | null,
-  ): Promise<{ id: string; role: 'assistant'; parts: unknown[]; createdAt: Date } | null> {
-    const rows = await this.sessionEventRepository.listByTurn(sessionId, turnId);
-    if (rows.length === 0) {
-      return null;
-    }
-
-    const chunks = rows
-      .map((row) => row.chunk)
-      .filter((chunk): chunk is UIMessageChunk => Boolean(chunk) && typeof chunk === 'object');
-
-    if (chunks.length === 0) {
-      return null;
-    }
-
-    const stream = new ReadableStream<UIMessageChunk>({
-      start(controller) {
-        for (const chunk of chunks) {
-          controller.enqueue(chunk);
-        }
-        controller.close();
-      },
-    });
-
-    let latestSnapshot: UIMessage | null = null;
-    try {
-      for await (const snapshot of readUIMessageStream({ stream })) {
-        latestSnapshot = snapshot;
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Failed to reconstruct assistant snapshot for session=${sessionId} turn=${turnId}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      return null;
-    }
-
-    if (!latestSnapshot) {
-      return null;
-    }
-
-    const parts = (latestSnapshot.parts ?? []).filter((part) => {
-      if (!part || typeof part !== 'object') return false;
-      const typed = part as { type?: string; text?: string };
-      if (!typed.type) return false;
-      if (typed.type === 'data-turn-status') return false;
-      if (typed.type === 'text') {
-        return typeof typed.text === 'string' && typed.text.length > 0;
-      }
-      return true;
-    });
-
-    if (parts.length === 0) {
-      return null;
-    }
-
-    return {
-      id: `turn-${turnId}`,
-      role: 'assistant',
-      parts: parts as unknown[],
-      createdAt: createdAt ?? new Date(),
-    };
-  }
-
-  async getProcessingStatus(sessionId: string, auth: AuthContext) {
-    return this.getState(sessionId, auth);
   }
 
   async getRunEvents(
@@ -572,6 +569,10 @@ export class ChatService {
     };
   }
 
+  async getEvents(sessionId: string, afterSeq: number, auth: AuthContext) {
+    return this.getRunEvents(sessionId, undefined, afterSeq, auth);
+  }
+
   async completeRun(sessionId: string, runId?: string): Promise<void> {
     // Find the active turn — check running first, fall back to latest turn.
     // The Kafka consumer may have already marked the turn as interrupted/completed
@@ -582,7 +583,6 @@ export class ChatService {
 
     await this.sessionRepository.completeRun(sessionId, runId);
     await this.sessionRepository.clearSteerIntent(sessionId);
-    await this.partialRepository.delete(sessionId);
 
     // Emit a reliable terminal event via Redis so all SSE clients close their turn streams
     // and clear the "Stopping..." state. Duplicate events are harmless.
@@ -620,11 +620,29 @@ export class ChatService {
       chunk: Record<string, unknown>;
     },
   ): Promise<number> {
+    const session = await this.sessionRepository.getSessionInternal(sessionId);
     const turn = await this.turnRepository.getTurn(sessionId, input.turnId);
     const generationId =
       input.generationId === undefined || input.generationId === null
         ? undefined
         : String(input.generationId);
+    const incomingGeneration =
+      generationId != null && Number.isFinite(Number(generationId)) ? Number(generationId) : null;
+    const activeGeneration = Number(session.activeGenerationId ?? 0);
+    if (incomingGeneration != null && incomingGeneration < activeGeneration) {
+      throw new ConflictException(
+        `stale generation event rejected (incoming=${incomingGeneration}, active=${activeGeneration})`,
+      );
+    }
+    if (session.activeTurnId && session.activeTurnId !== turn.id && incomingGeneration === activeGeneration) {
+      // Hard fence for late emits from previous turns within the active generation.
+      const typedChunk = input.chunk as { type?: string };
+      if (typedChunk.type && typedChunk.type !== 'data-turn-status') {
+        throw new ConflictException(
+          `stale turn event rejected (incoming=${turn.id}, active=${session.activeTurnId})`,
+        );
+      }
+    }
 
     const seq = await this.sessionEventRepository.append({
       sessionId,
@@ -648,32 +666,6 @@ export class ChatService {
     });
 
     return seq;
-  }
-
-  async appendLegacyStreamEvent(sessionId: string, runId: string, event: Record<string, unknown>) {
-    const runningTurn = await this.turnRepository.getRunningTurn(sessionId);
-    const queuedTurn =
-      runningTurn ?? (await this.turnRepository.listQueuedTurns(sessionId, 1))[0] ?? null;
-
-    if (!queuedTurn) {
-      throw new Error(`No active or queued turn for session ${sessionId}`);
-    }
-
-    const eventId = this.resolveLegacyEventId(event, runId);
-    return this.appendInternalEvent(sessionId, {
-      turnId: queuedTurn.id,
-      runId,
-      generationId:
-        typeof event.generationId === 'string' || typeof event.generationId === 'number'
-          ? event.generationId
-          : undefined,
-      eventId,
-      chunk: event,
-    });
-  }
-
-  async upsertPartialResponse(sessionId: string, parts: unknown[]): Promise<void> {
-    await this.partialRepository.upsert(sessionId, parts);
   }
 
   async streamToResponse(
@@ -906,76 +898,10 @@ export class ChatService {
     );
   }
 
-  private async ensureChatWorkflowRunning(
-    sessionId: string,
-    organizationId: string | null | undefined,
-  ): Promise<void> {
-    try {
-      await this.temporalService.startChatWorkflow({
-        sessionId,
-        organizationId,
-        systemPrompt: SYSTEM_PROMPT,
-      });
-    } catch (error) {
-      if (this.isTemporalWorkflowAlreadyStartedError(error)) {
-        return;
-      }
-      throw error;
-    }
-  }
-
-  private isTemporalWorkflowAlreadyStartedError(error: unknown): boolean {
-    const message =
-      error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-    return message.includes('already started');
-  }
-
-  private isTemporalWorkflowClosedError(error: unknown): boolean {
-    const message =
-      error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-    return (
-      message.includes('workflow execution already completed') ||
-      message.includes('workflow not found') ||
-      message.includes('execution not found')
-    );
-  }
-
   private async assertSessionAccess(sessionId: string, auth: AuthContext) {
     return this.sessionRepository.getSession(sessionId, {
       userId: auth.userId ?? 'anonymous',
       organizationId: auth.organizationId,
     });
-  }
-
-  private extractTextFromUIMessage(message: unknown): string {
-    if (!message || typeof message !== 'object') {
-      return '';
-    }
-
-    const msg = message as { parts?: unknown[] };
-    if (!Array.isArray(msg.parts)) {
-      return '';
-    }
-
-    const textParts = msg.parts
-      .filter((part) => part && typeof part === 'object')
-      .map((part) => part as { type?: string; text?: string })
-      .filter((part) => part.type === 'text' && typeof part.text === 'string')
-      .map((part) => part.text!.trim())
-      .filter(Boolean);
-
-    return textParts.join('\n').trim();
-  }
-
-  private resolveLegacyEventId(event: Record<string, unknown>, runId: string): string {
-    if (typeof event.eventId === 'string' && event.eventId.length > 0) {
-      return event.eventId;
-    }
-
-    if (typeof event.id === 'string' && event.id.length > 0) {
-      return event.id;
-    }
-
-    return `${runId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
   }
 }

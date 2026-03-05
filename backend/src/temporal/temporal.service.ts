@@ -261,7 +261,13 @@ export class TemporalService implements OnModuleDestroy {
     sessionId: string,
     message: { id?: string; role: string; parts: unknown[] },
     runId: string,
-    options?: { turnId?: string; queuedAt?: string; steerTarget?: boolean },
+    options?: {
+      turnId?: string;
+      queuedAt?: string;
+      steerTarget?: boolean;
+      generationId?: number;
+      submissionId?: string;
+    },
   ): Promise<void> {
     const workflowId = `chat-${sessionId}`;
     await this.signalWorkflow({
@@ -273,6 +279,8 @@ export class TemporalService implements OnModuleDestroy {
         runId,
         queuedAt: options?.queuedAt,
         steerTarget: options?.steerTarget ?? false,
+        generationId: options?.generationId,
+        submissionId: options?.submissionId,
       },
     });
   }

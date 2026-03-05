@@ -519,7 +519,7 @@ describe('useDurableChat E2E parity', () => {
       })
       .map((part) => part.text)
       .join('');
-    expect(assistantText).toBe('old answer');
+    expect(assistantText).toBe('old answer...');
 
     const texts = transcriptSignature(result.current.messages).map((entry) => entry.text);
     expect(texts).toContain('new question');

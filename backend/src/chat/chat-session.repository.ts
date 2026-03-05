@@ -6,8 +6,6 @@ import { DRIZZLE_TOKEN } from '../database/database.module';
 import {
   chatSessionsTable,
   type ChatSession,
-  chatMessagesTable,
-  type ChatMessage,
 } from '../database/schema';
 
 export interface ChatSessionQueryOptions {
@@ -69,6 +67,18 @@ export class ChatSessionRepository {
       .where(and(...conditions))
       .limit(1);
 
+    if (!session) {
+      throw new NotFoundException(`Chat session ${id} not found`);
+    }
+    return session;
+  }
+
+  async getSessionInternal(id: string): Promise<ChatSession> {
+    const [session] = await this.db
+      .select()
+      .from(chatSessionsTable)
+      .where(eq(chatSessionsTable.id, id))
+      .limit(1);
     if (!session) {
       throw new NotFoundException(`Chat session ${id} not found`);
     }
@@ -140,6 +150,39 @@ export class ChatSessionRepository {
       .where(eq(chatSessionsTable.id, id));
   }
 
+  async setActiveTurn(
+    id: string,
+    input: { turnId: string | null; generationId?: number | null; processingStatus?: 'idle' | 'processing' },
+  ): Promise<void> {
+    await this.db
+      .update(chatSessionsTable)
+      .set({
+        activeTurnId: input.turnId,
+        ...(input.generationId === undefined
+          ? {}
+          : { activeGenerationId: Math.max(0, Number(input.generationId ?? 0)) }),
+        ...(input.processingStatus ? { processingStatus: input.processingStatus } : {}),
+        updatedAt: sql`now()`,
+      })
+      .where(eq(chatSessionsTable.id, id));
+  }
+
+  async bumpGeneration(id: string): Promise<number> {
+    const [updated] = await this.db
+      .update(chatSessionsTable)
+      .set({
+        activeGenerationId: sql`${chatSessionsTable.activeGenerationId} + 1`,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(chatSessionsTable.id, id))
+      .returning({ activeGenerationId: chatSessionsTable.activeGenerationId });
+
+    if (!updated) {
+      throw new NotFoundException(`Chat session ${id} not found`);
+    }
+    return Number(updated.activeGenerationId ?? 0);
+  }
+
   async startRun(id: string, runId: string): Promise<void> {
     await this.db
       .update(chatSessionsTable)
@@ -183,6 +226,7 @@ export class ChatSessionRepository {
       .set({
         processingStatus: 'idle',
         activeRunId: null,
+        activeTurnId: null,
         updatedAt: sql`now()`,
       })
       .where(and(...conditions));
@@ -201,26 +245,4 @@ export class ChatSessionRepository {
       );
   }
 
-  async saveMessage(
-    sessionId: string,
-    message: { role: string; parts: unknown[] },
-  ): Promise<ChatMessage> {
-    const [saved] = await this.db
-      .insert(chatMessagesTable)
-      .values({
-        sessionId,
-        role: message.role,
-        parts: message.parts,
-      })
-      .returning();
-    return saved;
-  }
-
-  async getMessages(sessionId: string): Promise<ChatMessage[]> {
-    return this.db
-      .select()
-      .from(chatMessagesTable)
-      .where(eq(chatMessagesTable.sessionId, sessionId))
-      .orderBy(chatMessagesTable.createdAt);
-  }
 }

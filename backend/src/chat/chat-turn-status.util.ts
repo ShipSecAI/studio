@@ -65,13 +65,16 @@ export async function applyTurnStatus(
       runId,
       generationId,
     );
-    if (runningUpdate?.promoted && runningUpdate.userMessage) {
-      await repos.sessionRepository.saveMessage(sessionId, {
-        role: 'user',
-        parts: [{ type: 'text', text: runningUpdate.userMessage }],
-      });
-    }
+    void runningUpdate;
     await repos.sessionRepository.setProcessingStatus(sessionId, 'processing');
+    await repos.sessionRepository.setActiveTurn(sessionId, {
+      turnId,
+      generationId:
+        generationId != null && Number.isFinite(Number(generationId))
+          ? Number(generationId)
+          : undefined,
+      processingStatus: 'processing',
+    });
     return;
   }
 
@@ -89,8 +92,20 @@ export async function applyTurnStatus(
 
     if (runningTurn || queuedTurns.length > 0) {
       await repos.sessionRepository.setProcessingStatus(sessionId, 'processing');
+      await repos.sessionRepository.setActiveTurn(sessionId, {
+        turnId: runningTurn?.id ?? null,
+        generationId:
+          runningTurn?.generationId != null && Number.isFinite(Number(runningTurn.generationId))
+            ? Number(runningTurn.generationId)
+            : undefined,
+        processingStatus: 'processing',
+      });
     } else {
       await repos.sessionRepository.setProcessingStatus(sessionId, 'idle');
+      await repos.sessionRepository.setActiveTurn(sessionId, {
+        turnId: null,
+        processingStatus: 'idle',
+      });
       await repos.sessionRepository.completeRun(sessionId, runId);
     }
     if (

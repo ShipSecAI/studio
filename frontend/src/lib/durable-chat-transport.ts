@@ -45,6 +45,9 @@ export interface ChatSessionStateResponse {
 }
 
 export interface SendTurnResponse {
+  submissionId?: string;
+  operation?: 'UserTurn' | 'Interrupt' | 'SteerNow';
+  acceptedAtSeq?: number;
   runId?: string;
   queued?: boolean;
   activeRunId?: string | null;
@@ -357,11 +360,15 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     const clientMessageId = messageId ?? lastMessage?.id;
     const message = this.getLastUserText(lastMessage);
 
-    // POST the turn
-    const postRes = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/turns`, {
+    // POST a vNext submission (Op::UserTurn)
+    const postRes = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify({ message, clientMessageId }),
+      body: JSON.stringify({
+        op: 'UserTurn',
+        text: message,
+        clientSubmissionId: clientMessageId,
+      }),
       signal: abortSignal,
     });
 
@@ -372,24 +379,17 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
 
     const responseData = (await postRes.json()) as SendTurnResponse;
 
-    if (responseData.queued) {
-      this.options.onQueuedTurn?.({ ...responseData, clientMessageId }, { sessionId });
-      return new ReadableStream<UIMessageChunk>({
-        start(controller) {
-          controller.close();
-        },
-      });
-    }
-
-    if (!responseData.turnId) {
-      throw new Error('No turnId in response and turn was not queued');
-    }
-
-    // Create the per-turn stream FIRST so listener is ready before SSE replays
-    const turnStream = this.createTurnStream(responseData.turnId);
-    const afterSeq = Math.max(0, responseData.afterSeq ?? responseData.lastSeq ?? 0);
+    this.options.onQueuedTurn?.({ ...responseData, clientMessageId }, { sessionId });
+    const afterSeq = Math.max(
+      0,
+      responseData.acceptedAtSeq ?? responseData.afterSeq ?? responseData.lastSeq ?? 0,
+    );
     await this.openSessionStream(sessionId, afterSeq);
-    return turnStream;
+    return new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        controller.close();
+      },
+    });
   }
 
   async reconnectToStream(
@@ -443,9 +443,13 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
 
   async interruptGeneration(sessionId: string): Promise<{ success: boolean }> {
     const headers = await this.options.getAuthHeaders();
-    const res = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/interrupt`, {
+    const res = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({
+        op: 'Interrupt',
+        clientSubmissionId: `interrupt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      }),
     });
     if (!res.ok) {
       return { success: false };
@@ -455,17 +459,8 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
   }
 
   async steerTurn(sessionId: string, turnId?: string): Promise<{ success: boolean }> {
-    const headers = await this.options.getAuthHeaders();
-    const res = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/steer`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify(turnId ? { targetTurnId: turnId } : {}),
-    });
-    if (!res.ok) {
-      return { success: false };
-    }
-    const body = (await res.json()) as { success?: boolean; ok?: boolean };
-    return { success: body.success ?? body.ok ?? false };
+    void turnId;
+    return this.interruptGeneration(sessionId);
   }
 
   async getState(
@@ -474,7 +469,7 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
   ): Promise<ChatSessionStateResponse | null> {
     if (this.isEphemeralChatId(sessionId)) return null;
     const headers = await this.options.getAuthHeaders();
-    const res = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/state`, {
+    const res = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/thread-history`, {
       headers,
       signal,
     });

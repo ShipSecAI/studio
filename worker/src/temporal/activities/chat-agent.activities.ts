@@ -233,29 +233,7 @@ function createTurnStatusChunk(status: TurnStatusPayload): UIMessageChunk {
   } as UIMessageChunk;
 }
 
-/**
- * Flush the accumulated partial response parts to the backend so that
- * reconnecting clients (refresh / second tab / CLI) can read the progress.
- */
-async function flushPartialResponse(sessionId: string, parts: unknown[]): Promise<void> {
-  if (!globalBackendUrl) return;
-  const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
-  try {
-    await fetch(`${globalBackendUrl}/api/v1/chat/sessions/${sessionId}/partial`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-internal-token': internalToken,
-      },
-      body: JSON.stringify({ parts }),
-      signal: AbortSignal.timeout(5000),
-    });
-  } catch {
-    // Best-effort flush — don't fail the activity
-  }
-}
-
-/** Notify the backend that streaming is complete so it clears partial and resets status. */
+/** Notify the backend that run state can be finalized/reset as a safety fallback. */
 async function notifySessionComplete(sessionId: string, runId: string): Promise<void> {
   if (!globalBackendUrl) return;
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
@@ -1090,13 +1068,9 @@ export async function runChatAgentStepActivity(
           }
         }
 
-        // Periodic flush to Postgres
+        // Periodic heartbeat checkpoint while streaming.
         const now = Date.now();
-        if (
-          now - lastFlushTime >= FLUSH_INTERVAL_MS &&
-          accumulatedParts.length > lastFlushedLength
-        ) {
-          flushPartialResponse(sessionId, accumulatedParts).catch(() => {});
+        if (now - lastFlushTime >= FLUSH_INTERVAL_MS) {
           lastFlushTime = now;
           lastFlushedLength = accumulatedParts.length;
         }
@@ -1107,10 +1081,6 @@ export async function runChatAgentStepActivity(
         console.log(
           `[chat-agent] Generation interrupted by cancellation signal for session ${sessionId}`,
         );
-        // Flush any accumulated partial state
-        if (accumulatedParts.length > 0) {
-          await flushPartialResponse(sessionId, accumulatedParts);
-        }
         await emitTurnStatus('interrupted', {
           reason: 'cancellation-signal',
           endedAt: new Date().toISOString(),
@@ -1141,11 +1111,6 @@ export async function runChatAgentStepActivity(
           interrupted: true,
           compactionState: compactionResult.compactionState,
         };
-      }
-
-      // Final flush of accumulated parts
-      if (accumulatedParts.length > 0) {
-        await flushPartialResponse(sessionId, accumulatedParts);
       }
 
       if (!sawFinishChunk) {
@@ -1207,9 +1172,6 @@ export async function runChatAgentStepActivity(
       // Handle cooperative cancellation / abort errors
       if (cancellationSignal.aborted || error?.name === 'AbortError') {
         console.log(`[chat-agent] Generation interrupted (caught abort) for session ${sessionId}`);
-        if (accumulatedParts.length > 0) {
-          await flushPartialResponse(sessionId, accumulatedParts);
-        }
         await emitTurnStatus('interrupted', {
           reason: 'abort-error',
           endedAt: new Date().toISOString(),

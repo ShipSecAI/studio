@@ -20,17 +20,11 @@ import { ChatService } from './chat.service';
 import {
   AppendInternalEventSchema,
   CreateSessionSchema,
-  EnqueueTurnSchema,
-  SendMessageSchema,
-  SteerSessionSchema,
-  UpsertPartialResponseSchema,
+  SubmitOperationSchema,
   UpdateSessionSchema,
   type AppendInternalEventDto,
   type CreateSessionDto,
-  type EnqueueTurnDto,
-  type SendMessageDto,
-  type SteerSessionDto,
-  type UpsertPartialResponseDto,
+  type SubmitOperationDto,
   type UpdateSessionDto,
 } from './dto/chat-session.dto';
 
@@ -75,60 +69,19 @@ export class ChatController {
     return { success: true };
   }
 
-  @Get(':id/messages')
-  async getMessages(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
-    return this.chatService.getMessages(id, auth);
-  }
-
-  @Post(':id/messages')
+  @Post(':id/submissions')
   @Throttle({ default: { limit: 600, ttl: 60000 } })
-  async sendMessage(
+  async submitOperation(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(SendMessageSchema)) body: SendMessageDto,
+    @Body(new ZodValidationPipe(SubmitOperationSchema)) body: SubmitOperationDto,
     @CurrentAuth() auth: AuthContext,
   ) {
-    const lastMessage = body.messages[body.messages.length - 1];
-    if (!lastMessage) {
-      return { error: 'No message provided' };
-    }
-
-    return this.chatService.sendMessage(id, lastMessage, auth);
+    return this.chatService.submitOperation(id, body, auth);
   }
 
-  @Post(':id/turns')
-  @Throttle({ default: { limit: 600, ttl: 60000 } })
-  async enqueueTurn(
-    @Param('id') id: string,
-    @Body(new ZodValidationPipe(EnqueueTurnSchema)) body: EnqueueTurnDto,
-    @CurrentAuth() auth: AuthContext,
-  ) {
-    return this.chatService.enqueueTurn(id, body, auth);
-  }
-
-  @Post(':id/steer')
-  @Throttle({ default: { limit: 300, ttl: 60000 } })
-  async steerSession(
-    @Param('id') id: string,
-    @Body(new ZodValidationPipe(SteerSessionSchema)) body: SteerSessionDto,
-    @CurrentAuth() auth: AuthContext,
-  ) {
-    return this.chatService.steerSession(id, body.targetTurnId, auth);
-  }
-
-  @Post(':id/interrupt')
-  @Throttle({ default: { limit: 300, ttl: 60000 } })
-  async interruptGeneration(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
-    return this.chatService.interruptGeneration(id, auth);
-  }
-
-  @Get(':id/state')
-  async getState(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
-    return this.chatService.getState(id, auth);
-  }
-
-  @Get(':id/status')
-  async getStatusCompatibility(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
-    return this.chatService.getProcessingStatus(id, auth);
+  @Get(':id/thread-history')
+  async getThreadHistory(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
+    return this.chatService.getThreadHistory(id, auth);
   }
 
   @Get(':id/stream')
@@ -167,13 +120,12 @@ export class ChatController {
   @Throttle({ default: { limit: 10000, ttl: 60000 } })
   async listEvents(
     @Param('id') id: string,
-    @Query('runId') runId: string | undefined,
     @Query('afterSeq') afterSeqRaw: string | undefined,
     @CurrentAuth() auth: AuthContext,
   ) {
     const parsedAfterSeq = Number(afterSeqRaw ?? '0');
     const afterSeq = Number.isFinite(parsedAfterSeq) && parsedAfterSeq > 0 ? parsedAfterSeq : 0;
-    return this.chatService.getRunEvents(id, runId, afterSeq, auth);
+    return this.chatService.getEvents(id, afterSeq, auth);
   }
 
   @Post(':id/internal/events')
@@ -187,31 +139,10 @@ export class ChatController {
     return res.status(HttpStatus.OK).json({ seq });
   }
 
-  @Post(':id/partial')
-  @SkipThrottle()
-  async upsertPartial(
-    @Param('id') id: string,
-    @Body(new ZodValidationPipe(UpsertPartialResponseSchema)) body: UpsertPartialResponseDto,
-  ) {
-    await this.chatService.upsertPartialResponse(id, body.parts);
-    return { success: true };
-  }
-
   @Post(':id/complete')
   @SkipThrottle()
   async completeRun(@Param('id') id: string, @Body() body: { runId?: string }) {
     await this.chatService.completeRun(id, body?.runId);
     return { success: true };
-  }
-
-  @Post(':id/events')
-  @SkipThrottle()
-  async appendLegacyEvent(
-    @Param('id') id: string,
-    @Body() body: { runId: string; event: Record<string, unknown> },
-    @Res() res: Response,
-  ) {
-    const seq = await this.chatService.appendLegacyStreamEvent(id, body.runId, body.event);
-    return res.status(HttpStatus.OK).json({ seq });
   }
 }

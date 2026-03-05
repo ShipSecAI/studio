@@ -1,76 +1,45 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { UIMessage } from 'ai';
-import type { DurableChatTransport, ChatSessionStateResponse } from './durable-chat-transport';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+import type { ChatSessionStateResponse, DurableChatTransport } from './durable-chat-transport';
 
 export type DurableChatStatus = 'ready' | 'streaming' | 'submitting' | 'error';
 
 export interface UseDurableChatOptions {
-  /** The transport instance (shared across the app for SSE reuse). */
   transport: DurableChatTransport;
-  /** Current session ID (null/undefined = no session). */
   sessionId: string | null | undefined;
-  /** Throttle interval (ms) for batching streaming text updates. Default 80. */
-  throttleMs?: number;
-  /**
-   * Called for every SSE chunk — use for side-effects like queue state
-   * management. This fires for ALL session events, not just the active turn.
-   */
   onChunk?: (chunk: unknown, context: { sessionId: string; runId?: string }) => void;
-  /**
-   * Called when messages are refreshed from backend state.
-   * Useful for syncing external state (queue, processing status).
-   */
   onStateRefresh?: (state: ChatSessionStateResponse) => void;
 }
 
 export interface UseDurableChatReturn {
-  /** Current message list (backend truth + streaming deltas). */
   messages: UIMessage[];
-  /** Hook status: ready, streaming, or submitting (POST in flight). */
   status: DurableChatStatus;
-  /** Last error, if any. */
   error: Error | null;
-  /** Send a user message. Pass sessionId explicitly for lazy-created sessions. */
   sendMessage: (opts: { text: string; sessionId?: string }) => void;
-  /** Replace the local message list (e.g., for hydration or reset). */
   setMessages: (msgs: UIMessage[]) => void;
-  /** Fetch fresh state from the backend and update messages. */
   refreshState: () => Promise<ChatSessionStateResponse | null>;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+type PendingSubmission = {
+  id: string;
+  message: UIMessage;
+};
 
 function hydrateMessages(raw: ChatSessionStateResponse['messages']): UIMessage[] {
   if (!Array.isArray(raw)) return [];
-  return raw.map((m) => ({
-    id: m.id,
-    role: m.role,
-    parts: m.parts,
-  }));
+  return raw.map((m) => ({ id: m.id, role: m.role, parts: m.parts }));
 }
 
-function appendTextDeltaToParts(parts: UIMessage['parts'], delta: string): UIMessage['parts'] {
+function appendTextDelta(parts: UIMessage['parts'], delta: string): UIMessage['parts'] {
   if (!delta) return parts;
-
-  const lastPart = parts[parts.length - 1];
-  if (lastPart?.type === 'text') {
-    return parts.map((part, idx) =>
-      idx === parts.length - 1 && part.type === 'text'
-        ? { type: 'text' as const, text: part.text + delta }
-        : part,
-    );
+  const last = parts[parts.length - 1] as Record<string, unknown> | undefined;
+  if (last?.type === 'text' && typeof last.text === 'string') {
+    return [...parts.slice(0, -1), { type: 'text', text: `${last.text}${delta}` }];
   }
-
-  return [...parts, { type: 'text' as const, text: delta }];
+  return [...parts, { type: 'text', text: delta }];
 }
 
-function upsertToolInvocationPart(
+function upsertToolPart(
   parts: UIMessage['parts'],
   update: {
     toolCallId: string;
@@ -78,441 +47,174 @@ function upsertToolInvocationPart(
     state: 'input-available' | 'output-available' | 'output-error';
     input?: unknown;
     output?: unknown;
-    errorText?: string;
     preliminary?: boolean;
+    errorText?: string;
   },
 ): UIMessage['parts'] {
-  const idx = parts.findIndex(
-    (part) =>
-      part.type === 'tool-invocation' &&
-      'toolCallId' in part &&
-      typeof part.toolCallId === 'string' &&
-      part.toolCallId === update.toolCallId,
-  );
+  const idx = parts.findIndex((part) => {
+    const typed = part as Record<string, unknown>;
+    return typed?.type === 'tool-invocation' && typed?.toolCallId === update.toolCallId;
+  });
 
-  const nextPart = {
+  const merged = {
+    ...(idx >= 0 ? (parts[idx] as Record<string, unknown>) : {}),
     type: 'tool-invocation' as const,
     toolCallId: update.toolCallId,
     ...(update.toolName ? { toolName: update.toolName } : {}),
     state: update.state,
     ...(update.input !== undefined ? { input: update.input } : {}),
     ...(update.output !== undefined ? { output: update.output } : {}),
-    ...(update.errorText !== undefined ? { errorText: update.errorText } : {}),
     ...(update.preliminary !== undefined ? { preliminary: update.preliminary } : {}),
+    ...(update.errorText ? { errorText: update.errorText } : {}),
+  } as UIMessage['parts'][number];
+
+  if (idx < 0) return [...parts, merged];
+  const next = [...parts];
+  next[idx] = merged;
+  return next;
+}
+
+function normalizeChunk(rawChunk: unknown): Record<string, unknown> | null {
+  if (!rawChunk || typeof rawChunk !== 'object') return null;
+  const outer = rawChunk as Record<string, unknown>;
+  const inner =
+    outer.chunk && typeof outer.chunk === 'object'
+      ? (outer.chunk as Record<string, unknown>)
+      : outer;
+
+  return {
+    ...inner,
+    ...(inner.turnId === undefined ? { turnId: outer.turnId } : {}),
+    ...(inner.seq === undefined ? { seq: outer.seq } : {}),
+    ...(inner.generationId === undefined ? { generationId: outer.generationId } : {}),
+    ...(inner.runId === undefined ? { runId: outer.runId } : {}),
   };
-
-  if (idx < 0) {
-    return [...parts, nextPart];
-  }
-
-  return parts.map((part, i) => {
-    if (i !== idx) return part;
-    return {
-      ...part,
-      ...nextPart,
-    } as UIMessage['parts'][number];
-  });
 }
-
-function partSignature(part: UIMessage['parts'][number]) {
-  const typed = part as Record<string, unknown>;
-  if (typed.type === 'text') {
-    return `text:${String(typed.text ?? '')}`;
-  }
-  if (typed.type === 'reasoning') {
-    return `reasoning:${String(typed.state ?? '')}:${String(typed.text ?? '')}`;
-  }
-  try {
-    return JSON.stringify(part);
-  } catch {
-    return String(typed.type ?? 'unknown');
-  }
-}
-
-function arePartsEquivalent(nextParts: UIMessage['parts'], prevParts: UIMessage['parts']) {
-  if (nextParts === prevParts) return true;
-  if (nextParts.length !== prevParts.length) return false;
-  for (let i = 0; i < nextParts.length; i++) {
-    const next = nextParts[i];
-    const prev = prevParts[i];
-    if (next === prev) continue;
-    if (partSignature(next) !== partSignature(prev)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function areMessagesEquivalent(nextMessages: UIMessage[], prevMessages: UIMessage[]) {
-  if (nextMessages === prevMessages) return true;
-  if (nextMessages.length !== prevMessages.length) return false;
-  for (let i = 0; i < nextMessages.length; i++) {
-    const next = nextMessages[i];
-    const prev = prevMessages[i];
-    if (next === prev) continue;
-    if (next.id !== prev.id || next.role !== prev.role) return false;
-    if (!arePartsEquivalent(next.parts, prev.parts)) return false;
-  }
-  return true;
-}
-
-function getMessageText(message: UIMessage): string {
-  return message.parts
-    .filter((part): part is Extract<UIMessage['parts'][number], { type: 'text' }> => {
-      return part.type === 'text';
-    })
-    .map((part) => part.text)
-    .join('')
-    .trim();
-}
-
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
 
 export function useDurableChat(options: UseDurableChatOptions): UseDurableChatReturn {
-  const {
-    transport,
-    sessionId,
-    throttleMs = 80,
-    onChunk: externalOnChunk,
-    onStateRefresh,
-  } = options;
+  const { transport, sessionId, onChunk, onStateRefresh } = options;
 
-  // ── Core state ────────────────────────────────────────────────────
   const [messages, setMessagesState] = useState<UIMessage[]>([]);
   const [status, setStatus] = useState<DurableChatStatus>('ready');
   const [error, setError] = useState<Error | null>(null);
 
-  // Refs for callback stability
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
-  const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeTurnIdRef = useRef<string | null>(null);
-  const streamingMsgIdRef = useRef<string | null>(null);
-  const latestStreamSeqRef = useRef(0);
-  const latestAppliedStateSeqRef = useRef(0);
-  const hasHydratedRef = useRef(false);
-  const pendingOptimisticUsersRef = useRef<UIMessage[]>([]);
-  const ignoredTurnIdsRef = useRef<Set<string>>(new Set());
-  const previousSessionIdRef = useRef<string | null>(sessionId ?? null);
-  const lastKnownRunningTurnIdRef = useRef<string | null>(null);
-
-  // Stable callback refs
-  const externalOnChunkRef = useRef(externalOnChunk);
-  externalOnChunkRef.current = externalOnChunk;
+  const onChunkRef = useRef(onChunk);
+  onChunkRef.current = onChunk;
   const onStateRefreshRef = useRef(onStateRefresh);
   onStateRefreshRef.current = onStateRefresh;
 
-  const clearStreamingState = useCallback(() => {
-    activeTurnIdRef.current = null;
-    streamingMsgIdRef.current = null;
+  const lastSeqRef = useRef(0);
+  const activeGenerationRef = useRef(0);
+  const activeTurnRef = useRef<string | null>(null);
+  const lastKnownRunningTurnRef = useRef<string | null>(null);
+  const pendingSubmissionsRef = useRef<Map<string, PendingSubmission>>(new Map());
+  const ignoredTurnIdsRef = useRef<Set<string>>(new Set());
+
+  const commitMessages = useCallback((next: UIMessage[]) => {
+    messagesRef.current = next;
+    setMessagesState(next);
   }, []);
 
-  const flushPendingMessagesNow = useCallback(() => {
-    if (throttleTimerRef.current) {
-      clearTimeout(throttleTimerRef.current);
-      throttleTimerRef.current = null;
-    }
-    setMessagesState(messagesRef.current);
+  const rebuildWithPending = useCallback((base: UIMessage[]) => {
+    const pending = [...pendingSubmissionsRef.current.values()].map((entry) => entry.message);
+    return pending.length > 0 ? [...base, ...pending] : base;
   }, []);
-
-  const scheduleFlush = useCallback(() => {
-    if (throttleTimerRef.current) return;
-    throttleTimerRef.current = setTimeout(() => {
-      throttleTimerRef.current = null;
-      setMessagesState(messagesRef.current);
-    }, throttleMs);
-  }, [throttleMs]);
-
-  const commitMessages = useCallback(
-    (next: UIMessage[], mode: 'immediate' | 'throttled' = 'immediate') => {
-      messagesRef.current = next;
-      if (mode === 'throttled') {
-        scheduleFlush();
-        return;
-      }
-      flushPendingMessagesNow();
-    },
-    [scheduleFlush, flushPendingMessagesNow],
-  );
 
   const refreshState = useCallback(
     async (sid?: string): Promise<ChatSessionStateResponse | null> => {
-      const targetId = sid ?? sessionIdRef.current;
-      if (!targetId) return null;
+      const target = sid ?? sessionIdRef.current;
+      if (!target) return null;
 
-      const state = await transport.getState(targetId);
-      if (!state || sessionIdRef.current !== targetId) return state;
+      const state = await transport.getState(target);
+      if (!state || sessionIdRef.current !== target) return state;
 
-      const stateSeq = Math.max(0, state.afterSeq ?? state.lastSeq ?? 0);
-
-      // Guard against stale refresh snapshots clobbering active local stream updates.
-      const hasActiveStream = activeTurnIdRef.current !== null;
-      const isProcessing = state.processingStatus !== 'idle';
-      if (hasActiveStream && isProcessing && stateSeq < latestStreamSeqRef.current) {
-        onStateRefreshRef.current?.(state);
-        return state;
-      }
-
-      if (
-        !hasActiveStream &&
-        hasHydratedRef.current &&
-        stateSeq > 0 &&
-        stateSeq <= latestAppliedStateSeqRef.current
-      ) {
-        onStateRefreshRef.current?.(state);
-        return state;
-      }
-
-      const hydrated = hydrateMessages(state.messages);
-      const confirmedTextCounts = new Map<string, number>();
-      const confirmedUserTexts = hydrated
-        .filter((message) => message.role === 'user')
-        .map((message) => getMessageText(message))
-        .filter((text) => text.length > 0);
-      for (const text of confirmedUserTexts) {
-        confirmedTextCounts.set(text, (confirmedTextCounts.get(text) ?? 0) + 1);
-      }
-      const stillPendingOptimisticUsers = pendingOptimisticUsersRef.current.filter((message) => {
-        const text = getMessageText(message);
-        if (text.length === 0) {
-          return false;
-        }
-        const matchedCount = confirmedTextCounts.get(text) ?? 0;
-        if (matchedCount > 0) {
-          confirmedTextCounts.set(text, matchedCount - 1);
-          return false;
-        }
-        return true;
-      });
-      pendingOptimisticUsersRef.current = stillPendingOptimisticUsers;
-      const hydratedWithPending =
-        stillPendingOptimisticUsers.length > 0
-          ? [...hydrated, ...stillPendingOptimisticUsers]
-          : hydrated;
-
-      // Don't overwrite local optimistic messages with empty backend state.
-      if (hydratedWithPending.length === 0 && messagesRef.current.length > 0) {
-        onStateRefreshRef.current?.(state);
-        return state;
-      }
-
-      if (!areMessagesEquivalent(hydratedWithPending, messagesRef.current)) {
-        commitMessages(hydratedWithPending, 'immediate');
-      }
-      hasHydratedRef.current = true;
-      latestAppliedStateSeqRef.current = Math.max(latestAppliedStateSeqRef.current, stateSeq);
-      lastKnownRunningTurnIdRef.current =
-        state.queue?.find((turn) => turn?.status === 'running')?.turnId ??
-        state.queuedTurns?.find((turn) => turn?.status === 'running')?.turnId ??
+      const incomingSeq = Math.max(0, state.afterSeq ?? state.lastSeq ?? 0);
+      const previousSeq = lastSeqRef.current;
+      lastSeqRef.current = Math.max(lastSeqRef.current, incomingSeq);
+      activeGenerationRef.current = Math.max(
+        activeGenerationRef.current,
+        Number(state.activeGeneration ?? state.generationId ?? 0),
+      );
+      activeTurnRef.current = state.activeTurn?.turnId ?? null;
+      lastKnownRunningTurnRef.current =
+        state.activeTurn?.turnId ??
+        state.queue?.find((turn) => turn.status === 'running')?.turnId ??
         null;
 
-      // If backend has moved to canonical turn message id for the active turn,
-      // move subsequent deltas to that message id instead of a local temp id.
-      if (activeTurnIdRef.current) {
-        const canonicalTurnMessageId = `turn-${activeTurnIdRef.current}`;
-        if (hydrated.some((m) => m.id === canonicalTurnMessageId)) {
-          streamingMsgIdRef.current = canonicalTurnMessageId;
-        }
+      const hydrated = hydrateMessages(state.messages);
+      const merged = rebuildWithPending(hydrated);
+      if (
+        incomingSeq > previousSeq ||
+        pendingSubmissionsRef.current.size > 0 ||
+        JSON.stringify(merged) !== JSON.stringify(messagesRef.current)
+      ) {
+        commitMessages(merged);
       }
 
-      if (state.processingStatus === 'idle' || !activeTurnIdRef.current) {
-        clearStreamingState();
-      }
-
+      const isProcessing =
+        state.processingStatus === 'processing' || state.processingStatus === 'stopping';
+      setStatus(isProcessing ? 'streaming' : 'ready');
       onStateRefreshRef.current?.(state);
       return state;
     },
-    [transport, commitMessages, clearStreamingState],
+    [commitMessages, rebuildWithPending, transport],
   );
 
-  // ── SSE chunk handler ─────────────────────────────────────────────
+  const applyChunk = useCallback(
+    (rawChunk: unknown) => {
+      const chunk = normalizeChunk(rawChunk);
+      if (!chunk) return;
 
-  const handleSseChunk = useCallback(
-    (chunk: unknown, context: { sessionId: string; runId?: string }) => {
-      externalOnChunkRef.current?.(chunk, context);
-
-      if (!chunk || typeof chunk !== 'object') return;
-      const c = chunk as Record<string, unknown>;
-
-      const seq = typeof c.seq === 'number' ? c.seq : null;
+      const seq = typeof chunk.seq === 'number' ? chunk.seq : null;
       if (seq != null) {
-        latestStreamSeqRef.current = Math.max(latestStreamSeqRef.current, seq);
+        if (seq <= lastSeqRef.current) return;
+        lastSeqRef.current = seq;
       }
 
-      const chunkTurnId = typeof c.turnId === 'string' ? c.turnId : undefined;
-      if (chunkTurnId && ignoredTurnIdsRef.current.has(chunkTurnId)) {
-        return;
+      const generation = Number(chunk.generationId ?? (chunk.data as any)?.generationId ?? 0);
+      if (Number.isFinite(generation) && generation > 0) {
+        if (generation < activeGenerationRef.current) {
+          return;
+        }
+        activeGenerationRef.current = Math.max(activeGenerationRef.current, generation);
       }
-      const inner =
-        c.chunk && typeof c.chunk === 'object' ? (c.chunk as Record<string, unknown>) : c;
 
-      if (inner.type === 'text-delta') {
-        if (!chunkTurnId) {
-          console.warn('[useDurableChat] text-delta without turnId, skipping', inner);
-          return;
-        }
-
-        if (activeTurnIdRef.current && activeTurnIdRef.current !== chunkTurnId) {
-          return;
-        }
-
-        const delta = typeof inner.delta === 'string' ? inner.delta : '';
-        if (!delta) return;
-
-        activeTurnIdRef.current = chunkTurnId;
-        const canonicalTurnMsgId = `turn-${chunkTurnId}`;
-        const msgId = streamingMsgIdRef.current ?? canonicalTurnMsgId;
-        streamingMsgIdRef.current = msgId;
-
-        const current = messagesRef.current;
-        const existingIdx = current.findIndex((m) => m.id === msgId);
-        let next: UIMessage[];
-
-        if (existingIdx >= 0) {
-          const existing = current[existingIdx];
-          const updated: UIMessage = {
-            ...existing,
-            parts: appendTextDeltaToParts(existing.parts, delta),
-          };
-          next = [...current];
-          next[existingIdx] = updated;
-          const hasToolParts = existing.parts.some((part) => part.type === 'tool-invocation');
-          commitMessages(next, hasToolParts ? 'immediate' : 'throttled');
-        } else {
-          next = [
-            ...current,
-            {
-              id: msgId,
-              role: 'assistant' as const,
-              parts: [{ type: 'text' as const, text: delta }],
-            },
-          ];
-          commitMessages(next, 'throttled');
-        }
-        setStatus('streaming');
+      const turnId = typeof chunk.turnId === 'string' ? chunk.turnId : null;
+      if (turnId && ignoredTurnIdsRef.current.has(turnId)) {
         return;
       }
 
-      if (
-        inner.type === 'tool-input-start' ||
-        inner.type === 'tool-input-available' ||
-        inner.type === 'tool-output-available' ||
-        inner.type === 'tool-output-error'
-      ) {
-        if (!chunkTurnId) {
+      if (turnId && activeTurnRef.current && turnId !== activeTurnRef.current) {
+        const type = typeof chunk.type === 'string' ? chunk.type : null;
+        if (type !== 'data-turn-status') {
           return;
         }
-
-        if (activeTurnIdRef.current && activeTurnIdRef.current !== chunkTurnId) {
-          return;
-        }
-
-        const toolCallId =
-          'toolCallId' in inner && typeof inner.toolCallId === 'string' ? inner.toolCallId : null;
-        if (!toolCallId) {
-          return;
-        }
-
-        activeTurnIdRef.current = chunkTurnId;
-        const canonicalTurnMsgId = `turn-${chunkTurnId}`;
-        const msgId = streamingMsgIdRef.current ?? canonicalTurnMsgId;
-        streamingMsgIdRef.current = msgId;
-
-        let update: {
-          toolCallId: string;
-          toolName?: string;
-          state: 'input-available' | 'output-available' | 'output-error';
-          input?: unknown;
-          output?: unknown;
-          errorText?: string;
-          preliminary?: boolean;
-        } | null = null;
-
-        if (inner.type === 'tool-input-start') {
-          update = {
-            toolCallId,
-            toolName: typeof inner.toolName === 'string' ? inner.toolName : undefined,
-            state: 'input-available',
-          };
-        } else if (inner.type === 'tool-input-available') {
-          update = {
-            toolCallId,
-            toolName: typeof inner.toolName === 'string' ? inner.toolName : undefined,
-            state: 'input-available',
-            input: inner.input,
-          };
-        } else if (inner.type === 'tool-output-available') {
-          update = {
-            toolCallId,
-            toolName: typeof inner.toolName === 'string' ? inner.toolName : undefined,
-            state: 'output-available',
-            output: inner.output,
-            preliminary: inner.preliminary === true,
-          };
-        } else if (inner.type === 'tool-output-error') {
-          update = {
-            toolCallId,
-            toolName: typeof inner.toolName === 'string' ? inner.toolName : undefined,
-            state: 'output-error',
-            output: inner.output,
-            errorText: typeof inner.errorText === 'string' ? inner.errorText : undefined,
-          };
-        }
-
-        if (!update) {
-          return;
-        }
-
-        const current = messagesRef.current;
-        const existingIdx = current.findIndex((m) => m.id === msgId);
-        let next: UIMessage[];
-
-        if (existingIdx >= 0) {
-          const existing = current[existingIdx];
-          const updated: UIMessage = {
-            ...existing,
-            parts: upsertToolInvocationPart(existing.parts, update),
-          };
-          next = [...current];
-          next[existingIdx] = updated;
-        } else {
-          next = [
-            ...current,
-            {
-              id: msgId,
-              role: 'assistant' as const,
-              parts: upsertToolInvocationPart([], update),
-            },
-          ];
-        }
-
-        commitMessages(next, 'immediate');
-        setStatus('streaming');
-        return;
       }
 
-      if (inner.type === 'data-turn-status') {
-        if (chunkTurnId && activeTurnIdRef.current && activeTurnIdRef.current !== chunkTurnId) {
-          return;
-        }
+      const type = typeof chunk.type === 'string' ? chunk.type : null;
+      if (!type) return;
 
-        if (chunkTurnId && !activeTurnIdRef.current) {
-          activeTurnIdRef.current = chunkTurnId;
-        }
-
+      if (type === 'data-turn-status') {
         const data =
-          inner.data && typeof inner.data === 'object'
-            ? (inner.data as Record<string, unknown>)
-            : {};
-        const turnStatus = data.status as string | undefined;
+          chunk.data && typeof chunk.data === 'object'
+            ? (chunk.data as Record<string, unknown>)
+            : ({} as Record<string, unknown>);
+        const turnStatus = typeof data.status === 'string' ? data.status : null;
+        const clientSubmissionId =
+          typeof data.clientSubmissionId === 'string' ? data.clientSubmissionId : null;
 
-        if (turnStatus === 'stopping') {
-          setStatus('ready');
-          return;
+        if (clientSubmissionId && pendingSubmissionsRef.current.has(clientSubmissionId)) {
+          pendingSubmissionsRef.current.delete(clientSubmissionId);
+          void refreshState();
+        }
+
+        if (turnStatus === 'running' && turnId) {
+          activeTurnRef.current = turnId;
+          setStatus('streaming');
         }
 
         if (
@@ -521,21 +223,80 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
           turnStatus === 'failed' ||
           turnStatus === 'cancelled'
         ) {
-          flushPendingMessagesNow();
-          clearStreamingState();
-          setStatus('ready');
-
-          const pendingCount = typeof data.pendingCount === 'number' ? data.pendingCount : -1;
-          if (pendingCount <= 0) {
-            void refreshState();
+          if (!turnId || activeTurnRef.current === turnId) {
+            activeTurnRef.current = null;
           }
+          setStatus('ready');
+          void refreshState();
         }
+        return;
+      }
+
+      if (!turnId) return;
+      activeTurnRef.current = turnId;
+      lastKnownRunningTurnRef.current = turnId;
+
+      const turnMessageId = `turn-${turnId}`;
+      const current = messagesRef.current;
+      const idx = current.findIndex((m) => m.id === turnMessageId);
+
+      if (type === 'text-delta') {
+        const delta = typeof chunk.delta === 'string' ? chunk.delta : '';
+        if (!delta) return;
+
+        const next = [...current];
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], parts: appendTextDelta(next[idx].parts, delta) };
+        } else {
+          next.push({ id: turnMessageId, role: 'assistant', parts: [{ type: 'text', text: delta }] });
+        }
+        commitMessages(next);
+        setStatus('streaming');
+        return;
+      }
+
+      if (
+        type === 'tool-input-start' ||
+        type === 'tool-input-available' ||
+        type === 'tool-output-available' ||
+        type === 'tool-output-error'
+      ) {
+        const toolCallId = typeof chunk.toolCallId === 'string' ? chunk.toolCallId : null;
+        if (!toolCallId) return;
+        const toolName = typeof chunk.toolName === 'string' ? chunk.toolName : undefined;
+        const update =
+          type === 'tool-input-start'
+            ? { toolCallId, toolName, state: 'input-available' as const }
+            : type === 'tool-input-available'
+              ? { toolCallId, toolName, state: 'input-available' as const, input: chunk.input }
+              : type === 'tool-output-available'
+                ? {
+                    toolCallId,
+                    toolName,
+                    state: 'output-available' as const,
+                    output: chunk.output,
+                    preliminary: chunk.preliminary === true,
+                  }
+                : {
+                    toolCallId,
+                    toolName,
+                    state: 'output-error' as const,
+                    output: chunk.output,
+                    errorText: typeof chunk.errorText === 'string' ? chunk.errorText : undefined,
+                  };
+
+        const next = [...current];
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], parts: upsertToolPart(next[idx].parts, update) };
+        } else {
+          next.push({ id: turnMessageId, role: 'assistant', parts: upsertToolPart([], update) });
+        }
+        commitMessages(next);
+        setStatus('streaming');
       }
     },
-    [commitMessages, clearStreamingState, flushPendingMessagesNow, refreshState],
+    [commitMessages, refreshState],
   );
-
-  // ── Transport chunk subscription ─────────────────────────────────
 
   useEffect(() => {
     const unsubscribe = transport.onSessionChunk((chunk) => {
@@ -543,178 +304,105 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
       if (!sid) return;
       const c = chunk as Record<string, unknown>;
       const runId = typeof c.runId === 'string' ? c.runId : undefined;
-      handleSseChunk(chunk, { sessionId: sid, runId });
+      onChunkRef.current?.(chunk, { sessionId: sid, runId });
+      applyChunk(chunk);
     });
     return unsubscribe;
-  }, [transport, handleSseChunk]);
-
-  // ── Session lifecycle ─────────────────────────────────────────────
+  }, [applyChunk, transport]);
 
   useEffect(() => {
-    const sessionChanged = previousSessionIdRef.current !== (sessionId ?? null);
-    if (sessionChanged) {
-      previousSessionIdRef.current = sessionId ?? null;
-      pendingOptimisticUsersRef.current = [];
-      ignoredTurnIdsRef.current.clear();
-      lastKnownRunningTurnIdRef.current = null;
-      latestStreamSeqRef.current = 0;
-      latestAppliedStateSeqRef.current = 0;
-      hasHydratedRef.current = false;
-      clearStreamingState();
-      commitMessages([], 'immediate');
-      setError(null);
-      setStatus('ready');
-    }
+    pendingSubmissionsRef.current.clear();
+    ignoredTurnIdsRef.current.clear();
+    lastSeqRef.current = 0;
+    activeGenerationRef.current = 0;
+    activeTurnRef.current = null;
+    lastKnownRunningTurnRef.current = null;
+    setError(null);
 
     if (!sessionId) {
-      pendingOptimisticUsersRef.current = [];
-      ignoredTurnIdsRef.current.clear();
-      lastKnownRunningTurnIdRef.current = null;
-      commitMessages([], 'immediate');
-      clearStreamingState();
-      latestStreamSeqRef.current = 0;
-      latestAppliedStateSeqRef.current = 0;
-      hasHydratedRef.current = false;
+      commitMessages([]);
       setStatus('ready');
-      setError(null);
+      transport.closeSessionStream();
       return;
     }
 
     let cancelled = false;
-
     void (async () => {
-      // Hydrate first so we can resume from the latest known durable cursor.
-      const initialState = await refreshState(sessionId);
-      if (cancelled || sessionIdRef.current !== sessionId) {
-        return;
-      }
-
-      const afterSeq = Math.max(0, initialState?.afterSeq ?? initialState?.lastSeq ?? 0);
+      const state = await refreshState(sessionId);
+      if (cancelled || sessionIdRef.current !== sessionId) return;
+      const afterSeq = Math.max(0, state?.afterSeq ?? state?.lastSeq ?? 0);
       await transport.openSessionStream(sessionId, afterSeq);
-
-      if (cancelled || sessionIdRef.current !== sessionId) {
-        return;
-      }
-
-      // One immediate refresh after stream attach closes the small race window
-      // between initial state fetch and SSE connection establishment.
+      if (cancelled || sessionIdRef.current !== sessionId) return;
       void refreshState(sessionId);
     })().catch((err) => {
       if (!cancelled && sessionIdRef.current === sessionId) {
         setError(err instanceof Error ? err : new Error(String(err)));
+        setStatus('error');
       }
     });
 
     return () => {
       cancelled = true;
-      if (throttleTimerRef.current) {
-        clearTimeout(throttleTimerRef.current);
-        throttleTimerRef.current = null;
-      }
-      clearStreamingState();
     };
-  }, [sessionId, transport, refreshState, commitMessages, clearStreamingState]);
+  }, [commitMessages, refreshState, sessionId, transport]);
 
-  // ── Cross-tab sync: visibility change + low-frequency poll ────────
-
-  useEffect(() => {
-    if (!sessionId) return;
-
-    const onVisibilityChange = () => {
-      if (
-        document.visibilityState === 'visible' &&
-        sessionIdRef.current &&
-        !activeTurnIdRef.current
-      ) {
-        void refreshState();
-      }
-    };
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-
-    const pollTimer = setInterval(() => {
-      if (
-        sessionIdRef.current &&
-        document.visibilityState === 'visible' &&
-        !activeTurnIdRef.current
-      ) {
-        void refreshState();
-      }
-    }, 10_000);
-
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      clearInterval(pollTimer);
-    };
-  }, [sessionId, refreshState]);
-
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       transport.closeSessionStream();
-      if (throttleTimerRef.current) {
-        clearTimeout(throttleTimerRef.current);
-      }
     };
   }, [transport]);
-
-  // ── Send message ──────────────────────────────────────────────────
 
   const sendMessage = useCallback(
     (opts: { text: string; sessionId?: string }) => {
       const sid = opts.sessionId ?? sessionIdRef.current;
       if (!sid) return;
 
-      setError(null);
+      const text = opts.text.trim();
+      if (!text) return;
 
-      const userMsgId = `user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      const userMessage = {
-        id: userMsgId,
-        role: 'user' as const,
-        parts: [{ type: 'text' as const, text: opts.text }],
-      } satisfies UIMessage;
-      pendingOptimisticUsersRef.current = [...pendingOptimisticUsersRef.current, userMessage];
+      const clientSubmissionId = `sub-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const optimisticMessage: UIMessage = {
+        id: `pending-${clientSubmissionId}`,
+        role: 'user',
+        parts: [{ type: 'text', text }],
+      };
 
-      // Optimistic local echo so user message appears immediately in transcript.
-      const outboundMessages = [...messagesRef.current, userMessage];
-      commitMessages(outboundMessages, 'immediate');
+      pendingSubmissionsRef.current.set(clientSubmissionId, {
+        id: clientSubmissionId,
+        message: optimisticMessage,
+      });
+
+      if (activeTurnRef.current) {
+        ignoredTurnIdsRef.current.add(activeTurnRef.current);
+      }
+      if (lastKnownRunningTurnRef.current) {
+        ignoredTurnIdsRef.current.add(lastKnownRunningTurnRef.current);
+      }
+
+      commitMessages([...messagesRef.current, optimisticMessage]);
       setStatus('submitting');
-
-      if (activeTurnIdRef.current) {
-        ignoredTurnIdsRef.current.add(activeTurnIdRef.current);
-      }
-      if (lastKnownRunningTurnIdRef.current) {
-        ignoredTurnIdsRef.current.add(lastKnownRunningTurnIdRef.current);
-      }
-      clearStreamingState();
+      setError(null);
 
       void (async () => {
         try {
           await transport.sendMessages({
             trigger: 'submit-message',
             chatId: sid,
-            messageId: userMsgId,
-            messages: outboundMessages,
+            messageId: clientSubmissionId,
+            messages: [...messagesRef.current, optimisticMessage],
           });
+          setStatus('streaming');
         } catch (err) {
+          pendingSubmissionsRef.current.delete(clientSubmissionId);
           if (sessionIdRef.current === sid) {
+            commitMessages(messagesRef.current.filter((m) => m.id !== optimisticMessage.id));
             setError(err instanceof Error ? err : new Error(String(err)));
             setStatus('error');
           }
         }
       })();
     },
-    [transport, commitMessages, clearStreamingState],
-  );
-
-  // ── Public setMessages ────────────────────────────────────────────
-
-  const setMessages = useCallback(
-    (msgs: UIMessage[]) => {
-      commitMessages(msgs, 'immediate');
-      clearStreamingState();
-    },
-    [commitMessages, clearStreamingState],
+    [commitMessages, transport],
   );
 
   return {
@@ -722,7 +410,7 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
     status,
     error,
     sendMessage,
-    setMessages,
-    refreshState,
+    setMessages: (msgs) => commitMessages(msgs),
+    refreshState: () => refreshState(),
   };
 }

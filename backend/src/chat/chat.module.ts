@@ -6,7 +6,6 @@ import { ChatSessionRepository } from './chat-session.repository';
 import { ChatTurnRepository } from './chat-turn.repository';
 import { ChatSessionEventRepository } from './chat-session-event.repository';
 import { ChatTurnDraftRepository } from './chat-turn-draft.repository';
-import { ChatPartialRepository } from './chat-partial.repository';
 import { ChatStreamService } from './chat-stream.service';
 import { ChatStreamIngestService } from './chat-stream-ingest.service';
 import { TerminalModule } from '../terminal/terminal.module';
@@ -20,7 +19,6 @@ import { TerminalModule } from '../terminal/terminal.module';
     ChatTurnRepository,
     ChatSessionEventRepository,
     ChatTurnDraftRepository,
-    ChatPartialRepository,
     ChatStreamService,
     ChatStreamIngestService,
   ],

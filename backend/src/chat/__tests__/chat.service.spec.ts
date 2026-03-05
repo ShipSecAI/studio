@@ -8,7 +8,6 @@ import { ChatService } from '../chat.service';
 import type { ChatStreamService } from '../chat-stream.service';
 import type { ChatTurnDraftRepository } from '../chat-turn-draft.repository';
 import type { ChatTurnRepository } from '../chat-turn.repository';
-import type { ChatPartialRepository } from '../chat-partial.repository';
 
 describe('ChatService Unit Tests', () => {
   let service: ChatService;
@@ -16,7 +15,6 @@ describe('ChatService Unit Tests', () => {
   let turnRepository: ChatTurnRepository;
   let sessionEventRepository: ChatSessionEventRepository;
   let turnDraftRepository: ChatTurnDraftRepository;
-  let partialRepository: ChatPartialRepository;
   let chatStreamService: ChatStreamService;
   let temporalService: TemporalService;
 
@@ -47,6 +45,22 @@ describe('ChatService Unit Tests', () => {
         status: 'active',
         processingStatus: 'idle',
         activeRunId: null,
+        activeTurnId: null,
+        activeGenerationId: 0,
+        steerTargetTurnId: null,
+        nextEventSeq: 1,
+        organizationId: 'test-org-id',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+      getSessionInternal: jest.fn().mockResolvedValue({
+        id: 'session-1',
+        title: 'Session',
+        status: 'active',
+        processingStatus: 'idle',
+        activeRunId: null,
+        activeTurnId: null,
+        activeGenerationId: 0,
         steerTargetTurnId: null,
         nextEventSeq: 1,
         createdAt: new Date(),
@@ -54,18 +68,12 @@ describe('ChatService Unit Tests', () => {
       }),
       updateSessionTitle: jest.fn(),
       deleteSession: jest.fn(),
-      getMessages: jest.fn().mockResolvedValue([]),
-      saveMessage: jest.fn().mockResolvedValue({
-        id: 'msg-1',
-        role: 'user',
-        parts: [{ type: 'text', text: 'hello' }],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }),
       setTemporalWorkflowId: jest.fn(),
       setSteerIntent: jest.fn(),
       clearSteerIntent: jest.fn(),
       setProcessingStatus: jest.fn(),
+      setActiveTurn: jest.fn(),
+      bumpGeneration: jest.fn().mockResolvedValue(1),
       startRun: jest.fn(),
       completeRun: jest.fn(),
     } as unknown as ChatSessionRepository;
@@ -101,12 +109,6 @@ describe('ChatService Unit Tests', () => {
       upsert: jest.fn(),
     } as unknown as ChatTurnDraftRepository;
 
-    partialRepository = {
-      upsert: jest.fn(),
-      get: jest.fn().mockResolvedValue(null),
-      delete: jest.fn(),
-    } as unknown as ChatPartialRepository;
-
     chatStreamService = {
       publish: jest.fn(),
       isAvailable: jest.fn().mockReturnValue(false),
@@ -129,16 +131,19 @@ describe('ChatService Unit Tests', () => {
       turnRepository,
       sessionEventRepository,
       turnDraftRepository,
-      partialRepository,
       chatStreamService,
       temporalService,
     );
   });
 
-  it('enqueues turn and returns queue metadata', async () => {
-    const result = await service.enqueueTurn(
+  it('submits user turn via vNext operation and returns ack metadata', async () => {
+    const result = await service.submitOperation(
       'session-1',
-      { message: 'hello', clientMessageId: 'client-1' },
+      {
+        op: 'UserTurn',
+        text: 'hello',
+        clientSubmissionId: 'client-1',
+      },
       mockAuthContext,
     );
 
@@ -158,117 +163,101 @@ describe('ChatService Unit Tests', () => {
       expect.any(String),
       expect.objectContaining({
         turnId: 'turn-1',
+        generationId: 1,
+        submissionId: 'client-1',
       }),
     );
-    expect(result).toEqual({
-      turnId: 'turn-1',
-      status: 'queued',
-      preview: 'hello',
-      queuedAt: new Date('2026-03-04T10:00:00.000Z'),
-      position: 1,
-      queuePosition: 1,
-      queued: false,
-      runId: expect.any(String),
-      pendingCount: 0,
-      afterSeq: 7,
-      lastSeq: 7,
-    });
-  });
-
-  it('recovers from stale completed workflow when enqueueing a turn', async () => {
-    (sessionRepository.getSession as jest.Mock).mockResolvedValue({
-      id: 'session-1',
-      title: 'Session',
-      status: 'active',
-      processingStatus: 'processing',
-      activeRunId: 'run-stale',
-      organizationId: 'test-org-id',
-      steerTargetTurnId: null,
-      nextEventSeq: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    (temporalService.signalChatWorkflow as jest.Mock)
-      .mockRejectedValueOnce(new Error('workflow execution already completed'))
-      .mockResolvedValueOnce(undefined);
-
-    const result = await service.enqueueTurn(
-      'session-1',
-      { message: 'recover me', clientMessageId: 'client-recover' },
-      mockAuthContext,
-    );
-
-    expect(sessionRepository.completeRun).toHaveBeenCalledWith('session-1', 'run-stale');
-    expect(temporalService.startChatWorkflow).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      organizationId: 'test-org-id',
-      systemPrompt: expect.any(String),
-    });
-    expect(sessionRepository.startRun).toHaveBeenCalledWith('session-1', expect.any(String));
-    expect(temporalService.signalChatWorkflow).toHaveBeenCalledTimes(2);
     expect(result).toEqual(
       expect.objectContaining({
-        queued: false,
-        runId: expect.any(String),
+        submissionId: 'client-1',
+        operation: 'UserTurn',
+        turnId: 'turn-1',
+        generationId: 1,
       }),
     );
   });
 
-  it('does not queue when session has stale activeRunId but is idle', async () => {
-    (sessionRepository.getSession as jest.Mock).mockResolvedValue({
-      id: 'session-1',
-      title: 'Session',
-      status: 'active',
-      processingStatus: 'idle',
-      activeRunId: 'run-stale-idle',
-      organizationId: 'test-org-id',
-      steerTargetTurnId: null,
-      nextEventSeq: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    (turnRepository.getRunningTurn as jest.Mock).mockResolvedValue(null);
+  it('interrupt operation signals temporal and returns accepted seq', async () => {
+    (turnRepository.getRunningTurn as jest.Mock).mockResolvedValue({ id: 'turn-running' });
+    (sessionEventRepository.getLastSeq as jest.Mock).mockResolvedValue(11);
 
-    const result = await service.enqueueTurn(
+    const result = await service.submitOperation(
       'session-1',
-      { message: 'fresh request', clientMessageId: 'client-fresh' },
-      mockAuthContext,
-    );
-
-    expect(sessionRepository.startRun).toHaveBeenCalledWith('session-1', expect.any(String));
-    expect(result).toEqual(
-      expect.objectContaining({
-        queued: false,
-        runId: expect.any(String),
-      }),
-    );
-  });
-
-  it('projects state with active turn, queue, and lastSeq', async () => {
-    (turnRepository.getRunningTurn as jest.Mock).mockResolvedValue({
-      id: 'turn-running',
-      status: 'running',
-      runId: 'run-1',
-      generationId: 'gen-1',
-      startedAt: new Date('2026-03-04T10:01:00.000Z'),
-    });
-    (turnRepository.listQueuedTurns as jest.Mock).mockResolvedValue([
       {
-        id: 'turn-2',
-        status: 'queued',
-        userMessage: 'next turn',
-        queuedAt: new Date('2026-03-04T10:02:00.000Z'),
+        op: 'Interrupt',
+        clientSubmissionId: 'interrupt-1',
+      },
+      mockAuthContext,
+    );
+
+    expect(temporalService.signalChatInterrupt).toHaveBeenCalledWith('session-1');
+    expect(result).toEqual({
+      submissionId: 'interrupt-1',
+      operation: 'Interrupt',
+      interruptedTurnId: 'turn-running',
+      acceptedAtSeq: 11,
+    });
+  });
+
+  it('projects thread history with active turn, queue, and lastSeq', async () => {
+    (sessionEventRepository.listAfter as jest.Mock).mockResolvedValue([
+      {
+        seq: 5,
+        turnId: 'turn-running',
+        runId: 'run-1',
+        generationId: '1',
+        eventId: 'sub-1:TurnQueued',
+        chunk: {
+          type: 'data-turn-status',
+          data: {
+            turnId: 'turn-running',
+            status: 'queued',
+            text: 'hello',
+            preview: 'hello',
+            queuedAt: '2026-03-04T10:01:00.000Z',
+          },
+        },
+      },
+      {
+        seq: 6,
+        turnId: 'turn-running',
+        runId: 'run-1',
+        generationId: '1',
+        eventId: 'turn-running:running',
+        chunk: {
+          type: 'data-turn-status',
+          data: {
+            turnId: 'turn-running',
+            status: 'running',
+            startedAt: '2026-03-04T10:01:02.000Z',
+          },
+        },
+      },
+      {
+        seq: 7,
+        turnId: 'turn-2',
+        runId: 'run-1',
+        generationId: '1',
+        eventId: 'sub-2:TurnQueued',
+        chunk: {
+          type: 'data-turn-status',
+          data: {
+            turnId: 'turn-2',
+            status: 'queued',
+            text: 'next turn',
+            preview: 'next turn',
+            queuedAt: '2026-03-04T10:02:00.000Z',
+          },
+        },
       },
     ]);
 
-    const result = await service.getState('session-1', mockAuthContext);
+    const result = await service.getThreadHistory('session-1', mockAuthContext);
 
     expect(result).toEqual(
       expect.objectContaining({
-        messages: [],
-        activeRunId: 'run-1',
+        messages: expect.any(Array),
         pendingCount: 1,
-        steerTargetTurnId: null,
         queueOrder: ['turn-2'],
         afterSeq: 7,
         lastSeq: 7,
@@ -276,57 +265,8 @@ describe('ChatService Unit Tests', () => {
       }),
     );
     expect(result.activeTurn).toEqual(
-      expect.objectContaining({
-        turnId: 'turn-running',
-        status: 'running',
-        runId: 'run-1',
-      }),
+      expect.objectContaining({ turnId: 'turn-running', status: 'running' }),
     );
-    expect(result.queue[0]).toEqual(
-      expect.objectContaining({
-        turnId: 'turn-2',
-        preview: 'next turn',
-        queuePosition: 1,
-        status: 'queued',
-      }),
-    );
-  });
-
-  it('recovers active assistant response from partial snapshot before event replay', async () => {
-    (sessionRepository.getMessages as jest.Mock).mockResolvedValue([
-      {
-        id: 'msg-user',
-        role: 'user',
-        parts: [{ type: 'text', text: 'hello' }],
-        createdAt: new Date('2026-03-04T10:00:00.000Z'),
-      },
-    ]);
-    (turnRepository.getRunningTurn as jest.Mock).mockResolvedValue({
-      id: 'turn-running',
-      status: 'running',
-      runId: 'run-1',
-      generationId: 'gen-1',
-      startedAt: new Date('2026-03-04T10:01:00.000Z'),
-    });
-    (partialRepository.get as jest.Mock).mockResolvedValue({
-      parts: [{ type: 'text', text: 'in-progress answer' }],
-      updatedAt: new Date('2026-03-04T10:01:30.000Z'),
-    });
-
-    const result = await service.getState('session-1', mockAuthContext);
-
-    expect(result.messages).toEqual([
-      expect.objectContaining({
-        id: 'msg-user',
-        role: 'user',
-      }),
-      expect.objectContaining({
-        id: 'turn-turn-running',
-        role: 'assistant',
-        parts: [{ type: 'text', text: 'in-progress answer' }],
-      }),
-    ]);
-    expect(sessionEventRepository.listByTurn).not.toHaveBeenCalled();
   });
 
   it('appends internal event with atomic seq and publishes it', async () => {
@@ -388,15 +328,13 @@ describe('ChatService Unit Tests', () => {
     const first = await service.interruptGeneration('session-1', mockAuthContext);
     const second = await service.interruptGeneration('session-1', mockAuthContext);
 
-    // Both return ok: true — signal is always sent (workflow handler is idempotent)
     expect(first).toEqual({ ok: true, interruptedTurnId: undefined });
     expect(second).toEqual({ ok: true, interruptedTurnId: 'turn-running' });
-    // signalChatInterrupt called for BOTH invocations
     expect(temporalService.signalChatInterrupt).toHaveBeenCalledTimes(2);
     expect(temporalService.signalChatInterrupt).toHaveBeenCalledWith('session-1');
   });
 
-  it('clears partial response state when completing a run', async () => {
+  it('completes run and clears steer intent', async () => {
     (turnRepository.getRunningTurn as jest.Mock).mockResolvedValue(null);
     (turnRepository.getLatestTurn as jest.Mock).mockResolvedValue(null);
 
@@ -404,21 +342,5 @@ describe('ChatService Unit Tests', () => {
 
     expect(sessionRepository.completeRun).toHaveBeenCalledWith('session-1', 'run-1');
     expect(sessionRepository.clearSteerIntent).toHaveBeenCalledWith('session-1');
-    expect(partialRepository.delete).toHaveBeenCalledWith('session-1');
-  });
-
-  it('steer interrupts current generation and does not target a specific queued turn', async () => {
-    (turnRepository.getRunningTurn as jest.Mock).mockResolvedValue({ id: 'turn-running' });
-
-    const result = await service.steerSession('session-1', 'turn-2', mockAuthContext);
-
-    expect(sessionRepository.clearSteerIntent).toHaveBeenCalledWith('session-1');
-    expect(temporalService.signalChatInterrupt).toHaveBeenCalledWith('session-1');
-    expect(temporalService.signalChatSteerTurn).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      ok: true,
-      targetTurnId: null,
-      interruptedTurnId: 'turn-running',
-    });
   });
 });

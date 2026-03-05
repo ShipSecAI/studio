@@ -101,6 +101,8 @@ interface ChatUserTurn {
   message: ChatUIMessage;
   runId: string;
   queuedAt?: string;
+  generationId?: number;
+  submissionId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -259,9 +261,14 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     const drainedTurns = pendingUserMessages.splice(0, pendingUserMessages.length);
     const primaryTurn = drainedTurns[0];
 
-    const runId = activeRunId ?? primaryTurn?.runId ?? 'gen-' + generationId;
+    const turnGenerationId =
+      typeof primaryTurn?.generationId === 'number' && Number.isFinite(primaryTurn.generationId)
+        ? primaryTurn.generationId
+        : generationId + 1;
+    generationId = Math.max(generationId, turnGenerationId);
+
+    const runId = activeRunId ?? primaryTurn?.runId ?? 'gen-' + turnGenerationId;
     activeRunId = runId;
-    generationId++;
 
     // Add ALL drained user messages to history
     for (const turn of drainedTurns) {
@@ -277,7 +284,7 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
           sessionId,
           turnId: primaryTurn.turnId,
           runId,
-          generationId,
+          generationId: turnGenerationId,
           organizationId: organizationId ?? undefined,
           systemPrompt,
           messages,

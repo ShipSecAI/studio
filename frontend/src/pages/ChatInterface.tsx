@@ -456,9 +456,6 @@ export function ChatInterface() {
   }, [routeSessionId, currentSessionId, navigate]);
 
   const [sessionProcessing, setSessionProcessing] = useState(false);
-  const [sessionProcessingStartedAtMs, setSessionProcessingStartedAtMs] = useState<number | null>(
-    null,
-  );
 
   // Create DurableChatTransport.
   const chatTransport = useMemo(
@@ -482,9 +479,6 @@ export function ChatInterface() {
       if (!payload) return;
       if (payload.status === 'running' || payload.status === 'queued') {
         setSessionProcessing(true);
-        if (payload.startedAt) {
-          setSessionProcessingStartedAtMs(new Date(payload.startedAt).getTime());
-        }
       }
       if (payload.status === 'stopping') {
         setSessionProcessing(true);
@@ -511,9 +505,6 @@ export function ChatInterface() {
       setSessionProcessing(isProcessing);
       setIsStopping(state.processingStatus === 'stopping');
       setInterruptionBoundaries(state.interruptionBoundaries ?? []);
-      setSessionProcessingStartedAtMs(
-        state.activeRunStartedAt ? new Date(state.activeRunStartedAt).getTime() : null,
-      );
     },
   });
 
@@ -521,7 +512,6 @@ export function ChatInterface() {
   useEffect(() => {
     if (newConversationToken > 0 && !currentSessionId) {
       setSessionProcessing(false);
-      setSessionProcessingStartedAtMs(null);
       setLocalSteerQueue([]);
       setPendingSteerDispatchText(null);
       setInterruptionBoundaries([]);
@@ -533,7 +523,6 @@ export function ChatInterface() {
   useEffect(() => {
     if (routeSessionId === 'new') {
       setSessionProcessing(false);
-      setSessionProcessingStartedAtMs(null);
       setLocalSteerQueue([]);
       setPendingSteerDispatchText(null);
       setInterruptionBoundaries([]);
@@ -544,7 +533,6 @@ export function ChatInterface() {
 
     if (!currentSessionId) {
       setSessionProcessing(false);
-      setSessionProcessingStartedAtMs(null);
       setLocalSteerQueue([]);
       setPendingSteerDispatchText(null);
       setInterruptionBoundaries([]);
@@ -553,7 +541,6 @@ export function ChatInterface() {
 
     // Session switch — clear ChatInterface-specific state; hook handles messages + SSE
     setSessionProcessing(false);
-    setSessionProcessingStartedAtMs(null);
     setIsStopping(false);
     setLocalSteerQueue([]);
     setPendingSteerDispatchText(null);
@@ -574,41 +561,6 @@ export function ChatInterface() {
   // handleSubmit with an explicit sessionId override.
 
   const isAgentWorking = status === 'streaming' || status === 'submitting' || sessionProcessing;
-  const [workingStartedAtMs, setWorkingStartedAtMs] = useState<number | null>(null);
-  const [workingElapsedSeconds, setWorkingElapsedSeconds] = useState(0);
-
-  useEffect(() => {
-    if (!isAgentWorking) {
-      setWorkingStartedAtMs(null);
-      setWorkingElapsedSeconds(0);
-      return;
-    }
-
-    setWorkingStartedAtMs((prev) => {
-      if (sessionProcessingStartedAtMs) {
-        return sessionProcessingStartedAtMs;
-      }
-      return prev ?? Date.now();
-    });
-  }, [isAgentWorking, sessionProcessingStartedAtMs]);
-
-  useEffect(() => {
-    if (!isAgentWorking || workingStartedAtMs === null) return;
-
-    const updateElapsed = () => {
-      setWorkingElapsedSeconds(Math.max(0, Math.floor((Date.now() - workingStartedAtMs) / 1000)));
-    };
-
-    updateElapsed();
-    const intervalId = window.setInterval(updateElapsed, 1000);
-    return () => window.clearInterval(intervalId);
-  }, [isAgentWorking, workingStartedAtMs]);
-
-  const workingElapsedLabel = useMemo(() => {
-    const minutes = Math.floor(workingElapsedSeconds / 60);
-    const seconds = workingElapsedSeconds % 60;
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
-  }, [workingElapsedSeconds]);
 
   // Auto-scroll: track if user is near bottom, scroll on new content
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -678,8 +630,8 @@ export function ChatInterface() {
       console.warn('Failed to steer turn:', err);
       toast({
         variant: 'destructive',
-        title: 'Steer failed',
-        description: 'Unable to steer to the queued messages.',
+        title: 'Queue send failed',
+        description: 'Unable to send the queued messages.',
       });
       setPendingSteerDispatchText(null);
     } finally {
@@ -746,8 +698,8 @@ export function ChatInterface() {
           },
         ]);
         toast({
-          title: 'Added to local steer queue',
-          description: 'This message stays local until you click Steer Now.',
+          title: 'Added to message queue',
+          description: 'This message stays local until you click Send Queue.',
         });
         return;
       }
@@ -1114,11 +1066,9 @@ export function ChatInterface() {
                 {isAgentWorking ? (
                   <div className="flex items-center gap-2 justify-start">
                     <div className="relative overflow-hidden rounded-full border border-border/70 bg-muted/70 px-3 py-1 text-xs text-muted-foreground">
-                      <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shipsec-shimmer_1.8s_linear_infinite]" />
+                      <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-foreground/15 to-transparent dark:via-foreground/25 animate-[shipsec-shimmer_1.8s_linear_infinite]" />
                       <div className="relative flex items-center">
                         <span className="font-medium text-foreground/80">Working</span>
-                        <span className="mx-1.5">•</span>
-                        <span className="font-mono">{workingElapsedLabel}</span>
                         <span className="ml-2 inline-flex items-center gap-1">
                           <span className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-pulse" />
                           <span className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-pulse [animation-delay:140ms]" />
@@ -1134,6 +1084,13 @@ export function ChatInterface() {
                       <StopCircle className="h-3 w-3" />
                       {isStopping ? 'Stopping...' : 'Stop'}
                     </button>
+                    {isStopping && (
+                      <span className="text-xs text-muted-foreground">
+                        {displayPendingCount > 0
+                          ? 'Stopping current turn, then sending queued messages.'
+                          : 'Stopping current turn...'}
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <div aria-hidden className="h-6" />
@@ -1143,7 +1100,7 @@ export function ChatInterface() {
                 <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-3">
                   <div className="mb-1 flex items-center justify-between">
                     <span className="text-xs font-medium text-foreground/80">
-                      Steer Queue ({displayPendingCount})
+                      Message Queue ({displayPendingCount})
                     </span>
                     <button
                       type="button"
@@ -1151,7 +1108,7 @@ export function ChatInterface() {
                       disabled={Boolean(steeringTurnId) || localSteerQueue.length === 0}
                       className="shrink-0 rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground disabled:opacity-50"
                     >
-                      {steeringTurnId ? 'Steering...' : 'Steer Now'}
+                      {steeringTurnId ? 'Sending queue...' : 'Send Queue'}
                     </button>
                   </div>
                   <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
@@ -1218,10 +1175,7 @@ export function ChatInterface() {
                     </PromptInputButton>
                   </div>
                   <div className="flex items-center gap-1">
-                    <PromptInputSubmit
-                      status={status === 'submitting' ? 'submitted' : status}
-                      onStop={handleInterrupt}
-                    />
+                    <PromptInputSubmit status={status === 'submitting' ? 'submitted' : 'ready'} />
                   </div>
                 </PromptInputFooter>
               </PromptInput>

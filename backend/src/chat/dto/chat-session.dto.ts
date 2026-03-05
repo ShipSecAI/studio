@@ -10,21 +10,23 @@ export const UpdateSessionSchema = z.object({
 });
 export type UpdateSessionDto = z.infer<typeof UpdateSessionSchema>;
 
-export const SendMessageSchema = z.object({
-  messages: z.array(z.any()).min(1),
-});
-export type SendMessageDto = z.infer<typeof SendMessageSchema>;
-
-export const EnqueueTurnSchema = z.object({
-  message: z.string().min(1),
-  clientMessageId: z.string().min(1).optional(),
-});
-export type EnqueueTurnDto = z.infer<typeof EnqueueTurnSchema>;
-
-export const SteerSessionSchema = z.object({
-  targetTurnId: z.string().uuid().optional(),
-});
-export type SteerSessionDto = z.infer<typeof SteerSessionSchema>;
+export const SubmitOperationSchema = z
+  .object({
+    op: z.enum(['UserTurn', 'Interrupt', 'SteerNow']),
+    text: z.string().min(1).optional(),
+    clientSubmissionId: z.string().min(1),
+    clientTurnHint: z.string().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if ((value.op === 'UserTurn' || value.op === 'SteerNow') && !value.text?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'text is required for UserTurn and SteerNow',
+        path: ['text'],
+      });
+    }
+  });
+export type SubmitOperationDto = z.infer<typeof SubmitOperationSchema>;
 
 export const AppendInternalEventSchema = z.object({
   turnId: z.string().uuid(),
@@ -34,8 +36,3 @@ export const AppendInternalEventSchema = z.object({
   chunk: z.record(z.string(), z.any()),
 });
 export type AppendInternalEventDto = z.infer<typeof AppendInternalEventSchema>;
-
-export const UpsertPartialResponseSchema = z.object({
-  parts: z.array(z.any()),
-});
-export type UpsertPartialResponseDto = z.infer<typeof UpsertPartialResponseSchema>;

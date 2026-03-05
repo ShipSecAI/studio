@@ -10,6 +10,8 @@ export const chatSessionsTable = pgTable(
     status: text('status').notNull().default('active'), // active | archived
     processingStatus: text('processing_status').notNull().default('idle'), // idle | processing
     activeRunId: uuid('active_run_id'),
+    activeTurnId: uuid('active_turn_id'),
+    activeGenerationId: integer('active_generation_id').notNull().default(0),
     nextEventSeq: integer('next_event_seq').notNull().default(1),
     steerTargetTurnId: uuid('steer_target_turn_id'),
     steerRequestedAt: timestamp('steer_requested_at', { withTimezone: true }),
