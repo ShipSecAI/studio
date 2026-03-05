@@ -238,7 +238,7 @@ async function notifySessionComplete(sessionId: string, runId: string): Promise<
   if (!globalBackendUrl) return;
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
   try {
-    await fetch(`${globalBackendUrl}/api/v1/chat/sessions/${sessionId}/complete`, {
+    await fetch(`${globalBackendUrl}/api/v1/chat/sessions/${sessionId}/internal/run-completion`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

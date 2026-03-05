@@ -139,9 +139,9 @@ export class ChatController {
     return res.status(HttpStatus.OK).json({ seq });
   }
 
-  @Post(':id/complete')
+  @Post(':id/internal/run-completion')
   @SkipThrottle()
-  async completeRun(@Param('id') id: string, @Body() body: { runId?: string }) {
+  async appendRunCompletion(@Param('id') id: string, @Body() body: { runId?: string }) {
     await this.chatService.completeRun(id, body?.runId);
     return { success: true };
   }
