@@ -9,6 +9,7 @@ export interface UseDurableChatOptions {
   sessionId: string | null | undefined;
   onChunk?: (chunk: unknown, context: { sessionId: string; runId?: string }) => void;
   onStateRefresh?: (state: ChatSessionStateResponse) => void;
+  throttleMs?: number;
 }
 
 export interface UseDurableChatReturn {
@@ -20,10 +21,10 @@ export interface UseDurableChatReturn {
   refreshState: () => Promise<ChatSessionStateResponse | null>;
 }
 
-type PendingSubmission = {
+interface PendingSubmission {
   id: string;
   message: UIMessage;
-};
+}
 
 function hydrateMessages(raw: ChatSessionStateResponse['messages']): UIMessage[] {
   if (!Array.isArray(raw)) return [];
@@ -248,7 +249,11 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
         if (idx >= 0) {
           next[idx] = { ...next[idx], parts: appendTextDelta(next[idx].parts, delta) };
         } else {
-          next.push({ id: turnMessageId, role: 'assistant', parts: [{ type: 'text', text: delta }] });
+          next.push({
+            id: turnMessageId,
+            role: 'assistant',
+            parts: [{ type: 'text', text: delta }],
+          });
         }
         commitMessages(next);
         setStatus('streaming');

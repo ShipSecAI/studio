@@ -39,6 +39,8 @@ export interface ChatSessionStateResponse {
   activeRunStartedAt?: string | null;
   pendingCount?: number;
   generationId?: number | null;
+  activeGeneration?: number | null;
+  activeTurn?: { turnId: string; status?: string; generationId?: number | null } | null;
   steerTargetTurnId?: string | null;
   queue?: QueueTurnIdentity[];
   queuedTurns?: QueueTurnIdentity[];
