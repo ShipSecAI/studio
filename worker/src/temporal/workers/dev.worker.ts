@@ -68,6 +68,7 @@ import {
   KafkaTraceAdapter,
   KafkaAgentTracePublisher,
   KafkaNodeIOAdapter,
+  KafkaChatStreamAdapter,
 } from '../../adapters';
 import { ConfigurationError } from '@shipsec/component-sdk';
 import { getTopicResolver } from '../../common/kafka-topic-resolver';
@@ -254,11 +255,19 @@ async function main() {
     internalToken: process.env.INTERNAL_SERVICE_TOKEN ?? '',
   });
 
+  // Initialize chat stream Kafka adapter
+  const chatStreamAdapter = new KafkaChatStreamAdapter({
+    brokers: kafkaBrokers,
+    topic: topicResolver.getChatStreamTopic(),
+    clientId: process.env.CHAT_STREAM_KAFKA_CLIENT_ID ?? 'shipsec-worker-chat-stream',
+  });
+
   // Initialize chat agent activities
   initializeChatAgentActivities({
     database: db,
     redis: terminalStream ? new Redis(terminalRedisUrl!) : undefined,
     backendUrl: backendUrl,
+    chatStreamAdapter,
   });
 
   console.log(`✅ Service adapters initialized`);

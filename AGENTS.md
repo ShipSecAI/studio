@@ -32,7 +32,7 @@ just instance use 5    # Set active instance for this workspace
 ```bash
 just instance-init 5           # Initialize .instances/instance-5/*.env
 just instance-env init 5       # Create from app/.env or app/.env.example
-just instance-env update 5     # Re-apply instance-scoped vars
+just instance-env update 5     # Re-apply instance-scoped vars (including worker BACKEND_URL)
 just instance-env copy 5 6     # Copy env setup from instance 5 -> 6
 just instance-env show 6       # Show file status and computed values
 ```
