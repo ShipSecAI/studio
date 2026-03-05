@@ -112,6 +112,11 @@ interface ConversationMessageItem {
 
 type ConversationRenderItem = ConversationSeparatorItem | ConversationMessageItem;
 
+interface LocalSteerQueueItem {
+  id: string;
+  text: string;
+}
+
 function normalizeQueue(
   queue: QueueTurnIdentity[] | undefined,
   steerTargetTurnId: string | null | undefined,
@@ -762,6 +767,8 @@ export function ChatInterface() {
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
       clearQueueState();
+      setLocalSteerQueue([]);
+      setPendingSteerDispatchText(null);
       isCreatingSessionRef.current = false;
     }
   }, [newConversationToken, currentSessionId, clearQueueState]);
@@ -772,6 +779,8 @@ export function ChatInterface() {
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
       clearQueueState();
+      setLocalSteerQueue([]);
+      setPendingSteerDispatchText(null);
       isCreatingSessionRef.current = false;
       sessionIdRef.current = null;
       return;
@@ -781,6 +790,8 @@ export function ChatInterface() {
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
       clearQueueState();
+      setLocalSteerQueue([]);
+      setPendingSteerDispatchText(null);
       return;
     }
 
@@ -789,6 +800,8 @@ export function ChatInterface() {
     setSessionProcessingStartedAtMs(null);
     setIsStopping(false);
     setInterruptedMessageIds(new Set());
+    setLocalSteerQueue([]);
+    setPendingSteerDispatchText(null);
   }, [currentSessionId, routeSessionId, clearQueueState]);
 
   // Once the user switches away from the just-created session, clear the
@@ -880,6 +893,8 @@ export function ChatInterface() {
   const [interruptedMessageIds, setInterruptedMessageIds] = useState<Set<string>>(new Set());
   const [expandedCompactionIds, setExpandedCompactionIds] = useState<Set<string>>(new Set());
   const [steeringTurnId, setSteeringTurnId] = useState<string | null>(null);
+  const [localSteerQueue, setLocalSteerQueue] = useState<LocalSteerQueueItem[]>([]);
+  const [pendingSteerDispatchText, setPendingSteerDispatchText] = useState<string | null>(null);
   const handleSelectPrompt = useCallback((prompt: string) => {
     setPendingPrompt(prompt + ' ');
   }, []);
@@ -896,8 +911,9 @@ export function ChatInterface() {
   }, [currentSessionId, isStopping, chatTransport]);
 
   const handleSteerQueue = useCallback(async () => {
-    if (!currentSessionId || steeringTurnId) return;
+    if (!currentSessionId || steeringTurnId || localSteerQueue.length === 0) return;
     setSteeringTurnId('all');
+    setPendingSteerDispatchText(localSteerQueue.map((entry) => entry.text).join('\n\n'));
     try {
       await chatTransport.steerTurn(currentSessionId);
     } catch (err) {
@@ -907,10 +923,11 @@ export function ChatInterface() {
         title: 'Steer failed',
         description: 'Unable to steer to the queued messages.',
       });
+      setPendingSteerDispatchText(null);
     } finally {
       setSteeringTurnId(null);
     }
-  }, [currentSessionId, steeringTurnId, chatTransport, toast]);
+  }, [currentSessionId, steeringTurnId, localSteerQueue, chatTransport, toast]);
 
   const graphPanelUrl = useMemo(() => {
     if (!graphPanelRun) return '';
@@ -963,11 +980,18 @@ export function ChatInterface() {
       }
 
       if (isAgentWorking) {
+        setLocalSteerQueue((prev) => [
+          ...prev,
+          {
+            id: `local-steer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            text,
+          },
+        ]);
         toast({
-          title: 'Message queued',
-          description:
-            'Your message will be processed when the current response completes, or click Steer to redirect now.',
+          title: 'Added to local steer queue',
+          description: 'This message stays local until you click Steer Now.',
         });
+        return;
       }
       setIsStopping(false);
       sendMessage({ text });
@@ -975,8 +999,34 @@ export function ChatInterface() {
     [sendMessage, createSession, navigate, isAgentWorking, toast],
   );
 
+  useEffect(() => {
+    if (!pendingSteerDispatchText || !currentSessionId) return;
+    if (isAgentWorking) return;
+
+    sendMessage({ text: pendingSteerDispatchText, sessionId: currentSessionId });
+    setLocalSteerQueue([]);
+    setPendingSteerDispatchText(null);
+    setIsStopping(false);
+  }, [pendingSteerDispatchText, currentSessionId, isAgentWorking, sendMessage]);
+
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
   const userImageUrl = (user as { imageUrl?: string } | null)?.imageUrl;
+  const displayQueuedTurns = useMemo(() => {
+    if (localSteerQueue.length > 0) {
+      return localSteerQueue.map((entry, index) => ({
+        turnId: entry.id,
+        clientMessageId: null as string | null,
+        preview: entry.text,
+        queuePosition: index + 1,
+        status: 'queued',
+        queuedAt: null as string | null,
+        startedAt: null as string | null,
+        completedAt: null as string | null,
+      }));
+    }
+    return queuedTurns;
+  }, [localSteerQueue, queuedTurns]);
+  const displayPendingCount = localSteerQueue.length > 0 ? localSteerQueue.length : pendingCount;
   const conversationItems = useMemo<ConversationRenderItem[]>(() => {
     const items: ConversationRenderItem[] = [];
     for (let idx = 0; idx < messages.length; idx += 1) {
@@ -1320,28 +1370,28 @@ export function ChatInterface() {
                   <div aria-hidden className="h-6" />
                 )}
               </div>
-              {pendingCount > 0 && isAgentWorking && (
+              {displayPendingCount > 0 && isAgentWorking && (
                 <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-3">
                   <div className="mb-1 flex items-center justify-between">
                     <span className="text-xs font-medium text-foreground/80">
-                      Queue ({pendingCount})
+                      Queue ({displayPendingCount})
                     </span>
                     <button
                       type="button"
                       onClick={() => void handleSteerQueue()}
-                      disabled={Boolean(steeringTurnId)}
+                      disabled={Boolean(steeringTurnId) || localSteerQueue.length === 0}
                       className="shrink-0 rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground disabled:opacity-50"
                     >
                       {steeringTurnId ? 'Steering...' : 'Steer Now'}
                     </button>
                   </div>
                   <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
-                    {queuedTurns.length === 0 && (
+                    {displayQueuedTurns.length === 0 && (
                       <span className="text-[11px] text-muted-foreground">
                         Waiting for queue details from stream...
                       </span>
                     )}
-                    {queuedTurns.map((turn, index) => {
+                    {displayQueuedTurns.map((turn, index) => {
                       const displayPosition = turn.queuePosition ?? index + 1;
                       const preview =
                         turn.preview?.trim() && turn.preview.trim().length > 0
