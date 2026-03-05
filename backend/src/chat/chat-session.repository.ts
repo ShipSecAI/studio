@@ -3,10 +3,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, desc, eq, lt, sql, type SQL } from 'drizzle-orm';
 
 import { DRIZZLE_TOKEN } from '../database/database.module';
-import {
-  chatSessionsTable,
-  type ChatSession,
-} from '../database/schema';
+import { chatSessionsTable, type ChatSession } from '../database/schema';
 
 export interface ChatSessionQueryOptions {
   userId: string;
@@ -152,7 +149,11 @@ export class ChatSessionRepository {
 
   async setActiveTurn(
     id: string,
-    input: { turnId: string | null; generationId?: number | null; processingStatus?: 'idle' | 'processing' },
+    input: {
+      turnId: string | null;
+      generationId?: number | null;
+      processingStatus?: 'idle' | 'processing';
+    },
   ): Promise<void> {
     await this.db
       .update(chatSessionsTable)
@@ -244,5 +245,4 @@ export class ChatSessionRepository {
         ),
       );
   }
-
 }
