@@ -34,3 +34,8 @@ export const AppendInternalEventSchema = z.object({
   chunk: z.record(z.string(), z.any()),
 });
 export type AppendInternalEventDto = z.infer<typeof AppendInternalEventSchema>;
+
+export const UpsertPartialResponseSchema = z.object({
+  parts: z.array(z.any()),
+});
+export type UpsertPartialResponseDto = z.infer<typeof UpsertPartialResponseSchema>;

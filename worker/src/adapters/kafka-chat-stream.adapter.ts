@@ -44,24 +44,24 @@ export class KafkaChatStreamAdapter {
     });
   }
 
-  /** Fire-and-forget produce with sessionId as partition key for affinity */
-  emit(sessionId: string, envelope: Omit<KafkaChatChunkPayload, 'sessionId'>): void {
+  /** Produce with sessionId as partition key for affinity; resolves when broker ack is received */
+  async emit(sessionId: string, envelope: Omit<KafkaChatChunkPayload, 'sessionId'>): Promise<void> {
     const payload: KafkaChatChunkPayload = { sessionId, ...envelope };
 
-    void this.connectPromise
-      .then(() =>
-        this.producer.send({
-          topic: this.config.topic,
-          messages: [
-            {
-              key: sessionId,
-              value: JSON.stringify(payload),
-            },
-          ],
-        }),
-      )
-      .catch((error) => {
-        this.logger.error('[KafkaChatStreamAdapter] Failed to send chat stream event', error);
+    try {
+      await this.connectPromise;
+      await this.producer.send({
+        topic: this.config.topic,
+        messages: [
+          {
+            key: sessionId,
+            value: JSON.stringify(payload),
+          },
+        ],
       });
+    } catch (error) {
+      this.logger.error('[KafkaChatStreamAdapter] Failed to send chat stream event', error);
+      throw error;
+    }
   }
 }

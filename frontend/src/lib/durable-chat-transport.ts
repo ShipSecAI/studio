@@ -114,6 +114,9 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
   openSessionStream(sessionId: string, afterSeq = 0): Promise<void> {
     if (this.isEphemeralChatId(sessionId)) return Promise.resolve();
     if (this.sessionSseSessionId === sessionId && this.sessionSseController) {
+      if (afterSeq > this.lastSeq) {
+        this.lastSeq = afterSeq;
+      }
       return this.sseConnectedPromise ?? Promise.resolve();
     }
 
@@ -215,7 +218,29 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     let res: Response;
     try {
       res = await fetch(url.toString(), { headers, signal: controller.signal });
-      if (!res.ok || !res.body) return;
+      if (!res.ok || !res.body) {
+        if (controller.signal.aborted) return;
+
+        let retryAfterMs: number | undefined;
+        const retryAfter = res.headers.get('retry-after');
+        if (retryAfter) {
+          const retryAfterSeconds = Number(retryAfter);
+          if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+            retryAfterMs = retryAfterSeconds * 1000;
+          } else {
+            const retryAfterTime = Date.parse(retryAfter);
+            if (Number.isFinite(retryAfterTime)) {
+              retryAfterMs = Math.max(0, retryAfterTime - Date.now());
+            }
+          }
+        }
+
+        console.warn(
+          `[DurableChatTransport] SSE connection rejected: ${res.status} ${res.statusText}`,
+        );
+        this.scheduleReconnect(sessionId, retryAfterMs);
+        return;
+      }
     } catch (error) {
       if (controller.signal.aborted) return;
       console.warn('[DurableChatTransport] SSE connection failed:', error);
@@ -266,14 +291,20 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     this.scheduleReconnect(sessionId);
   }
 
-  private scheduleReconnect(sessionId: string): void {
+  private scheduleReconnect(sessionId: string, overrideDelayMs?: number): void {
     if (this.sessionSseSessionId !== sessionId) return;
     if (this.sessionSseController?.signal.aborted) return;
+    if (this.reconnectTimer) return;
 
-    const delay = Math.min(2000 * Math.pow(2, this.reconnectAttempts), 30000);
+    const fallbackDelay = Math.min(2000 * Math.pow(2, this.reconnectAttempts), 30000);
+    const delay =
+      overrideDelayMs != null && Number.isFinite(overrideDelayMs)
+        ? Math.max(1000, Math.min(overrideDelayMs, 30000))
+        : fallbackDelay;
     this.reconnectAttempts++;
 
     this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
       if (this.sessionSseSessionId === sessionId) {
         this.sseConnectedPromise = this.startSse(sessionId);
       }
@@ -291,7 +322,10 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
 
     // Track seq for reconnect cursor
     const seq = typeof chunk.seq === 'number' ? chunk.seq : null;
-    if (seq != null && seq > this.lastSeq) {
+    if (seq != null) {
+      if (seq <= this.lastSeq) {
+        return;
+      }
       this.lastSeq = seq;
     }
 

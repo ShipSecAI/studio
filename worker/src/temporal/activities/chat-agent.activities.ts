@@ -175,17 +175,25 @@ async function appendStreamEvent(
   sessionId: string,
   envelope: ChatChunkEnvelope,
 ): Promise<AppendResult> {
-  // Kafka path: fire-and-forget, backend consumer handles persistence + fan-out
-  // Return seq: 0 (not null) to avoid tripping the circuit breaker — seq is assigned by the consumer
+  // Kafka path: broker-acked produce, backend consumer handles persistence + fan-out
+  // Return seq: 0 (not null) because the durable per-session seq is assigned by backend ingestion.
   if (globalChatStreamAdapter) {
-    globalChatStreamAdapter.emit(sessionId, {
-      turnId: envelope.turnId,
-      runId: envelope.runId ?? '',
-      generationId: String(envelope.generationId ?? ''),
-      eventId: envelope.eventId,
-      chunk: envelope.chunk,
-    });
-    return { seq: 0, staleMismatch: false };
+    try {
+      await withTimeout(
+        globalChatStreamAdapter.emit(sessionId, {
+          turnId: envelope.turnId,
+          runId: envelope.runId ?? '',
+          generationId: String(envelope.generationId ?? ''),
+          eventId: envelope.eventId,
+          chunk: envelope.chunk,
+        }),
+        2000,
+        'Kafka chat emit',
+      );
+      return { seq: 0, staleMismatch: false };
+    } catch {
+      return { seq: null, staleMismatch: false };
+    }
   }
 
   // REST fallback

@@ -8,6 +8,7 @@ import { ChatService } from '../chat.service';
 import type { ChatStreamService } from '../chat-stream.service';
 import type { ChatTurnDraftRepository } from '../chat-turn-draft.repository';
 import type { ChatTurnRepository } from '../chat-turn.repository';
+import type { ChatPartialRepository } from '../chat-partial.repository';
 
 describe('ChatService Unit Tests', () => {
   let service: ChatService;
@@ -15,6 +16,7 @@ describe('ChatService Unit Tests', () => {
   let turnRepository: ChatTurnRepository;
   let sessionEventRepository: ChatSessionEventRepository;
   let turnDraftRepository: ChatTurnDraftRepository;
+  let partialRepository: ChatPartialRepository;
   let chatStreamService: ChatStreamService;
   let temporalService: TemporalService;
 
@@ -53,6 +55,13 @@ describe('ChatService Unit Tests', () => {
       updateSessionTitle: jest.fn(),
       deleteSession: jest.fn(),
       getMessages: jest.fn().mockResolvedValue([]),
+      saveMessage: jest.fn().mockResolvedValue({
+        id: 'msg-1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'hello' }],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
       setTemporalWorkflowId: jest.fn(),
       setSteerIntent: jest.fn(),
       clearSteerIntent: jest.fn(),
@@ -91,6 +100,12 @@ describe('ChatService Unit Tests', () => {
       upsert: jest.fn(),
     } as unknown as ChatTurnDraftRepository;
 
+    partialRepository = {
+      upsert: jest.fn(),
+      get: jest.fn().mockResolvedValue(null),
+      delete: jest.fn(),
+    } as unknown as ChatPartialRepository;
+
     chatStreamService = {
       publish: jest.fn(),
       isAvailable: jest.fn().mockReturnValue(false),
@@ -113,6 +128,7 @@ describe('ChatService Unit Tests', () => {
       turnRepository,
       sessionEventRepository,
       turnDraftRepository,
+      partialRepository,
       chatStreamService,
       temporalService,
     );

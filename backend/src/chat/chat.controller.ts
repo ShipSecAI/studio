@@ -23,12 +23,14 @@ import {
   EnqueueTurnSchema,
   SendMessageSchema,
   SteerSessionSchema,
+  UpsertPartialResponseSchema,
   UpdateSessionSchema,
   type AppendInternalEventDto,
   type CreateSessionDto,
   type EnqueueTurnDto,
   type SendMessageDto,
   type SteerSessionDto,
+  type UpsertPartialResponseDto,
   type UpdateSessionDto,
 } from './dto/chat-session.dto';
 
@@ -183,6 +185,16 @@ export class ChatController {
   ) {
     const seq = await this.chatService.appendInternalEvent(id, body);
     return res.status(HttpStatus.OK).json({ seq });
+  }
+
+  @Post(':id/partial')
+  @SkipThrottle()
+  async upsertPartial(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpsertPartialResponseSchema)) body: UpsertPartialResponseDto,
+  ) {
+    await this.chatService.upsertPartialResponse(id, body.parts);
+    return { success: true };
   }
 
   @Post(':id/complete')

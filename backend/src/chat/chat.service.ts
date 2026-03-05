@@ -8,6 +8,7 @@ import { ChatSessionRepository } from './chat-session.repository';
 import { ChatTurnRepository } from './chat-turn.repository';
 import { ChatSessionEventRepository } from './chat-session-event.repository';
 import { ChatTurnDraftRepository } from './chat-turn-draft.repository';
+import { ChatPartialRepository } from './chat-partial.repository';
 import { ChatStreamService } from './chat-stream.service';
 import { TemporalService } from '../temporal/temporal.service';
 import { applyTurnStatus } from './chat-turn-status.util';
@@ -22,6 +23,8 @@ You help users manage their automation workflows. You can:
 Be concise and helpful. When a user asks to run a workflow, confirm the workflow name
 and any required inputs before executing. Always show run IDs so users can track progress.`;
 
+const STREAM_REPLAY_BATCH_SIZE = 500;
+
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
@@ -31,6 +34,7 @@ export class ChatService {
     private readonly turnRepository: ChatTurnRepository,
     private readonly sessionEventRepository: ChatSessionEventRepository,
     private readonly turnDraftRepository: ChatTurnDraftRepository,
+    private readonly partialRepository: ChatPartialRepository,
     private readonly chatStreamService: ChatStreamService,
     private readonly temporalService: TemporalService,
   ) {}
@@ -319,12 +323,13 @@ export class ChatService {
 
   async getState(sessionId: string, auth: AuthContext) {
     const session = await this.assertSessionAccess(sessionId, auth);
-    const [messages, activeTurn, latestTurn, queuedTurns, lastSeq] = await Promise.all([
+    const [messages, activeTurn, latestTurn, queuedTurns, lastSeq, partial] = await Promise.all([
       this.sessionRepository.getMessages(sessionId),
       this.turnRepository.getRunningTurn(sessionId),
       this.turnRepository.getLatestTurn(sessionId),
       this.turnRepository.listQueuedTurns(sessionId),
       this.sessionEventRepository.getLastSeq(sessionId),
+      this.partialRepository.get(sessionId),
     ]);
 
     let hydratedMessages = messages.map((m) => ({
@@ -342,11 +347,23 @@ export class ChatService {
       recoveryTurn?.status !== 'queued';
 
     if (shouldRecoverAssistant && recoveryTurn) {
-      const recovered = await this.recoverAssistantMessageFromTurnEvents(
-        sessionId,
-        recoveryTurn.id,
-        recoveryTurn.startedAt ?? recoveryTurn.endedAt ?? recoveryTurn.queuedAt ?? null,
-      );
+      let recovered =
+        activeTurn != null
+          ? this.recoverAssistantMessageFromPartial(
+              recoveryTurn.id,
+              partial,
+              recoveryTurn.startedAt ?? recoveryTurn.endedAt ?? recoveryTurn.queuedAt ?? null,
+            )
+          : null;
+
+      if (!recovered) {
+        recovered = await this.recoverAssistantMessageFromTurnEvents(
+          sessionId,
+          recoveryTurn.id,
+          recoveryTurn.startedAt ?? recoveryTurn.endedAt ?? recoveryTurn.queuedAt ?? null,
+        );
+      }
+
       if (recovered) {
         hydratedMessages = [...hydratedMessages, recovered];
       }
@@ -396,6 +413,23 @@ export class ChatService {
       afterSeq: lastSeq,
       lastSeq,
       processingStatus,
+    };
+  }
+
+  private recoverAssistantMessageFromPartial(
+    turnId: string,
+    partial: { parts: unknown[]; updatedAt: Date } | null,
+    createdAt: Date | null,
+  ): { id: string; role: 'assistant'; parts: unknown[]; createdAt: Date } | null {
+    if (!partial || !Array.isArray(partial.parts) || partial.parts.length === 0) {
+      return null;
+    }
+
+    return {
+      id: `turn-${turnId}`,
+      role: 'assistant',
+      parts: partial.parts,
+      createdAt: partial.updatedAt ?? createdAt ?? new Date(),
     };
   }
 
@@ -507,6 +541,7 @@ export class ChatService {
 
     await this.sessionRepository.completeRun(sessionId, runId);
     await this.sessionRepository.clearSteerIntent(sessionId);
+    await this.partialRepository.delete(sessionId);
 
     // Emit a reliable terminal event via Redis so all SSE clients close their turn streams
     // and clear the "Stopping..." state. Duplicate events are harmless.
@@ -596,6 +631,10 @@ export class ChatService {
     });
   }
 
+  async upsertPartialResponse(sessionId: string, parts: unknown[]): Promise<void> {
+    await this.partialRepository.upsert(sessionId, parts);
+  }
+
   async streamToResponse(
     sessionId: string,
     auth: AuthContext,
@@ -625,16 +664,30 @@ export class ChatService {
     });
 
     // Replay all session events (no runId filtering — session-level SSE)
-    const replayRows = await this.sessionEventRepository.listAfter(sessionId, lastSeq, 500);
-    for (const row of replayRows) {
-      lastSeq = row.seq;
-      const chunk = this.decorateStreamChunk(row.chunk, {
-        seq: row.seq,
-        runId: row.runId,
-        generationId: row.generationId,
-        turnId: row.turnId,
-      });
-      writeChunk(chunk);
+    while (true) {
+      const replayRows = await this.sessionEventRepository.listAfter(
+        sessionId,
+        lastSeq,
+        STREAM_REPLAY_BATCH_SIZE,
+      );
+      if (replayRows.length === 0) {
+        break;
+      }
+
+      for (const row of replayRows) {
+        lastSeq = row.seq;
+        const chunk = this.decorateStreamChunk(row.chunk, {
+          seq: row.seq,
+          runId: row.runId,
+          generationId: row.generationId,
+          turnId: row.turnId,
+        });
+        writeChunk(chunk);
+      }
+
+      if (replayRows.length < STREAM_REPLAY_BATCH_SIZE) {
+        break;
+      }
     }
 
     if (!this.chatStreamService.isAvailable()) {
@@ -706,6 +759,7 @@ export class ChatService {
     close: () => void,
   ): Promise<void> {
     let lastSeq = initialSeq;
+    let pollInFlight = false;
 
     await new Promise<void>((resolve) => {
       const heartbeat = setInterval(() => {
@@ -714,22 +768,35 @@ export class ChatService {
         }
       }, 15000);
 
-      const poll = setInterval(async () => {
-        try {
-          const rows = await this.sessionEventRepository.listAfter(sessionId, lastSeq, 500);
-          for (const row of rows) {
-            lastSeq = row.seq;
-            const chunk = this.decorateStreamChunk(row.chunk, {
-              seq: row.seq,
-              runId: row.runId,
-              generationId: row.generationId,
-              turnId: row.turnId,
-            });
-            writeChunk(chunk);
-          }
-        } catch (error) {
-          this.logger.error(`Polling stream fallback failed for ${sessionId}`, error);
+      const poll = setInterval(() => {
+        if (pollInFlight || res.closed) {
+          return;
         }
+
+        pollInFlight = true;
+        void (async () => {
+          try {
+            const rows = await this.sessionEventRepository.listAfter(
+              sessionId,
+              lastSeq,
+              STREAM_REPLAY_BATCH_SIZE,
+            );
+            for (const row of rows) {
+              lastSeq = row.seq;
+              const chunk = this.decorateStreamChunk(row.chunk, {
+                seq: row.seq,
+                runId: row.runId,
+                generationId: row.generationId,
+                turnId: row.turnId,
+              });
+              writeChunk(chunk);
+            }
+          } catch (error) {
+            this.logger.error(`Polling stream fallback failed for ${sessionId}`, error);
+          } finally {
+            pollInFlight = false;
+          }
+        })();
       }, 250);
 
       res.on('close', () => {

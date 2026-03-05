@@ -324,15 +324,33 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
       return;
     }
 
-    // Open SSE FIRST with afterSeq=0 so no events are missed during refresh.
-    // The SSE endpoint replays from afterSeq and deduplicates via seq tracking.
-    transport.openSessionStream(sessionId, 0);
+    let cancelled = false;
 
-    // Then hydrate from backend — any events that arrive via SSE before
-    // refreshState returns are already handled by the chunk subscription.
-    void refreshState(sessionId);
+    void (async () => {
+      // Hydrate first so we can resume from the latest known durable cursor.
+      const initialState = await refreshState(sessionId);
+      if (cancelled || sessionIdRef.current !== sessionId) {
+        return;
+      }
+
+      const afterSeq = Math.max(0, initialState?.afterSeq ?? initialState?.lastSeq ?? 0);
+      await transport.openSessionStream(sessionId, afterSeq);
+
+      if (cancelled || sessionIdRef.current !== sessionId) {
+        return;
+      }
+
+      // One immediate refresh after stream attach closes the small race window
+      // between initial state fetch and SSE connection establishment.
+      void refreshState(sessionId);
+    })().catch((err) => {
+      if (!cancelled && sessionIdRef.current === sessionId) {
+        setError(err instanceof Error ? err : new Error(String(err)));
+      }
+    });
 
     return () => {
+      cancelled = true;
       // Cleanup streaming state on session switch
       if (throttleTimerRef.current) {
         clearTimeout(throttleTimerRef.current);
