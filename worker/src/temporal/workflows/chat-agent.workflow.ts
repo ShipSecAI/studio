@@ -330,8 +330,7 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
       }
     } catch (err) {
       if (isCancellation(err)) {
-        // Interrupted — the activity already flushed partial state.
-        // Run completion is decided after we see whether new queued turns exist.
+        // Interrupted — the activity already flushed partial state and marker.
       } else {
         messages.push({
           role: 'assistant',

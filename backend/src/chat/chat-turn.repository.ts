@@ -122,6 +122,14 @@ export class ChatTurnRepository {
       .limit(limit);
   }
 
+  async listInterruptedTurns(sessionId: string): Promise<ChatTurn[]> {
+    return this.db
+      .select()
+      .from(chatTurnsTable)
+      .where(and(eq(chatTurnsTable.sessionId, sessionId), eq(chatTurnsTable.status, 'interrupted')))
+      .orderBy(asc(chatTurnsTable.queuedAt), asc(chatTurnsTable.createdAt));
+  }
+
   async getQueuePosition(sessionId: string, turnId: string): Promise<number> {
     const turn = await this.getTurn(sessionId, turnId);
     if (turn.status !== 'queued') {

@@ -316,14 +316,16 @@ export class ChatService {
 
   async getState(sessionId: string, auth: AuthContext) {
     const session = await this.assertSessionAccess(sessionId, auth);
-    const [messages, activeTurn, latestTurn, queuedTurns, lastSeq, partial] = await Promise.all([
-      this.sessionRepository.getMessages(sessionId),
-      this.turnRepository.getRunningTurn(sessionId),
-      this.turnRepository.getLatestTurn(sessionId),
-      this.turnRepository.listQueuedTurns(sessionId),
-      this.sessionEventRepository.getLastSeq(sessionId),
-      this.partialRepository.get(sessionId),
-    ]);
+    const [messages, activeTurn, latestTurn, queuedTurns, interruptedTurns, lastSeq, partial] =
+      await Promise.all([
+        this.sessionRepository.getMessages(sessionId),
+        this.turnRepository.getRunningTurn(sessionId),
+        this.turnRepository.getLatestTurn(sessionId),
+        this.turnRepository.listQueuedTurns(sessionId),
+        this.turnRepository.listInterruptedTurns(sessionId),
+        this.sessionEventRepository.getLastSeq(sessionId),
+        this.partialRepository.get(sessionId),
+      ]);
 
     let hydratedMessages = messages.map((m) => ({
       id: m.id,
@@ -333,11 +335,20 @@ export class ChatService {
     }));
 
     const recoveryTurn = activeTurn ?? latestTurn;
-    const lastHydrated = hydratedMessages[hydratedMessages.length - 1];
+    const recoveryAnchorTime =
+      recoveryTurn?.startedAt ?? recoveryTurn?.endedAt ?? recoveryTurn?.queuedAt ?? null;
+    const hasPersistedAssistantForRecoveryTurn =
+      Boolean(recoveryAnchorTime) &&
+      hydratedMessages.some(
+        (message) =>
+          message.role === 'assistant' &&
+          message.createdAt instanceof Date &&
+          message.createdAt >= (recoveryAnchorTime as Date),
+      );
     const shouldRecoverAssistant =
       Boolean(recoveryTurn) &&
-      (!lastHydrated || lastHydrated.role !== 'assistant') &&
-      recoveryTurn?.status !== 'queued';
+      recoveryTurn?.status !== 'queued' &&
+      !hasPersistedAssistantForRecoveryTurn;
 
     if (shouldRecoverAssistant && recoveryTurn) {
       let recovered =
@@ -383,9 +394,14 @@ export class ChatService {
           ? 'processing'
           : 'idle';
     const activeRunId = activeTurn?.runId ?? session.activeRunId ?? null;
+    const interruptionBoundaries = this.buildInterruptionBoundaries(
+      hydratedMessages,
+      interruptedTurns,
+    );
 
     return {
       messages: hydratedMessages,
+      interruptionBoundaries,
       activeTurn: activeTurn
         ? {
             turnId: activeTurn.id,
@@ -407,6 +423,38 @@ export class ChatService {
       lastSeq,
       processingStatus,
     };
+  }
+
+  private buildInterruptionBoundaries(
+    messages: { role: string; createdAt?: Date }[],
+    interruptedTurns: {
+      id: string;
+      queuedAt: Date;
+      startedAt: Date | null;
+      endedAt: Date | null;
+    }[],
+  ): { turnId: string; beforeMessageIndex: number }[] {
+    if (messages.length === 0 || interruptedTurns.length === 0) return [];
+
+    const userMessageIndices: number[] = [];
+    for (let i = 0; i < messages.length; i += 1) {
+      if (messages[i]?.role === 'user') {
+        userMessageIndices.push(i);
+      }
+    }
+
+    return interruptedTurns.map((turn) => {
+      const boundaryTime = turn.endedAt ?? turn.startedAt ?? turn.queuedAt;
+      let beforeMessageIndex = messages.length;
+      for (const idx of userMessageIndices) {
+        const createdAt = messages[idx]?.createdAt;
+        if (createdAt && createdAt > boundaryTime) {
+          beforeMessageIndex = idx;
+          break;
+        }
+      }
+      return { turnId: turn.id, beforeMessageIndex };
+    });
   }
 
   private recoverAssistantMessageFromPartial(

@@ -28,6 +28,10 @@ export interface ChatSessionStateResponse {
     parts: UIMessage['parts'];
     createdAt?: string;
   }[];
+  interruptionBoundaries?: {
+    turnId: string;
+    beforeMessageIndex: number;
+  }[];
   afterSeq?: number;
   lastSeq?: number;
   processingStatus: 'idle' | 'processing' | 'stopping';

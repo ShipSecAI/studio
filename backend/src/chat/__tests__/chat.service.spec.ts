@@ -85,6 +85,7 @@ describe('ChatService Unit Tests', () => {
       getRunningTurn: jest.fn().mockResolvedValue(null),
       getLatestTurn: jest.fn().mockResolvedValue(null),
       listQueuedTurns: jest.fn().mockResolvedValue([]),
+      listInterruptedTurns: jest.fn().mockResolvedValue([]),
       setTurnStatus: jest.fn(),
       setTurnRunning: jest.fn(),
     } as unknown as ChatTurnRepository;

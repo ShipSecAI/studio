@@ -34,7 +34,7 @@ import type { UIMessage } from 'ai';
 import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
 import { StatusBar } from '@/components/agent/StatusBar';
 import { useToast } from '@/components/ui/use-toast';
-import { DurableChatTransport, type QueueTurnIdentity } from '@/lib/durable-chat-transport';
+import { DurableChatTransport, type ChatSessionStateResponse } from '@/lib/durable-chat-transport';
 
 // AI Elements
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
@@ -85,11 +85,6 @@ interface TurnStatusPayload {
   processingStatus?: 'idle' | 'processing' | 'stopping';
   activeRunId?: string | null;
   activeRunStartedAt?: string | null;
-  pendingCount?: number;
-  generationId?: number | null;
-  steerTargetTurnId?: string | null;
-  queue?: QueueTurnIdentity[];
-  queuedTurns?: QueueTurnIdentity[];
   afterSeq?: number;
   lastSeq?: number;
   seq?: number;
@@ -115,33 +110,6 @@ type ConversationRenderItem = ConversationSeparatorItem | ConversationMessageIte
 interface LocalSteerQueueItem {
   id: string;
   text: string;
-}
-
-function normalizeQueue(
-  queue: QueueTurnIdentity[] | undefined,
-  steerTargetTurnId: string | null | undefined,
-) {
-  const queuedTurns = (queue ?? [])
-    .filter((item): item is QueueTurnIdentity & { turnId: string } => Boolean(item.turnId))
-    .map((item, index) => ({
-      turnId: item.turnId,
-      clientMessageId: item.clientMessageId ?? null,
-      preview: item.preview ?? null,
-      queuePosition: item.queuePosition ?? index + 1,
-      status: item.status ?? 'queued',
-      queuedAt: item.queuedAt ?? null,
-      startedAt: item.startedAt ?? null,
-      completedAt: item.completedAt ?? null,
-    }))
-    .sort((a, b) => {
-      const aPos = a.queuePosition ?? Number.MAX_SAFE_INTEGER;
-      const bPos = b.queuePosition ?? Number.MAX_SAFE_INTEGER;
-      return aPos - bPos;
-    });
-  const queueOrder = queuedTurns.map((turn) => turn.turnId);
-  const targetTurnId =
-    steerTargetTurnId ?? queuedTurns.find((turn) => turn.status === 'running')?.turnId ?? null;
-  return { queuedTurns, queueOrder, steerTargetTurnId: targetTurnId };
 }
 
 function extractCompactionSnapshot(message: UIMessage): string | null {
@@ -218,17 +186,11 @@ const ToolPartRenderer = memo(function ToolPartRenderer({ part, idx }: { part: a
 interface ChatMessageProps {
   message: UIMessage;
   isStreaming: boolean;
-  isInterrupted?: boolean;
   userImageUrl?: string;
 }
 
 const ChatMessageItem = memo(
-  function ChatMessageItem({
-    message,
-    isStreaming,
-    isInterrupted,
-    userImageUrl,
-  }: ChatMessageProps) {
+  function ChatMessageItem({ message, isStreaming, userImageUrl }: ChatMessageProps) {
     const isAssistant = message.role === 'assistant';
     const hasContent = message.parts.some(
       (p) => (p.type === 'text' && p.text) || isToolOrDynamicToolUIPart(p),
@@ -301,14 +263,6 @@ const ChatMessageItem = memo(
                   {isAssistant && isStreaming && getMessageText(message) && (
                     <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
                   )}
-
-                  {/* Interrupted annotation */}
-                  {isAssistant && isInterrupted && !isStreaming && (
-                    <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground border-t border-border/50 pt-2">
-                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
-                      Response interrupted by user
-                    </div>
-                  )}
                 </>
               )}
             </MessageContent>
@@ -332,7 +286,6 @@ const ChatMessageItem = memo(
     // During streaming only the last (streaming) message changes — all others
     // keep the same parts reference so this short-circuits the diff.
     if (prev.isStreaming !== next.isStreaming) return false;
-    if (prev.isInterrupted !== next.isInterrupted) return false;
     if (prev.message !== next.message) return false;
     if (prev.userImageUrl !== next.userImageUrl) return false;
     return true;
@@ -436,10 +389,6 @@ export function ChatInterface() {
     newConversationToken,
     selectedRunId,
     isRunInspectorOpen,
-    pendingCount,
-    queuedTurns,
-    setQueueState,
-    clearQueueState,
   } = useChatStore(
     useShallow((state) => ({
       sessions: state.sessions,
@@ -453,10 +402,6 @@ export function ChatInterface() {
       newConversationToken: state.newConversationToken,
       selectedRunId: state.selectedRunId,
       isRunInspectorOpen: state.isRunInspectorOpen,
-      pendingCount: state.pendingCount,
-      queuedTurns: state.queuedTurns,
-      setQueueState: state.setQueueState,
-      clearQueueState: state.clearQueueState,
     })),
   );
   const { data: selectedRunData } = useExecutionRun(selectedRunId);
@@ -514,97 +459,19 @@ export function ChatInterface() {
   const [sessionProcessingStartedAtMs, setSessionProcessingStartedAtMs] = useState<number | null>(
     null,
   );
-  const applyQueueSnapshot = useCallback(
-    (
-      snapshot: {
-        pendingCount?: number;
-        generationId?: number | null;
-        steerTargetTurnId?: string | null;
-        queue?: QueueTurnIdentity[];
-        queuedTurns?: QueueTurnIdentity[];
-      },
-      sessionId: string | null | undefined,
-    ) => {
-      const normalizedQueue = normalizeQueue(
-        snapshot.queue ?? snapshot.queuedTurns,
-        snapshot.steerTargetTurnId,
-      );
-      setQueueState(
-        {
-          pendingCount: snapshot.pendingCount ?? normalizedQueue.queuedTurns.length,
-          generationId: snapshot.generationId ?? null,
-          steerTargetTurnId: normalizedQueue.steerTargetTurnId,
-          queueOrder: normalizedQueue.queueOrder,
-          queuedTurns: normalizedQueue.queuedTurns,
-        },
-        sessionId,
-      );
-    },
-    [setQueueState],
-  );
 
-  // Create DurableChatTransport — onChunk/queue logic moved to useDurableChat callbacks.
+  // Create DurableChatTransport.
   const chatTransport = useMemo(
     () =>
       new DurableChatTransport({
         apiBase: API_V1_URL,
         getAuthHeaders: getApiAuthHeaders,
-        onQueuedTurn: (response, context) => {
-          const activeSessionId = routeSessionIdRef.current ?? sessionIdRef.current;
-          if (activeSessionId && context.sessionId !== activeSessionId) {
-            return;
-          }
-          setSessionProcessing(true);
-          const turnId = response.turnId;
-          const existing = useChatStore.getState().queuedTurns;
-          if (!turnId) {
-            setQueueState(
-              {
-                pendingCount: response.pendingCount ?? existing.length,
-                generationId: response.generationId ?? null,
-              },
-              activeSessionId,
-            );
-            return;
-          }
-
-          const deduped = existing.filter((turn) => turn.turnId !== turnId);
-          const queuePosition = response.queuePosition ?? deduped.length + 1;
-          const queuedTurns = [
-            ...deduped,
-            {
-              turnId,
-              clientMessageId: response.clientMessageId ?? null,
-              preview: response.preview ?? null,
-              queuePosition,
-              status: 'queued',
-              queuedAt: null,
-              startedAt: null,
-              completedAt: null,
-            },
-          ].sort(
-            (a, b) =>
-              (a.queuePosition ?? Number.MAX_SAFE_INTEGER) -
-              (b.queuePosition ?? Number.MAX_SAFE_INTEGER),
-          );
-
-          setQueueState(
-            {
-              pendingCount: response.pendingCount ?? queuedTurns.length,
-              generationId: response.generationId ?? null,
-              steerTargetTurnId: response.steerTargetTurnId ?? null,
-              queueOrder: queuedTurns.map((turn) => turn.turnId),
-              queuedTurns,
-            },
-            activeSessionId,
-          );
-        },
       }),
-    [setQueueState],
+    [],
   );
 
   // ── useDurableChat: owns messages, SSE lifecycle, streaming buffer ──
-  const { messages, sendMessage, status, error } = useDurableChat({
+  const { messages, sendMessage, refreshState, status, error } = useDurableChat({
     transport: chatTransport,
     sessionId: currentSessionId,
     onChunk: (chunk, context) => {
@@ -613,174 +480,63 @@ export function ChatInterface() {
 
       const payload = getTurnStatusChunkPayload(chunk);
       if (!payload) return;
-
-      // Lifecycle-only chunks can omit queue snapshots; keep local queue state in that case.
-      const hasQueueSnapshot =
-        Array.isArray(payload.queue) ||
-        Array.isArray(payload.queuedTurns) ||
-        typeof payload.pendingCount === 'number' ||
-        payload.processingStatus != null ||
-        payload.activeRunId != null;
-
-      if (!hasQueueSnapshot) {
-        if (payload.status === 'queued') {
-          const turnId = payload.turnId;
-          if (turnId) {
-            const existing = useChatStore.getState().queuedTurns;
-            const deduped = existing.filter((turn) => turn.turnId !== turnId);
-            const queuePosition = deduped.length + 1;
-            const turns = [
-              ...deduped,
-              {
-                turnId,
-                clientMessageId: null,
-                preview: payload.preview ?? null,
-                queuePosition,
-                status: 'queued',
-                queuedAt: payload.queuedAt ?? null,
-                startedAt: null,
-                completedAt: null,
-              },
-            ].sort(
-              (a, b) =>
-                (a.queuePosition ?? Number.MAX_SAFE_INTEGER) -
-                (b.queuePosition ?? Number.MAX_SAFE_INTEGER),
-            );
-            setQueueState(
-              {
-                pendingCount: turns.length,
-                queueOrder: turns.map((t) => t.turnId),
-                queuedTurns: turns,
-                steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
-              },
-              activeSessionId,
-            );
-            setSessionProcessing(true);
-          }
-        }
-        if (payload.status === 'running') {
-          setIsStopping(false);
-          const existing = useChatStore.getState().queuedTurns;
-          const turnId = payload.turnId;
-          if (turnId) {
-            const startedAt = payload.startedAt ?? new Date().toISOString();
-            const nextQueuedTurns = existing.map((turn) =>
-              turn.turnId === turnId ? { ...turn, status: 'running', startedAt } : turn,
-            );
-            setQueueState(
-              {
-                pendingCount: nextQueuedTurns.length,
-                queueOrder: nextQueuedTurns.map((t) => t.turnId),
-                queuedTurns: nextQueuedTurns,
-                steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
-              },
-              activeSessionId,
-            );
-          }
-          setSessionProcessing(true);
-        }
-        if (payload.status === 'stopping') {
-          setIsStopping(true);
-        }
-        if (
-          payload.status === 'completed' ||
-          payload.status === 'interrupted' ||
-          payload.status === 'failed' ||
-          payload.status === 'cancelled'
-        ) {
-          setIsStopping(false);
-          if (payload.status === 'interrupted') {
-            const msgs = messagesRef.current;
-            for (let i = msgs.length - 1; i >= 0; i--) {
-              if (msgs[i].role === 'assistant') {
-                setInterruptedMessageIds((prev) => new Set(prev).add(msgs[i].id));
-                break;
-              }
-            }
-          }
-          const existing = useChatStore.getState().queuedTurns;
-          const terminalTurnId = payload.turnId;
-          const nextQueuedTurns = terminalTurnId
-            ? existing.filter((turn) => turn.turnId !== terminalTurnId)
-            : existing.filter((turn) => turn.status !== 'running');
-          if (nextQueuedTurns.length > 0) {
-            setQueueState(
-              {
-                pendingCount: nextQueuedTurns.length,
-                queueOrder: nextQueuedTurns.map((t) => t.turnId),
-                queuedTurns: nextQueuedTurns,
-                steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
-              },
-              activeSessionId,
-            );
-            setSessionProcessing(true);
-          } else {
-            clearQueueState(activeSessionId);
-            setSessionProcessing(false);
-            setSessionProcessingStartedAtMs(null);
-          }
-        }
-        return;
-      }
-
-      if (payload.processingStatus === 'idle') {
-        setSessionProcessing(false);
-        setSessionProcessingStartedAtMs(null);
-        setIsStopping(false);
-        clearQueueState(activeSessionId);
-        return;
-      }
-
-      applyQueueSnapshot(payload, activeSessionId);
-
-      if (payload.processingStatus === 'processing' || payload.processingStatus === 'stopping') {
+      if (payload.status === 'running' || payload.status === 'queued') {
         setSessionProcessing(true);
-        if (payload.processingStatus === 'stopping') {
-          setIsStopping(true);
+        if (payload.startedAt) {
+          setSessionProcessingStartedAtMs(new Date(payload.startedAt).getTime());
         }
-        setSessionProcessingStartedAtMs(
-          payload.activeRunStartedAt ? new Date(payload.activeRunStartedAt).getTime() : null,
-        );
+      }
+      if (payload.status === 'stopping') {
+        setSessionProcessing(true);
+        setIsStopping(true);
+      }
+      if (
+        payload.status === 'completed' ||
+        payload.status === 'interrupted' ||
+        payload.status === 'failed' ||
+        payload.status === 'cancelled'
+      ) {
+        setIsStopping(false);
+      }
+
+      // Single source of truth for processing state comes from backend /state.
+      // We refresh on lifecycle edges to avoid rebuilding queue state in the UI.
+      if (payload.status) {
+        void refreshState();
       }
     },
     onStateRefresh: (state) => {
-      const sid = currentSessionId;
-      applyQueueSnapshot(state, sid);
       const isProcessing =
         state.processingStatus === 'processing' || state.processingStatus === 'stopping';
       setSessionProcessing(isProcessing);
       setIsStopping(state.processingStatus === 'stopping');
+      setInterruptionBoundaries(state.interruptionBoundaries ?? []);
       setSessionProcessingStartedAtMs(
         state.activeRunStartedAt ? new Date(state.activeRunStartedAt).getTime() : null,
       );
     },
   });
 
-  const messagesRef = useRef(messages);
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
   // Reset ChatInterface-specific state when starting a new conversation
   useEffect(() => {
     if (newConversationToken > 0 && !currentSessionId) {
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
-      clearQueueState();
       setLocalSteerQueue([]);
       setPendingSteerDispatchText(null);
+      setInterruptionBoundaries([]);
       isCreatingSessionRef.current = false;
     }
-  }, [newConversationToken, currentSessionId, clearQueueState]);
+  }, [newConversationToken, currentSessionId]);
 
   // Reset local state on session switch
   useEffect(() => {
     if (routeSessionId === 'new') {
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
-      clearQueueState();
       setLocalSteerQueue([]);
       setPendingSteerDispatchText(null);
+      setInterruptionBoundaries([]);
       isCreatingSessionRef.current = false;
       sessionIdRef.current = null;
       return;
@@ -789,9 +545,9 @@ export function ChatInterface() {
     if (!currentSessionId) {
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
-      clearQueueState();
       setLocalSteerQueue([]);
       setPendingSteerDispatchText(null);
+      setInterruptionBoundaries([]);
       return;
     }
 
@@ -799,10 +555,10 @@ export function ChatInterface() {
     setSessionProcessing(false);
     setSessionProcessingStartedAtMs(null);
     setIsStopping(false);
-    setInterruptedMessageIds(new Set());
     setLocalSteerQueue([]);
     setPendingSteerDispatchText(null);
-  }, [currentSessionId, routeSessionId, clearQueueState]);
+    setInterruptionBoundaries([]);
+  }, [currentSessionId, routeSessionId]);
 
   // Once the user switches away from the just-created session, clear the
   // marker so future visits hydrate from backend as usual.
@@ -890,7 +646,9 @@ export function ChatInterface() {
   );
   const [isGraphPanelOpen, setIsGraphPanelOpen] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
-  const [interruptedMessageIds, setInterruptedMessageIds] = useState<Set<string>>(new Set());
+  const [interruptionBoundaries, setInterruptionBoundaries] = useState<
+    ChatSessionStateResponse['interruptionBoundaries']
+  >([]);
   const [expandedCompactionIds, setExpandedCompactionIds] = useState<Set<string>>(new Set());
   const [steeringTurnId, setSteeringTurnId] = useState<string | null>(null);
   const [localSteerQueue, setLocalSteerQueue] = useState<LocalSteerQueueItem[]>([]);
@@ -979,7 +737,7 @@ export function ChatInterface() {
         }
       }
 
-      if (isAgentWorking) {
+      if (isAgentWorking || localSteerQueue.length > 0) {
         setLocalSteerQueue((prev) => [
           ...prev,
           {
@@ -996,7 +754,7 @@ export function ChatInterface() {
       setIsStopping(false);
       sendMessage({ text });
     },
-    [sendMessage, createSession, navigate, isAgentWorking, toast],
+    [sendMessage, createSession, navigate, isAgentWorking, localSteerQueue.length, toast],
   );
 
   useEffect(() => {
@@ -1012,24 +770,38 @@ export function ChatInterface() {
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
   const userImageUrl = (user as { imageUrl?: string } | null)?.imageUrl;
   const displayQueuedTurns = useMemo(() => {
-    if (localSteerQueue.length > 0) {
-      return localSteerQueue.map((entry, index) => ({
-        turnId: entry.id,
-        clientMessageId: null as string | null,
-        preview: entry.text,
-        queuePosition: index + 1,
-        status: 'queued',
-        queuedAt: null as string | null,
-        startedAt: null as string | null,
-        completedAt: null as string | null,
-      }));
-    }
-    return queuedTurns;
-  }, [localSteerQueue, queuedTurns]);
-  const displayPendingCount = localSteerQueue.length > 0 ? localSteerQueue.length : pendingCount;
+    return localSteerQueue.map((entry, index) => ({
+      turnId: entry.id,
+      preview: entry.text,
+      queuePosition: index + 1,
+      status: 'queued',
+    }));
+  }, [localSteerQueue]);
+  const displayPendingCount = localSteerQueue.length;
   const conversationItems = useMemo<ConversationRenderItem[]>(() => {
     const items: ConversationRenderItem[] = [];
+    const boundariesByIndex = new Map<number, string[]>();
+    for (const boundary of interruptionBoundaries ?? []) {
+      if (!boundary || typeof boundary.beforeMessageIndex !== 'number' || !boundary.turnId) {
+        continue;
+      }
+      const idx = Math.max(0, Math.min(messages.length, boundary.beforeMessageIndex));
+      const existing = boundariesByIndex.get(idx) ?? [];
+      existing.push(boundary.turnId);
+      boundariesByIndex.set(idx, existing);
+    }
+
     for (let idx = 0; idx < messages.length; idx += 1) {
+      const leadingBoundaries = boundariesByIndex.get(idx) ?? [];
+      for (const turnId of leadingBoundaries) {
+        items.push({
+          kind: 'separator',
+          id: `interrupt-${turnId}`,
+          label: 'Conversation interrupted',
+          variant: 'interrupted',
+        });
+      }
+
       const message = messages[idx];
       const compactionSnapshot = extractCompactionSnapshot(message);
       if (compactionSnapshot) {
@@ -1043,18 +815,6 @@ export function ChatInterface() {
         continue;
       }
 
-      if (idx > 0) {
-        const prevMessage = messages[idx - 1];
-        if (interruptedMessageIds.has(prevMessage.id)) {
-          items.push({
-            kind: 'separator',
-            id: `interrupt-${prevMessage.id}`,
-            label: 'Conversation interrupted',
-            variant: 'interrupted',
-          });
-        }
-      }
-
       items.push({
         kind: 'message',
         id: message.id,
@@ -1062,8 +822,18 @@ export function ChatInterface() {
         index: idx,
       });
     }
+
+    const trailingBoundaries = boundariesByIndex.get(messages.length) ?? [];
+    for (const turnId of trailingBoundaries) {
+      items.push({
+        kind: 'separator',
+        id: `interrupt-${turnId}`,
+        label: 'Conversation interrupted',
+        variant: 'interrupted',
+      });
+    }
     return items;
-  }, [messages, interruptedMessageIds]);
+  }, [messages, interruptionBoundaries]);
 
   // Editable title state
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -1277,7 +1047,7 @@ export function ChatInterface() {
                             className={`rounded-full border px-3 py-1 text-[11px] font-medium tracking-wide ${
                               isCompacted
                                 ? 'border-primary/35 bg-primary/10 text-primary'
-                                : 'border-amber-500/35 bg-amber-500/10 text-amber-200'
+                                : 'border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-200'
                             }`}
                           >
                             {item.label}
@@ -1315,7 +1085,6 @@ export function ChatInterface() {
                     <ChatMessageItem
                       key={item.id}
                       message={item.message}
-                      isInterrupted={interruptedMessageIds.has(item.message.id)}
                       isStreaming={
                         (status === 'streaming' || sessionProcessing) &&
                         item.message.role === 'assistant' &&
@@ -1370,11 +1139,11 @@ export function ChatInterface() {
                   <div aria-hidden className="h-6" />
                 )}
               </div>
-              {displayPendingCount > 0 && isAgentWorking && (
+              {displayPendingCount > 0 && (
                 <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-3">
                   <div className="mb-1 flex items-center justify-between">
                     <span className="text-xs font-medium text-foreground/80">
-                      Queue ({displayPendingCount})
+                      Steer Queue ({displayPendingCount})
                     </span>
                     <button
                       type="button"
@@ -1386,11 +1155,6 @@ export function ChatInterface() {
                     </button>
                   </div>
                   <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
-                    {displayQueuedTurns.length === 0 && (
-                      <span className="text-[11px] text-muted-foreground">
-                        Waiting for queue details from stream...
-                      </span>
-                    )}
                     {displayQueuedTurns.map((turn, index) => {
                       const displayPosition = turn.queuePosition ?? index + 1;
                       const preview =

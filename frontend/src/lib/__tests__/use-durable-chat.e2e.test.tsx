@@ -68,6 +68,14 @@ class FakeDurableTransport {
     }
     return this.fallbackState;
   }
+
+  async sendMessages(): Promise<ReadableStream<unknown>> {
+    return new ReadableStream<unknown>({
+      start(controller) {
+        controller.close();
+      },
+    });
+  }
 }
 
 describe('useDurableChat E2E parity', () => {
@@ -400,5 +408,173 @@ describe('useDurableChat E2E parity', () => {
         transcriptSignature((finalState.messages ?? []) as UIMessage[]),
       );
     });
+  });
+
+  it('keeps optimistic user message visible across stale refresh before DB persistence', async () => {
+    const transport = new FakeDurableTransport();
+    const initialState: ChatSessionStateResponse = {
+      afterSeq: 41,
+      processingStatus: 'processing',
+      messages: [textMessage('user-1', 'user', 'first')],
+    };
+
+    // mount hydrate + post-attach refresh + manual stale refresh
+    transport.enqueueState(initialState);
+    transport.enqueueState(initialState);
+    transport.enqueueState(initialState);
+    transport.setFallbackState(initialState);
+
+    const { result } = renderHook(() =>
+      useDurableChat({
+        transport: transport as unknown as DurableChatTransport,
+        sessionId: 'session-1',
+        throttleMs: 1,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.messages.length).toBe(1);
+    });
+
+    act(() => {
+      result.current.sendMessage({ text: 'second' });
+    });
+
+    await waitFor(() => {
+      const texts = transcriptSignature(result.current.messages).map((entry) => entry.text);
+      expect(texts).toEqual(['first', 'second']);
+    });
+
+    await act(async () => {
+      await result.current.refreshState();
+    });
+
+    const textsAfterRefresh = transcriptSignature(result.current.messages).map(
+      (entry) => entry.text,
+    );
+    expect(textsAfterRefresh).toEqual(['first', 'second']);
+  });
+
+  it('ignores late chunks from interrupted previous turn after a new submit', async () => {
+    const transport = new FakeDurableTransport();
+    const initialState: ChatSessionStateResponse = {
+      afterSeq: 50,
+      processingStatus: 'processing',
+      messages: [
+        textMessage('user-1', 'user', 'old question'),
+        textMessage('turn-old', 'assistant', 'old answer'),
+      ],
+    };
+
+    transport.enqueueState(initialState);
+    transport.enqueueState(initialState);
+    transport.setFallbackState(initialState);
+
+    const { result } = renderHook(() =>
+      useDurableChat({
+        transport: transport as unknown as DurableChatTransport,
+        sessionId: 'session-1',
+        throttleMs: 1,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.messages.length).toBe(2);
+    });
+
+    // Old turn is active and streaming before interruption/new submit.
+    act(() => {
+      transport.emitChunk({
+        seq: 51,
+        turnId: 'old',
+        type: 'text-delta',
+        delta: '...',
+      });
+    });
+
+    act(() => {
+      result.current.sendMessage({ text: 'new question' });
+    });
+
+    // Late old chunks must be ignored after submit.
+    act(() => {
+      transport.emitChunk({
+        seq: 52,
+        turnId: 'old',
+        type: 'text-delta',
+        delta: 'late-old-content',
+      });
+      transport.emitChunk({
+        seq: 53,
+        turnId: 'old',
+        type: 'data-turn-status',
+        data: { status: 'interrupted', pendingCount: 1 },
+      });
+    });
+
+    const assistant = result.current.messages.find((message) => message.id === 'turn-old');
+    const assistantText = assistant?.parts
+      .filter((part): part is Extract<UIMessage['parts'][number], { type: 'text' }> => {
+        return part.type === 'text';
+      })
+      .map((part) => part.text)
+      .join('');
+    expect(assistantText).toBe('old answer');
+
+    const texts = transcriptSignature(result.current.messages).map((entry) => entry.text);
+    expect(texts).toContain('new question');
+    expect(texts.join(' ')).not.toContain('late-old-content');
+  });
+
+  it('ignores old running-turn chunks after submit even when no prior chunk was seen locally', async () => {
+    const transport = new FakeDurableTransport();
+    const stateWithRunningOldTurn: ChatSessionStateResponse = {
+      afterSeq: 60,
+      processingStatus: 'processing',
+      queue: [{ turnId: 'old', status: 'running' }],
+      messages: [
+        textMessage('user-1', 'user', 'old question'),
+        textMessage('turn-old', 'assistant', 'old answer'),
+      ],
+    };
+
+    transport.enqueueState(stateWithRunningOldTurn);
+    transport.enqueueState(stateWithRunningOldTurn);
+    transport.setFallbackState(stateWithRunningOldTurn);
+
+    const { result } = renderHook(() =>
+      useDurableChat({
+        transport: transport as unknown as DurableChatTransport,
+        sessionId: 'session-1',
+        throttleMs: 1,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.messages.length).toBe(2);
+    });
+
+    // Submit immediately (no old stream chunk seen yet in this tab).
+    act(() => {
+      result.current.sendMessage({ text: 'new question' });
+    });
+
+    act(() => {
+      transport.emitChunk({
+        seq: 61,
+        turnId: 'old',
+        type: 'text-delta',
+        delta: 'late-old-content',
+      });
+    });
+
+    const assistant = result.current.messages.find((message) => message.id === 'turn-old');
+    const assistantText = assistant?.parts
+      .filter((part): part is Extract<UIMessage['parts'][number], { type: 'text' }> => {
+        return part.type === 'text';
+      })
+      .map((part) => part.text)
+      .join('');
+    expect(assistantText).toBe('old answer');
   });
 });

@@ -156,6 +156,16 @@ function areMessagesEquivalent(nextMessages: UIMessage[], prevMessages: UIMessag
   return true;
 }
 
+function getMessageText(message: UIMessage): string {
+  return message.parts
+    .filter((part): part is Extract<UIMessage['parts'][number], { type: 'text' }> => {
+      return part.type === 'text';
+    })
+    .map((part) => part.text)
+    .join('')
+    .trim();
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -185,6 +195,10 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
   const latestStreamSeqRef = useRef(0);
   const latestAppliedStateSeqRef = useRef(0);
   const hasHydratedRef = useRef(false);
+  const pendingOptimisticUsersRef = useRef<UIMessage[]>([]);
+  const ignoredTurnIdsRef = useRef<Set<string>>(new Set());
+  const previousSessionIdRef = useRef<string | null>(sessionId ?? null);
+  const lastKnownRunningTurnIdRef = useRef<string | null>(null);
 
   // Stable callback refs
   const externalOnChunkRef = useRef(externalOnChunk);
@@ -254,18 +268,47 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
       }
 
       const hydrated = hydrateMessages(state.messages);
+      const confirmedTextCounts = new Map<string, number>();
+      const confirmedUserTexts = hydrated
+        .filter((message) => message.role === 'user')
+        .map((message) => getMessageText(message))
+        .filter((text) => text.length > 0);
+      for (const text of confirmedUserTexts) {
+        confirmedTextCounts.set(text, (confirmedTextCounts.get(text) ?? 0) + 1);
+      }
+      const stillPendingOptimisticUsers = pendingOptimisticUsersRef.current.filter((message) => {
+        const text = getMessageText(message);
+        if (text.length === 0) {
+          return false;
+        }
+        const matchedCount = confirmedTextCounts.get(text) ?? 0;
+        if (matchedCount > 0) {
+          confirmedTextCounts.set(text, matchedCount - 1);
+          return false;
+        }
+        return true;
+      });
+      pendingOptimisticUsersRef.current = stillPendingOptimisticUsers;
+      const hydratedWithPending =
+        stillPendingOptimisticUsers.length > 0
+          ? [...hydrated, ...stillPendingOptimisticUsers]
+          : hydrated;
 
       // Don't overwrite local optimistic messages with empty backend state.
-      if (hydrated.length === 0 && messagesRef.current.length > 0) {
+      if (hydratedWithPending.length === 0 && messagesRef.current.length > 0) {
         onStateRefreshRef.current?.(state);
         return state;
       }
 
-      if (!areMessagesEquivalent(hydrated, messagesRef.current)) {
-        commitMessages(hydrated, 'immediate');
+      if (!areMessagesEquivalent(hydratedWithPending, messagesRef.current)) {
+        commitMessages(hydratedWithPending, 'immediate');
       }
       hasHydratedRef.current = true;
       latestAppliedStateSeqRef.current = Math.max(latestAppliedStateSeqRef.current, stateSeq);
+      lastKnownRunningTurnIdRef.current =
+        state.queue?.find((turn) => turn?.status === 'running')?.turnId ??
+        state.queuedTurns?.find((turn) => turn?.status === 'running')?.turnId ??
+        null;
 
       // If backend has moved to canonical turn message id for the active turn,
       // move subsequent deltas to that message id instead of a local temp id.
@@ -301,6 +344,9 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
       }
 
       const chunkTurnId = typeof c.turnId === 'string' ? c.turnId : undefined;
+      if (chunkTurnId && ignoredTurnIdsRef.current.has(chunkTurnId)) {
+        return;
+      }
       const inner =
         c.chunk && typeof c.chunk === 'object' ? (c.chunk as Record<string, unknown>) : c;
 
@@ -450,6 +496,14 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
       }
 
       if (inner.type === 'data-turn-status') {
+        if (chunkTurnId && activeTurnIdRef.current && activeTurnIdRef.current !== chunkTurnId) {
+          return;
+        }
+
+        if (chunkTurnId && !activeTurnIdRef.current) {
+          activeTurnIdRef.current = chunkTurnId;
+        }
+
         const data =
           inner.data && typeof inner.data === 'object'
             ? (inner.data as Record<string, unknown>)
@@ -497,7 +551,25 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
   // ── Session lifecycle ─────────────────────────────────────────────
 
   useEffect(() => {
+    const sessionChanged = previousSessionIdRef.current !== (sessionId ?? null);
+    if (sessionChanged) {
+      previousSessionIdRef.current = sessionId ?? null;
+      pendingOptimisticUsersRef.current = [];
+      ignoredTurnIdsRef.current.clear();
+      lastKnownRunningTurnIdRef.current = null;
+      latestStreamSeqRef.current = 0;
+      latestAppliedStateSeqRef.current = 0;
+      hasHydratedRef.current = false;
+      clearStreamingState();
+      commitMessages([], 'immediate');
+      setError(null);
+      setStatus('ready');
+    }
+
     if (!sessionId) {
+      pendingOptimisticUsersRef.current = [];
+      ignoredTurnIdsRef.current.clear();
+      lastKnownRunningTurnIdRef.current = null;
       commitMessages([], 'immediate');
       clearStreamingState();
       latestStreamSeqRef.current = 0;
@@ -601,12 +673,19 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
         role: 'user' as const,
         parts: [{ type: 'text' as const, text: opts.text }],
       } satisfies UIMessage;
+      pendingOptimisticUsersRef.current = [...pendingOptimisticUsersRef.current, userMessage];
 
       // Optimistic local echo so user message appears immediately in transcript.
       const outboundMessages = [...messagesRef.current, userMessage];
       commitMessages(outboundMessages, 'immediate');
       setStatus('submitting');
 
+      if (activeTurnIdRef.current) {
+        ignoredTurnIdsRef.current.add(activeTurnIdRef.current);
+      }
+      if (lastKnownRunningTurnIdRef.current) {
+        ignoredTurnIdsRef.current.add(lastKnownRunningTurnIdRef.current);
+      }
       clearStreamingState();
 
       void (async () => {
