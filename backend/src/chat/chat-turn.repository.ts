@@ -142,8 +142,13 @@ export class ChatTurnRepository {
     return Number(row?.value ?? 0);
   }
 
-  async setTurnRunning(sessionId: string, turnId: string, runId?: string, generationId?: string) {
-    await this.db.transaction(async (tx) => {
+  async setTurnRunning(
+    sessionId: string,
+    turnId: string,
+    runId?: string,
+    generationId?: string,
+  ): Promise<{ promoted: boolean; userMessage?: string }> {
+    return this.db.transaction(async (tx) => {
       const [promotedTurn] = await tx
         .update(chatTurnsTable)
         .set({
@@ -166,9 +171,10 @@ export class ChatTurnRepository {
         });
 
       if (promotedTurn) {
-        // User message is already persisted to chat_messages by enqueueTurn(),
-        // so we don't insert it again here to avoid duplicates.
-        return;
+        return {
+          promoted: true,
+          userMessage: promotedTurn.userMessage,
+        };
       }
 
       await tx
@@ -186,6 +192,8 @@ export class ChatTurnRepository {
             eq(chatTurnsTable.status, 'running'),
           ),
         );
+
+      return { promoted: false };
     });
   }
 

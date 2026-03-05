@@ -91,9 +91,8 @@ export interface TerminalStreamState {
   lastChunkIndex: number;
 }
 
-const MAX_TERMINAL_CHUNKS = 500;
-
 const terminalKey = (nodeId: string, stream = 'pty') => `${nodeId}:${stream}`;
+const MAX_TERMINAL_CHUNKS = 500;
 
 const mapStatusToLifecycle = (status: ExecutionStatus | undefined): ExecutionLifecycle => {
   switch (status) {
@@ -482,30 +481,14 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
             cursor?: string | null;
             chunks?: TerminalStreamChunk[];
           };
-          console.debug('[ExecutionStore] terminal event received', {
-            chunksCount: payload.chunks?.length,
-            cursor: payload.cursor,
-            payloadPreview: payload.chunks?.slice(0, 2),
-          });
-
           if (!payload.chunks || payload.chunks.length === 0) {
-            console.debug('[ExecutionStore] empty terminal payload, skipping');
             return;
           }
-
-          console.debug('[ExecutionStore] processing terminal chunks', {
-            totalChunks: payload.chunks.length,
-            firstChunk: {
-              nodeRef: payload.chunks[0]?.nodeRef,
-              stream: payload.chunks[0]?.stream,
-              chunkIndex: payload.chunks[0]?.chunkIndex,
-              payloadLength: payload.chunks[0]?.payload?.length,
-            },
-          });
 
           set((state) => {
             const streams = { ...state.terminalStreams };
             let processedChunks = 0;
+            const nextCursor = payload.cursor ?? state.terminalCursor;
 
             for (const chunk of payload.chunks!) {
               const key = terminalKey(chunk.nodeRef, chunk.stream);
@@ -517,21 +500,8 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
                 lastChunkIndex: 0,
               };
               if (chunk.chunkIndex <= existing.lastChunkIndex) {
-                console.debug('[ExecutionStore] skipping duplicate chunk', {
-                  nodeRef: chunk.nodeRef,
-                  stream: chunk.stream,
-                  chunkIndex: chunk.chunkIndex,
-                  existingIndex: existing.lastChunkIndex,
-                });
                 continue;
               }
-
-              console.debug('[ExecutionStore] adding new chunk', {
-                nodeRef: chunk.nodeRef,
-                stream: chunk.stream,
-                chunkIndex: chunk.chunkIndex,
-                payloadPreview: chunk.payload?.substring(0, 100),
-              });
 
               processedChunks++;
               const merged = [...existing.chunks, chunk];
@@ -544,23 +514,17 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
               };
             }
 
-            console.debug('[ExecutionStore] terminal chunks processed', {
-              processedChunks,
-              totalStreams: Object.keys(streams).length,
-              streamKeys: Object.keys(streams),
-            });
+            if (processedChunks === 0 && nextCursor === state.terminalCursor) {
+              return state;
+            }
 
             return {
               terminalStreams: streams,
-              terminalCursor: payload.cursor ?? state.terminalCursor,
+              terminalCursor: nextCursor,
             };
           });
         } catch (error) {
-          console.error(
-            'Failed to parse terminal payload from stream',
-            error,
-            (event as MessageEvent).data,
-          );
+          console.error('Failed to parse terminal payload from stream', error);
         }
       });
 

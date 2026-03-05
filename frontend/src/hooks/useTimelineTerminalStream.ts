@@ -57,10 +57,12 @@ export function useTimelineTerminalStream(
   // Disable autoConnect in timeline sync mode (replay) - we fetch all chunks via API
   const shouldAutoConnect =
     timelineSync && !isLiveView ? false : terminalOptions.autoConnect !== false;
+  const shouldHydrateOnMount = !(timelineSync && !isLiveView);
 
   const terminalResult = useTerminalStream({
     ...terminalOptions,
     autoConnect: shouldAutoConnect,
+    hydrateOnMount: shouldHydrateOnMount,
   });
 
   // Store ALL chunks fetched from API (only in timeline sync mode)
@@ -105,43 +107,6 @@ export function useTimelineTerminalStream(
         const sorted = [...result.chunks].sort((a, b) => a.chunkIndex - b.chunkIndex);
         setAllChunks(sorted);
         fetchedRunIdRef.current = terminalOptions.runId;
-
-        // DETAILED LOGGING: Log all chunks with timestamps
-        console.log('[useTimelineTerminalStream] Fetched all chunks', {
-          totalChunks: sorted.length,
-          runId: terminalOptions.runId,
-          nodeId: terminalOptions.nodeId,
-        });
-
-        // Log all chunks with their timestamps
-        console.log(
-          '[useTimelineTerminalStream] ALL CHUNKS DETAILED:',
-          sorted.map((chunk, idx) => ({
-            index: idx,
-            chunkIndex: chunk.chunkIndex,
-            recordedAt: chunk.recordedAt,
-            recordedAtMs: new Date(chunk.recordedAt).getTime(),
-            recordedAtISO: new Date(chunk.recordedAt).toISOString(),
-            payloadLength: chunk.payload?.length || 0,
-            nodeRef: chunk.nodeRef,
-            stream: chunk.stream,
-          })),
-        );
-
-        // Check timestamp ordering
-        const timestamps = sorted.map((c) => new Date(c.recordedAt).getTime());
-        const isOrdered = timestamps.every((ts, i) => i === 0 || ts >= timestamps[i - 1]);
-        console.log('[useTimelineTerminalStream] Timestamp analysis:', {
-          isOrdered,
-          firstTimestamp: timestamps[0] ? new Date(timestamps[0]).toISOString() : null,
-          lastTimestamp: timestamps[timestamps.length - 1]
-            ? new Date(timestamps[timestamps.length - 1]).toISOString()
-            : null,
-          timeRangeMs:
-            timestamps.length > 0 ? timestamps[timestamps.length - 1] - timestamps[0] : 0,
-          minTimestamp: timestamps.length > 0 ? Math.min(...timestamps) : null,
-          maxTimestamp: timestamps.length > 0 ? Math.max(...timestamps) : null,
-        });
       } catch (error) {
         console.error('[useTimelineTerminalStream] Failed to fetch chunks', error);
       } finally {
@@ -212,44 +177,6 @@ export function useTimelineTerminalStream(
         return chunkTime <= targetAbsoluteTime;
       });
     }
-
-    // DETAILED LOGGING: Dry-run filtering logic
-    console.log('[useTimelineTerminalStream] Filtering dry-run:', {
-      totalChunks: allChunks.length,
-      timelineStartTime: timelineStartTime,
-      timelineStartTimeISO: new Date(timelineStartTime).toISOString(),
-      currentTimeMs: currentTime,
-      targetAbsoluteTime: targetAbsoluteTime,
-      targetAbsoluteTimeISO: new Date(targetAbsoluteTime).toISOString(),
-      filteredCount: filtered.length,
-      filteredChunkIndices: filtered.map((c) => c.chunkIndex),
-      firstFilteredChunk: filtered[0]
-        ? {
-            chunkIndex: filtered[0].chunkIndex,
-            recordedAt: filtered[0].recordedAt,
-            recordedAtMs: new Date(filtered[0].recordedAt).getTime(),
-            timeDiff: new Date(filtered[0].recordedAt).getTime() - targetAbsoluteTime,
-          }
-        : null,
-      lastFilteredChunk: filtered[filtered.length - 1]
-        ? {
-            chunkIndex: filtered[filtered.length - 1].chunkIndex,
-            recordedAt: filtered[filtered.length - 1].recordedAt,
-            recordedAtMs: new Date(filtered[filtered.length - 1].recordedAt).getTime(),
-            timeDiff:
-              new Date(filtered[filtered.length - 1].recordedAt).getTime() - targetAbsoluteTime,
-          }
-        : null,
-      firstExcludedChunk: allChunks[filtered.length]
-        ? {
-            chunkIndex: allChunks[filtered.length].chunkIndex,
-            recordedAt: allChunks[filtered.length].recordedAt,
-            recordedAtMs: new Date(allChunks[filtered.length].recordedAt).getTime(),
-            timeDiff:
-              new Date(allChunks[filtered.length].recordedAt).getTime() - targetAbsoluteTime,
-          }
-        : null,
-    });
 
     return filtered;
   }, [

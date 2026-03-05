@@ -15,6 +15,8 @@ interface RecentActivityFeedProps {
   connections?: IntegrationConnection[];
 }
 
+const FEED_RENDER_LIMIT = 120;
+
 type ScanType = 'sast' | 'dependency' | 'secret' | 'generic';
 
 function detectScanType(name: string): ScanType {
@@ -148,6 +150,8 @@ export function RecentActivityFeed({
   connections = [],
 }: RecentActivityFeedProps) {
   const feedItems = useMemo(() => {
+    const repoNameById = new Map(repositories.map((repo) => [repo.id, repo.fullName]));
+
     // Build connection lookup map for resolving connectionId → display name
     const connectionMap = new Map(connections.map((c) => [c.id, c.displayName ?? c.providerName]));
 
@@ -156,8 +160,8 @@ export function RecentActivityFeed({
 
     // Normalize GitHub scan results
     const fromScans: FeedItem[] = scanResults.map((scan) => {
-      const repo = repositories.find((r) => r.id === scan.repositoryId);
-      const label = repo?.fullName?.split('/').pop() ?? 'Unknown';
+      const repoFullName = repoNameById.get(scan.repositoryId);
+      const label = repoFullName?.split('/').pop() ?? 'Unknown';
       const isCloud =
         scan.workflowName?.toLowerCase().includes('prowler') ||
         scan.workflowName?.toLowerCase().includes('cloud');
@@ -231,6 +235,14 @@ export function RecentActivityFeed({
     );
   }, [scanResults, repositories, recentRuns, connections]);
 
+  const visibleFeedItems = useMemo(
+    () =>
+      feedItems.length > FEED_RENDER_LIMIT ? feedItems.slice(0, FEED_RENDER_LIMIT) : feedItems,
+    [feedItems],
+  );
+
+  const hiddenCount = Math.max(0, feedItems.length - visibleFeedItems.length);
+
   return (
     <Card className="h-full overflow-hidden">
       <CardHeader className="pb-3">
@@ -252,7 +264,7 @@ export function RecentActivityFeed({
                 : 'space-y-1'
             }
           >
-            {feedItems.map((item) => {
+            {visibleFeedItems.map((item) => {
               const dotColor = STATUS_DOT_COLOR[item.status] ?? STATUS_DOT_COLOR.pending;
               const time = formatRelativeTime(item.timestamp);
 
@@ -300,6 +312,11 @@ export function RecentActivityFeed({
                 </Link>
               );
             })}
+            {hiddenCount > 0 && (
+              <div className="px-1.5 py-1 text-[11px] text-muted-foreground">
+                Showing latest {visibleFeedItems.length} items. {hiddenCount} older items hidden.
+              </div>
+            )}
           </div>
         )}
       </CardContent>

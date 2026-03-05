@@ -168,12 +168,6 @@ const DOMPURIFY_CONFIG: Config = {
     'details',
     'summary',
     'time',
-    // Code block copy button and SVG icon
-    'button',
-    'svg',
-    'rect',
-    'path',
-    'polyline',
   ],
   // Only allow safe attributes
   ALLOWED_ATTR: [
@@ -218,18 +212,6 @@ const DOMPURIFY_CONFIG: Config = {
     'data-testid',
     'data-task',
     'data-video',
-    'data-code',
-    // SVG attributes (for code block copy icon)
-    'viewBox',
-    'stroke',
-    'stroke-width',
-    'fill',
-    'points',
-    'd',
-    'x',
-    'y',
-    'rx',
-    'ry',
   ],
   // Force all links to open in new tab with security attributes
   ADD_ATTR: ['target', 'rel'],
@@ -316,24 +298,23 @@ function highlightCode(str: string, lang: string): string {
         language: lang,
         ignoreIllegals: true,
       }).value;
-      return `<pre class="hljs code-block" data-language="${lang}"><div class="code-header"><span class="code-language">${lang}</span><button class="copy-button" data-code="${encodeURIComponent(str)}"><svg class="copy-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div><code class="language-${lang}">${highlighted}</code></pre>`;
+      return `<pre class="hljs code-block" data-language="${lang}"><div class="code-header"><span class="code-language">${lang}</span><button class="copy-button" data-code="${encodeURIComponent(str)}"><svg class="copy-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="copy-text">Copy</span></button></div><code class="language-${lang}">${highlighted}</code></pre>`;
     } catch (e) {
       console.error('Highlight error:', e);
     }
   }
 
-  // Auto-detect language if not specified or not recognized
+  // Auto-detect language if not specified
   try {
     const detected = hljs.highlightAuto(str);
-    // Prefer the originally specified language label over auto-detected one
-    const language = lang || detected.language || 'text';
-    return `<pre class="hljs code-block" data-language="${language}"><div class="code-header"><span class="code-language">${language}</span><button class="copy-button" data-code="${encodeURIComponent(str)}"><svg class="copy-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div><code>${detected.value}</code></pre>`;
+    const language = detected.language || 'text';
+    return `<pre class="hljs code-block" data-language="${language}"><div class="code-header"><span class="code-language">${language}</span><button class="copy-button" data-code="${encodeURIComponent(str)}"><svg class="copy-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="copy-text">Copy</span></button></div><code>${detected.value}</code></pre>`;
   } catch (e) {
     console.error('Highlight auto error:', e);
   }
 
   // Fallback to plain code block
-  return `<pre class="hljs code-block"><div class="code-header"><span class="code-language">text</span><button class="copy-button" data-code="${encodeURIComponent(str)}"><svg class="copy-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div><code>${escapeHtml(str)}</code></pre>`;
+  return `<pre class="hljs code-block"><div class="code-header"><span class="code-language">text</span><button class="copy-button" data-code="${encodeURIComponent(str)}"><svg class="copy-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="copy-text">Copy</span></button></div><code>${escapeHtml(str)}</code></pre>`;
 }
 
 // Initialize markdown-it with plugins and syntax highlighting
@@ -397,7 +378,6 @@ function arePropsEqual(prevProps: MarkdownViewProps, nextProps: MarkdownViewProp
 
   // Check if this content change was from a checkbox toggle we already handled
   if (expectedContent !== undefined && nextProps.content === expectedContent) {
-    console.log('[MarkdownView] Skipping re-render - checkbox update already applied to DOM');
     pendingCheckboxUpdates.delete(key);
     return true; // Skip re-render, we already updated the DOM
   }
@@ -411,9 +391,6 @@ function arePropsEqual(prevProps: MarkdownViewProps, nextProps: MarkdownViewProp
     prevProps.content === nextProps.content &&
     prevProps.className === nextProps.className &&
     prevProps.dataTestId === nextProps.dataTestId;
-  if (!equal) {
-    console.log('[MarkdownView] Props changed, will re-render');
-  }
   return equal;
 }
 
@@ -425,7 +402,6 @@ export const MarkdownView = memo(function MarkdownView({
   dataTestId,
   onEdit,
 }: MarkdownViewProps) {
-  console.log('[MarkdownView] Rendering with content length:', content.length);
   // Store onEdit in a ref so we can use a stable callback without re-renders
   const onEditRef = useRef(onEdit);
   onEditRef.current = onEdit;
@@ -593,26 +569,23 @@ export const MarkdownView = memo(function MarkdownView({
     e.stopPropagation();
   }, []);
 
-  // Update copy button states — swap icon between copy and check
+  // Update copy button states
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
-
-    const copyIcon =
-      '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
-    const checkIcon =
-      '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    if (!container || !copiedCode) return;
 
     const copyButtons = container.querySelectorAll('.copy-button');
     copyButtons.forEach((button) => {
       const code = button.getAttribute('data-code');
-      if (!code) return;
-      if (copiedCode && decodeURIComponent(code) === copiedCode) {
-        button.innerHTML = checkIcon;
-        button.classList.add('copied');
-      } else {
-        button.innerHTML = copyIcon;
-        button.classList.remove('copied');
+      const textSpan = button.querySelector('.copy-text');
+      if (code && textSpan) {
+        if (decodeURIComponent(code) === copiedCode) {
+          textSpan.textContent = 'Copied!';
+          button.classList.add('copied');
+        } else {
+          textSpan.textContent = 'Copy';
+          button.classList.remove('copied');
+        }
       }
     });
   }, [copiedCode]);

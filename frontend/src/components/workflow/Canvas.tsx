@@ -178,6 +178,20 @@ export function Canvas({
   const hasUserInteractedRef = useRef(false);
   const snapshotDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevModeRef = useRef<typeof mode>(mode);
+
+  const packetsByEdgeKey = useMemo(() => {
+    const map = new Map<string, typeof dataFlows>();
+    for (const packet of dataFlows) {
+      const key = `${packet.sourceNode}::${packet.targetNode}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.push(packet);
+      } else {
+        map.set(key, [packet]);
+      }
+    }
+    return map;
+  }, [dataFlows]);
   const prevNodesLengthRef = useRef(nodes.length);
   const prevEdgesLengthRef = useRef(edges.length);
   const lastSelectedNodeIdRef = useRef<string | null>(null);
@@ -937,19 +951,34 @@ export function Canvas({
 
   // Update edges with data flow highlighting and packet data
   useEffect(() => {
-    setEdges((eds) =>
-      eds.map((edge) => ({
-        ...edge,
-        data: {
-          ...edge.data,
-          packets: dataFlows.filter(
-            (packet) => packet.sourceNode === edge.source && packet.targetNode === edge.target,
-          ),
-          isHighlighted: selectedNodeId === edge.source || selectedNodeId === edge.target,
-        },
-      })),
-    );
-  }, [dataFlows, selectedNodeId, setEdges]);
+    setEdges((eds) => {
+      let changed = false;
+
+      const next = eds.map((edge) => {
+        const packets = packetsByEdgeKey.get(`${edge.source}::${edge.target}`) ?? [];
+        const isHighlighted = selectedNodeId === edge.source || selectedNodeId === edge.target;
+        const prevData = (edge.data ?? {}) as Record<string, unknown>;
+        const prevPackets = Array.isArray(prevData.packets) ? prevData.packets : [];
+        const prevIsHighlighted = prevData.isHighlighted === true;
+
+        if (prevPackets === packets && prevIsHighlighted === isHighlighted) {
+          return edge;
+        }
+
+        changed = true;
+        return {
+          ...edge,
+          data: {
+            ...prevData,
+            packets,
+            isHighlighted,
+          },
+        };
+      });
+
+      return changed ? next : eds;
+    });
+  }, [packetsByEdgeKey, selectedNodeId, setEdges]);
 
   // Handle keyboard shortcuts
   useEffect(() => {

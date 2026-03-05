@@ -58,14 +58,60 @@ function hydrateMessages(raw: ChatSessionStateResponse['messages']): UIMessage[]
 function appendTextDeltaToParts(parts: UIMessage['parts'], delta: string): UIMessage['parts'] {
   if (!delta) return parts;
 
-  const lastTextIdx = parts.reduce((acc, p, i) => (p.type === 'text' ? i : acc), -1);
-  if (lastTextIdx >= 0) {
-    return parts.map((p, i) =>
-      i === lastTextIdx && p.type === 'text' ? { type: 'text' as const, text: p.text + delta } : p,
+  const lastPart = parts[parts.length - 1];
+  if (lastPart?.type === 'text') {
+    return parts.map((part, idx) =>
+      idx === parts.length - 1 && part.type === 'text'
+        ? { type: 'text' as const, text: part.text + delta }
+        : part,
     );
   }
 
   return [...parts, { type: 'text' as const, text: delta }];
+}
+
+function upsertToolInvocationPart(
+  parts: UIMessage['parts'],
+  update: {
+    toolCallId: string;
+    toolName?: string;
+    state: 'input-available' | 'output-available' | 'output-error';
+    input?: unknown;
+    output?: unknown;
+    errorText?: string;
+    preliminary?: boolean;
+  },
+): UIMessage['parts'] {
+  const idx = parts.findIndex(
+    (part) =>
+      part.type === 'tool-invocation' &&
+      'toolCallId' in part &&
+      typeof part.toolCallId === 'string' &&
+      part.toolCallId === update.toolCallId,
+  );
+
+  const nextPart = {
+    type: 'tool-invocation' as const,
+    toolCallId: update.toolCallId,
+    ...(update.toolName ? { toolName: update.toolName } : {}),
+    state: update.state,
+    ...(update.input !== undefined ? { input: update.input } : {}),
+    ...(update.output !== undefined ? { output: update.output } : {}),
+    ...(update.errorText !== undefined ? { errorText: update.errorText } : {}),
+    ...(update.preliminary !== undefined ? { preliminary: update.preliminary } : {}),
+  };
+
+  if (idx < 0) {
+    return [...parts, nextPart];
+  }
+
+  return parts.map((part, i) => {
+    if (i !== idx) return part;
+    return {
+      ...part,
+      ...nextPart,
+    } as UIMessage['parts'][number];
+  });
 }
 
 function partSignature(part: UIMessage['parts'][number]) {
@@ -272,7 +318,8 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
         if (!delta) return;
 
         activeTurnIdRef.current = chunkTurnId;
-        const msgId = streamingMsgIdRef.current ?? `streaming-${chunkTurnId}`;
+        const canonicalTurnMsgId = `turn-${chunkTurnId}`;
+        const msgId = streamingMsgIdRef.current ?? canonicalTurnMsgId;
         streamingMsgIdRef.current = msgId;
 
         const current = messagesRef.current;
@@ -287,6 +334,8 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
           };
           next = [...current];
           next[existingIdx] = updated;
+          const hasToolParts = existing.parts.some((part) => part.type === 'tool-invocation');
+          commitMessages(next, hasToolParts ? 'immediate' : 'throttled');
         } else {
           next = [
             ...current,
@@ -296,9 +345,106 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
               parts: [{ type: 'text' as const, text: delta }],
             },
           ];
+          commitMessages(next, 'throttled');
+        }
+        setStatus('streaming');
+        return;
+      }
+
+      if (
+        inner.type === 'tool-input-start' ||
+        inner.type === 'tool-input-available' ||
+        inner.type === 'tool-output-available' ||
+        inner.type === 'tool-output-error'
+      ) {
+        if (!chunkTurnId) {
+          return;
         }
 
-        commitMessages(next, 'throttled');
+        if (activeTurnIdRef.current && activeTurnIdRef.current !== chunkTurnId) {
+          return;
+        }
+
+        const toolCallId =
+          'toolCallId' in inner && typeof inner.toolCallId === 'string' ? inner.toolCallId : null;
+        if (!toolCallId) {
+          return;
+        }
+
+        activeTurnIdRef.current = chunkTurnId;
+        const canonicalTurnMsgId = `turn-${chunkTurnId}`;
+        const msgId = streamingMsgIdRef.current ?? canonicalTurnMsgId;
+        streamingMsgIdRef.current = msgId;
+
+        let update: {
+          toolCallId: string;
+          toolName?: string;
+          state: 'input-available' | 'output-available' | 'output-error';
+          input?: unknown;
+          output?: unknown;
+          errorText?: string;
+          preliminary?: boolean;
+        } | null = null;
+
+        if (inner.type === 'tool-input-start') {
+          update = {
+            toolCallId,
+            toolName: typeof inner.toolName === 'string' ? inner.toolName : undefined,
+            state: 'input-available',
+          };
+        } else if (inner.type === 'tool-input-available') {
+          update = {
+            toolCallId,
+            toolName: typeof inner.toolName === 'string' ? inner.toolName : undefined,
+            state: 'input-available',
+            input: inner.input,
+          };
+        } else if (inner.type === 'tool-output-available') {
+          update = {
+            toolCallId,
+            toolName: typeof inner.toolName === 'string' ? inner.toolName : undefined,
+            state: 'output-available',
+            output: inner.output,
+            preliminary: inner.preliminary === true,
+          };
+        } else if (inner.type === 'tool-output-error') {
+          update = {
+            toolCallId,
+            toolName: typeof inner.toolName === 'string' ? inner.toolName : undefined,
+            state: 'output-error',
+            output: inner.output,
+            errorText: typeof inner.errorText === 'string' ? inner.errorText : undefined,
+          };
+        }
+
+        if (!update) {
+          return;
+        }
+
+        const current = messagesRef.current;
+        const existingIdx = current.findIndex((m) => m.id === msgId);
+        let next: UIMessage[];
+
+        if (existingIdx >= 0) {
+          const existing = current[existingIdx];
+          const updated: UIMessage = {
+            ...existing,
+            parts: upsertToolInvocationPart(existing.parts, update),
+          };
+          next = [...current];
+          next[existingIdx] = updated;
+        } else {
+          next = [
+            ...current,
+            {
+              id: msgId,
+              role: 'assistant' as const,
+              parts: upsertToolInvocationPart([], update),
+            },
+          ];
+        }
+
+        commitMessages(next, 'immediate');
         setStatus('streaming');
         return;
       }
@@ -456,8 +602,7 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
         parts: [{ type: 'text' as const, text: opts.text }],
       } satisfies UIMessage;
 
-      const updated = [...messagesRef.current, userMessage];
-      commitMessages(updated, 'immediate');
+      const outboundMessages = [...messagesRef.current, userMessage];
       setStatus('submitting');
 
       clearStreamingState();
@@ -468,7 +613,7 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
             trigger: 'submit-message',
             chatId: sid,
             messageId: userMsgId,
-            messages: updated,
+            messages: outboundMessages,
           });
         } catch (err) {
           if (sessionIdRef.current === sid) {

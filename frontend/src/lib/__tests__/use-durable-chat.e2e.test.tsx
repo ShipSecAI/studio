@@ -194,4 +194,211 @@ describe('useDurableChat E2E parity', () => {
     expect(result.current.messages[0]).toBe(firstMessageRef);
     expect(result.current.messages[1]).toBe(secondMessageRef);
   });
+
+  it('renders tool invocation parts during live stream and converges to DB state', async () => {
+    const transport = new FakeDurableTransport();
+    const initialState: ChatSessionStateResponse = {
+      afterSeq: 20,
+      processingStatus: 'processing',
+      messages: [textMessage('user-1', 'user', 'run an ASM scan')],
+    };
+    const finalState: ChatSessionStateResponse = {
+      afterSeq: 24,
+      processingStatus: 'idle',
+      messages: [
+        textMessage('user-1', 'user', 'run an ASM scan'),
+        {
+          id: 'turn-turn-9',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool-invocation',
+              toolCallId: 'tool-1',
+              toolName: 'shipsec.subfinder.run',
+              state: 'output-available',
+              input: { domain: 'example.com' },
+              output: { findings: 3 },
+            },
+            { type: 'text', text: 'Scan complete.' },
+          ],
+        } as UIMessage,
+      ],
+    };
+
+    transport.enqueueState(initialState);
+    transport.enqueueState(initialState);
+    transport.enqueueState(finalState);
+    transport.setFallbackState(finalState);
+
+    const { result } = renderHook(() =>
+      useDurableChat({
+        transport: transport as unknown as DurableChatTransport,
+        sessionId: 'session-1',
+        throttleMs: 1,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.messages.length).toBe(1);
+    });
+
+    act(() => {
+      transport.emitChunk({
+        seq: 21,
+        turnId: 'turn-9',
+        type: 'tool-input-available',
+        toolCallId: 'tool-1',
+        toolName: 'shipsec.subfinder.run',
+        input: { domain: 'example.com' },
+      });
+    });
+
+    await waitFor(() => {
+      const assistant = result.current.messages.find((m) => m.role === 'assistant');
+      expect(assistant).toBeDefined();
+      expect(assistant?.parts.some((p) => p.type === 'tool-invocation')).toBe(true);
+    });
+
+    act(() => {
+      transport.emitChunk({
+        seq: 22,
+        turnId: 'turn-9',
+        type: 'tool-output-available',
+        toolCallId: 'tool-1',
+        toolName: 'shipsec.subfinder.run',
+        output: { findings: 3 },
+      });
+      transport.emitChunk({
+        seq: 23,
+        turnId: 'turn-9',
+        type: 'text-delta',
+        delta: 'Scan complete.',
+      });
+      transport.emitChunk({
+        seq: 24,
+        turnId: 'turn-9',
+        type: 'data-turn-status',
+        data: { status: 'completed', pendingCount: 0 },
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
+      const assistant = result.current.messages.find((m) => m.id === 'turn-turn-9');
+      expect(assistant).toBeDefined();
+      const toolPart = assistant?.parts.find((p) => p.type === 'tool-invocation') as
+        | { state?: string }
+        | undefined;
+      expect(toolPart?.state).toBe('output-available');
+      expect(transcriptSignature(result.current.messages)).toEqual(
+        transcriptSignature((finalState.messages ?? []) as UIMessage[]),
+      );
+    });
+  });
+
+  it('keeps tool calls inline between streamed text segments', async () => {
+    const transport = new FakeDurableTransport();
+    const initialState: ChatSessionStateResponse = {
+      afterSeq: 30,
+      processingStatus: 'processing',
+      messages: [textMessage('user-1', 'user', 'inspect example.com')],
+    };
+    const finalState: ChatSessionStateResponse = {
+      afterSeq: 35,
+      processingStatus: 'idle',
+      messages: [
+        textMessage('user-1', 'user', 'inspect example.com'),
+        {
+          id: 'turn-turn-10',
+          role: 'assistant',
+          parts: [
+            { type: 'text', text: 'Before tool. ' },
+            {
+              type: 'tool-invocation',
+              toolCallId: 'tool-10',
+              toolName: 'shipsec.subfinder.run',
+              state: 'output-available',
+              input: { domain: 'example.com' },
+              output: { subdomains: 12 },
+            },
+            { type: 'text', text: 'After tool.' },
+          ],
+        } as UIMessage,
+      ],
+    };
+
+    transport.enqueueState(initialState);
+    transport.enqueueState(initialState);
+    transport.enqueueState(finalState);
+    transport.setFallbackState(finalState);
+
+    const { result } = renderHook(() =>
+      useDurableChat({
+        transport: transport as unknown as DurableChatTransport,
+        sessionId: 'session-1',
+        throttleMs: 1,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.messages.length).toBe(1);
+    });
+
+    act(() => {
+      transport.emitChunk({
+        seq: 31,
+        turnId: 'turn-10',
+        type: 'text-delta',
+        delta: 'Before tool. ',
+      });
+      transport.emitChunk({
+        seq: 32,
+        turnId: 'turn-10',
+        type: 'tool-input-available',
+        toolCallId: 'tool-10',
+        toolName: 'shipsec.subfinder.run',
+        input: { domain: 'example.com' },
+      });
+      transport.emitChunk({
+        seq: 33,
+        turnId: 'turn-10',
+        type: 'tool-output-available',
+        toolCallId: 'tool-10',
+        toolName: 'shipsec.subfinder.run',
+        output: { subdomains: 12 },
+      });
+      transport.emitChunk({
+        seq: 34,
+        turnId: 'turn-10',
+        type: 'text-delta',
+        delta: 'After tool.',
+      });
+    });
+
+    await waitFor(() => {
+      const assistant = result.current.messages.find((m) => m.id === 'turn-turn-10');
+      expect(assistant).toBeDefined();
+      expect(assistant?.parts[0]?.type).toBe('text');
+      expect((assistant?.parts[0] as { text?: string })?.text).toBe('Before tool. ');
+      expect(assistant?.parts[1]?.type).toBe('tool-invocation');
+      expect(assistant?.parts[2]?.type).toBe('text');
+      expect((assistant?.parts[2] as { text?: string })?.text).toBe('After tool.');
+    });
+
+    act(() => {
+      transport.emitChunk({
+        seq: 35,
+        turnId: 'turn-10',
+        type: 'data-turn-status',
+        data: { status: 'completed', pendingCount: 0 },
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
+      expect(transcriptSignature(result.current.messages)).toEqual(
+        transcriptSignature((finalState.messages ?? []) as UIMessage[]),
+      );
+    });
+  });
 });

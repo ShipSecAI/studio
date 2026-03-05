@@ -59,7 +59,18 @@ export async function applyTurnStatus(
   const status = extractTurnStatus(chunk);
 
   if (status === 'running') {
-    await repos.turnRepository.setTurnRunning(sessionId, turnId, runId, generationId);
+    const runningUpdate = await repos.turnRepository.setTurnRunning(
+      sessionId,
+      turnId,
+      runId,
+      generationId,
+    );
+    if (runningUpdate?.promoted && runningUpdate.userMessage) {
+      await repos.sessionRepository.saveMessage(sessionId, {
+        role: 'user',
+        parts: [{ type: 'text', text: runningUpdate.userMessage }],
+      });
+    }
     await repos.sessionRepository.setProcessingStatus(sessionId, 'processing');
     return;
   }

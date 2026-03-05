@@ -154,12 +154,6 @@ export class ChatService {
       clientMessageId: input.clientMessageId,
     });
 
-    // Persist the user message to chat_messages so getState() includes it
-    await this.sessionRepository.saveMessage(sessionId, {
-      role: 'user',
-      parts: [{ type: 'text', text: input.message }],
-    });
-
     let runId = session.activeRunId ?? null;
     let queuedOnExistingRun = Boolean(runId);
     let createdRun = false;
@@ -266,19 +260,15 @@ export class ChatService {
 
   async steerSession(
     sessionId: string,
-    targetTurnId: string | undefined,
+    _targetTurnId: string | undefined,
     auth: AuthContext,
   ): Promise<{ ok: boolean; targetTurnId: string | null; interruptedTurnId?: string }> {
     await this.assertSessionAccess(sessionId, auth);
 
-    if (targetTurnId) {
-      await this.turnRepository.getTurn(sessionId, targetTurnId);
-    }
-
-    await this.sessionRepository.setSteerIntent(sessionId, targetTurnId ?? null);
-    if (targetTurnId) {
-      await this.temporalService.signalChatSteerTurn(sessionId, targetTurnId);
-    }
+    // Steer is a one-way operation:
+    // interrupt current generation now, then the workflow drains ALL queued
+    // user turns together for the next model run.
+    await this.sessionRepository.clearSteerIntent(sessionId);
 
     // Always interrupt — workflow handler is idempotent (activeScope?.cancel() is a no-op when null)
     await this.temporalService.signalChatInterrupt(sessionId);
@@ -286,7 +276,7 @@ export class ChatService {
     const runningTurn = await this.turnRepository.getRunningTurn(sessionId);
     return {
       ok: true,
-      targetTurnId: targetTurnId ?? null,
+      targetTurnId: null,
       interruptedTurnId: runningTurn?.id,
     };
   }
