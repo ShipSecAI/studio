@@ -375,4 +375,19 @@ describe('ChatService Unit Tests', () => {
     expect(sessionRepository.clearSteerIntent).toHaveBeenCalledWith('session-1');
     expect(partialRepository.delete).toHaveBeenCalledWith('session-1');
   });
+
+  it('steer interrupts current generation and does not target a specific queued turn', async () => {
+    (turnRepository.getRunningTurn as jest.Mock).mockResolvedValue({ id: 'turn-running' });
+
+    const result = await service.steerSession('session-1', 'turn-2', mockAuthContext);
+
+    expect(sessionRepository.clearSteerIntent).toHaveBeenCalledWith('session-1');
+    expect(temporalService.signalChatInterrupt).toHaveBeenCalledWith('session-1');
+    expect(temporalService.signalChatSteerTurn).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: true,
+      targetTurnId: null,
+      interruptedTurnId: 'turn-running',
+    });
+  });
 });

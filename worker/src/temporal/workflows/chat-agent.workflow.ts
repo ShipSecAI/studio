@@ -100,7 +100,6 @@ interface ChatUserTurn {
   turnId: string;
   message: ChatUIMessage;
   runId: string;
-  steerTarget?: boolean;
   queuedAt?: string;
 }
 
@@ -109,7 +108,6 @@ interface ChatUserTurn {
 // ---------------------------------------------------------------------------
 
 export const userMessageSignal = defineSignal<[ChatUserTurn]>('userMessage');
-export const steerTurnSignal = defineSignal<[string]>('steerTurn');
 export const endChatSignal = defineSignal('endChat');
 export const interruptGenerationSignal = defineSignal('interruptGeneration');
 
@@ -237,17 +235,6 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     }
   });
 
-  setHandler(steerTurnSignal, (turnId: string) => {
-    if (!turnId) return;
-    const idx = pendingUserMessages.findIndex((turn) => turn.turnId === turnId);
-    if (idx < 0) return;
-
-    pendingUserMessages[idx] = {
-      ...pendingUserMessages[idx],
-      steerTarget: true,
-    };
-  });
-
   // ---- Query handlers ----
   setHandler(getMessagesQuery, () => [...messages]);
   setHandler(getStatusQuery, () => status);
@@ -268,15 +255,9 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     if (!gotMessage) break;
     if (chatEnded) break;
 
-    // --- Drain & merge ALL pending messages into one turn ---
-    // If steer is active, merge up to (and including) the steer target.
-    // Otherwise, drain everything.
-    const steerIdx = pendingUserMessages.findIndex((turn) => turn.steerTarget === true);
-    const drainCount = steerIdx >= 0 ? steerIdx + 1 : pendingUserMessages.length;
-    const drainedTurns = pendingUserMessages.splice(0, drainCount);
-
-    // The primary turn is the steer target (if any) or the first message
-    const primaryTurn = steerIdx >= 0 ? drainedTurns[steerIdx] : drainedTurns[0];
+    // Drain and merge ALL pending user messages into one model turn.
+    const drainedTurns = pendingUserMessages.splice(0, pendingUserMessages.length);
+    const primaryTurn = drainedTurns[0];
 
     const runId = activeRunId ?? primaryTurn?.runId ?? 'gen-' + generationId;
     activeRunId = runId;

@@ -95,6 +95,23 @@ interface TurnStatusPayload {
   seq?: number;
 }
 
+interface ConversationSeparatorItem {
+  kind: 'separator';
+  id: string;
+  label: string;
+  variant: 'interrupted' | 'compacted';
+  snapshot?: string;
+}
+
+interface ConversationMessageItem {
+  kind: 'message';
+  id: string;
+  message: UIMessage;
+  index: number;
+}
+
+type ConversationRenderItem = ConversationSeparatorItem | ConversationMessageItem;
+
 function normalizeQueue(
   queue: QueueTurnIdentity[] | undefined,
   steerTargetTurnId: string | null | undefined,
@@ -120,6 +137,15 @@ function normalizeQueue(
   const targetTurnId =
     steerTargetTurnId ?? queuedTurns.find((turn) => turn.status === 'running')?.turnId ?? null;
   return { queuedTurns, queueOrder, steerTargetTurnId: targetTurnId };
+}
+
+function extractCompactionSnapshot(message: UIMessage): string | null {
+  if (message.role !== 'system') return null;
+  const text = getMessageText(message).trim();
+  const marker = '[Conversation summary of earlier messages]';
+  if (!text.startsWith(marker)) return null;
+  const snapshot = text.slice(marker.length).trim();
+  return snapshot.length > 0 ? snapshot : null;
 }
 
 function getTurnStatusChunkPayload(chunk: unknown): TurnStatusPayload | null {
@@ -407,7 +433,6 @@ export function ChatInterface() {
     isRunInspectorOpen,
     pendingCount,
     queuedTurns,
-    steerTargetTurnId,
     setQueueState,
     clearQueueState,
   } = useChatStore(
@@ -425,7 +450,6 @@ export function ChatInterface() {
       isRunInspectorOpen: state.isRunInspectorOpen,
       pendingCount: state.pendingCount,
       queuedTurns: state.queuedTurns,
-      steerTargetTurnId: state.steerTargetTurnId,
       setQueueState: state.setQueueState,
       clearQueueState: state.clearQueueState,
     })),
@@ -854,6 +878,7 @@ export function ChatInterface() {
   const [isGraphPanelOpen, setIsGraphPanelOpen] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [interruptedMessageIds, setInterruptedMessageIds] = useState<Set<string>>(new Set());
+  const [expandedCompactionIds, setExpandedCompactionIds] = useState<Set<string>>(new Set());
   const [steeringTurnId, setSteeringTurnId] = useState<string | null>(null);
   const handleSelectPrompt = useCallback((prompt: string) => {
     setPendingPrompt(prompt + ' ');
@@ -863,36 +888,29 @@ export function ChatInterface() {
     if (!currentSessionId || isStopping) return;
     setIsStopping(true); // Optimistic — will be confirmed/cleared by SSE events
     try {
-      if (steerTargetTurnId) {
-        await chatTransport.interruptTurn(currentSessionId, steerTargetTurnId);
-      } else {
-        await chatTransport.interruptGeneration(currentSessionId);
-      }
+      await chatTransport.interruptGeneration(currentSessionId);
     } catch (err) {
       console.warn('Failed to interrupt generation:', err);
       setIsStopping(false);
     }
-  }, [currentSessionId, isStopping, chatTransport, steerTargetTurnId]);
+  }, [currentSessionId, isStopping, chatTransport]);
 
-  const handleSteerTurn = useCallback(
-    async (turnId: string) => {
-      if (!currentSessionId || steeringTurnId) return;
-      setSteeringTurnId(turnId);
-      try {
-        await chatTransport.steerTurn(currentSessionId, turnId);
-      } catch (err) {
-        console.warn('Failed to steer turn:', err);
-        toast({
-          variant: 'destructive',
-          title: 'Steer failed',
-          description: 'Unable to move steer target to this queued turn.',
-        });
-      } finally {
-        setSteeringTurnId(null);
-      }
-    },
-    [currentSessionId, steeringTurnId, chatTransport, toast],
-  );
+  const handleSteerQueue = useCallback(async () => {
+    if (!currentSessionId || steeringTurnId) return;
+    setSteeringTurnId('all');
+    try {
+      await chatTransport.steerTurn(currentSessionId);
+    } catch (err) {
+      console.warn('Failed to steer turn:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Steer failed',
+        description: 'Unable to steer to the queued messages.',
+      });
+    } finally {
+      setSteeringTurnId(null);
+    }
+  }, [currentSessionId, steeringTurnId, chatTransport, toast]);
 
   const graphPanelUrl = useMemo(() => {
     if (!graphPanelRun) return '';
@@ -959,6 +977,43 @@ export function ChatInterface() {
 
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
   const userImageUrl = (user as { imageUrl?: string } | null)?.imageUrl;
+  const conversationItems = useMemo<ConversationRenderItem[]>(() => {
+    const items: ConversationRenderItem[] = [];
+    for (let idx = 0; idx < messages.length; idx += 1) {
+      const message = messages[idx];
+      const compactionSnapshot = extractCompactionSnapshot(message);
+      if (compactionSnapshot) {
+        items.push({
+          kind: 'separator',
+          id: `compact-${message.id}`,
+          label: 'Conversation compacted',
+          variant: 'compacted',
+          snapshot: compactionSnapshot,
+        });
+        continue;
+      }
+
+      if (idx > 0) {
+        const prevMessage = messages[idx - 1];
+        if (interruptedMessageIds.has(prevMessage.id)) {
+          items.push({
+            kind: 'separator',
+            id: `interrupt-${prevMessage.id}`,
+            label: 'Conversation interrupted',
+            variant: 'interrupted',
+          });
+        }
+      }
+
+      items.push({
+        kind: 'message',
+        id: message.id,
+        message,
+        index: idx,
+      });
+    }
+    return items;
+  }, [messages, interruptedMessageIds]);
 
   // Editable title state
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -1160,19 +1215,66 @@ export function ChatInterface() {
               className="flex-1 overflow-y-auto"
             >
               <div className="mx-auto flex min-h-full max-w-5xl flex-col justify-end gap-4 px-4 py-4 md:px-6">
-                {messages.map((msg, idx) => (
-                  <ChatMessageItem
-                    key={msg.id}
-                    message={msg}
-                    isInterrupted={interruptedMessageIds.has(msg.id)}
-                    isStreaming={
-                      (status === 'streaming' || sessionProcessing) &&
-                      msg.role === 'assistant' &&
-                      idx === messages.length - 1
-                    }
-                    userImageUrl={userImageUrl}
-                  />
-                ))}
+                {conversationItems.map((item) => {
+                  if (item.kind === 'separator') {
+                    const isCompacted = item.variant === 'compacted';
+                    const isExpanded = expandedCompactionIds.has(item.id);
+                    return (
+                      <div key={item.id} className="py-1">
+                        <div className="flex items-center gap-3">
+                          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-border" />
+                          <span
+                            className={`rounded-full border px-3 py-1 text-[11px] font-medium tracking-wide ${
+                              isCompacted
+                                ? 'border-primary/35 bg-primary/10 text-primary'
+                                : 'border-amber-500/35 bg-amber-500/10 text-amber-200'
+                            }`}
+                          >
+                            {item.label}
+                          </span>
+                          <div className="h-px flex-1 bg-gradient-to-l from-transparent via-border to-border" />
+                        </div>
+                        {isCompacted && item.snapshot && (
+                          <div className="mt-2 flex flex-col items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedCompactionIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(item.id)) next.delete(item.id);
+                                  else next.add(item.id);
+                                  return next;
+                                })
+                              }
+                              className="rounded-full border border-border bg-background px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+                            >
+                              {isExpanded ? 'Hide compact snapshot' : 'View compact snapshot'}
+                            </button>
+                            {isExpanded && (
+                              <div className="w-full rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
+                                {item.snapshot}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <ChatMessageItem
+                      key={item.id}
+                      message={item.message}
+                      isInterrupted={interruptedMessageIds.has(item.message.id)}
+                      isStreaming={
+                        (status === 'streaming' || sessionProcessing) &&
+                        item.message.role === 'assistant' &&
+                        item.index === messages.length - 1
+                      }
+                      userImageUrl={userImageUrl}
+                    />
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1224,11 +1326,14 @@ export function ChatInterface() {
                     <span className="text-xs font-medium text-foreground/80">
                       Queue ({pendingCount})
                     </span>
-                    {steerTargetTurnId ? (
-                      <span className="text-[11px] text-muted-foreground font-mono">
-                        target: {steerTargetTurnId.slice(0, 8)}
-                      </span>
-                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void handleSteerQueue()}
+                      disabled={Boolean(steeringTurnId)}
+                      className="shrink-0 rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground disabled:opacity-50"
+                    >
+                      {steeringTurnId ? 'Steering...' : 'Steer Now'}
+                    </button>
                   </div>
                   <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
                     {queuedTurns.length === 0 && (
@@ -1238,7 +1343,6 @@ export function ChatInterface() {
                     )}
                     {queuedTurns.map((turn, index) => {
                       const displayPosition = turn.queuePosition ?? index + 1;
-                      const isTarget = turn.turnId === steerTargetTurnId;
                       const preview =
                         turn.preview?.trim() && turn.preview.trim().length > 0
                           ? turn.preview.trim()
@@ -1246,11 +1350,7 @@ export function ChatInterface() {
                       return (
                         <div
                           key={turn.turnId}
-                          className={`flex items-start justify-between gap-3 rounded-md border px-2.5 py-2 ${
-                            isTarget
-                              ? 'border-primary/50 bg-primary/5'
-                              : 'border-border/70 bg-background/70'
-                          }`}
+                          className="rounded-md border border-border/70 bg-background/70 px-2.5 py-2"
                         >
                           <div className="min-w-0">
                             <div className="text-[11px] text-muted-foreground">
@@ -1258,22 +1358,6 @@ export function ChatInterface() {
                             </div>
                             <div className="text-sm text-foreground break-words">{preview}</div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => void handleSteerTurn(turn.turnId)}
-                            disabled={isTarget || steeringTurnId === turn.turnId}
-                            className={`shrink-0 rounded-md border px-2 py-1 text-[11px] transition-colors ${
-                              isTarget
-                                ? 'border-primary/50 bg-primary/10 text-primary'
-                                : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
-                            }`}
-                          >
-                            {isTarget
-                              ? 'Steer target'
-                              : steeringTurnId === turn.turnId
-                                ? '...'
-                                : 'Steer'}
-                          </button>
                         </div>
                       );
                     })}

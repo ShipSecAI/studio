@@ -450,12 +450,12 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     return { success: body.success ?? body.ok ?? false };
   }
 
-  async steerTurn(sessionId: string, turnId: string): Promise<{ success: boolean }> {
+  async steerTurn(sessionId: string, turnId?: string): Promise<{ success: boolean }> {
     const headers = await this.options.getAuthHeaders();
     const res = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/steer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify({ targetTurnId: turnId }),
+      body: JSON.stringify(turnId ? { targetTurnId: turnId } : {}),
     });
     if (!res.ok) {
       return { success: false };
