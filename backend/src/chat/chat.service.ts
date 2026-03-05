@@ -150,6 +150,12 @@ export class ChatService {
       clientMessageId: input.clientMessageId,
     });
 
+    // Persist the user message to chat_messages so getState() includes it
+    await this.sessionRepository.saveMessage(sessionId, {
+      role: 'user',
+      parts: [{ type: 'text', text: input.message }],
+    });
+
     let runId = session.activeRunId ?? null;
     let queuedOnExistingRun = Boolean(runId);
     let createdRun = false;
@@ -361,9 +367,11 @@ export class ChatService {
         ? Number(activeTurn.generationId)
         : null;
     const processingStatus =
-      activeTurn || queue.length > 0 || session.processingStatus === 'processing'
-        ? 'processing'
-        : 'idle';
+      session.processingStatus === 'stopping'
+        ? 'stopping'
+        : activeTurn || queue.length > 0 || session.processingStatus === 'processing'
+          ? 'processing'
+          : 'idle';
     const activeRunId = activeTurn?.runId ?? session.activeRunId ?? null;
 
     return {
@@ -624,6 +632,7 @@ export class ChatService {
         seq: row.seq,
         runId: row.runId,
         generationId: row.generationId,
+        turnId: row.turnId,
       });
       writeChunk(chunk);
     }
@@ -660,6 +669,7 @@ export class ChatService {
             seq: maybeSeq ?? undefined,
             runId: typeof event.runId === 'string' ? event.runId : undefined,
             generationId: typeof event.generationId === 'string' ? event.generationId : undefined,
+            turnId: typeof event.turnId === 'string' ? event.turnId : undefined,
           });
           writeChunk(chunk);
         },
@@ -713,6 +723,7 @@ export class ChatService {
               seq: row.seq,
               runId: row.runId,
               generationId: row.generationId,
+              turnId: row.turnId,
             });
             writeChunk(chunk);
           }
@@ -732,13 +743,19 @@ export class ChatService {
 
   private decorateStreamChunk(
     chunk: Record<string, unknown>,
-    metadata: { seq?: number; runId?: string | null; generationId?: string | null },
+    metadata: {
+      seq?: number;
+      runId?: string | null;
+      generationId?: string | null;
+      turnId?: string | null;
+    },
   ): Record<string, unknown> {
     const baseChunk: Record<string, unknown> = {
       ...chunk,
       ...(metadata.seq != null ? { seq: metadata.seq } : {}),
       ...(metadata.runId ? { runId: metadata.runId } : {}),
       ...(metadata.generationId ? { generationId: metadata.generationId } : {}),
+      ...(metadata.turnId ? { turnId: metadata.turnId } : {}),
     };
 
     if (baseChunk.type !== 'data-turn-status') {

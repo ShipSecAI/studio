@@ -46,8 +46,8 @@ export interface UseDurableChatReturn {
   status: DurableChatStatus;
   /** Last error, if any. */
   error: Error | null;
-  /** Send a user message. */
-  sendMessage: (opts: { text: string }) => void;
+  /** Send a user message. Pass sessionId explicitly for lazy-created sessions. */
+  sendMessage: (opts: { text: string; sessionId?: string }) => void;
   /** Replace the local message list (e.g., for hydration or reset). */
   setMessages: (msgs: UIMessage[]) => void;
   /** Fetch fresh state from the backend and update messages. */
@@ -94,6 +94,7 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
   const baseMessagesRef = useRef(baseMessages);
   baseMessagesRef.current = baseMessages;
   const streamingTextRef = useRef('');
+  const streamingMsgIdRef = useRef<string | null>(null);
   const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeTurnIdRef = useRef<string | null>(null);
 
@@ -143,11 +144,21 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
       if (!state || sessionIdRef.current !== targetId) return state;
 
       const hydrated = hydrateMessages(state.messages);
+
+      // Don't overwrite local messages with empty backend state.
+      // This happens during lazy session creation: sendMessage adds an
+      // optimistic user message while refreshState is still fetching.
+      if (hydrated.length === 0 && baseMessagesRef.current.length > 0) {
+        onStateRefreshRef.current?.(state);
+        return state;
+      }
+
       baseMessagesRef.current = hydrated;
       setBaseMessages(hydrated);
 
       // Clear streaming state — backend has the persisted truth now
       streamingTextRef.current = '';
+      streamingMsgIdRef.current = null;
       activeTurnIdRef.current = null;
       setStreamingText('');
       setStreamingMsgId(null);
@@ -191,12 +202,19 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
       const inner =
         c.chunk && typeof c.chunk === 'object' ? (c.chunk as Record<string, unknown>) : c;
 
+      if (inner.type === 'text-delta' && !chunkTurnId) {
+        console.warn('[useDurableChat] text-delta without turnId, skipping', inner);
+        return;
+      }
+
       if (inner.type === 'text-delta' && chunkTurnId) {
         if (!activeTurnIdRef.current || activeTurnIdRef.current === chunkTurnId) {
           activeTurnIdRef.current = chunkTurnId;
           streamingTextRef.current += inner.delta as string;
-          if (!streamingMsgId) {
-            setStreamingMsgId(`streaming-${chunkTurnId}`);
+          if (!streamingMsgIdRef.current) {
+            const newId = `streaming-${chunkTurnId}`;
+            streamingMsgIdRef.current = newId;
+            setStreamingMsgId(newId);
           }
           setStatus('streaming');
           scheduleFlush();
@@ -212,23 +230,70 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
             : {};
         const turnStatus = data.status as string | undefined;
 
+        if (turnStatus === 'stopping') {
+          setStatus('ready');
+          return;
+        }
+
         if (
           turnStatus === 'completed' ||
           turnStatus === 'interrupted' ||
           turnStatus === 'failed' ||
           turnStatus === 'cancelled'
         ) {
-          // Terminal — refresh from backend to get persisted messages
+          // Cancel any pending throttle flush
           if (throttleTimerRef.current) {
             clearTimeout(throttleTimerRef.current);
             throttleTimerRef.current = null;
           }
-          void refreshState();
+
+          // Promote streaming buffer into baseMessages so the text persists
+          // while refreshState() fetches the definitive server state.
+          if (streamingTextRef.current && streamingMsgIdRef.current) {
+            const msgId = streamingMsgIdRef.current;
+            const text = streamingTextRef.current;
+            const existingMsg = baseMessagesRef.current.find((m) => m.id === msgId);
+            if (existingMsg) {
+              const updated = baseMessagesRef.current.map((m) =>
+                m.id === msgId ? { ...m, parts: updateTextInParts(m.parts, text) } : m,
+              );
+              baseMessagesRef.current = updated;
+              setBaseMessages(updated);
+            } else {
+              const updated: UIMessage[] = [
+                ...baseMessagesRef.current,
+                {
+                  id: msgId,
+                  role: 'assistant' as const,
+                  parts: [{ type: 'text' as const, text }],
+                },
+              ];
+              baseMessagesRef.current = updated;
+              setBaseMessages(updated);
+            }
+          }
+
+          // Now clear streaming state
+          streamingTextRef.current = '';
+          streamingMsgIdRef.current = null;
+          activeTurnIdRef.current = null;
+          setStreamingText('');
+          setStreamingMsgId(null);
           setStatus('ready');
+
+          // Refresh from backend to get the definitive state.
+          // Always refresh unless there are explicitly more pending turns.
+          // (Worker turn-status events don't include pendingCount/processingStatus.)
+          const pendingCount = typeof data.pendingCount === 'number' ? data.pendingCount : -1;
+          if (pendingCount > 0) {
+            // More turns queued — skip refresh, next turn will trigger one
+          } else {
+            void refreshState();
+          }
         }
       }
     },
-    [scheduleFlush, refreshState, streamingMsgId],
+    [scheduleFlush, refreshState],
   );
 
   // ── Transport chunk subscription ─────────────────────────────────
@@ -252,20 +317,20 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
       setStreamingText('');
       setStreamingMsgId(null);
       streamingTextRef.current = '';
+      streamingMsgIdRef.current = null;
       activeTurnIdRef.current = null;
       setStatus('ready');
       setError(null);
       return;
     }
 
-    // New session — hydrate from backend and open SSE
-    void (async () => {
-      const state = await refreshState(sessionId);
-      if (state && sessionIdRef.current === sessionId) {
-        const afterSeq = Math.max(0, state.afterSeq ?? state.lastSeq ?? 0);
-        transport.openSessionStream(sessionId, afterSeq);
-      }
-    })();
+    // Open SSE FIRST with afterSeq=0 so no events are missed during refresh.
+    // The SSE endpoint replays from afterSeq and deduplicates via seq tracking.
+    transport.openSessionStream(sessionId, 0);
+
+    // Then hydrate from backend — any events that arrive via SSE before
+    // refreshState returns are already handled by the chunk subscription.
+    void refreshState(sessionId);
 
     return () => {
       // Cleanup streaming state on session switch
@@ -274,9 +339,38 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
         throttleTimerRef.current = null;
       }
       streamingTextRef.current = '';
+      streamingMsgIdRef.current = null;
       activeTurnIdRef.current = null;
     };
   }, [sessionId, transport, refreshState]);
+
+  // ── Cross-tab sync: visibility change + low-frequency poll ────────
+  // When the user switches to this tab, refresh state immediately so
+  // it picks up any turns started by other tabs. Also poll every 10s
+  // as a safety net for SSE connection gaps.
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && sessionIdRef.current) {
+        void refreshState();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    const pollTimer = setInterval(() => {
+      if (sessionIdRef.current && document.visibilityState === 'visible') {
+        void refreshState();
+      }
+    }, 10_000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      clearInterval(pollTimer);
+    };
+  }, [sessionId, refreshState]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -291,8 +385,8 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
   // ── Send message ──────────────────────────────────────────────────
 
   const sendMessage = useCallback(
-    (opts: { text: string }) => {
-      const sid = sessionIdRef.current;
+    (opts: { text: string; sessionId?: string }) => {
+      const sid = opts.sessionId ?? sessionIdRef.current;
       if (!sid) return;
 
       setError(null);
@@ -312,6 +406,7 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
 
       // Reset streaming state for the new turn
       streamingTextRef.current = '';
+      streamingMsgIdRef.current = null;
       activeTurnIdRef.current = null;
       setStreamingText('');
       setStreamingMsgId(null);
@@ -349,6 +444,7 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
     setBaseMessages(msgs);
     // Clear streaming state
     streamingTextRef.current = '';
+    streamingMsgIdRef.current = null;
     activeTurnIdRef.current = null;
     setStreamingText('');
     setStreamingMsgId(null);

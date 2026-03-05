@@ -268,18 +268,24 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     if (!gotMessage) break;
     if (chatEnded) break;
 
+    // --- Drain & merge ALL pending messages into one turn ---
+    // If steer is active, merge up to (and including) the steer target.
+    // Otherwise, drain everything.
     const steerIdx = pendingUserMessages.findIndex((turn) => turn.steerTarget === true);
-    const nextTurn =
-      steerIdx >= 0
-        ? pendingUserMessages.splice(steerIdx, 1)[0]
-        : (pendingUserMessages.shift() as ChatUserTurn);
+    const drainCount = steerIdx >= 0 ? steerIdx + 1 : pendingUserMessages.length;
+    const drainedTurns = pendingUserMessages.splice(0, drainCount);
 
-    const runId = activeRunId ?? nextTurn?.runId ?? 'gen-' + generationId;
+    // The primary turn is the steer target (if any) or the first message
+    const primaryTurn = steerIdx >= 0 ? drainedTurns[steerIdx] : drainedTurns[0];
+
+    const runId = activeRunId ?? primaryTurn?.runId ?? 'gen-' + generationId;
     activeRunId = runId;
     generationId++;
 
-    // Add user message to history
-    messages.push(nextTurn.message);
+    // Add ALL drained user messages to history
+    for (const turn of drainedTurns) {
+      messages.push(turn.message);
+    }
 
     status = 'processing';
 
@@ -288,14 +294,14 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
       const result = await activeScope.run(async () => {
         return await runChatAgentStepActivity({
           sessionId,
-          turnId: nextTurn.turnId,
+          turnId: primaryTurn.turnId,
           runId,
           generationId,
           organizationId: organizationId ?? undefined,
           systemPrompt,
           messages,
           maxSteps: 60,
-          queuedAt: nextTurn.queuedAt,
+          queuedAt: primaryTurn.queuedAt,
           compactionState,
         });
       });
@@ -317,7 +323,8 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
       // Generate AI title after the first exchange
       if (!titleGenerated) {
         titleGenerated = true;
-        const firstUserMsg = nextTurn?.message;
+        // Use the first user message for title generation context
+        const firstUserMsg = drainedTurns[0]?.message;
         const userText = (firstUserMsg?.parts ?? [])
           .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
           .map((p) => p.text)

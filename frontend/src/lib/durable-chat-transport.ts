@@ -71,6 +71,7 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
   private sessionSseSessionId: string | null = null;
   private lastSeq = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
   private sseConnectedPromise: Promise<void> | null = null;
 
   constructor(private options: DurableChatTransportOptions) {}
@@ -119,6 +120,7 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     this.closeSessionStream();
     this.sessionSseSessionId = sessionId;
     this.lastSeq = afterSeq;
+    this.reconnectAttempts = 0;
     this.sseConnectedPromise = this.startSse(sessionId);
     return this.sseConnectedPromise;
   }
@@ -143,7 +145,25 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
 
     return new ReadableStream<UIMessageChunk>({
       start(controller) {
+        let closed = false;
+
+        const cleanup = () => {
+          if (closed) return;
+          closed = true;
+          clearTimeout(timeout);
+          eventTarget.removeEventListener('chunk', handler);
+          try {
+            controller.close();
+          } catch {
+            // Already closed
+          }
+        };
+
+        // Safety timeout: remove listener if no terminal event within 5 minutes
+        const timeout = setTimeout(cleanup, 5 * 60 * 1000);
+
         const handler = (event: Event) => {
+          if (closed) return;
           const chunk = (event as CustomEvent).detail;
           if (!chunk || typeof chunk !== 'object') return;
 
@@ -163,14 +183,12 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
               status === 'failed' ||
               status === 'cancelled'
             ) {
-              eventTarget.removeEventListener('chunk', handler);
-              controller.close();
+              cleanup();
             }
           }
 
           if ((chunk as Record<string, unknown>).type === 'finish') {
-            eventTarget.removeEventListener('chunk', handler);
-            controller.close();
+            cleanup();
           }
         };
 
@@ -252,16 +270,22 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     if (this.sessionSseSessionId !== sessionId) return;
     if (this.sessionSseController?.signal.aborted) return;
 
+    const delay = Math.min(2000 * Math.pow(2, this.reconnectAttempts), 30000);
+    this.reconnectAttempts++;
+
     this.reconnectTimer = setTimeout(() => {
       if (this.sessionSseSessionId === sessionId) {
         this.sseConnectedPromise = this.startSse(sessionId);
       }
-    }, 2000);
+    }, delay);
   }
 
   private handleSseLine(line: string, sessionId: string): void {
     const parsed = this.parseSseLine(line);
     if (!parsed || parsed === 'DONE') return;
+
+    // Reset backoff on any successful data
+    this.reconnectAttempts = 0;
 
     const chunk = parsed as Record<string, unknown>;
 

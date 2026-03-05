@@ -27,17 +27,13 @@ import { useExecutionRun } from '@/hooks/queries/useExecutionQueries';
 import { useChatStore } from '@/store/chatStore';
 import { useAuth } from '@/auth/auth-context';
 import { useSidebar } from '@/components/layout/sidebar-context';
-import { useChat } from '@ai-sdk/react';
+import { useDurableChat } from '@/lib/use-durable-chat';
 import { isToolOrDynamicToolUIPart } from 'ai';
 import type { UIMessage } from 'ai';
 import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
 import { StatusBar } from '@/components/agent/StatusBar';
 import { useToast } from '@/components/ui/use-toast';
-import {
-  DurableChatTransport,
-  type ChatSessionStateResponse,
-  type QueueTurnIdentity,
-} from '@/lib/durable-chat-transport';
+import { DurableChatTransport, type QueueTurnIdentity } from '@/lib/durable-chat-transport';
 
 // AI Elements
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
@@ -98,18 +94,6 @@ interface TurnStatusPayload {
   seq?: number;
 }
 
-function hydrateMessages(messages: ChatSessionStateResponse['messages']): UIMessage[] {
-  if (!Array.isArray(messages)) {
-    return [];
-  }
-  return messages.map((m) => ({
-    id: m.id,
-    role: m.role,
-    parts: m.parts,
-    createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
-  }));
-}
-
 function normalizeQueue(
   queue: QueueTurnIdentity[] | undefined,
   steerTargetTurnId: string | null | undefined,
@@ -149,18 +133,6 @@ function getTurnStatusChunkPayload(chunk: unknown): TurnStatusPayload | null {
     return typed.data as TurnStatusPayload;
   }
   return typed as TurnStatusPayload;
-}
-
-function getChunkSeq(chunk: unknown): number | null {
-  if (!chunk || typeof chunk !== 'object') {
-    return null;
-  }
-  const typed = chunk as { seq?: unknown; lastSeq?: unknown; afterSeq?: unknown };
-  const candidate = typed.seq ?? typed.lastSeq ?? typed.afterSeq;
-  if (typeof candidate !== 'number' || !Number.isFinite(candidate)) {
-    return null;
-  }
-  return candidate;
 }
 
 // Memoized tool part — skips re-render when the part object reference hasn't changed.
@@ -452,8 +424,7 @@ export function ChatInterface() {
   routeSessionIdRef.current = routeSessionId && routeSessionId !== 'new' ? routeSessionId : null;
   // Track which session was lazily created so we skip message-loading for it
   const lazyCreatedSessionRef = useRef<string | null>(null);
-  // Queue first message until useChat is bound to the durable session id.
-  const pendingFirstMessageRef = useRef<string | null>(null);
+  // Queue first message until the hook sees the new session id.
   const isCreatingSessionRef = useRef(false);
 
   // Load sessions from server on mount
@@ -487,190 +458,17 @@ export function ChatInterface() {
     navigate(currentSessionId ? `/chat/${currentSessionId}` : '/chat/new', { replace: true });
   }, [routeSessionId, currentSessionId, navigate]);
 
-  // Load messages for current session
-  const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
-  const [chatId, setChatId] = useState(() =>
-    currentSessionId ? currentSessionId : `chat-${Date.now()}`,
-  );
   const [sessionProcessing, setSessionProcessing] = useState(false);
   const [sessionProcessingStartedAtMs, setSessionProcessingStartedAtMs] = useState<number | null>(
     null,
   );
-  const streamCursorRef = useRef(0);
 
-  // Create DurableChatTransport - handles sending + reconnect from durable cursor.
+  // Create DurableChatTransport — onChunk/queue logic moved to useDurableChat callbacks.
   const chatTransport = useMemo(
     () =>
       new DurableChatTransport({
         apiBase: API_V1_URL,
         getAuthHeaders: getApiAuthHeaders,
-        onChunk: (chunk, context) => {
-          const activeSessionId = routeSessionIdRef.current ?? sessionIdRef.current;
-          if (activeSessionId && context.sessionId !== activeSessionId) {
-            return;
-          }
-
-          const chunkSeq = getChunkSeq(chunk);
-          if (chunkSeq != null) {
-            streamCursorRef.current = Math.max(streamCursorRef.current, chunkSeq);
-          }
-
-          const payload = getTurnStatusChunkPayload(chunk);
-          if (!payload) return;
-
-          const nextSeq = payload.seq ?? payload.lastSeq ?? payload.afterSeq;
-          if (typeof nextSeq === 'number' && Number.isFinite(nextSeq)) {
-            streamCursorRef.current = Math.max(streamCursorRef.current, nextSeq);
-          }
-
-          // Lifecycle-only chunks can omit queue snapshots; keep local queue state in that case.
-          const hasQueueSnapshot =
-            Array.isArray(payload.queue) ||
-            Array.isArray(payload.queuedTurns) ||
-            typeof payload.pendingCount === 'number' ||
-            payload.processingStatus != null ||
-            payload.activeRunId != null;
-
-          if (!hasQueueSnapshot) {
-            if (payload.status === 'queued') {
-              const turnId = payload.turnId;
-              if (turnId) {
-                const existing = useChatStore.getState().queuedTurns;
-                const deduped = existing.filter((turn) => turn.turnId !== turnId);
-                const queuePosition = deduped.length + 1;
-                const queuedTurns = [
-                  ...deduped,
-                  {
-                    turnId,
-                    clientMessageId: null,
-                    preview: payload.preview ?? null,
-                    queuePosition,
-                    status: 'queued',
-                    queuedAt: payload.queuedAt ?? null,
-                    startedAt: null,
-                    completedAt: null,
-                  },
-                ].sort(
-                  (a, b) =>
-                    (a.queuePosition ?? Number.MAX_SAFE_INTEGER) -
-                    (b.queuePosition ?? Number.MAX_SAFE_INTEGER),
-                );
-                setQueueState(
-                  {
-                    pendingCount: queuedTurns.length,
-                    queueOrder: queuedTurns.map((turn) => turn.turnId),
-                    queuedTurns,
-                    steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
-                  },
-                  activeSessionId,
-                );
-                setSessionProcessing(true);
-              }
-            }
-            if (payload.status === 'running') {
-              setIsStopping(false);
-              const existing = useChatStore.getState().queuedTurns;
-              const turnId = payload.turnId;
-              if (turnId) {
-                const startedAt = payload.startedAt ?? new Date().toISOString();
-                const nextQueuedTurns = existing.map((turn) =>
-                  turn.turnId === turnId ? { ...turn, status: 'running', startedAt } : turn,
-                );
-                setQueueState(
-                  {
-                    pendingCount: nextQueuedTurns.length,
-                    queueOrder: nextQueuedTurns.map((turn) => turn.turnId),
-                    queuedTurns: nextQueuedTurns,
-                    steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
-                  },
-                  activeSessionId,
-                );
-              }
-              setSessionProcessing(true);
-            }
-            if (payload.status === 'stopping') {
-              setIsStopping(true);
-            }
-            if (
-              payload.status === 'completed' ||
-              payload.status === 'interrupted' ||
-              payload.status === 'failed' ||
-              payload.status === 'cancelled'
-            ) {
-              setIsStopping(false);
-              // Mark the last assistant message as interrupted for inline annotation
-              if (payload.status === 'interrupted') {
-                const msgs = messagesRef.current;
-                for (let i = msgs.length - 1; i >= 0; i--) {
-                  if (msgs[i].role === 'assistant') {
-                    setInterruptedMessageIds((prev) => new Set(prev).add(msgs[i].id));
-                    break;
-                  }
-                }
-              }
-              const existing = useChatStore.getState().queuedTurns;
-              const terminalTurnId = payload.turnId;
-              const nextQueuedTurns = terminalTurnId
-                ? existing.filter((turn) => turn.turnId !== terminalTurnId)
-                : existing.filter((turn) => turn.status !== 'running');
-              if (nextQueuedTurns.length > 0) {
-                setQueueState(
-                  {
-                    pendingCount: nextQueuedTurns.length,
-                    queueOrder: nextQueuedTurns.map((turn) => turn.turnId),
-                    queuedTurns: nextQueuedTurns,
-                    steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
-                  },
-                  activeSessionId,
-                );
-                setSessionProcessing(true);
-              } else {
-                clearQueueState(activeSessionId);
-                setSessionProcessing(false);
-                setSessionProcessingStartedAtMs(null);
-              }
-            }
-            return;
-          }
-
-          const normalizedQueue = normalizeQueue(
-            payload.queue ?? payload.queuedTurns,
-            payload.steerTargetTurnId,
-          );
-          const pendingCountFromQueue = normalizedQueue.queuedTurns.length;
-
-          if (payload.processingStatus === 'idle') {
-            setSessionProcessing(false);
-            setSessionProcessingStartedAtMs(null);
-            setIsStopping(false);
-            clearQueueState(activeSessionId);
-            return;
-          }
-
-          setQueueState(
-            {
-              pendingCount: payload.pendingCount ?? pendingCountFromQueue,
-              generationId: payload.generationId ?? null,
-              steerTargetTurnId: normalizedQueue.steerTargetTurnId,
-              queueOrder: normalizedQueue.queueOrder,
-              queuedTurns: normalizedQueue.queuedTurns,
-            },
-            activeSessionId,
-          );
-
-          if (
-            payload.processingStatus === 'processing' ||
-            payload.processingStatus === 'stopping'
-          ) {
-            setSessionProcessing(true);
-            if (payload.processingStatus === 'stopping') {
-              setIsStopping(true);
-            }
-            setSessionProcessingStartedAtMs(
-              payload.activeRunStartedAt ? new Date(payload.activeRunStartedAt).getTime() : null,
-            );
-          }
-        },
         onQueuedTurn: (response, context) => {
           const activeSessionId = routeSessionIdRef.current ?? sessionIdRef.current;
           if (activeSessionId && context.sessionId !== activeSessionId) {
@@ -725,12 +523,185 @@ export function ChatInterface() {
     [clearQueueState, setQueueState],
   );
 
-  const { messages, sendMessage, status, error, setMessages } = useChat({
+  // ── useDurableChat: owns messages, SSE lifecycle, streaming buffer ──
+  const { messages, sendMessage, status, error } = useDurableChat({
     transport: chatTransport,
-    id: chatId,
-    messages: initialMessages,
-    experimental_throttle: 80,
-    resume: true,
+    sessionId: currentSessionId,
+    onChunk: (chunk, context) => {
+      const activeSessionId = routeSessionIdRef.current ?? sessionIdRef.current;
+      if (activeSessionId && context.sessionId !== activeSessionId) return;
+
+      const payload = getTurnStatusChunkPayload(chunk);
+      if (!payload) return;
+
+      // Lifecycle-only chunks can omit queue snapshots; keep local queue state in that case.
+      const hasQueueSnapshot =
+        Array.isArray(payload.queue) ||
+        Array.isArray(payload.queuedTurns) ||
+        typeof payload.pendingCount === 'number' ||
+        payload.processingStatus != null ||
+        payload.activeRunId != null;
+
+      if (!hasQueueSnapshot) {
+        if (payload.status === 'queued') {
+          const turnId = payload.turnId;
+          if (turnId) {
+            const existing = useChatStore.getState().queuedTurns;
+            const deduped = existing.filter((turn) => turn.turnId !== turnId);
+            const queuePosition = deduped.length + 1;
+            const turns = [
+              ...deduped,
+              {
+                turnId,
+                clientMessageId: null,
+                preview: payload.preview ?? null,
+                queuePosition,
+                status: 'queued',
+                queuedAt: payload.queuedAt ?? null,
+                startedAt: null,
+                completedAt: null,
+              },
+            ].sort(
+              (a, b) =>
+                (a.queuePosition ?? Number.MAX_SAFE_INTEGER) -
+                (b.queuePosition ?? Number.MAX_SAFE_INTEGER),
+            );
+            setQueueState(
+              {
+                pendingCount: turns.length,
+                queueOrder: turns.map((t) => t.turnId),
+                queuedTurns: turns,
+                steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
+              },
+              activeSessionId,
+            );
+            setSessionProcessing(true);
+          }
+        }
+        if (payload.status === 'running') {
+          setIsStopping(false);
+          const existing = useChatStore.getState().queuedTurns;
+          const turnId = payload.turnId;
+          if (turnId) {
+            const startedAt = payload.startedAt ?? new Date().toISOString();
+            const nextQueuedTurns = existing.map((turn) =>
+              turn.turnId === turnId ? { ...turn, status: 'running', startedAt } : turn,
+            );
+            setQueueState(
+              {
+                pendingCount: nextQueuedTurns.length,
+                queueOrder: nextQueuedTurns.map((t) => t.turnId),
+                queuedTurns: nextQueuedTurns,
+                steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
+              },
+              activeSessionId,
+            );
+          }
+          setSessionProcessing(true);
+        }
+        if (payload.status === 'stopping') {
+          setIsStopping(true);
+        }
+        if (
+          payload.status === 'completed' ||
+          payload.status === 'interrupted' ||
+          payload.status === 'failed' ||
+          payload.status === 'cancelled'
+        ) {
+          setIsStopping(false);
+          if (payload.status === 'interrupted') {
+            const msgs = messagesRef.current;
+            for (let i = msgs.length - 1; i >= 0; i--) {
+              if (msgs[i].role === 'assistant') {
+                setInterruptedMessageIds((prev) => new Set(prev).add(msgs[i].id));
+                break;
+              }
+            }
+          }
+          const existing = useChatStore.getState().queuedTurns;
+          const terminalTurnId = payload.turnId;
+          const nextQueuedTurns = terminalTurnId
+            ? existing.filter((turn) => turn.turnId !== terminalTurnId)
+            : existing.filter((turn) => turn.status !== 'running');
+          if (nextQueuedTurns.length > 0) {
+            setQueueState(
+              {
+                pendingCount: nextQueuedTurns.length,
+                queueOrder: nextQueuedTurns.map((t) => t.turnId),
+                queuedTurns: nextQueuedTurns,
+                steerTargetTurnId: useChatStore.getState().steerTargetTurnId,
+              },
+              activeSessionId,
+            );
+            setSessionProcessing(true);
+          } else {
+            clearQueueState(activeSessionId);
+            setSessionProcessing(false);
+            setSessionProcessingStartedAtMs(null);
+          }
+        }
+        return;
+      }
+
+      const normalizedQueue = normalizeQueue(
+        payload.queue ?? payload.queuedTurns,
+        payload.steerTargetTurnId,
+      );
+      const pendingCountFromQueue = normalizedQueue.queuedTurns.length;
+
+      if (payload.processingStatus === 'idle') {
+        setSessionProcessing(false);
+        setSessionProcessingStartedAtMs(null);
+        setIsStopping(false);
+        clearQueueState(activeSessionId);
+        return;
+      }
+
+      setQueueState(
+        {
+          pendingCount: payload.pendingCount ?? pendingCountFromQueue,
+          generationId: payload.generationId ?? null,
+          steerTargetTurnId: normalizedQueue.steerTargetTurnId,
+          queueOrder: normalizedQueue.queueOrder,
+          queuedTurns: normalizedQueue.queuedTurns,
+        },
+        activeSessionId,
+      );
+
+      if (payload.processingStatus === 'processing' || payload.processingStatus === 'stopping') {
+        setSessionProcessing(true);
+        if (payload.processingStatus === 'stopping') {
+          setIsStopping(true);
+        }
+        setSessionProcessingStartedAtMs(
+          payload.activeRunStartedAt ? new Date(payload.activeRunStartedAt).getTime() : null,
+        );
+      }
+    },
+    onStateRefresh: (state) => {
+      const sid = currentSessionId;
+      const normalizedQueue = normalizeQueue(
+        state.queue ?? state.queuedTurns,
+        state.steerTargetTurnId,
+      );
+      setQueueState(
+        {
+          pendingCount: state.pendingCount ?? normalizedQueue.queuedTurns.length,
+          generationId: state.generationId ?? null,
+          steerTargetTurnId: normalizedQueue.steerTargetTurnId,
+          queueOrder: normalizedQueue.queueOrder,
+          queuedTurns: normalizedQueue.queuedTurns,
+        },
+        sid,
+      );
+      const isProcessing =
+        state.processingStatus === 'processing' || state.processingStatus === 'stopping';
+      setSessionProcessing(isProcessing);
+      setIsStopping(state.processingStatus === 'stopping');
+      setSessionProcessingStartedAtMs(
+        state.activeRunStartedAt ? new Date(state.activeRunStartedAt).getTime() : null,
+      );
+    },
   });
 
   const messagesRef = useRef(messages);
@@ -738,159 +709,40 @@ export function ChatInterface() {
     messagesRef.current = messages;
   }, [messages]);
 
-  const statusRef = useRef(status);
-  useEffect(() => {
-    statusRef.current = status;
-  }, [status]);
-
-  // Session SSE lifecycle: close on unmount
-  useEffect(() => {
-    return () => {
-      chatTransport.closeSessionStream();
-    };
-  }, [chatTransport]);
-
-  const fetchSessionState = useCallback(
-    async (sessionId: string): Promise<ChatSessionStateResponse | null> => {
-      const state = await chatTransport.getState(sessionId);
-      if (state) return state;
-
-      // Compatibility fallback while backend rollout is in flight.
-      try {
-        const authHeaders = await getApiAuthHeaders();
-        const res = await fetch(`${API_V1_URL}/chat/sessions/${sessionId}/messages`, {
-          headers: { ...authHeaders },
-        });
-        if (!res.ok) return null;
-        const msgs = await res.json();
-        return { messages: msgs, processingStatus: 'idle', afterSeq: 0, lastSeq: 0 };
-      } catch {
-        return null;
-      }
-    },
-    [chatTransport],
-  );
-
+  // Reset ChatInterface-specific state when starting a new conversation
   useEffect(() => {
     if (newConversationToken > 0 && !currentSessionId) {
-      setChatId(`new-${Date.now()}`);
-      setInitialMessages([]);
-      setMessages([]);
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
-      streamCursorRef.current = 0;
-      chatTransport.closeSessionStream();
       clearQueueState();
-      pendingFirstMessageRef.current = null;
       isCreatingSessionRef.current = false;
     }
-  }, [newConversationToken, currentSessionId, setMessages, clearQueueState, chatTransport]);
+  }, [newConversationToken, currentSessionId, clearQueueState]);
 
+  // Reset local state on session switch
   useEffect(() => {
     if (routeSessionId === 'new') {
-      // Ensure local chat state is always reset when landing on the new draft route.
-      setChatId(`new-${Date.now()}`);
-      setInitialMessages([]);
-      setMessages([]);
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
-      streamCursorRef.current = 0;
-      chatTransport.closeSessionStream();
       clearQueueState();
-      pendingFirstMessageRef.current = null;
       isCreatingSessionRef.current = false;
       sessionIdRef.current = null;
       return;
     }
 
     if (!currentSessionId) {
-      // User clicked "New Conversation" — reset chat to empty state
-      setChatId(`new-${Date.now()}`);
-      setInitialMessages([]);
-      setMessages([]);
       setSessionProcessing(false);
       setSessionProcessingStartedAtMs(null);
-      streamCursorRef.current = 0;
-      chatTransport.closeSessionStream();
       clearQueueState();
       return;
     }
 
-    // Skip backend hydration for sessions created from this draft.
-    // We already have local in-memory transcript (user + streaming assistant),
-    // and re-hydrating too early can reset the chat to a partial server snapshot.
-    if (lazyCreatedSessionRef.current === currentSessionId) {
-      setChatId(currentSessionId);
-      return;
-    }
-
-    // Session switch — load messages from server and reset useChat
-    const targetSessionId = currentSessionId;
-    let cancelled = false;
-    chatTransport.closeSessionStream();
-    setChatId(targetSessionId);
-    setInitialMessages([]);
-    setMessages([]);
+    // Session switch — clear ChatInterface-specific state; hook handles messages + SSE
     setSessionProcessing(false);
     setSessionProcessingStartedAtMs(null);
     setIsStopping(false);
     setInterruptedMessageIds(new Set());
-
-    (async () => {
-      const state = await fetchSessionState(targetSessionId);
-      if (cancelled || routeSessionIdRef.current !== targetSessionId) {
-        return;
-      }
-
-      if (state) {
-        const hydrated = hydrateMessages(state.messages);
-        setInitialMessages(hydrated);
-        setMessages(hydrated);
-
-        const latestSeqFromState = Math.max(0, state.afterSeq ?? state.lastSeq ?? 0);
-        streamCursorRef.current = latestSeqFromState;
-        const normalizedQueue = normalizeQueue(
-          state.queue ?? state.queuedTurns,
-          state.steerTargetTurnId,
-        );
-        setQueueState(
-          {
-            pendingCount: state.pendingCount ?? normalizedQueue.queuedTurns.length,
-            generationId: state.generationId ?? null,
-            steerTargetTurnId: normalizedQueue.steerTargetTurnId,
-            queueOrder: normalizedQueue.queueOrder,
-            queuedTurns: normalizedQueue.queuedTurns,
-          },
-          targetSessionId,
-        );
-        const isProcessing =
-          state.processingStatus === 'processing' || state.processingStatus === 'stopping';
-        setSessionProcessing(isProcessing);
-        setIsStopping(state.processingStatus === 'stopping');
-        setSessionProcessingStartedAtMs(
-          state.activeRunStartedAt ? new Date(state.activeRunStartedAt).getTime() : null,
-        );
-        // Open session SSE — events for all turns (including active) will flow through
-        chatTransport.openSessionStream(targetSessionId, latestSeqFromState);
-      } else {
-        setInitialMessages([]);
-        setMessages([]);
-        clearQueueState(targetSessionId);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    currentSessionId,
-    routeSessionId,
-    fetchSessionState,
-    setMessages,
-    setQueueState,
-    clearQueueState,
-    chatTransport,
-  ]);
+  }, [currentSessionId, routeSessionId, clearQueueState]);
 
   // Once the user switches away from the just-created session, clear the
   // marker so future visits hydrate from backend as usual.
@@ -900,18 +752,12 @@ export function ChatInterface() {
     }
   }, [currentSessionId]);
 
-  useEffect(() => {
-    const pendingMessage = pendingFirstMessageRef.current;
-    if (!pendingMessage || !currentSessionId) return;
-    if (chatId !== currentSessionId) return;
+  // NOTE: Previously had a useEffect to send queued first message when
+  // currentSessionId changed. This was unreliable due to React StrictMode
+  // double-firing effects. Now sendMessage is called directly from
+  // handleSubmit with an explicit sessionId override.
 
-    pendingFirstMessageRef.current = null;
-    sendMessage({ text: pendingMessage });
-  }, [chatId, currentSessionId, sendMessage]);
-
-  const displayMessages = messages;
-  const effectiveStatus = status;
-  const isAgentWorking = effectiveStatus === 'streaming' || sessionProcessing;
+  const isAgentWorking = status === 'streaming' || status === 'submitting' || sessionProcessing;
   const [workingStartedAtMs, setWorkingStartedAtMs] = useState<number | null>(null);
   const [workingElapsedSeconds, setWorkingElapsedSeconds] = useState(0);
 
@@ -947,12 +793,6 @@ export function ChatInterface() {
     const seconds = workingElapsedSeconds % 60;
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
   }, [workingElapsedSeconds]);
-
-  useEffect(() => {
-    return () => {
-      chatTransport.closeSessionStream();
-    };
-  }, [chatTransport]);
 
   // Auto-scroll: track if user is near bottom, scroll on new content
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1084,10 +924,12 @@ export function ChatInterface() {
           const newSessionId = await createSession(title);
           lazyCreatedSessionRef.current = newSessionId;
           sessionIdRef.current = newSessionId;
-          setChatId(newSessionId);
-          pendingFirstMessageRef.current = text;
           // Route transition is explicit to avoid relying on effect timing.
           navigate(`/chat/${newSessionId}`, { replace: true });
+          // Send message directly with explicit sessionId — the ref-based
+          // pendingFirstMessage effect is unreliable due to React StrictMode
+          // double-firing effects which consumes the ref before the real run.
+          sendMessage({ text, sessionId: newSessionId });
           return;
         } finally {
           isCreatingSessionRef.current = false;
@@ -1301,7 +1143,7 @@ export function ChatInterface() {
             </button>
           )}
 
-          {displayMessages.length === 0 ? (
+          {messages.length === 0 ? (
             <EmptyState userName={getUserName(user)} onSelectPrompt={handleSelectPrompt} />
           ) : (
             <div
@@ -1310,15 +1152,15 @@ export function ChatInterface() {
               className="flex-1 overflow-y-auto"
             >
               <div className="mx-auto flex min-h-full max-w-5xl flex-col justify-end gap-4 px-4 py-4 md:px-6">
-                {displayMessages.map((msg, idx) => (
+                {messages.map((msg, idx) => (
                   <ChatMessageItem
                     key={msg.id}
                     message={msg}
                     isInterrupted={interruptedMessageIds.has(msg.id)}
                     isStreaming={
-                      (effectiveStatus === 'streaming' || sessionProcessing) &&
+                      (status === 'streaming' || sessionProcessing) &&
                       msg.role === 'assistant' &&
-                      idx === displayMessages.length - 1
+                      idx === messages.length - 1
                     }
                     userImageUrl={userImageUrl}
                   />
@@ -1470,7 +1312,10 @@ export function ChatInterface() {
                     </PromptInputButton>
                   </div>
                   <div className="flex items-center gap-1">
-                    <PromptInputSubmit status={effectiveStatus} onStop={handleInterrupt} />
+                    <PromptInputSubmit
+                      status={status === 'submitting' ? 'submitted' : status}
+                      onStop={handleInterrupt}
+                    />
                   </div>
                 </PromptInputFooter>
               </PromptInput>

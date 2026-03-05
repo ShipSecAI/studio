@@ -66,6 +66,22 @@ interface AppendResult {
 
 type TurnLifecycleStatus = 'queued' | 'running' | 'completed' | 'interrupted' | 'failed';
 
+/**
+ * Checkpoint data stored in Temporal heartbeat details for resumable agent.
+ * On activity retry, this lets the agent resume from where it left off
+ * instead of restarting fresh (avoiding Frankenstein messages).
+ */
+interface ActivityCheckpoint {
+  /** Accumulated assistant parts. Omitted when recoveryMode is 'db-replay'. */
+  accumulatedParts?: ChatMessagePart[];
+  eventCounter: number;
+  lastFlushedLength: number;
+  completedToolCalls: string[];
+  attempt: number;
+  /** When checkpoint is too large (>1.5MB), parts are omitted and recovered from DB */
+  recoveryMode?: 'db-replay';
+}
+
 interface TurnStatusPayload {
   turnId: string;
   status: TurnLifecycleStatus;
@@ -593,11 +609,16 @@ export async function runChatAgentStepActivity(
     queuedAt,
   } = input;
   const cancellationSignal = Context.current().cancellationSignal;
+  const activityInfo = Context.current().info;
 
-  // Per-invocation emission state
+  // --- RESUME FROM CHECKPOINT ---
+  const checkpoint = activityInfo.heartbeatDetails as ActivityCheckpoint | undefined;
+  const isRetry = (activityInfo.attempt ?? 1) > 1 && checkpoint != null;
+
+  // Per-invocation emission state — resume from checkpoint if retrying
   let emissionHalted = false;
   let consecutiveAppendFailures = 0;
-  let eventCounter = 0;
+  let eventCounter = checkpoint?.eventCounter ?? 0;
   const MAX_CONSECUTIVE_FAILURES = 3;
   const startedAt = new Date().toISOString();
 
@@ -681,17 +702,66 @@ export async function runChatAgentStepActivity(
     );
   };
 
+  // Heartbeat checkpoint function — saves real state instead of useless strings
+  const heartbeatCheckpoint = (parts: any[], completedTools: Set<string>, flushedLen: number) => {
+    const cp: ActivityCheckpoint = {
+      accumulatedParts: parts.slice(),
+      eventCounter,
+      lastFlushedLength: flushedLen,
+      completedToolCalls: [...completedTools],
+      attempt: activityInfo.attempt ?? 1,
+    };
+
+    // Guard against 2MB Temporal payload limit
+    const size = JSON.stringify(cp).length;
+    if (size > 1_500_000) {
+      // Too large — heartbeat a lean version without parts (db-replay mode)
+      Context.current().heartbeat({
+        eventCounter,
+        lastFlushedLength: flushedLen,
+        completedToolCalls: [...completedTools],
+        attempt: activityInfo.attempt ?? 1,
+        recoveryMode: 'db-replay',
+      } satisfies ActivityCheckpoint);
+    } else {
+      Context.current().heartbeat(cp);
+    }
+  };
+
+  // Initial heartbeat — will be replaced with real checkpoints once streaming starts
   Context.current().heartbeat('activity-start');
+  // Periodic checkpoint heartbeat (real data once accumulatedParts is available)
+  let heartbeatAccumulatedParts: any[] = [];
+  let heartbeatCompletedTools = new Set<string>();
+  let heartbeatFlushedLen = 0;
   const heartbeatTimer = setInterval(() => {
     try {
-      Context.current().heartbeat('activity-alive');
+      if (heartbeatAccumulatedParts.length > 0) {
+        heartbeatCheckpoint(
+          heartbeatAccumulatedParts,
+          heartbeatCompletedTools,
+          heartbeatFlushedLen,
+        );
+      } else {
+        Context.current().heartbeat('activity-alive');
+      }
     } catch {
       // Best-effort periodic heartbeat.
     }
   }, 1000);
 
-  // Lifecycle marker: turn entered running state.
-  await emitTurnStatus('running');
+  if (isRetry) {
+    console.log(
+      `[chat-agent] Resuming attempt ${activityInfo.attempt} for session ${sessionId}, ` +
+        `turn ${turnId} with ${checkpoint.accumulatedParts?.length ?? 0} recovered parts, ` +
+        `eventCounter=${eventCounter}`,
+    );
+    // Emit resumed running status so clients know agent recovered
+    await emitTurnStatus('running', { reason: `resumed-attempt-${activityInfo.attempt}` });
+  } else {
+    // Lifecycle marker: turn entered running state.
+    await emitTurnStatus('running');
+  }
 
   // Connect to the backend's MCP servers for tool discovery + execution
   const mcpClient = await withTimeout(
@@ -712,10 +782,18 @@ export async function runChatAgentStepActivity(
     const emittedTaskInvocationChunks = new Set<string>();
 
     // Accumulate parts for periodic flush to Postgres
-    const accumulatedParts: any[] = [];
+    // On retry, restore from checkpoint to continue where we left off
+    const accumulatedParts: any[] =
+      isRetry && checkpoint?.accumulatedParts ? [...checkpoint.accumulatedParts] : [];
     let lastFlushTime = Date.now();
-    let lastFlushedLength = 0;
+    let lastFlushedLength = checkpoint?.lastFlushedLength ?? 0;
+    const completedToolCalls = new Set<string>(checkpoint?.completedToolCalls ?? []);
     const FLUSH_INTERVAL_MS = 500;
+
+    // Wire heartbeat refs to live accumulation state for periodic checkpoint
+    heartbeatAccumulatedParts = accumulatedParts;
+    heartbeatCompletedTools = completedToolCalls;
+    heartbeatFlushedLen = lastFlushedLength;
 
     const publishTaskEvent = (event: TaskToolEvent) => {
       const output = {
@@ -783,8 +861,8 @@ export async function runChatAgentStepActivity(
     };
 
     const enqueueTaskEvent = (event: TaskToolEvent) => {
-      // Heartbeat on every task poll so Temporal knows we're alive during long-running tool calls
-      Context.current().heartbeat(`task-poll:${event.taskId}:${event.status}`);
+      // Heartbeat on every task poll with real checkpoint data
+      heartbeatCheckpoint(accumulatedParts, completedToolCalls, lastFlushedLength);
 
       if (startedToolCalls.has(event.toolCallId)) {
         publishTaskEvent(event);
@@ -877,8 +955,12 @@ export async function runChatAgentStepActivity(
       `[chat-agent] Discovered ${Object.keys(tools).length} MCP tools for session ${sessionId}`,
     );
 
-    // Heartbeat before LLM call
-    Context.current().heartbeat('llm-call-start');
+    // Heartbeat before LLM call — use checkpoint if we have accumulated state
+    if (accumulatedParts.length > 0) {
+      heartbeatCheckpoint(accumulatedParts, completedToolCalls, lastFlushedLength);
+    } else {
+      Context.current().heartbeat('llm-call-start');
+    }
 
     // Token-aware compaction: summarize older messages when approaching context limits.
     // Full history stays in workflow state — compaction is read-only for the LLM call.
@@ -890,8 +972,29 @@ export async function runChatAgentStepActivity(
     );
     const llmMessages = compactionResult.messages;
 
+    // On retry with checkpoint, append recovered partial to conversation history
+    // so the model sees what it already said and can continue seamlessly
+    let llmInputMessages = llmMessages;
+    if (isRetry && accumulatedParts.length > 0) {
+      llmInputMessages = [
+        ...llmMessages,
+        { role: 'assistant' as const, parts: accumulatedParts as ChatMessagePart[] },
+        {
+          role: 'user' as const,
+          parts: [
+            {
+              type: 'text' as const,
+              text:
+                '[System: Your previous response was interrupted by a transient system failure. ' +
+                'Continue exactly from where you left off. Do not repeat what you already said.]',
+            },
+          ],
+        },
+      ];
+    }
+
     // Convert messages for AI SDK (preserves tool call/result context)
-    const aiMessages = await toAISDKMessages(llmMessages);
+    const aiMessages = await toAISDKMessages(llmInputMessages);
 
     try {
       // Run streamText with MCP tools — tool execution happens via MCP protocol
@@ -904,7 +1007,7 @@ export async function runChatAgentStepActivity(
         experimental_transform: smoothStream(),
         abortSignal: cancellationSignal,
         onStepFinish: () => {
-          Context.current().heartbeat('step-complete');
+          heartbeatCheckpoint(accumulatedParts, completedToolCalls, lastFlushedLength);
         },
       });
 
@@ -927,7 +1030,9 @@ export async function runChatAgentStepActivity(
         // Check for cooperative cancellation at the top of each iteration
         if (cancellationSignal.aborted) break;
 
-        Context.current().heartbeat('stream-chunk');
+        // Real checkpoint heartbeat instead of useless string
+        heartbeatFlushedLen = lastFlushedLength;
+        heartbeatCheckpoint(accumulatedParts, completedToolCalls, lastFlushedLength);
         const c = chunk as any;
         if (c.type === 'finish') {
           sawFinishChunk = true;
@@ -963,6 +1068,9 @@ export async function runChatAgentStepActivity(
             toolPart.state = 'output-available';
             toolPart.output = c.output;
             toolPart.preliminary = c.preliminary === true;
+          }
+          if (c.toolCallId && !c.preliminary) {
+            completedToolCalls.add(c.toolCallId);
           }
         } else if (c.type === 'tool-output-error') {
           const toolPart = accumulatedParts.find(

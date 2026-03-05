@@ -3,12 +3,7 @@ import { and, asc, count, eq, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { DRIZZLE_TOKEN } from '../database/database.module';
-import {
-  chatMessagesTable,
-  chatTurnsTable,
-  type ChatTurn,
-  type NewChatTurn,
-} from '../database/schema';
+import { chatTurnsTable, type ChatTurn, type NewChatTurn } from '../database/schema';
 
 const TERMINAL_STATUSES = ['completed', 'interrupted', 'failed', 'cancelled'] as const;
 export type ChatTurnStatus =
@@ -171,11 +166,8 @@ export class ChatTurnRepository {
         });
 
       if (promotedTurn) {
-        await tx.insert(chatMessagesTable).values({
-          sessionId: promotedTurn.sessionId,
-          role: 'user',
-          parts: [{ type: 'text', text: promotedTurn.userMessage }],
-        });
+        // User message is already persisted to chat_messages by enqueueTurn(),
+        // so we don't insert it again here to avoid duplicates.
         return;
       }
 
