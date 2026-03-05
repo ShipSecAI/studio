@@ -46,6 +46,37 @@ export interface QueueStateSnapshot {
   queuedTurns: QueueTurn[];
 }
 
+const areStringArraysEqual = (a: string[], b: string[]) => {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+};
+
+const areQueueTurnsEqual = (a: QueueTurn[], b: QueueTurn[]) => {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const left = a[i];
+    const right = b[i];
+    if (
+      left.turnId !== right.turnId ||
+      left.clientMessageId !== right.clientMessageId ||
+      left.preview !== right.preview ||
+      left.queuePosition !== right.queuePosition ||
+      left.status !== right.status ||
+      left.queuedAt !== right.queuedAt ||
+      left.startedAt !== right.startedAt ||
+      left.completedAt !== right.completedAt
+    ) {
+      return false;
+    }
+  }
+  return true;
+};
+
 interface ChatState {
   // Sessions (from server)
   sessions: ChatSession[];
@@ -181,7 +212,7 @@ export const useChatStore = create<ChatState>()(
       setCurrentSession: (id) => {
         set((state) => {
           if (state.currentSessionId === id) {
-            return { currentSessionId: id };
+            return state;
           }
           return {
             currentSessionId: id,
@@ -263,19 +294,49 @@ export const useChatStore = create<ChatState>()(
       },
 
       setQueueState: (snapshot, sessionId) => {
-        set((state) => ({
-          queueSessionId: sessionId ?? state.currentSessionId ?? state.queueSessionId,
-          pendingCount: snapshot.pendingCount ?? state.pendingCount,
-          currentGenerationId: snapshot.generationId ?? state.currentGenerationId,
-          steerTargetTurnId: snapshot.steerTargetTurnId ?? state.steerTargetTurnId,
-          queueOrder: snapshot.queueOrder ?? state.queueOrder,
-          queuedTurns: snapshot.queuedTurns ?? state.queuedTurns,
-        }));
+        set((state) => {
+          const nextQueueSessionId = sessionId ?? state.currentSessionId ?? state.queueSessionId;
+          const nextPendingCount = snapshot.pendingCount ?? state.pendingCount;
+          const nextGenerationId = snapshot.generationId ?? state.currentGenerationId;
+          const nextSteerTargetTurnId = snapshot.steerTargetTurnId ?? state.steerTargetTurnId;
+          const nextQueueOrder = snapshot.queueOrder ?? state.queueOrder;
+          const nextQueuedTurns = snapshot.queuedTurns ?? state.queuedTurns;
+
+          if (
+            nextQueueSessionId === state.queueSessionId &&
+            nextPendingCount === state.pendingCount &&
+            nextGenerationId === state.currentGenerationId &&
+            nextSteerTargetTurnId === state.steerTargetTurnId &&
+            areStringArraysEqual(nextQueueOrder, state.queueOrder) &&
+            areQueueTurnsEqual(nextQueuedTurns, state.queuedTurns)
+          ) {
+            return state;
+          }
+
+          return {
+            queueSessionId: nextQueueSessionId,
+            pendingCount: nextPendingCount,
+            currentGenerationId: nextGenerationId,
+            steerTargetTurnId: nextSteerTargetTurnId,
+            queueOrder: nextQueueOrder,
+            queuedTurns: nextQueuedTurns,
+          };
+        });
       },
 
       clearQueueState: (sessionId) => {
         const state = get();
         if (sessionId && state.queueSessionId && state.queueSessionId !== sessionId) {
+          return;
+        }
+        if (
+          state.queueSessionId === null &&
+          state.pendingCount === 0 &&
+          state.currentGenerationId === null &&
+          state.steerTargetTurnId === null &&
+          state.queueOrder.length === 0 &&
+          state.queuedTurns.length === 0
+        ) {
           return;
         }
         set({

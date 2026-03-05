@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { UIMessage } from 'ai';
-import type {
-  DurableChatTransport,
-  ChatSessionStateResponse,
-  SendTurnResponse,
-} from './durable-chat-transport';
+import type { DurableChatTransport, ChatSessionStateResponse } from './durable-chat-transport';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -25,14 +21,6 @@ export interface UseDurableChatOptions {
    */
   onChunk?: (chunk: unknown, context: { sessionId: string; runId?: string }) => void;
   /**
-   * Called when a queued turn response is received (turn was enqueued,
-   * not immediately executed).
-   */
-  onQueuedTurn?: (
-    response: SendTurnResponse & { clientMessageId?: string },
-    context: { sessionId: string },
-  ) => void;
-  /**
    * Called when messages are refreshed from backend state.
    * Useful for syncing external state (queue, processing status).
    */
@@ -40,7 +28,7 @@ export interface UseDurableChatOptions {
 }
 
 export interface UseDurableChatReturn {
-  /** Current message list (backend truth + streaming buffer). */
+  /** Current message list (backend truth + streaming deltas). */
   messages: UIMessage[];
   /** Hook status: ready, streaming, or submitting (POST in flight). */
   status: DurableChatStatus;
@@ -67,6 +55,61 @@ function hydrateMessages(raw: ChatSessionStateResponse['messages']): UIMessage[]
   }));
 }
 
+function appendTextDeltaToParts(parts: UIMessage['parts'], delta: string): UIMessage['parts'] {
+  if (!delta) return parts;
+
+  const lastTextIdx = parts.reduce((acc, p, i) => (p.type === 'text' ? i : acc), -1);
+  if (lastTextIdx >= 0) {
+    return parts.map((p, i) =>
+      i === lastTextIdx && p.type === 'text' ? { type: 'text' as const, text: p.text + delta } : p,
+    );
+  }
+
+  return [...parts, { type: 'text' as const, text: delta }];
+}
+
+function partSignature(part: UIMessage['parts'][number]) {
+  const typed = part as Record<string, unknown>;
+  if (typed.type === 'text') {
+    return `text:${String(typed.text ?? '')}`;
+  }
+  if (typed.type === 'reasoning') {
+    return `reasoning:${String(typed.state ?? '')}:${String(typed.text ?? '')}`;
+  }
+  try {
+    return JSON.stringify(part);
+  } catch {
+    return String(typed.type ?? 'unknown');
+  }
+}
+
+function arePartsEquivalent(nextParts: UIMessage['parts'], prevParts: UIMessage['parts']) {
+  if (nextParts === prevParts) return true;
+  if (nextParts.length !== prevParts.length) return false;
+  for (let i = 0; i < nextParts.length; i++) {
+    const next = nextParts[i];
+    const prev = prevParts[i];
+    if (next === prev) continue;
+    if (partSignature(next) !== partSignature(prev)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function areMessagesEquivalent(nextMessages: UIMessage[], prevMessages: UIMessage[]) {
+  if (nextMessages === prevMessages) return true;
+  if (nextMessages.length !== prevMessages.length) return false;
+  for (let i = 0; i < nextMessages.length; i++) {
+    const next = nextMessages[i];
+    const prev = prevMessages[i];
+    if (next === prev) continue;
+    if (next.id !== prev.id || next.role !== prev.role) return false;
+    if (!arePartsEquivalent(next.parts, prev.parts)) return false;
+  }
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -77,63 +120,64 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
     sessionId,
     throttleMs = 80,
     onChunk: externalOnChunk,
-    onQueuedTurn,
     onStateRefresh,
   } = options;
 
   // ── Core state ────────────────────────────────────────────────────
-  const [baseMessages, setBaseMessages] = useState<UIMessage[]>([]);
-  const [streamingText, setStreamingText] = useState('');
-  const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
+  const [messages, setMessagesState] = useState<UIMessage[]>([]);
   const [status, setStatus] = useState<DurableChatStatus>('ready');
   const [error, setError] = useState<Error | null>(null);
 
   // Refs for callback stability
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
-  const baseMessagesRef = useRef(baseMessages);
-  baseMessagesRef.current = baseMessages;
-  const streamingTextRef = useRef('');
-  const streamingMsgIdRef = useRef<string | null>(null);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeTurnIdRef = useRef<string | null>(null);
+  const streamingMsgIdRef = useRef<string | null>(null);
+  const latestStreamSeqRef = useRef(0);
+  const latestAppliedStateSeqRef = useRef(0);
+  const hasHydratedRef = useRef(false);
 
   // Stable callback refs
   const externalOnChunkRef = useRef(externalOnChunk);
   externalOnChunkRef.current = externalOnChunk;
-  const onQueuedTurnRef = useRef(onQueuedTurn);
-  onQueuedTurnRef.current = onQueuedTurn;
   const onStateRefreshRef = useRef(onStateRefresh);
   onStateRefreshRef.current = onStateRefresh;
 
-  // ── Derived: merge streaming buffer into messages ─────────────────
+  const clearStreamingState = useCallback(() => {
+    activeTurnIdRef.current = null;
+    streamingMsgIdRef.current = null;
+  }, []);
 
-  const messages: UIMessage[] =
-    streamingMsgId && streamingText
-      ? (() => {
-          const existing = baseMessages.find((m) => m.id === streamingMsgId);
-          if (existing) {
-            return baseMessages.map((m) =>
-              m.id === streamingMsgId
-                ? {
-                    ...m,
-                    parts: updateTextInParts(m.parts, streamingText),
-                  }
-                : m,
-            );
-          }
-          return [
-            ...baseMessages,
-            {
-              id: streamingMsgId,
-              role: 'assistant' as const,
-              parts: [{ type: 'text' as const, text: streamingText }],
-            },
-          ];
-        })()
-      : baseMessages;
+  const flushPendingMessagesNow = useCallback(() => {
+    if (throttleTimerRef.current) {
+      clearTimeout(throttleTimerRef.current);
+      throttleTimerRef.current = null;
+    }
+    setMessagesState(messagesRef.current);
+  }, []);
 
-  // ── State refresh ─────────────────────────────────────────────────
+  const scheduleFlush = useCallback(() => {
+    if (throttleTimerRef.current) return;
+    throttleTimerRef.current = setTimeout(() => {
+      throttleTimerRef.current = null;
+      setMessagesState(messagesRef.current);
+    }, throttleMs);
+  }, [throttleMs]);
+
+  const commitMessages = useCallback(
+    (next: UIMessage[], mode: 'immediate' | 'throttled' = 'immediate') => {
+      messagesRef.current = next;
+      if (mode === 'throttled') {
+        scheduleFlush();
+        return;
+      }
+      flushPendingMessagesNow();
+    },
+    [scheduleFlush, flushPendingMessagesNow],
+  );
 
   const refreshState = useCallback(
     async (sid?: string): Promise<ChatSessionStateResponse | null> => {
@@ -143,86 +187,122 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
       const state = await transport.getState(targetId);
       if (!state || sessionIdRef.current !== targetId) return state;
 
-      const hydrated = hydrateMessages(state.messages);
+      const stateSeq = Math.max(0, state.afterSeq ?? state.lastSeq ?? 0);
 
-      // Don't overwrite local messages with empty backend state.
-      // This happens during lazy session creation: sendMessage adds an
-      // optimistic user message while refreshState is still fetching.
-      if (hydrated.length === 0 && baseMessagesRef.current.length > 0) {
+      // Guard against stale refresh snapshots clobbering active local stream updates.
+      const hasActiveStream = activeTurnIdRef.current !== null;
+      const isProcessing = state.processingStatus !== 'idle';
+      if (hasActiveStream && isProcessing && stateSeq < latestStreamSeqRef.current) {
         onStateRefreshRef.current?.(state);
         return state;
       }
 
-      baseMessagesRef.current = hydrated;
-      setBaseMessages(hydrated);
+      if (
+        !hasActiveStream &&
+        hasHydratedRef.current &&
+        stateSeq > 0 &&
+        stateSeq <= latestAppliedStateSeqRef.current
+      ) {
+        onStateRefreshRef.current?.(state);
+        return state;
+      }
 
-      // Clear streaming state — backend has the persisted truth now
-      streamingTextRef.current = '';
-      streamingMsgIdRef.current = null;
-      activeTurnIdRef.current = null;
-      setStreamingText('');
-      setStreamingMsgId(null);
+      const hydrated = hydrateMessages(state.messages);
+
+      // Don't overwrite local optimistic messages with empty backend state.
+      if (hydrated.length === 0 && messagesRef.current.length > 0) {
+        onStateRefreshRef.current?.(state);
+        return state;
+      }
+
+      if (!areMessagesEquivalent(hydrated, messagesRef.current)) {
+        commitMessages(hydrated, 'immediate');
+      }
+      hasHydratedRef.current = true;
+      latestAppliedStateSeqRef.current = Math.max(latestAppliedStateSeqRef.current, stateSeq);
+
+      // If backend has moved to canonical turn message id for the active turn,
+      // move subsequent deltas to that message id instead of a local temp id.
+      if (activeTurnIdRef.current) {
+        const canonicalTurnMessageId = `turn-${activeTurnIdRef.current}`;
+        if (hydrated.some((m) => m.id === canonicalTurnMessageId)) {
+          streamingMsgIdRef.current = canonicalTurnMessageId;
+        }
+      }
+
+      if (state.processingStatus === 'idle' || !activeTurnIdRef.current) {
+        clearStreamingState();
+      }
 
       onStateRefreshRef.current?.(state);
       return state;
     },
-    [transport],
+    [transport, commitMessages, clearStreamingState],
   );
 
-  // ── Streaming buffer flush ────────────────────────────────────────
-
-  const flushBuffer = useCallback(() => {
-    setStreamingText(streamingTextRef.current);
-  }, []);
-
-  const scheduleFlush = useCallback(() => {
-    if (throttleTimerRef.current) return;
-    throttleTimerRef.current = setTimeout(() => {
-      throttleTimerRef.current = null;
-      flushBuffer();
-    }, throttleMs);
-  }, [throttleMs, flushBuffer]);
-
   // ── SSE chunk handler ─────────────────────────────────────────────
-  // This is passed to the transport and fires for every session SSE event.
 
   const handleSseChunk = useCallback(
     (chunk: unknown, context: { sessionId: string; runId?: string }) => {
-      // Forward to external handler (queue state management, etc.)
       externalOnChunkRef.current?.(chunk, context);
 
       if (!chunk || typeof chunk !== 'object') return;
       const c = chunk as Record<string, unknown>;
 
-      // Only process chunks for the active turn
-      const chunkTurnId = c.turnId as string | undefined;
+      const seq = typeof c.seq === 'number' ? c.seq : null;
+      if (seq != null) {
+        latestStreamSeqRef.current = Math.max(latestStreamSeqRef.current, seq);
+      }
 
-      // ── Text deltas → streaming buffer ──
-      // Process inner chunk if wrapped (from SSE the chunk field contains the actual event)
+      const chunkTurnId = typeof c.turnId === 'string' ? c.turnId : undefined;
       const inner =
         c.chunk && typeof c.chunk === 'object' ? (c.chunk as Record<string, unknown>) : c;
 
-      if (inner.type === 'text-delta' && !chunkTurnId) {
-        console.warn('[useDurableChat] text-delta without turnId, skipping', inner);
-        return;
-      }
-
-      if (inner.type === 'text-delta' && chunkTurnId) {
-        if (!activeTurnIdRef.current || activeTurnIdRef.current === chunkTurnId) {
-          activeTurnIdRef.current = chunkTurnId;
-          streamingTextRef.current += inner.delta as string;
-          if (!streamingMsgIdRef.current) {
-            const newId = `streaming-${chunkTurnId}`;
-            streamingMsgIdRef.current = newId;
-            setStreamingMsgId(newId);
-          }
-          setStatus('streaming');
-          scheduleFlush();
+      if (inner.type === 'text-delta') {
+        if (!chunkTurnId) {
+          console.warn('[useDurableChat] text-delta without turnId, skipping', inner);
+          return;
         }
+
+        if (activeTurnIdRef.current && activeTurnIdRef.current !== chunkTurnId) {
+          return;
+        }
+
+        const delta = typeof inner.delta === 'string' ? inner.delta : '';
+        if (!delta) return;
+
+        activeTurnIdRef.current = chunkTurnId;
+        const msgId = streamingMsgIdRef.current ?? `streaming-${chunkTurnId}`;
+        streamingMsgIdRef.current = msgId;
+
+        const current = messagesRef.current;
+        const existingIdx = current.findIndex((m) => m.id === msgId);
+        let next: UIMessage[];
+
+        if (existingIdx >= 0) {
+          const existing = current[existingIdx];
+          const updated: UIMessage = {
+            ...existing,
+            parts: appendTextDeltaToParts(existing.parts, delta),
+          };
+          next = [...current];
+          next[existingIdx] = updated;
+        } else {
+          next = [
+            ...current,
+            {
+              id: msgId,
+              role: 'assistant' as const,
+              parts: [{ type: 'text' as const, text: delta }],
+            },
+          ];
+        }
+
+        commitMessages(next, 'throttled');
+        setStatus('streaming');
         return;
       }
 
-      // ── Turn status events ──
       if (inner.type === 'data-turn-status') {
         const data =
           inner.data && typeof inner.data === 'object'
@@ -241,59 +321,18 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
           turnStatus === 'failed' ||
           turnStatus === 'cancelled'
         ) {
-          // Cancel any pending throttle flush
-          if (throttleTimerRef.current) {
-            clearTimeout(throttleTimerRef.current);
-            throttleTimerRef.current = null;
-          }
-
-          // Promote streaming buffer into baseMessages so the text persists
-          // while refreshState() fetches the definitive server state.
-          if (streamingTextRef.current && streamingMsgIdRef.current) {
-            const msgId = streamingMsgIdRef.current;
-            const text = streamingTextRef.current;
-            const existingMsg = baseMessagesRef.current.find((m) => m.id === msgId);
-            if (existingMsg) {
-              const updated = baseMessagesRef.current.map((m) =>
-                m.id === msgId ? { ...m, parts: updateTextInParts(m.parts, text) } : m,
-              );
-              baseMessagesRef.current = updated;
-              setBaseMessages(updated);
-            } else {
-              const updated: UIMessage[] = [
-                ...baseMessagesRef.current,
-                {
-                  id: msgId,
-                  role: 'assistant' as const,
-                  parts: [{ type: 'text' as const, text }],
-                },
-              ];
-              baseMessagesRef.current = updated;
-              setBaseMessages(updated);
-            }
-          }
-
-          // Now clear streaming state
-          streamingTextRef.current = '';
-          streamingMsgIdRef.current = null;
-          activeTurnIdRef.current = null;
-          setStreamingText('');
-          setStreamingMsgId(null);
+          flushPendingMessagesNow();
+          clearStreamingState();
           setStatus('ready');
 
-          // Refresh from backend to get the definitive state.
-          // Always refresh unless there are explicitly more pending turns.
-          // (Worker turn-status events don't include pendingCount/processingStatus.)
           const pendingCount = typeof data.pendingCount === 'number' ? data.pendingCount : -1;
-          if (pendingCount > 0) {
-            // More turns queued — skip refresh, next turn will trigger one
-          } else {
+          if (pendingCount <= 0) {
             void refreshState();
           }
         }
       }
     },
-    [scheduleFlush, refreshState],
+    [commitMessages, clearStreamingState, flushPendingMessagesNow, refreshState],
   );
 
   // ── Transport chunk subscription ─────────────────────────────────
@@ -313,12 +352,11 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
 
   useEffect(() => {
     if (!sessionId) {
-      setBaseMessages([]);
-      setStreamingText('');
-      setStreamingMsgId(null);
-      streamingTextRef.current = '';
-      streamingMsgIdRef.current = null;
-      activeTurnIdRef.current = null;
+      commitMessages([], 'immediate');
+      clearStreamingState();
+      latestStreamSeqRef.current = 0;
+      latestAppliedStateSeqRef.current = 0;
+      hasHydratedRef.current = false;
       setStatus('ready');
       setError(null);
       return;
@@ -351,27 +389,25 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
 
     return () => {
       cancelled = true;
-      // Cleanup streaming state on session switch
       if (throttleTimerRef.current) {
         clearTimeout(throttleTimerRef.current);
         throttleTimerRef.current = null;
       }
-      streamingTextRef.current = '';
-      streamingMsgIdRef.current = null;
-      activeTurnIdRef.current = null;
+      clearStreamingState();
     };
-  }, [sessionId, transport, refreshState]);
+  }, [sessionId, transport, refreshState, commitMessages, clearStreamingState]);
 
   // ── Cross-tab sync: visibility change + low-frequency poll ────────
-  // When the user switches to this tab, refresh state immediately so
-  // it picks up any turns started by other tabs. Also poll every 10s
-  // as a safety net for SSE connection gaps.
 
   useEffect(() => {
     if (!sessionId) return;
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && sessionIdRef.current) {
+      if (
+        document.visibilityState === 'visible' &&
+        sessionIdRef.current &&
+        !activeTurnIdRef.current
+      ) {
         void refreshState();
       }
     };
@@ -379,7 +415,11 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     const pollTimer = setInterval(() => {
-      if (sessionIdRef.current && document.visibilityState === 'visible') {
+      if (
+        sessionIdRef.current &&
+        document.visibilityState === 'visible' &&
+        !activeTurnIdRef.current
+      ) {
         void refreshState();
       }
     }, 10_000);
@@ -409,7 +449,6 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
 
       setError(null);
 
-      // Optimistic user message
       const userMsgId = `user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const userMessage = {
         id: userMsgId,
@@ -417,33 +456,20 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
         parts: [{ type: 'text' as const, text: opts.text }],
       } satisfies UIMessage;
 
-      const updated = [...baseMessagesRef.current, userMessage];
-      baseMessagesRef.current = updated;
-      setBaseMessages(updated);
+      const updated = [...messagesRef.current, userMessage];
+      commitMessages(updated, 'immediate');
       setStatus('submitting');
 
-      // Reset streaming state for the new turn
-      streamingTextRef.current = '';
-      streamingMsgIdRef.current = null;
-      activeTurnIdRef.current = null;
-      setStreamingText('');
-      setStreamingMsgId(null);
+      clearStreamingState();
 
-      // POST the turn — the SSE will deliver chunks
       void (async () => {
         try {
-          // sendMessages returns a ReadableStream, but with session-level SSE
-          // we don't need to consume it — chunks arrive via the SSE handler.
-          // We call it to POST the turn and let the transport open/maintain SSE.
           await transport.sendMessages({
             trigger: 'submit-message',
             chatId: sid,
             messageId: userMsgId,
             messages: updated,
           });
-          // If status is still submitting (no streaming chunks arrived yet),
-          // keep it as submitting — it'll transition to streaming on first text-delta
-          // or back to ready on terminal event.
         } catch (err) {
           if (sessionIdRef.current === sid) {
             setError(err instanceof Error ? err : new Error(String(err)));
@@ -452,21 +478,18 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
         }
       })();
     },
-    [transport],
+    [transport, commitMessages, clearStreamingState],
   );
 
   // ── Public setMessages ────────────────────────────────────────────
 
-  const setMessages = useCallback((msgs: UIMessage[]) => {
-    baseMessagesRef.current = msgs;
-    setBaseMessages(msgs);
-    // Clear streaming state
-    streamingTextRef.current = '';
-    streamingMsgIdRef.current = null;
-    activeTurnIdRef.current = null;
-    setStreamingText('');
-    setStreamingMsgId(null);
-  }, []);
+  const setMessages = useCallback(
+    (msgs: UIMessage[]) => {
+      commitMessages(msgs, 'immediate');
+      clearStreamingState();
+    },
+    [commitMessages, clearStreamingState],
+  );
 
   return {
     messages,
@@ -476,16 +499,4 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
     setMessages,
     refreshState,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function updateTextInParts(parts: UIMessage['parts'], text: string): UIMessage['parts'] {
-  const lastTextIdx = parts.reduce((acc, p, i) => (p.type === 'text' ? i : acc), -1);
-  if (lastTextIdx >= 0) {
-    return parts.map((p, i) => (i === lastTextIdx ? { type: 'text' as const, text } : p));
-  }
-  return [...parts, { type: 'text' as const, text }];
 }

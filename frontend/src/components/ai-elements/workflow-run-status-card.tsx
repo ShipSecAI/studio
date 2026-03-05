@@ -153,18 +153,21 @@ function formatTimestamp(ts: string): string {
   });
 }
 
+const EMPTY_EVENTS: ExecutionLog[] = [];
+
 // ─── Main component ────────────────────────────────────────────────────────
 
 export function WorkflowRunStatusCard({ run }: { run: ParsedWorkflowRunOutput }) {
   const { data: statusData } = useExecutionStatus(run.runId ?? null);
   const { data: runData } = useExecutionRun(run.runId ?? null);
   const setSelectedRun = useChatStore((state) => state.setSelectedRun);
+  const effectiveRunId = statusData?.runId ?? run.runId;
 
   // Timeline store — for inspector-linked event feed
   const storeRunId = useExecutionTimelineStore((state) => state.selectedRunId);
-  const allEvents = useExecutionTimelineStore((state) => state.events);
-
-  const effectiveRunId = statusData?.runId ?? run.runId;
+  const allEvents = useExecutionTimelineStore((state) =>
+    state.selectedRunId === effectiveRunId ? state.events : EMPTY_EVENTS,
+  );
   const effectiveWorkflowId = statusData?.workflowId ?? run.workflowId;
   const effectiveStatus = (statusData?.status ?? run.status ?? 'RUNNING') as ExecutionStatus;
   const isTerminal = TERMINAL_STATUSES.includes(effectiveStatus);
@@ -200,7 +203,7 @@ export function WorkflowRunStatusCard({ run }: { run: ParsedWorkflowRunOutput })
       }
       return;
     }
-    const interval = setInterval(() => setElapsed(formatElapsed(startTimeMs)), 250);
+    const interval = setInterval(() => setElapsed(formatElapsed(startTimeMs)), 1000);
     return () => clearInterval(interval);
   }, [isTerminal, startTimeMs, runData]);
 

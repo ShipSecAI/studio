@@ -18,6 +18,7 @@ import {
   StopCircle,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ChatCommandPalette, WorkflowPreviewPanel } from '@/components/chat';
@@ -300,6 +301,7 @@ const ChatMessageItem = memo(
     // During streaming only the last (streaming) message changes — all others
     // keep the same parts reference so this short-circuits the diff.
     if (prev.isStreaming !== next.isStreaming) return false;
+    if (prev.isInterrupted !== next.isInterrupted) return false;
     if (prev.message !== next.message) return false;
     if (prev.userImageUrl !== next.userImageUrl) return false;
     return true;
@@ -392,11 +394,11 @@ export function ChatInterface() {
   const { sessionId: routeSessionId } = useParams<{ sessionId?: string }>();
   const { toast } = useToast();
   const {
+    sessions,
     currentSessionId,
     createSession,
     startNewConversation,
     updateSessionTitle,
-    getCurrentSession,
     setCommandPaletteOpen,
     loadSessions,
     setCurrentSession,
@@ -405,14 +407,35 @@ export function ChatInterface() {
     isRunInspectorOpen,
     pendingCount,
     queuedTurns,
-    queueOrder,
     steerTargetTurnId,
     setQueueState,
     clearQueueState,
-  } = useChatStore();
+  } = useChatStore(
+    useShallow((state) => ({
+      sessions: state.sessions,
+      currentSessionId: state.currentSessionId,
+      createSession: state.createSession,
+      startNewConversation: state.startNewConversation,
+      updateSessionTitle: state.updateSessionTitle,
+      setCommandPaletteOpen: state.setCommandPaletteOpen,
+      loadSessions: state.loadSessions,
+      setCurrentSession: state.setCurrentSession,
+      newConversationToken: state.newConversationToken,
+      selectedRunId: state.selectedRunId,
+      isRunInspectorOpen: state.isRunInspectorOpen,
+      pendingCount: state.pendingCount,
+      queuedTurns: state.queuedTurns,
+      steerTargetTurnId: state.steerTargetTurnId,
+      setQueueState: state.setQueueState,
+      clearQueueState: state.clearQueueState,
+    })),
+  );
   const { data: selectedRunData } = useExecutionRun(selectedRunId);
 
-  const currentSession = getCurrentSession();
+  const currentSession = useMemo(
+    () => sessions.find((session) => session.id === currentSessionId) ?? null,
+    [sessions, currentSessionId],
+  );
 
   // Ref to always have the latest sessionId available in the transport callback
   const sessionIdRef = useRef(currentSessionId);
@@ -461,6 +484,34 @@ export function ChatInterface() {
   const [sessionProcessing, setSessionProcessing] = useState(false);
   const [sessionProcessingStartedAtMs, setSessionProcessingStartedAtMs] = useState<number | null>(
     null,
+  );
+  const applyQueueSnapshot = useCallback(
+    (
+      snapshot: {
+        pendingCount?: number;
+        generationId?: number | null;
+        steerTargetTurnId?: string | null;
+        queue?: QueueTurnIdentity[];
+        queuedTurns?: QueueTurnIdentity[];
+      },
+      sessionId: string | null | undefined,
+    ) => {
+      const normalizedQueue = normalizeQueue(
+        snapshot.queue ?? snapshot.queuedTurns,
+        snapshot.steerTargetTurnId,
+      );
+      setQueueState(
+        {
+          pendingCount: snapshot.pendingCount ?? normalizedQueue.queuedTurns.length,
+          generationId: snapshot.generationId ?? null,
+          steerTargetTurnId: normalizedQueue.steerTargetTurnId,
+          queueOrder: normalizedQueue.queueOrder,
+          queuedTurns: normalizedQueue.queuedTurns,
+        },
+        sessionId,
+      );
+    },
+    [setQueueState],
   );
 
   // Create DurableChatTransport — onChunk/queue logic moved to useDurableChat callbacks.
@@ -520,7 +571,7 @@ export function ChatInterface() {
           );
         },
       }),
-    [clearQueueState, setQueueState],
+    [setQueueState],
   );
 
   // ── useDurableChat: owns messages, SSE lifecycle, streaming buffer ──
@@ -643,12 +694,6 @@ export function ChatInterface() {
         return;
       }
 
-      const normalizedQueue = normalizeQueue(
-        payload.queue ?? payload.queuedTurns,
-        payload.steerTargetTurnId,
-      );
-      const pendingCountFromQueue = normalizedQueue.queuedTurns.length;
-
       if (payload.processingStatus === 'idle') {
         setSessionProcessing(false);
         setSessionProcessingStartedAtMs(null);
@@ -657,16 +702,7 @@ export function ChatInterface() {
         return;
       }
 
-      setQueueState(
-        {
-          pendingCount: payload.pendingCount ?? pendingCountFromQueue,
-          generationId: payload.generationId ?? null,
-          steerTargetTurnId: normalizedQueue.steerTargetTurnId,
-          queueOrder: normalizedQueue.queueOrder,
-          queuedTurns: normalizedQueue.queuedTurns,
-        },
-        activeSessionId,
-      );
+      applyQueueSnapshot(payload, activeSessionId);
 
       if (payload.processingStatus === 'processing' || payload.processingStatus === 'stopping') {
         setSessionProcessing(true);
@@ -680,20 +716,7 @@ export function ChatInterface() {
     },
     onStateRefresh: (state) => {
       const sid = currentSessionId;
-      const normalizedQueue = normalizeQueue(
-        state.queue ?? state.queuedTurns,
-        state.steerTargetTurnId,
-      );
-      setQueueState(
-        {
-          pendingCount: state.pendingCount ?? normalizedQueue.queuedTurns.length,
-          generationId: state.generationId ?? null,
-          steerTargetTurnId: normalizedQueue.steerTargetTurnId,
-          queueOrder: normalizedQueue.queueOrder,
-          queuedTurns: normalizedQueue.queuedTurns,
-        },
-        sid,
-      );
+      applyQueueSnapshot(state, sid);
       const isProcessing =
         state.processingStatus === 'processing' || state.processingStatus === 'stopping';
       setSessionProcessing(isProcessing);
@@ -870,21 +893,6 @@ export function ChatInterface() {
     },
     [currentSessionId, steeringTurnId, chatTransport, toast],
   );
-
-  const orderedQueuedTurns = useMemo(() => {
-    if (queueOrder.length === 0) {
-      return queuedTurns;
-    }
-    const rank = new Map(queueOrder.map((id, index) => [id, index]));
-    return [...queuedTurns].sort((a, b) => {
-      const aRank = rank.get(a.turnId) ?? Number.MAX_SAFE_INTEGER;
-      const bRank = rank.get(b.turnId) ?? Number.MAX_SAFE_INTEGER;
-      if (aRank !== bRank) return aRank - bRank;
-      return (
-        (a.queuePosition ?? Number.MAX_SAFE_INTEGER) - (b.queuePosition ?? Number.MAX_SAFE_INTEGER)
-      );
-    });
-  }, [queueOrder, queuedTurns]);
 
   const graphPanelUrl = useMemo(() => {
     if (!graphPanelRun) return '';
@@ -1223,12 +1231,12 @@ export function ChatInterface() {
                     ) : null}
                   </div>
                   <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
-                    {orderedQueuedTurns.length === 0 && (
+                    {queuedTurns.length === 0 && (
                       <span className="text-[11px] text-muted-foreground">
                         Waiting for queue details from stream...
                       </span>
                     )}
-                    {orderedQueuedTurns.map((turn, index) => {
+                    {queuedTurns.map((turn, index) => {
                       const displayPosition = turn.queuePosition ?? index + 1;
                       const isTarget = turn.turnId === steerTargetTurnId;
                       const preview =
