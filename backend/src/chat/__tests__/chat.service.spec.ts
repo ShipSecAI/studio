@@ -213,6 +213,36 @@ describe('ChatService Unit Tests', () => {
     );
   });
 
+  it('does not queue when session has stale activeRunId but is idle', async () => {
+    (sessionRepository.getSession as jest.Mock).mockResolvedValue({
+      id: 'session-1',
+      title: 'Session',
+      status: 'active',
+      processingStatus: 'idle',
+      activeRunId: 'run-stale-idle',
+      organizationId: 'test-org-id',
+      steerTargetTurnId: null,
+      nextEventSeq: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    (turnRepository.getRunningTurn as jest.Mock).mockResolvedValue(null);
+
+    const result = await service.enqueueTurn(
+      'session-1',
+      { message: 'fresh request', clientMessageId: 'client-fresh' },
+      mockAuthContext,
+    );
+
+    expect(sessionRepository.startRun).toHaveBeenCalledWith('session-1', expect.any(String));
+    expect(result).toEqual(
+      expect.objectContaining({
+        queued: false,
+        runId: expect.any(String),
+      }),
+    );
+  });
+
   it('projects state with active turn, queue, and lastSeq', async () => {
     (turnRepository.getRunningTurn as jest.Mock).mockResolvedValue({
       id: 'turn-running',

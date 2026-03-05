@@ -154,13 +154,16 @@ export class ChatService {
       clientMessageId: input.clientMessageId,
     });
 
-    let runId = session.activeRunId ?? null;
-    let queuedOnExistingRun = Boolean(runId);
+    const runningTurn = await this.turnRepository.getRunningTurn(sessionId);
+    const hasLiveRun = Boolean(runningTurn) || session.processingStatus === 'processing';
+    let runId = hasLiveRun ? (runningTurn?.runId ?? session.activeRunId ?? null) : null;
+    let queuedOnExistingRun = hasLiveRun && Boolean(runId);
     let createdRun = false;
 
     if (!runId) {
       runId = randomUUID();
       createdRun = true;
+      queuedOnExistingRun = false;
       await this.sessionRepository.startRun(sessionId, runId);
     }
 
