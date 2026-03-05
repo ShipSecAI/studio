@@ -13,6 +13,7 @@ import {
   port,
   DEFAULT_SENSITIVE_HEADERS,
 } from '@shipsec/component-sdk';
+import { getBackendApiV1Url } from '../../utils/backend-url';
 
 const inputSchema = inputs({
   organization: port(z.string().trim().min(1, 'Organization is required.'), {
@@ -296,13 +297,7 @@ async function fetchConnectionAccessToken(
 }> {
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
 
-  const baseUrl =
-    process.env.STUDIO_API_BASE_URL ??
-    process.env.SHIPSEC_API_BASE_URL ??
-    process.env.API_BASE_URL ??
-    'http://localhost:3211';
-
-  const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const baseUrl = getBackendApiV1Url();
 
   if (!internalToken) {
     context.emitProgress({
@@ -317,7 +312,7 @@ async function fetchConnectionAccessToken(
     : DEFAULT_SENSITIVE_HEADERS;
 
   const response = await context.http.fetch(
-    `${normalizedBase}/integrations/connections/${encodeURIComponent(connectionId)}/token`,
+    `${baseUrl}/integrations/connections/${encodeURIComponent(connectionId)}/token`,
     {
       method: 'POST',
       headers: internalToken

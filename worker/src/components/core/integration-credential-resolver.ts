@@ -13,6 +13,7 @@ import {
   fromHttpResponse,
   type ExecutionContext,
 } from '@shipsec/component-sdk';
+import { getBackendApiV1Url } from '../../utils/backend-url';
 
 const inputSchema = inputs({
   connectionId: port(
@@ -172,13 +173,7 @@ async function fetchConnectionCredentials(
 }> {
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
 
-  const baseUrl =
-    process.env.STUDIO_API_BASE_URL ??
-    process.env.SHIPSEC_API_BASE_URL ??
-    process.env.API_BASE_URL ??
-    'http://localhost:3211';
-
-  const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const baseUrl = getBackendApiV1Url();
 
   if (!internalToken) {
     context.emitProgress({
@@ -203,7 +198,7 @@ async function fetchConnectionCredentials(
   }
 
   const response = await context.http.fetch(
-    `${normalizedBase}/integrations/connections/${encodeURIComponent(connectionId)}/credentials`,
+    `${baseUrl}/integrations/connections/${encodeURIComponent(connectionId)}/credentials`,
     {
       method: 'POST',
       headers,

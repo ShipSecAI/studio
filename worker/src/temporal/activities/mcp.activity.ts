@@ -14,19 +14,7 @@ import {
   AreAllToolsReadyActivityInput,
   AreAllToolsReadyActivityOutput,
 } from '../types';
-
-const DEFAULT_API_BASE_URL =
-  process.env.STUDIO_API_BASE_URL ??
-  process.env.SHIPSEC_API_BASE_URL ??
-  process.env.API_BASE_URL ??
-  process.env.BACKEND_URL ??
-  'http://localhost:3211';
-
-function normalizeBaseUrl(url: string): string {
-  const trimmed = url.endsWith('/') ? url.slice(0, -1) : url;
-  // STUDIO_API_BASE_URL is typically ".../api/v1"; internal paths below already include "/api/v1".
-  return trimmed.replace(/\/api\/v1$/i, '');
-}
+import { getBackendOrigin } from '../../utils/backend-url';
 
 async function callInternalApi(path: string, body: any) {
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
@@ -39,7 +27,7 @@ async function callInternalApi(path: string, body: any) {
     );
   }
 
-  const baseUrl = normalizeBaseUrl(DEFAULT_API_BASE_URL);
+  const baseUrl = getBackendOrigin();
   const url = `${baseUrl}/api/v1/internal/mcp/${path}`;
   const response = await fetch(url, {
     method: 'POST',

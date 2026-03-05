@@ -371,7 +371,11 @@ module.exports = {
           ...currentEnvConfig,
           NAPI_RS_FORCE_WASI: '1',
           INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
-          STUDIO_API_BASE_URL: process.env.STUDIO_API_BASE_URL || `http://localhost:${getInstancePort(3211, instanceNum)}/api/v1`,
+          BACKEND_URL:
+            process.env.BACKEND_URL ||
+            (process.env.STUDIO_API_BASE_URL
+              ? process.env.STUDIO_API_BASE_URL.replace(/\/api\/v1\/?$/i, '')
+              : `http://localhost:${getInstancePort(3211, instanceNum)}`),
           ...devInstanceEnv,
           TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
           LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',

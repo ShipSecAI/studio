@@ -68,12 +68,12 @@ import {
   KafkaTraceAdapter,
   KafkaAgentTracePublisher,
   KafkaNodeIOAdapter,
-  KafkaChatStreamAdapter,
 } from '../../adapters';
 import { ConfigurationError } from '@shipsec/component-sdk';
 import { getTopicResolver } from '../../common/kafka-topic-resolver';
 import * as schema from '../../adapters/schema';
 import { logHeartbeat } from '../../utils/debug-logger';
+import { getBackendOrigin } from '../../utils/backend-url';
 import { validateWorkerEnv } from '../../config/env.validate';
 
 // Load environment variables from instance-specific env if set, otherwise fall back
@@ -236,12 +236,7 @@ async function main() {
   });
 
   // Initialize human input activity with database, trace and backend URL
-  // STUDIO_API_BASE_URL includes /api/v1 suffix; BACKEND_URL is the bare origin.
-  // Derive the origin from whichever is available.
-  const studioApiBase = process.env.STUDIO_API_BASE_URL; // e.g. http://localhost:3611/api/v1
-  const backendUrl = studioApiBase
-    ? studioApiBase.replace(/\/api\/v1\/?$/, '')
-    : (process.env.BACKEND_URL ?? 'http://localhost:3211');
+  const backendUrl = getBackendOrigin();
   initializeHumanInputActivity({
     database: db,
     trace: traceAdapter,
@@ -259,19 +254,11 @@ async function main() {
     internalToken: process.env.INTERNAL_SERVICE_TOKEN ?? '',
   });
 
-  // Initialize chat stream Kafka adapter
-  const chatStreamAdapter = new KafkaChatStreamAdapter({
-    brokers: kafkaBrokers,
-    topic: topicResolver.getChatStreamTopic(),
-    clientId: process.env.CHAT_STREAM_KAFKA_CLIENT_ID ?? 'shipsec-worker-chat-stream',
-  });
-
   // Initialize chat agent activities
   initializeChatAgentActivities({
     database: db,
     redis: terminalStream ? new Redis(terminalRedisUrl!) : undefined,
     backendUrl: backendUrl,
-    chatStreamAdapter,
   });
 
   console.log(`✅ Service adapters initialized`);

@@ -66,11 +66,6 @@ export const workerEnvSchema = z
     K8S_JOB_CONTAINER_SECURITY_CONTEXT_JSON: z.string().optional(),
     GCS_VOLUME_BUCKET: z.string().optional(),
 
-    // --- API URL fallback chain ---
-    STUDIO_API_BASE_URL: z.string().optional(),
-    SHIPSEC_API_BASE_URL: z.string().optional(),
-    API_BASE_URL: z.string().optional(),
-
     // --- Org/auth context ---
     DEFAULT_ORGANIZATION_ID: z.string().optional(),
     ORGANIZATION_ID: z.string().optional(),

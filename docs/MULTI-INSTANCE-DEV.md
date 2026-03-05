@@ -69,7 +69,7 @@ Use `just instance-env` to manage them:
 # Create env files for an instance (uses app/.env, or falls back to app/.env.example)
 just instance-env init 2
 
-# Re-apply only instance-scoped values (ports, DB, Temporal namespace)
+# Re-apply only instance-scoped values (ports, DB, Temporal namespace, worker BACKEND_URL)
 just instance-env update 2
 
 # Copy env files between instances and rescope values
@@ -117,15 +117,16 @@ These variables appear in both `backend/.env` and `worker/.env` and **must have 
 
 These are set by PM2 or have schema defaults — you don't need them in `.env` files:
 
-| Variable              | Default                    | Set by                |
-| --------------------- | -------------------------- | --------------------- |
-| `TEMPORAL_ADDRESS`    | `localhost:7233`           | PM2 + schema          |
-| `TEMPORAL_NAMESPACE`  | `shipsec-dev-N`            | PM2 (instance-scoped) |
-| `TEMPORAL_TASK_QUEUE` | `shipsec-dev-N`            | PM2 (instance-scoped) |
-| `PORT`                | `3211 + N*100`             | PM2 (instance-scoped) |
-| `MINIO_*`             | `localhost` / `minioadmin` | Schema defaults       |
-| `LOG_KAFKA_CLIENT_ID` | `shipsec-backend-N`        | PM2 (instance-scoped) |
-| `LOG_KAFKA_GROUP_ID`  | `shipsec-*-N`              | PM2 (instance-scoped) |
+| Variable              | Default                           | Set by                |
+| --------------------- | --------------------------------- | --------------------- |
+| `TEMPORAL_ADDRESS`    | `localhost:7233`                  | PM2 + schema          |
+| `TEMPORAL_NAMESPACE`  | `shipsec-dev-N`                   | PM2 (instance-scoped) |
+| `TEMPORAL_TASK_QUEUE` | `shipsec-dev-N`                   | PM2 (instance-scoped) |
+| `PORT`                | `3211 + N*100`                    | PM2 (instance-scoped) |
+| `BACKEND_URL`         | `http://localhost:(3211 + N*100)` | PM2/script (worker)   |
+| `MINIO_*`             | `localhost` / `minioadmin`        | Schema defaults       |
+| `LOG_KAFKA_CLIENT_ID` | `shipsec-backend-N`               | PM2 (instance-scoped) |
+| `LOG_KAFKA_GROUP_ID`  | `shipsec-*-N`                     | PM2 (instance-scoped) |
 
 ### Production vs local dev
 

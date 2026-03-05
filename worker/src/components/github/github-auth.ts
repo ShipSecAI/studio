@@ -1,4 +1,5 @@
 import type { ExecutionContext } from '@shipsec/component-sdk';
+import { getBackendApiV1Url } from '../../utils/backend-url';
 
 /**
  * Shared GitHub App authentication utilities for worker components.
@@ -10,11 +11,7 @@ import type { ExecutionContext } from '@shipsec/component-sdk';
  */
 
 /** API base URL for backend calls */
-export const getApiBaseUrl = (): string =>
-  process.env.STUDIO_API_BASE_URL ??
-  process.env.SHIPSEC_API_BASE_URL ??
-  process.env.API_BASE_URL ??
-  'http://localhost:3211/api/v1';
+export const getApiBaseUrl = (): string => getBackendApiV1Url();
 
 /**
  * Build auth headers for internal worker-to-backend API calls.

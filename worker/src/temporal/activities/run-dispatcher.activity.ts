@@ -1,19 +1,10 @@
 import type { PreparedRunPayload } from '@shipsec/shared';
 import { ConfigurationError, ServiceError } from '@shipsec/component-sdk';
+import { getBackendApiV1Url } from '../../utils/backend-url';
 
 import type { PrepareRunPayloadActivityInput } from '../types';
 
 type FetchResponse = Awaited<ReturnType<typeof fetch>>;
-
-const DEFAULT_API_BASE_URL =
-  process.env.STUDIO_API_BASE_URL ??
-  process.env.SHIPSEC_API_BASE_URL ??
-  process.env.API_BASE_URL ??
-  'http://localhost:3211';
-
-function normalizeBaseUrl(url: string): string {
-  return url.endsWith('/') ? url.slice(0, -1) : url;
-}
 
 async function readErrorBody(response: FetchResponse): Promise<string> {
   try {
@@ -36,7 +27,7 @@ export async function prepareRunPayloadActivity(
     );
   }
 
-  const baseUrl = normalizeBaseUrl(DEFAULT_API_BASE_URL);
+  const baseUrl = getBackendApiV1Url();
   const organizationId = input.organizationId ?? process.env.DEFAULT_ORGANIZATION_ID ?? null;
 
   const headers: Record<string, string> = {
