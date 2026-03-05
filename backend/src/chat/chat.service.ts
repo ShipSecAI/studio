@@ -25,7 +25,7 @@ const STREAM_REPLAY_BATCH_SIZE = 500;
 
 type VNextOp = 'UserTurn' | 'Interrupt' | 'SteerNow';
 
-interface ThreadHistoryMessage {
+export interface ThreadHistoryMessage {
   id: string;
   role: UIMessage['role'];
   parts: UIMessage['parts'];
@@ -34,8 +34,8 @@ interface ThreadHistoryMessage {
 
 interface ThreadHistoryState {
   messages: ThreadHistoryMessage[];
-  interruptionBoundaries: Array<{ turnId: string; beforeMessageIndex: number }>;
-  queue: Array<{
+  interruptionBoundaries: { turnId: string; beforeMessageIndex: number }[];
+  queue: {
     turnId: string;
     queuePosition: number;
     status: string;
@@ -43,7 +43,7 @@ interface ThreadHistoryState {
     queuedAt?: string | null;
     startedAt?: string | null;
     completedAt?: string | null;
-  }>;
+  }[];
   processingStatus: 'idle' | 'processing' | 'stopping';
   activeTurn: { turnId: string; status: string; generationId: number | null } | null;
   activeGenerationId: number;
@@ -248,7 +248,9 @@ export class ChatService {
 
     const runningTurn = await this.turnRepository.getRunningTurn(sessionId);
     const hasLiveRun =
-      Boolean(runningTurn) || session.processingStatus === 'processing' || session.activeRunId != null;
+      Boolean(runningTurn) ||
+      session.processingStatus === 'processing' ||
+      session.activeRunId != null;
     let runId = hasLiveRun ? (runningTurn?.runId ?? session.activeRunId ?? null) : null;
 
     if (!runId) {
@@ -369,17 +371,17 @@ export class ChatService {
   }
 
   private projectThreadHistory(
-    rows: Array<{
+    rows: {
       seq: number;
       turnId: string;
       runId: string | null;
       generationId: string | null;
       eventId: string;
       chunk: Record<string, unknown>;
-    }>,
+    }[],
   ): ThreadHistoryState {
     const messages: ThreadHistoryMessage[] = [];
-    const interruptionBoundaries: Array<{ turnId: string; beforeMessageIndex: number }> = [];
+    const interruptionBoundaries: { turnId: string; beforeMessageIndex: number }[] = [];
     const assistantMsgIndexByTurn = new Map<string, number>();
     const queueByTurn = new Map<
       string,
@@ -422,7 +424,9 @@ export class ChatService {
       const data =
         chunk.data && typeof chunk.data === 'object' ? (chunk.data as Record<string, unknown>) : {};
       const generation =
-        parseGeneration(row.generationId) ?? parseGeneration(data.generationId) ?? activeGenerationId;
+        parseGeneration(row.generationId) ??
+        parseGeneration(data.generationId) ??
+        activeGenerationId;
       activeGenerationId = Math.max(activeGenerationId, generation ?? 0);
 
       if (type === 'data-turn-status') {
@@ -634,7 +638,11 @@ export class ChatService {
         `stale generation event rejected (incoming=${incomingGeneration}, active=${activeGeneration})`,
       );
     }
-    if (session.activeTurnId && session.activeTurnId !== turn.id && incomingGeneration === activeGeneration) {
+    if (
+      session.activeTurnId &&
+      session.activeTurnId !== turn.id &&
+      incomingGeneration === activeGeneration
+    ) {
       // Hard fence for late emits from previous turns within the active generation.
       const typedChunk = input.chunk as { type?: string };
       if (typedChunk.type && typedChunk.type !== 'data-turn-status') {
