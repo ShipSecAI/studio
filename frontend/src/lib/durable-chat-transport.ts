@@ -75,6 +75,15 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
 
   constructor(private options: DurableChatTransportOptions) {}
 
+  /** Subscribe to all SSE chunk events. Returns an unsubscribe function. */
+  onSessionChunk(handler: (chunk: unknown) => void): () => void {
+    const listener = (event: Event) => {
+      handler((event as CustomEvent).detail);
+    };
+    this.sessionEventTarget.addEventListener('chunk', listener);
+    return () => this.sessionEventTarget.removeEventListener('chunk', listener);
+  }
+
   private isEphemeralChatId(chatId: string): boolean {
     return chatId.startsWith('new-') || chatId.startsWith('chat-');
   }
