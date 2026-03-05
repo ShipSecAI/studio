@@ -63,6 +63,8 @@ PM2 can read per-instance env files from:
 - `.instances/instance-N/worker.env`
 - `.instances/instance-N/frontend.env`
 
+Instance frontend env files explicitly set `VITE_API_URL=""` so the Vite dev-server proxy can keep `/api/v1/*` on the matching instance backend instead of hard-coding instance `0`'s backend port.
+
 Use `just instance-env` to manage them:
 
 ```bash

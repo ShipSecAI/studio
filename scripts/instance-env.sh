@@ -121,6 +121,7 @@ apply_instance_vars() {
       # reverse-proxy forward /api/* to the correct backend port, which
       # avoids cross-origin issues when accessing via Cloudflare Tunnel or
       # any non-localhost URL.
+      set_var "$file" "VITE_API_URL" "\"\""
       ;;
     *)
       fail "Unknown app: $app"

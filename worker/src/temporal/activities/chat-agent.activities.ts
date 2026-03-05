@@ -1209,7 +1209,19 @@ export async function runChatAgentStepActivity(
         }).catch(() => {
           // Best-effort lifecycle marker.
         });
-        await emitStreamEvent(sessionId, runId, { type: 'status', status: 'idle' });
+        await appendChunk(
+          createTurnStatusChunk({
+            turnId,
+            status: 'failed',
+            reason: 'budget-exceeded',
+            queuedAt,
+            startedAt,
+            endedAt: new Date().toISOString(),
+          }),
+          { allowAfterHalt: true },
+        ).catch(() => {
+          // Best-effort stream update for clients before completion reset.
+        });
         await notifySessionComplete(sessionId, runId);
 
         return {

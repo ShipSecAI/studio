@@ -54,6 +54,7 @@ Local development runs as **multiple app instances** (PM2) on top of **one share
 - Isolation is via per-instance DB + Temporal namespace/task queue + Kafka topic suffixing + instance-scoped Kafka consumer groups/client IDs (not per-instance infra containers).
 - The workspace can have an **active instance** (stored in `.shipsec-instance`, gitignored).
 - Instance env files are stored at `.instances/instance-N/{backend,worker,frontend}.env` and can be managed with `just instance-env ...`.
+- Per-instance frontend envs must keep `VITE_API_URL=""` so frontend requests stay same-origin and route through the matching instance proxy/backend instead of hard-coding port `3211`.
 
 **Agent rule:** before running any dev commands, ensure you’re targeting the intended instance.
 
