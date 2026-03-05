@@ -23,10 +23,15 @@ type ToolSetLike = Record<string, ExecutableTool>;
 export interface TaskAwareMcpClient {
   experimental: {
     tasks: {
-      callToolStream(params: {
-        name: string;
-        arguments?: Record<string, unknown>;
-      }): AsyncIterable<unknown>;
+      callToolStream(
+        params: {
+          name: string;
+          arguments?: Record<string, unknown>;
+        },
+        resultSchema?: unknown,
+        options?: { signal?: AbortSignal },
+      ): AsyncIterable<unknown>;
+      cancelTask?(taskId: string, options?: { signal?: AbortSignal }): Promise<unknown>;
     };
   };
 }
@@ -98,6 +103,18 @@ function formatTaskError(error: unknown): Error {
 
 const STALE_TASK_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
+function createAbortError(): Error {
+  const error = new Error('The tool execution was aborted');
+  error.name = 'AbortError';
+  return error;
+}
+
+function getAbortSignal(options: ToolExecutionOptions): AbortSignal | undefined {
+  const candidate = (options as ToolExecutionOptions & { abortSignal?: AbortSignal }).abortSignal;
+  if (candidate instanceof AbortSignal) return candidate;
+  return undefined;
+}
+
 async function runTaskTool({
   taskClient,
   toolName,
@@ -116,6 +133,30 @@ async function runTaskTool({
   const args = isRecord(input) ? input : {};
   let finalResult: unknown;
   let hasFinalResult = false;
+  const abortSignal = getAbortSignal(options);
+  let activeTaskId: string | undefined;
+  let abortPromise: Promise<never> | null = null;
+
+  if (abortSignal?.aborted) {
+    throw createAbortError();
+  }
+
+  if (abortSignal) {
+    abortPromise = new Promise<never>((_, reject) => {
+      abortSignal.addEventListener(
+        'abort',
+        () => {
+          if (activeTaskId && typeof taskClient.experimental.tasks.cancelTask === 'function') {
+            void taskClient.experimental.tasks.cancelTask(activeTaskId).catch(() => {
+              // Best-effort remote task cancellation.
+            });
+          }
+          reject(createAbortError());
+        },
+        { once: true },
+      );
+    });
+  }
 
   // Staleness tracking: abort if status+statusMessage haven't changed for 10 minutes.
   // This allows legitimate long-running tasks (e.g. 30-min scans that keep updating
@@ -124,17 +165,30 @@ async function runTaskTool({
   let lastSeenStatus: string | undefined;
   let lastSeenStatusMessage: string | undefined;
 
-  const stream = taskClient.experimental.tasks.callToolStream({
-    name: toolName,
-    arguments: args,
-  });
+  const stream = taskClient.experimental.tasks.callToolStream(
+    {
+      name: toolName,
+      arguments: args,
+    },
+    undefined,
+    { signal: abortSignal },
+  );
 
-  for await (const rawMessage of stream) {
+  const iterator = stream[Symbol.asyncIterator]();
+
+  while (true) {
+    const nextMessage = iterator.next();
+    const step = abortPromise ? await Promise.race([nextMessage, abortPromise]) : await nextMessage;
+    if (step.done) {
+      break;
+    }
+    const rawMessage = step.value;
     const message = rawMessage as TaskStreamMessage;
 
     if (message.type === 'taskCreated' || message.type === 'taskStatus') {
       const state = normalizeTaskState(message.task);
       if (!state) continue;
+      activeTaskId = state.taskId;
 
       // Check for staleness: if status and statusMessage are unchanged, track elapsed time.
       if (state.status !== lastSeenStatus || state.statusMessage !== lastSeenStatusMessage) {

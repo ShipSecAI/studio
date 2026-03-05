@@ -482,7 +482,7 @@ export function ChatInterface() {
       }
       if (payload.status === 'stopping') {
         setSessionProcessing(true);
-        setIsStopping(true);
+        setBackendIsStopping(true);
       }
       if (
         payload.status === 'completed' ||
@@ -490,7 +490,8 @@ export function ChatInterface() {
         payload.status === 'failed' ||
         payload.status === 'cancelled'
       ) {
-        setIsStopping(false);
+        setStopRequested(false);
+        setBackendIsStopping(false);
       }
 
       // Single source of truth for processing state comes from backend /state.
@@ -503,7 +504,10 @@ export function ChatInterface() {
       const isProcessing =
         state.processingStatus === 'processing' || state.processingStatus === 'stopping';
       setSessionProcessing(isProcessing);
-      setIsStopping(state.processingStatus === 'stopping');
+      setBackendIsStopping(state.processingStatus === 'stopping');
+      if (!isProcessing) {
+        setStopRequested(false);
+      }
       setInterruptionBoundaries(state.interruptionBoundaries ?? []);
     },
   });
@@ -512,6 +516,8 @@ export function ChatInterface() {
   useEffect(() => {
     if (newConversationToken > 0 && !currentSessionId) {
       setSessionProcessing(false);
+      setStopRequested(false);
+      setBackendIsStopping(false);
       setLocalSteerQueue([]);
       setPendingSteerDispatchText(null);
       setInterruptionBoundaries([]);
@@ -523,6 +529,8 @@ export function ChatInterface() {
   useEffect(() => {
     if (routeSessionId === 'new') {
       setSessionProcessing(false);
+      setStopRequested(false);
+      setBackendIsStopping(false);
       setLocalSteerQueue([]);
       setPendingSteerDispatchText(null);
       setInterruptionBoundaries([]);
@@ -533,6 +541,8 @@ export function ChatInterface() {
 
     if (!currentSessionId) {
       setSessionProcessing(false);
+      setStopRequested(false);
+      setBackendIsStopping(false);
       setLocalSteerQueue([]);
       setPendingSteerDispatchText(null);
       setInterruptionBoundaries([]);
@@ -541,7 +551,8 @@ export function ChatInterface() {
 
     // Session switch — clear ChatInterface-specific state; hook handles messages + SSE
     setSessionProcessing(false);
-    setIsStopping(false);
+    setStopRequested(false);
+    setBackendIsStopping(false);
     setLocalSteerQueue([]);
     setPendingSteerDispatchText(null);
     setInterruptionBoundaries([]);
@@ -597,7 +608,8 @@ export function ChatInterface() {
     null,
   );
   const [isGraphPanelOpen, setIsGraphPanelOpen] = useState(false);
-  const [isStopping, setIsStopping] = useState(false);
+  const [stopRequested, setStopRequested] = useState(false);
+  const [backendIsStopping, setBackendIsStopping] = useState(false);
   const [interruptionBoundaries, setInterruptionBoundaries] = useState<
     ChatSessionStateResponse['interruptionBoundaries']
   >([]);
@@ -605,18 +617,19 @@ export function ChatInterface() {
   const [steeringTurnId, setSteeringTurnId] = useState<string | null>(null);
   const [localSteerQueue, setLocalSteerQueue] = useState<LocalSteerQueueItem[]>([]);
   const [pendingSteerDispatchText, setPendingSteerDispatchText] = useState<string | null>(null);
+  const isStopping = stopRequested || backendIsStopping;
   const handleSelectPrompt = useCallback((prompt: string) => {
     setPendingPrompt(prompt + ' ');
   }, []);
 
   const handleInterrupt = useCallback(async () => {
     if (!currentSessionId || isStopping) return;
-    setIsStopping(true); // Optimistic — will be confirmed/cleared by SSE events
+    setStopRequested(true);
     try {
       await chatTransport.interruptGeneration(currentSessionId);
     } catch (err) {
       console.warn('Failed to interrupt generation:', err);
-      setIsStopping(false);
+      setStopRequested(false);
     }
   }, [currentSessionId, isStopping, chatTransport]);
 
@@ -703,7 +716,8 @@ export function ChatInterface() {
         });
         return;
       }
-      setIsStopping(false);
+      setStopRequested(false);
+      setBackendIsStopping(false);
       sendMessage({ text });
     },
     [sendMessage, createSession, navigate, isAgentWorking, localSteerQueue.length, toast],
@@ -716,7 +730,8 @@ export function ChatInterface() {
     sendMessage({ text: pendingSteerDispatchText, sessionId: currentSessionId });
     setLocalSteerQueue([]);
     setPendingSteerDispatchText(null);
-    setIsStopping(false);
+    setStopRequested(false);
+    setBackendIsStopping(false);
   }, [pendingSteerDispatchText, currentSessionId, isAgentWorking, sendMessage]);
 
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
@@ -1077,8 +1092,12 @@ export function ChatInterface() {
                       </div>
                     </div>
                     <button
+                      type="button"
                       className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-background px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-                      onClick={handleInterrupt}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void handleInterrupt();
+                      }}
                       disabled={isStopping}
                     >
                       <StopCircle className="h-3 w-3" />

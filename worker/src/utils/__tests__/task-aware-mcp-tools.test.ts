@@ -181,4 +181,55 @@ describe('withTaskAwareMcpTools', () => {
     expect(output).toEqual({ ok: true });
     expect(listWorkflowsExecute).toHaveBeenCalledTimes(1);
   });
+
+  it('aborts task-backed tools promptly and best-effort cancels the remote task', async () => {
+    const originalExecute = vi.fn(async (_input: unknown, _options: ToolExecutionOptions) => ({
+      legacy: true,
+    }));
+    const cancelTask = vi.fn(async (_taskId: string) => undefined);
+    const tools: Record<string, MockTool> = {
+      run_workflow: {
+        execute: originalExecute,
+      },
+    };
+
+    const taskClient: TaskAwareMcpClient = {
+      experimental: {
+        tasks: {
+          callToolStream: (_params, _schema, streamOptions) =>
+            (async function* () {
+              yield { type: 'taskCreated', task: { taskId: 't-cancel', status: 'working' } };
+              await new Promise<never>((_, reject) => {
+                streamOptions?.signal?.addEventListener(
+                  'abort',
+                  () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+                  { once: true },
+                );
+              });
+            })(),
+          cancelTask,
+        },
+      },
+    };
+
+    const wrapped = withTaskAwareMcpTools({
+      tools,
+      taskClient,
+      fallbackToOriginal: false,
+    });
+
+    const abortController = new AbortController();
+    const execution = wrapped.run_workflow.execute({ workflowId: 'wf-cancel' }, {
+      toolCallId: 'call-cancel',
+      messages: [],
+      abortSignal: abortController.signal,
+    } as ToolExecutionOptions);
+
+    await Bun.sleep(0);
+    abortController.abort();
+
+    await expect(execution).rejects.toMatchObject({ name: 'AbortError' });
+    expect(cancelTask).toHaveBeenCalledWith('t-cancel');
+    expect(originalExecute).not.toHaveBeenCalled();
+  });
 });
