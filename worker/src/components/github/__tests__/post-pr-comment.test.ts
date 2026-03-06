@@ -36,7 +36,9 @@ describe('github.pr.comment component', () => {
       componentRef: 'post-pr-comment-test',
       secrets: {
         get: vi.fn(async (secretId: string) =>
-          secretId === 'github-installation-12345' ? { value: 'mock-github-token' } : null,
+          secretId === 'github-installation-12345'
+            ? { value: 'mock-github-token', version: 1 }
+            : null,
         ),
         list: vi.fn(async () => []),
       },
