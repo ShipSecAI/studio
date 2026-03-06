@@ -4,7 +4,7 @@ ShipSec Studio supports running multiple isolated dev instances (0-9) on one mac
 
 The key design is:
 
-- **One shared Docker infra stack** (`shipsec-infra`): Postgres, Temporal, Redpanda, Redis, MinIO, Loki, etc.
+- **One shared Docker infra stack** (`shipsec-infra`): Postgres, Temporal, Redpanda, Redis, MinIO, Loki, LiteLLM, etc.
 - **Many app instances** (PM2): `shipsec-{backend,worker,frontend}-N`
 - **Isolation comes from namespacing**, not per-instance infra containers:
   - Postgres database: `shipsec_instance_N`
@@ -31,7 +31,7 @@ just dev stop
 
 ## How It Works
 
-- **One shared Docker infra stack**: Postgres, Temporal, Redpanda, Redis, MinIO, etc.
+- **One shared Docker infra stack**: Postgres, Temporal, Redpanda, Redis, MinIO, LiteLLM, etc.
 - **Many app instances** via PM2: `shipsec-{backend,worker,frontend}-N`
 - **Isolation via namespacing**, not per-instance containers:
   - Postgres database: `shipsec_instance_N`
@@ -157,6 +157,7 @@ Shared infra (fixed ports, same for all instances):
 | Temporal         | 7233        |
 | Temporal UI      | 8081        |
 | Redis            | 6379        |
+| LiteLLM          | 4001        |
 | Redpanda (Kafka) | 9092        |
 | Redpanda Console | 8082        |
 | MinIO API/UI     | 9000 / 9001 |
@@ -257,6 +258,8 @@ If any required variable is missing or malformed, startup aborts with a clear er
 **No inline comments in .env**: PM2's env loader strips inline comments for unquoted values (e.g., `KEY=value # comment`), but some tools do not. Avoid inline comments entirely — use a full-line comment above the variable instead.
 
 **Chat AI variables**: The worker requires `CHAT_AI_BASE_URL`, `CHAT_AI_API_KEY`, `CHAT_AI_MODEL_ID`, and `CHAT_AI_PROVIDER` for the chat feature. See `worker/.env.example` for reference values.
+
+**LiteLLM variables**: Shared infra now includes a LiteLLM proxy on `http://localhost:4001` (via `docker-compose.dev-ports.yml`). To route local Chat AI through the proxy, set `LITELLM_PROXY_URL` / `LITELLM_MASTER_KEY` in backend env and `LITELLM_BASE_URL` / `LITELLM_API_KEY` in worker env. The default repo config exposes `glm-4.7` and `openai/glm-4.7` aliases with z.ai public pricing and cached-input pricing.
 
 ## Troubleshooting
 
