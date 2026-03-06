@@ -3172,6 +3172,29 @@
         ]
       }
     },
+    "/api/v1/internal/billing/litellm-key": {
+      "get": {
+        "operationId": "InternalBillingController_getLiteLLMKey",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "InternalBilling"
+        ]
+      }
+    },
     "/api/v1/components": {
       "get": {
         "operationId": "ComponentsController_listComponents",
@@ -9109,30 +9132,9 @@
         ]
       }
     },
-    "/api/v1/chat/sessions/{id}/messages": {
-      "get": {
-        "operationId": "ChatController_getMessages",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Chat"
-        ]
-      },
+    "/api/v1/chat/sessions/{id}/submissions": {
       "post": {
-        "operationId": "ChatController_sendMessage",
+        "operationId": "ChatController_submitOperation",
         "parameters": [
           {
             "name": "id",
@@ -9153,9 +9155,9 @@
         ]
       }
     },
-    "/api/v1/chat/sessions/{id}/status": {
+    "/api/v1/chat/sessions/{id}/thread-history": {
       "get": {
-        "operationId": "ChatController_getProcessingStatus",
+        "operationId": "ChatController_getThreadHistory",
         "parameters": [
           {
             "name": "id",
@@ -9168,50 +9170,6 @@
         ],
         "responses": {
           "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Chat"
-        ]
-      }
-    },
-    "/api/v1/chat/sessions/{id}/partial": {
-      "get": {
-        "operationId": "ChatController_getPartialResponse",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Chat"
-        ]
-      },
-      "post": {
-        "operationId": "ChatController_upsertPartialResponse",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
             "description": ""
           }
         },
@@ -9228,14 +9186,6 @@
             "name": "id",
             "required": true,
             "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "runId",
-            "required": true,
-            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -9261,20 +9211,12 @@
     },
     "/api/v1/chat/sessions/{id}/events": {
       "get": {
-        "operationId": "ChatController_listRunEvents",
+        "operationId": "ChatController_listEvents",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "runId",
-            "required": true,
-            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -9296,9 +9238,11 @@
         "tags": [
           "Chat"
         ]
-      },
+      }
+    },
+    "/api/v1/chat/sessions/{id}/internal/events": {
       "post": {
-        "operationId": "ChatController_appendRunEvent",
+        "operationId": "ChatController_appendInternalEvent",
         "parameters": [
           {
             "name": "id",
@@ -9319,9 +9263,9 @@
         ]
       }
     },
-    "/api/v1/chat/sessions/{id}/complete": {
+    "/api/v1/chat/sessions/{id}/internal/run-completion": {
       "post": {
-        "operationId": "ChatController_completeSession",
+        "operationId": "ChatController_appendRunCompletion",
         "parameters": [
           {
             "name": "id",
@@ -12128,18 +12072,12 @@
             "type": "number",
             "example": 37.5,
             "description": "Remaining budget (-1 = unlimited)"
-          },
-          "totalTokensUsed": {
-            "type": "number",
-            "example": 125000,
-            "description": "Total tokens consumed (informational)"
           }
         },
         "required": [
           "spentUsd",
           "budgetUsd",
-          "remainingUsd",
-          "totalTokensUsed"
+          "remainingUsd"
         ]
       },
       "BillingLimitsDto": {

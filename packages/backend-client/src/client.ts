@@ -2023,7 +2023,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/internal/mcp/register-remote": {
+    "/api/v1/internal/mcp/register-mcp-server": {
         parameters: {
             query?: never;
             header?: never;
@@ -2032,23 +2032,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["InternalMcpController_registerRemote"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/internal/mcp/register-local": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["InternalMcpController_registerLocal"];
+        post: operations["InternalMcpController_registerMcpServer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4409,7 +4393,7 @@ export interface components {
             description: string | null;
             credentialContractName: string;
             credentialMapping: {
-                [key: string]: unknown;
+                [key: string]: string;
             } | null;
             defaultDockerImage: string | null;
             enabled: boolean;
@@ -4419,13 +4403,40 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        GroupTemplateDto: {
+            slug: string;
+            name: string;
+            description?: string;
+            credentialContractName: string;
+            credentialMapping?: {
+                [key: string]: string;
+            };
+            defaultDockerImage: string;
+            version: {
+                major: number;
+                minor: number;
+                patch: number;
+            };
+            servers: {
+                name: string;
+                description?: string;
+                /** @enum {string} */
+                transportType: "http" | "stdio" | "sse" | "websocket";
+                endpoint?: string;
+                command?: string;
+                args?: string[];
+                recommended: boolean;
+                defaultSelected: boolean;
+            }[];
+            templateHash: string;
+        };
         CreateMcpGroupDto: {
             slug: string;
             name: string;
             description?: string | null;
             credentialContractName: string;
             credentialMapping?: {
-                [key: string]: unknown;
+                [key: string]: string;
             } | null;
             defaultDockerImage?: string | null;
             enabled?: boolean;
@@ -4435,7 +4446,7 @@ export interface components {
             description?: string | null;
             credentialContractName?: string;
             credentialMapping?: {
-                [key: string]: unknown;
+                [key: string]: string;
             } | null;
             defaultDockerImage?: string | null;
             enabled?: boolean;
@@ -4488,7 +4499,7 @@ export interface components {
                 description: string | null;
                 credentialContractName: string;
                 credentialMapping: {
-                    [key: string]: unknown;
+                    [key: string]: string;
                 } | null;
                 defaultDockerImage: string | null;
                 enabled: boolean;
@@ -4500,8 +4511,7 @@ export interface components {
             };
         };
         RegisterComponentToolInput: Record<string, never>;
-        RegisterRemoteMcpInput: Record<string, never>;
-        RegisterLocalMcpInput: Record<string, never>;
+        RegisterMcpServerInput: Record<string, never>;
         DiscoveryInputDto: {
             /**
              * @description Transport type for MCP server
@@ -6566,10 +6576,11 @@ export interface operations {
                             rows?: number | null;
                         }[];
                         examples?: string[];
-                        agentTool?: {
-                            enabled?: boolean;
-                            toolName?: string | null;
-                            toolDescription?: string | null;
+                        toolProvider?: {
+                            /** @enum {string} */
+                            kind?: "component" | "mcp-server" | "mcp-group";
+                            name?: string;
+                            description?: string;
                         } | null;
                     }[];
                 };
@@ -8204,7 +8215,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GroupTemplateDto"][];
+                };
             };
         };
     };
@@ -8587,7 +8600,7 @@ export interface operations {
             };
         };
     };
-    InternalMcpController_registerRemote: {
+    InternalMcpController_registerMcpServer: {
         parameters: {
             query?: never;
             header?: never;
@@ -8596,28 +8609,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RegisterRemoteMcpInput"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    InternalMcpController_registerLocal: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RegisterLocalMcpInput"];
+                "application/json": components["schemas"]["RegisterMcpServerInput"];
             };
         };
         responses: {
