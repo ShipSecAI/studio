@@ -19,7 +19,7 @@ import {
   getLiteLLMBaseUrl,
   getLiteLLMApiKey,
   normalizeLiteLLMModel,
-  fetchOrgVirtualKey,
+  requireOrgVirtualKey,
   isBudgetExceededError,
   BUDGET_EXCEEDED_USER_MESSAGE,
 } from './utils';
@@ -176,13 +176,9 @@ const definition = defineComponent({
     // When LiteLLM is enabled and no user-provided key (BYOK), use the org's virtual key
     let resolvedLiteLLMKey = liteLLMApiKey || null;
     if (liteLLMEnabled && !userProvidedKey) {
-      const { organizationId } = context.metadata;
-      if (organizationId) {
-        const orgKey = await fetchOrgVirtualKey(organizationId);
-        if (orgKey) {
-          resolvedLiteLLMKey = orgKey;
-        }
-      }
+      resolvedLiteLLMKey = await requireOrgVirtualKey(context.metadata.organizationId ?? null, {
+        consumer: 'AI Generate Text',
+      });
     }
 
     const resolvedApiKey = liteLLMEnabled ? resolvedLiteLLMKey || userProvidedKey : userProvidedKey;

@@ -15,7 +15,7 @@ import { createIsolatedVolume } from '../../utils/isolated-volume';
 import {
   DEFAULT_GATEWAY_URL,
   getGatewaySessionToken,
-  fetchOrgVirtualKey,
+  requireOrgVirtualKey,
   shouldRouteViaLiteLLM,
 } from './utils';
 
@@ -240,8 +240,13 @@ const definition = defineComponent({
     // When LiteLLM is enabled and no user-provided key, use org's virtual key
     let orgVirtualKey: string | undefined;
     if (shouldRouteViaLiteLLM() && !model?.apiKey && organizationId) {
-      const vk = await fetchOrgVirtualKey(organizationId);
-      if (vk) orgVirtualKey = vk;
+      orgVirtualKey = await requireOrgVirtualKey(organizationId, {
+        consumer: 'OpenCode agent',
+      });
+    } else if (shouldRouteViaLiteLLM() && !model?.apiKey) {
+      orgVirtualKey = await requireOrgVirtualKey(organizationId ?? null, {
+        consumer: 'OpenCode agent',
+      });
     }
 
     const providerEnv = buildProviderEnv(model, orgVirtualKey);

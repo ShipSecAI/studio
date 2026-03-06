@@ -51,7 +51,7 @@ import {
   getLiteLLMBaseUrl,
   getLiteLLMApiKey,
   normalizeLiteLLMModel,
-  fetchOrgVirtualKey,
+  requireOrgVirtualKey,
   isBudgetExceededError,
   BUDGET_EXCEEDED_USER_MESSAGE,
 } from './utils';
@@ -625,11 +625,10 @@ Loop the Conversation State output back into the next agent invocation to keep m
 
       // When LiteLLM is enabled and no user-provided key (BYOK), use the org's virtual key
       let resolvedLiteLLMKey = liteLLMApiKey || null;
-      if (liteLLMEnabled && !overrideApiKey && organizationId) {
-        const orgKey = await fetchOrgVirtualKey(organizationId);
-        if (orgKey) {
-          resolvedLiteLLMKey = orgKey;
-        }
+      if (liteLLMEnabled && !overrideApiKey) {
+        resolvedLiteLLMKey = await requireOrgVirtualKey(organizationId ?? null, {
+          consumer: 'AI Agent',
+        });
       }
 
       const effectiveApiKey = liteLLMEnabled

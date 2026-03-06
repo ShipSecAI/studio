@@ -10,7 +10,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, asc } from 'drizzle-orm';
 
 import {
-  fetchOrgVirtualKey,
+  requireOrgVirtualKey,
   shouldRouteViaLiteLLM,
   isBudgetExceededError,
   BUDGET_EXCEEDED_USER_MESSAGE,
@@ -181,12 +181,13 @@ function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
  * Falls back to default env-var credentials otherwise.
  */
 async function getModelForOrg(organizationId?: string) {
-  if (organizationId && shouldRouteViaLiteLLM()) {
-    const virtualKey = await fetchOrgVirtualKey(organizationId, globalBackendUrl);
-    if (virtualKey) {
-      const liteLLMBaseUrl = process.env.LITELLM_BASE_URL?.trim();
-      return getModel({ apiKey: virtualKey, baseURL: liteLLMBaseUrl });
-    }
+  if (shouldRouteViaLiteLLM()) {
+    const virtualKey = await requireOrgVirtualKey(organizationId, {
+      backendUrl: globalBackendUrl,
+      consumer: 'Chat AI',
+    });
+    const liteLLMBaseUrl = process.env.LITELLM_BASE_URL?.trim();
+    return getModel({ apiKey: virtualKey, baseURL: liteLLMBaseUrl });
   }
   return getModel();
 }

@@ -109,20 +109,18 @@ export async function fetchOrgVirtualKey(
     process.env.STUDIO_API_BASE_URL ??
     process.env.SHIPSEC_API_BASE_URL ??
     process.env.API_BASE_URL ??
-    'http://localhost:3211/api/v1';
+    DEFAULT_API_BASE_URL;
 
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
   if (!internalToken) return null;
 
   try {
-    const res = await fetch(
-      `${baseUrl}/internal/billing/litellm-key?organizationId=${encodeURIComponent(orgId)}`,
-      {
-        headers: {
-          'x-internal-token': internalToken,
-        },
+    const res = await fetch(`${baseUrl}/internal/billing/litellm-key`, {
+      headers: {
+        'x-internal-token': internalToken,
+        'x-organization-id': orgId,
       },
-    );
+    });
 
     if (!res.ok) return null;
 
@@ -134,6 +132,37 @@ export async function fetchOrgVirtualKey(
   } catch {
     return null;
   }
+}
+
+export async function requireOrgVirtualKey(
+  orgId: string | null | undefined,
+  options?: { backendUrl?: string; consumer?: string },
+): Promise<string> {
+  if (!shouldRouteViaLiteLLM()) {
+    throw new ConfigurationError('LiteLLM routing is not enabled.', {
+      configKey: 'LITELLM_BASE_URL',
+    });
+  }
+
+  if (!orgId?.trim()) {
+    throw new ConfigurationError(
+      `${options?.consumer ?? 'AI request'} requires an organization ID when LiteLLM routing is enabled.`,
+      { configKey: 'organizationId' },
+    );
+  }
+
+  const virtualKey = await fetchOrgVirtualKey(orgId.trim(), options?.backendUrl);
+  if (!virtualKey) {
+    throw new ConfigurationError(
+      `${options?.consumer ?? 'AI request'} could not resolve a LiteLLM virtual key for organization "${orgId}".`,
+      {
+        configKey: 'LITELLM_API_KEY',
+        details: { organizationId: orgId.trim() },
+      },
+    );
+  }
+
+  return virtualKey;
 }
 
 // ---------------------------------------------------------------------------
