@@ -72,6 +72,7 @@ import {
   useGitHubStatus,
   useGitHubInstallations,
   useGitHubRepositories,
+  useGitHubBranches,
   useTriggerRules,
   useGitHubScanResults,
   useSetupInstallation,
@@ -93,6 +94,11 @@ import {
   formatDuration,
   getScanSourceMeta,
 } from '@/components/scans/scan-utils';
+import {
+  buildGitHubBranchOptions,
+  getGitHubInstallationManageUrl,
+  parseGitHubInstallationId,
+} from '@/lib/github-ui';
 import { cn } from '@/lib/utils';
 import { CodeScanScheduleDialog } from '@/components/security/CodeScanScheduleDialog';
 
@@ -219,6 +225,7 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
   const { toast } = useToast();
   const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
   const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
+  const { data: branches = [] } = useGitHubBranches(repository?.id ?? '');
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([]);
   const [workflowCompatibility, setWorkflowCompatibility] = useState<
     Record<string, WorkflowCompatibility>
@@ -279,6 +286,10 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
     : null;
   const selectedWorkflowRequiresPrContext =
     selectedWorkflowCompatibility?.requiresPrContext ?? false;
+  const branchOptions = buildGitHubBranchOptions({
+    branches,
+    defaultBranch: repository?.defaultBranch ?? 'main',
+  });
 
   const handleTrigger = (workflowId: string) => {
     if (!repository) return;
@@ -349,9 +360,11 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
                 <SelectValue placeholder="Select branch" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={repository.defaultBranch ?? 'main'}>
-                  {repository.defaultBranch ?? 'main'} (default)
-                </SelectItem>
+                {branchOptions.map((branch) => (
+                  <SelectItem key={branch.value} value={branch.value}>
+                    {branch.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -436,30 +449,6 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
   );
 }
 
-function parseInstallationId(input: string): number | null {
-  const value = input.trim();
-  if (!value) return null;
-
-  if (/^\d+$/.test(value)) {
-    const id = Number.parseInt(value, 10);
-    return Number.isInteger(id) && id > 0 ? id : null;
-  }
-
-  const pathMatch = value.match(/\/installations\/(\d+)/i);
-  if (pathMatch?.[1]) {
-    const id = Number.parseInt(pathMatch[1], 10);
-    return Number.isInteger(id) && id > 0 ? id : null;
-  }
-
-  const queryMatch = value.match(/[?&]installation_id=(\d+)/i);
-  if (queryMatch?.[1]) {
-    const id = Number.parseInt(queryMatch[1], 10);
-    return Number.isInteger(id) && id > 0 ? id : null;
-  }
-
-  return null;
-}
-
 function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
   const { toast } = useToast();
   const { mutateAsync: setupInstallation } = useSetupInstallation();
@@ -468,7 +457,7 @@ function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
   const [linking, setLinking] = useState(false);
 
   const handleLinkExistingInstallation = async () => {
-    const installationId = parseInstallationId(installationRef);
+    const installationId = parseGitHubInstallationId(installationRef);
     if (!installationId) {
       toast({
         title: 'Invalid installation reference',
@@ -527,7 +516,7 @@ function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
               <Input
                 value={installationRef}
                 onChange={(e) => setInstallationRef(e.target.value)}
-                placeholder="https://github.com/settings/installations/12345678"
+                placeholder="https://github.com/organizations/your-org/settings/installations/12345678"
                 disabled={linking}
               />
               <Button
@@ -2653,7 +2642,7 @@ function ConnectionOverview({
   const { toast } = useToast();
 
   const handleLinkExistingInstallation = async () => {
-    const installationId = parseInstallationId(installationRef);
+    const installationId = parseGitHubInstallationId(installationRef);
     if (!installationId) {
       toast({
         title: 'Invalid installation reference',
@@ -2789,7 +2778,7 @@ function ConnectionOverview({
                 </Button>
                 <Button variant="outline" size="sm" className="flex-1" asChild>
                   <a
-                    href={`https://github.com/settings/installations/${inst.installationId}`}
+                    href={getGitHubInstallationManageUrl(inst)}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -2823,7 +2812,7 @@ function ConnectionOverview({
                 <Input
                   value={installationRef}
                   onChange={(e) => setInstallationRef(e.target.value)}
-                  placeholder="https://github.com/settings/installations/12345678"
+                  placeholder="https://github.com/organizations/your-org/settings/installations/12345678"
                   disabled={linking}
                   className="text-xs h-8"
                 />
