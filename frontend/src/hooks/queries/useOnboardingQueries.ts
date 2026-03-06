@@ -1,8 +1,7 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { components } from '../../../../packages/backend-client/src/client';
 
 import { queryKeys } from '@/lib/queryKeys';
-import { api } from '@/services/api';
+import { api, type OnboardingPreferences } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 
 export function useOnboardingPreferences() {
@@ -28,7 +27,7 @@ export function useUpdateOnboardingPreferences() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: (updates: components['schemas']['UpdateOnboardingPreferencesDto']) =>
+    mutationFn: (updates: Partial<OnboardingPreferences>) =>
       api.onboarding.updatePreferences(updates),
     onSuccess: (data) => {
       qc.setQueryData(queryKeys.onboarding.preferences(), data);
