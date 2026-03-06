@@ -87,9 +87,13 @@ export function FeatureFlagProvider({ children, pollInterval = 0 }: FeatureFlagP
   }, []);
 
   useEffect(() => {
-    // Evaluate once PostHog has loaded its flags
-    if (posthog.__loaded) {
-      posthog.onFeatureFlags(() => evaluate());
+    let unsubscribe = () => {};
+
+    try {
+      // Subscribe immediately so we still react when PostHog finishes loading later.
+      unsubscribe = posthog.onFeatureFlags(() => evaluate());
+    } catch {
+      // PostHog may not be initialised yet — we'll still do an immediate evaluation below.
     }
 
     // Also evaluate immediately in case flags are already cached locally by PostHog
@@ -100,8 +104,13 @@ export function FeatureFlagProvider({ children, pollInterval = 0 }: FeatureFlagP
       const id = setInterval(() => {
         posthog.reloadFeatureFlags();
       }, pollInterval);
-      return () => clearInterval(id);
+      return () => {
+        clearInterval(id);
+        unsubscribe();
+      };
     }
+
+    return () => unsubscribe();
   }, [evaluate, pollInterval]);
 
   const value = useMemo<FeatureFlagContextValue>(
