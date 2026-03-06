@@ -3,12 +3,6 @@ import { createExecutionContext } from '@shipsec/component-sdk';
 import { componentRegistry } from '../../index';
 import type { PostPrCommentInput, PostPrCommentOutput } from '../post-pr-comment';
 
-// Mock fetchInstallationToken to return a token without hitting real APIs
-vi.mock('../github-auth', () => ({
-  sanitizeForLogging: (str: string) => str,
-  fetchInstallationToken: vi.fn().mockResolvedValue('mock-github-token'),
-}));
-
 // Store the original fetch
 const originalFetch = globalThis.fetch;
 
@@ -40,6 +34,12 @@ describe('github.pr.comment component', () => {
     return createExecutionContext({
       runId: 'test-run',
       componentRef: 'post-pr-comment-test',
+      secrets: {
+        get: vi.fn(async (secretId: string) =>
+          secretId === 'github-installation-12345' ? { value: 'mock-github-token' } : null,
+        ),
+        list: vi.fn(async () => []),
+      },
     });
   }
 
