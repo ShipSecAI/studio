@@ -114,6 +114,7 @@ apply_instance_vars() {
       ;;
     worker)
       set_var "$file" "BACKEND_URL" "$(get_backend_url "$instance")"
+      set_var "$file" "STUDIO_API_BASE_URL" "$(get_backend_url "$instance")/api/v1"
       ;;
     frontend)
       # VITE_API_URL intentionally left empty so the frontend uses relative
