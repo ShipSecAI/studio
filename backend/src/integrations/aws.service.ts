@@ -41,6 +41,10 @@ export class AwsService implements OnModuleInit {
   private platformSessionPromise: Promise<AssumedRoleCredentials> | null = null;
   private bootstrapIsPlatformRole = false;
 
+  private isStrictIdentityCheckEnabled(): boolean {
+    return process.env.SHIPSEC_AWS_STRICT_IDENTITY_CHECK?.trim().toLowerCase() !== 'false';
+  }
+
   private resolveRegion(preferred?: string): string {
     const region = (
       preferred ??
@@ -83,6 +87,16 @@ export class AwsService implements OnModuleInit {
         this.logger.warn(
           'AWS region not configured — skipping platform identity verification. ' +
             'Set AWS_REGION or AWS_DEFAULT_REGION to enable.',
+        );
+        return;
+      }
+      const isAccessDenied =
+        error?.name === 'AccessDenied' ||
+        error?.name === 'AccessDeniedException' ||
+        String(error?.message ?? '').includes('Platform role assumption failed');
+      if (isAccessDenied && !this.isStrictIdentityCheckEnabled()) {
+        this.logger.warn(
+          'AWS platform identity verification failed, but SHIPSEC_AWS_STRICT_IDENTITY_CHECK=false; continuing without platform-role bootstrap.',
         );
         return;
       }
