@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import * as LucideIcons from 'lucide-react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useComponents } from '@/hooks/queries/useComponentQueries';
@@ -9,6 +9,7 @@ import { useWorkflowsList } from '@/hooks/queries/useWorkflowQueries';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { usePlacementStore } from '@/components/layout/sidebar-state';
+import { useTourStore } from '@/features/onboarding';
 import { cn } from '@/lib/utils';
 import {
   Workflow,
@@ -97,6 +98,8 @@ export function CommandPalette() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const requestTour = useTourStore((state) => state.requestTour);
+  const startTour = useTourStore((state) => state.startTour);
 
   // Check if we're on a workflow builder page
   const isOnWorkflowPage =
@@ -213,6 +216,46 @@ export function CommandPalette() {
           close();
         },
       },
+      {
+        id: 'start-app-tour',
+        type: 'action',
+        label: 'Start App Tour',
+        description: 'Replay the navigation tour for the main app',
+        category: 'actions',
+        icon: Puzzle,
+        keywords: ['tour', 'onboarding', 'replay', 'guide', 'walkthrough', 'app'],
+        action: () => {
+          requestTour('app-navigation');
+          if (
+            isOnWorkflowPage ||
+            isOnNewWorkflowPage ||
+            location.pathname.startsWith('/webhooks/')
+          ) {
+            navigate('/');
+          } else {
+            startTour('app-navigation');
+          }
+          close();
+        },
+      },
+      {
+        id: 'start-workflow-builder-tour',
+        type: 'action',
+        label: 'Start Workflow Builder Tour',
+        description: 'Replay the guided workflow builder walkthrough',
+        category: 'actions',
+        icon: Puzzle,
+        keywords: ['tour', 'onboarding', 'replay', 'guide', 'walkthrough', 'builder'],
+        action: () => {
+          requestTour('workflow-builder');
+          if (isOnWorkflowPage || isOnNewWorkflowPage) {
+            startTour('workflow-builder');
+          } else {
+            navigate('/workflows/new');
+          }
+          close();
+        },
+      },
       // Navigation
       {
         id: 'nav-workflows',
@@ -279,7 +322,16 @@ export function CommandPalette() {
     });
 
     return commands;
-  }, [theme, navigate, close, startTransition]);
+  }, [
+    close,
+    isOnNewWorkflowPage,
+    isOnWorkflowPage,
+    navigate,
+    requestTour,
+    startTour,
+    startTransition,
+    theme,
+  ]);
 
   // Build workflow commands
   const workflowCommands = useMemo<Command[]>(() => {
@@ -472,6 +524,10 @@ export function CommandPalette() {
           close();
         }}
       >
+        <DialogTitle className="sr-only">Command Palette</DialogTitle>
+        <DialogDescription className="sr-only">
+          Search commands, workflows, navigation destinations, and quick actions.
+        </DialogDescription>
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50">
           <Search className="w-5 h-5 text-muted-foreground flex-shrink-0" />

@@ -2,10 +2,12 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+
+import { useUpdateOnboardingPreferences } from '@/hooks/queries/useOnboardingQueries';
 import { cn } from '@/lib/utils';
-import { useTourStore } from './store';
-import { tourDefinitions, type TooltipPlacement } from './tours';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useTourStore, type TourId } from './store';
+import { tourDefinitions, type TooltipPlacement } from './tours';
 
 const SPOTLIGHT_PADDING = 8;
 const SPOTLIGHT_RADIUS = 12;
@@ -20,7 +22,6 @@ interface TargetRect {
   height: number;
 }
 
-/** Build an SVG path with an evenodd cutout for the spotlight hole */
 function buildSpotlightPath(
   vw: number,
   vh: number,
@@ -54,7 +55,6 @@ function buildSpotlightPath(
   return `${outer} ${inner}`;
 }
 
-/** Calculate tooltip position based on target rect and preferred placement */
 function calculateTooltipPosition(
   rect: TargetRect | null,
   placement: TooltipPlacement,
@@ -130,7 +130,14 @@ function TooltipArrow({ placement }: { placement: TooltipPlacement }) {
     right: `${base} -left-[7px] top-8 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-r-[8px] border-r-white dark:border-r-zinc-900`,
     left: `${base} -right-[7px] top-8 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-l-[8px] border-l-white dark:border-l-zinc-900`,
   };
+
   return <div className={classes[placement]} />;
+}
+
+function toCompletionPatch(tourId: TourId) {
+  return tourId === 'app-navigation'
+    ? { appNavigationTourCompleted: true }
+    : { workflowBuilderTourCompleted: true };
 }
 
 export function SpotlightTour() {
@@ -139,8 +146,10 @@ export function SpotlightTour() {
   const currentStep = useTourStore((s) => s.currentStep);
   const nextStep = useTourStore((s) => s.nextStep);
   const prevStep = useTourStore((s) => s.prevStep);
-  const skipTour = useTourStore((s) => s.skipTour);
-  const completeTour = useTourStore((s) => s.completeTour);
+  const dismissTour = useTourStore((s) => s.dismissTour);
+  const setTourCompleted = useTourStore((s) => s.setTourCompleted);
+  const clearRequestedTour = useTourStore((s) => s.clearRequestedTour);
+  const updatePreferences = useUpdateOnboardingPreferences();
 
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
   const [viewportSize, setViewportSize] = useState({ w: window.innerWidth, h: window.innerHeight });
@@ -149,12 +158,34 @@ export function SpotlightTour() {
   const observerRef = useRef<ResizeObserver | null>(null);
   const rafRef = useRef<number>(0);
 
-  // Auto-skip on mobile (must be in useEffect, not render body)
+  const persistCompletedTour = useCallback(
+    (tourId: TourId) => {
+      setTourCompleted(tourId, true);
+      clearRequestedTour();
+      void updatePreferences.mutateAsync(toCompletionPatch(tourId));
+    },
+    [clearRequestedTour, setTourCompleted, updatePreferences],
+  );
+
+  const handleDismiss = useCallback(() => {
+    const dismissedTour = dismissTour();
+    if (dismissedTour) {
+      persistCompletedTour(dismissedTour);
+    }
+  }, [dismissTour, persistCompletedTour]);
+
+  const handleComplete = useCallback(() => {
+    const completedTour = dismissTour();
+    if (completedTour) {
+      persistCompletedTour(completedTour);
+    }
+  }, [dismissTour, persistCompletedTour]);
+
   useEffect(() => {
     if (isMobile && activeTour) {
-      skipTour();
+      handleDismiss();
     }
-  }, [isMobile, activeTour, skipTour]);
+  }, [activeTour, handleDismiss, isMobile]);
 
   const tourDef = activeTour ? tourDefinitions[activeTour] : null;
   const step = tourDef?.steps[currentStep] ?? null;
@@ -162,7 +193,6 @@ export function SpotlightTour() {
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === totalSteps - 1;
 
-  // Track the target element and update rect
   const updateTargetRect = useCallback(() => {
     if (!step?.target) {
       setTargetRect(null);
@@ -184,24 +214,23 @@ export function SpotlightTour() {
     });
   }, [step?.target]);
 
-  // Measure tooltip height for accurate positioning
   useEffect(() => {
     if (!tooltipRef.current) return;
+
     const obs = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry) setTooltipHeight(entry.contentRect.height);
     });
+
     obs.observe(tooltipRef.current);
     return () => obs.disconnect();
   }, [activeTour, currentStep]);
 
-  // Observe target element for size/position changes
   useEffect(() => {
     if (!activeTour || !step) return;
 
     step.beforeShow?.();
 
-    // Scroll the target element into view if it exists
     if (step.target) {
       const scrollEl = document.querySelector(`[data-tour="${step.target}"]`);
       if (scrollEl) {
@@ -209,12 +238,8 @@ export function SpotlightTour() {
       }
     }
 
-    // Use a longer delay when the step has a beforeShow callback,
-    // since it may trigger mode switches or panel transitions that need time
     const delay = step.beforeShow ? 450 : 100;
     const timer = setTimeout(updateTargetRect, delay);
-
-    // Second pass to catch late DOM transitions (e.g., inspector panel animating in)
     const timer2 = step.beforeShow ? setTimeout(updateTargetRect, 700) : null;
 
     const el = step.target ? document.querySelector(`[data-tour="${step.target}"]`) : null;
@@ -234,7 +259,6 @@ export function SpotlightTour() {
     };
   }, [activeTour, currentStep, step, updateTargetRect]);
 
-  // Update on window resize/scroll
   useEffect(() => {
     if (!activeTour) return;
 
@@ -256,7 +280,6 @@ export function SpotlightTour() {
     };
   }, [activeTour, updateTargetRect]);
 
-  // Keyboard navigation
   useEffect(() => {
     if (!activeTour) return;
 
@@ -265,12 +288,12 @@ export function SpotlightTour() {
         case 'Escape':
           e.preventDefault();
           e.stopPropagation();
-          skipTour();
+          handleDismiss();
           break;
         case 'ArrowRight':
         case 'ArrowDown':
           e.preventDefault();
-          if (isLastStep) completeTour();
+          if (isLastStep) handleComplete();
           else nextStep();
           break;
         case 'ArrowLeft':
@@ -280,7 +303,7 @@ export function SpotlightTour() {
           break;
         case 'Enter':
           e.preventDefault();
-          if (isLastStep) completeTour();
+          if (isLastStep) handleComplete();
           else nextStep();
           break;
       }
@@ -288,7 +311,7 @@ export function SpotlightTour() {
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [activeTour, isFirstStep, isLastStep, nextStep, prevStep, skipTour, completeTour]);
+  }, [activeTour, handleComplete, handleDismiss, isFirstStep, isLastStep, nextStep, prevStep]);
 
   if (!activeTour || !tourDef || !step || isMobile) {
     return null;
@@ -310,7 +333,7 @@ export function SpotlightTour() {
   );
 
   const handleNext = () => {
-    if (isLastStep) completeTour();
+    if (isLastStep) handleComplete();
     else nextStep();
   };
 
@@ -327,7 +350,6 @@ export function SpotlightTour() {
           aria-modal="true"
           aria-label={tourDef.name}
         >
-          {/* SVG spotlight overlay */}
           <svg
             className="fixed inset-0 w-full h-full pointer-events-none"
             style={{ width: viewportSize.w, height: viewportSize.h }}
@@ -340,7 +362,6 @@ export function SpotlightTour() {
             />
           </svg>
 
-          {/* Spotlight glow ring - uses same CSS transition as SVG path to stay in sync */}
           {targetRect && (
             <div
               className="fixed pointer-events-none"
@@ -356,15 +377,13 @@ export function SpotlightTour() {
             />
           )}
 
-          {/* Click shield */}
           <div
             className="fixed inset-0"
             onClick={(e) => {
-              if (e.target === e.currentTarget) skipTour();
+              if (e.target === e.currentTarget) handleDismiss();
             }}
           />
 
-          {/* Tooltip */}
           <motion.div
             ref={tooltipRef}
             className="fixed bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-border/50 overflow-hidden"
@@ -384,13 +403,11 @@ export function SpotlightTour() {
               damping: 32,
             }}
           >
-            {/* Gradient accent bar */}
             <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
 
             {targetRect && <TooltipArrow placement={actualPlacement} />}
 
             <div className="p-5">
-              {/* Header */}
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2.5">
                   {!step.target && (
@@ -408,7 +425,7 @@ export function SpotlightTour() {
                   </div>
                 </div>
                 <button
-                  onClick={skipTour}
+                  onClick={handleDismiss}
                   className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
                   aria-label="Skip tour"
                 >
@@ -416,14 +433,11 @@ export function SpotlightTour() {
                 </button>
               </div>
 
-              {/* Description */}
               <p className="text-sm text-muted-foreground leading-relaxed mb-5">
                 {step.description}
               </p>
 
-              {/* Footer */}
               <div className="flex items-center justify-between">
-                {/* Step dots */}
                 <div className="flex items-center gap-1.5">
                   {tourDef.steps.map((_, i) => (
                     <button
@@ -442,7 +456,6 @@ export function SpotlightTour() {
                   ))}
                 </div>
 
-                {/* Navigation buttons */}
                 <div className="flex items-center gap-2">
                   {!isFirstStep && (
                     <button
@@ -455,7 +468,7 @@ export function SpotlightTour() {
                   )}
                   {isFirstStep && !isLastStep && (
                     <button
-                      onClick={skipTour}
+                      onClick={handleDismiss}
                       className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/80 transition-colors"
                     >
                       Skip
@@ -471,7 +484,6 @@ export function SpotlightTour() {
                 </div>
               </div>
 
-              {/* Keyboard hint */}
               <div className="mt-3 pt-3 border-t border-border/40">
                 <p className="text-[11px] text-muted-foreground/60 text-center">
                   Use arrow keys to navigate, Escape to skip

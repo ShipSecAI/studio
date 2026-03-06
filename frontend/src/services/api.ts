@@ -76,6 +76,11 @@ export interface TerminalChunkResponse {
   }[];
 }
 
+export interface OnboardingPreferences {
+  appNavigationTourCompleted: boolean;
+  workflowBuilderTourCompleted: boolean;
+}
+
 export interface WorkflowSummary {
   id: string;
   name: string;
@@ -251,6 +256,35 @@ async function fetchScheduleById(id: string): Promise<WorkflowSchedule> {
  * Simple wrapper around the backend API client
  */
 export const api = {
+  onboarding: {
+    getPreferences: async (): Promise<OnboardingPreferences> => {
+      const response = await fetch(`${API_V1_URL}/onboarding/preferences`, {
+        method: 'GET',
+        headers: await getAuthHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch onboarding preferences');
+      }
+      return (await response.json()) as OnboardingPreferences;
+    },
+
+    updatePreferences: async (
+      updates: Partial<OnboardingPreferences>,
+    ): Promise<OnboardingPreferences> => {
+      const response = await fetch(`${API_V1_URL}/onboarding/preferences`, {
+        method: 'PATCH',
+        headers: {
+          ...(await getAuthHeaders()),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update onboarding preferences');
+      }
+      return (await response.json()) as OnboardingPreferences;
+    },
+  },
   workflows: {
     list: async (): Promise<WorkflowResponseDto[]> => {
       const response = await apiClient.listWorkflows();

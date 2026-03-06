@@ -1,88 +1,100 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export type TourId = 'app-navigation' | 'workflow-builder';
 
 interface TourState {
   /** Which tours have been completed */
   completedTours: Record<TourId, boolean>;
+  /** Whether server-backed completion state has been loaded */
+  serverStateLoaded: boolean;
   /** Currently active tour (null if none) */
   activeTour: TourId | null;
   /** Current step index within the active tour */
   currentStep: number;
+  /** Manual replay request coming from command palette or other UI */
+  requestedTour: TourId | null;
 
   startTour: (tourId: TourId) => void;
+  requestTour: (tourId: TourId) => void;
+  clearRequestedTour: () => void;
   nextStep: () => void;
   prevStep: () => void;
   goToStep: (step: number) => void;
-  skipTour: () => void;
-  completeTour: () => void;
+  dismissTour: () => TourId | null;
+  syncCompletedTours: (completedTours: Record<TourId, boolean>) => void;
+  setTourCompleted: (tourId: TourId, completed: boolean) => void;
   /** Check if a tour should auto-start (not yet completed) */
   shouldAutoStart: (tourId: TourId) => boolean;
   /** Reset a specific tour so it can be replayed */
   resetTour: (tourId: TourId) => void;
 }
 
-export const useTourStore = create<TourState>()(
-  persist(
-    (set, get) => ({
-      completedTours: {} as Record<TourId, boolean>,
-      activeTour: null,
-      currentStep: 0,
+const defaultCompletedTours: Record<TourId, boolean> = {
+  'app-navigation': false,
+  'workflow-builder': false,
+};
 
-      startTour: (tourId) => {
-        set({ activeTour: tourId, currentStep: 0 });
-      },
+export const useTourStore = create<TourState>((set, get) => ({
+  completedTours: defaultCompletedTours,
+  serverStateLoaded: false,
+  activeTour: null,
+  currentStep: 0,
+  requestedTour: null,
 
-      nextStep: () => {
-        set((state) => ({ currentStep: state.currentStep + 1 }));
-      },
+  startTour: (tourId) => {
+    set({ activeTour: tourId, currentStep: 0, requestedTour: null });
+  },
 
-      prevStep: () => {
-        set((state) => ({ currentStep: Math.max(0, state.currentStep - 1) }));
-      },
+  requestTour: (tourId) => {
+    set({ requestedTour: tourId });
+  },
 
-      goToStep: (step) => {
-        set({ currentStep: step });
-      },
+  clearRequestedTour: () => {
+    set({ requestedTour: null });
+  },
 
-      skipTour: () => {
-        const { activeTour } = get();
-        if (activeTour) {
-          set((state) => ({
-            activeTour: null,
-            currentStep: 0,
-            completedTours: { ...state.completedTours, [activeTour]: true },
-          }));
-        }
-      },
+  nextStep: () => {
+    set((state) => ({ currentStep: state.currentStep + 1 }));
+  },
 
-      completeTour: () => {
-        const { activeTour } = get();
-        if (activeTour) {
-          set((state) => ({
-            activeTour: null,
-            currentStep: 0,
-            completedTours: { ...state.completedTours, [activeTour]: true },
-          }));
-        }
-      },
+  prevStep: () => {
+    set((state) => ({ currentStep: Math.max(0, state.currentStep - 1) }));
+  },
 
-      shouldAutoStart: (tourId) => {
-        return !get().completedTours[tourId] && get().activeTour === null;
-      },
+  goToStep: (step) => {
+    set({ currentStep: step });
+  },
 
-      resetTour: (tourId) => {
-        set((state) => ({
-          completedTours: { ...state.completedTours, [tourId]: false },
-        }));
+  dismissTour: () => {
+    const activeTour = get().activeTour;
+    set({ activeTour: null, currentStep: 0 });
+    return activeTour;
+  },
+
+  syncCompletedTours: (completedTours) => {
+    set({
+      completedTours: {
+        'app-navigation': completedTours['app-navigation'] ?? false,
+        'workflow-builder': completedTours['workflow-builder'] ?? false,
       },
-    }),
-    {
-      name: 'onboarding-tours',
-      partialize: (state) => ({
-        completedTours: state.completedTours,
-      }),
-    },
-  ),
-);
+      serverStateLoaded: true,
+    });
+  },
+
+  setTourCompleted: (tourId, completed) => {
+    set((state) => ({
+      completedTours: { ...state.completedTours, [tourId]: completed },
+    }));
+  },
+
+  shouldAutoStart: (tourId) => {
+    const state = get();
+    return state.serverStateLoaded && !state.completedTours[tourId] && state.activeTour === null;
+  },
+
+  resetTour: (tourId) => {
+    set((state) => ({
+      completedTours: { ...state.completedTours, [tourId]: false },
+    }));
+  },
+}));

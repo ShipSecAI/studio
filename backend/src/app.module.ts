@@ -41,12 +41,14 @@ import { WorkflowTemplatesModule } from './workflow-templates/workflow-templates
 import { AsmModule } from './asm/asm.module';
 import { AssetDiscoveryModule } from './asset-discovery/asset-discovery.module';
 import { BillingModule } from './billing/billing.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
 
 const coreModules = [
   AgentsModule,
   AnalyticsModule,
   AuthModule,
   BillingModule,
+  OnboardingModule,
   WorkflowsModule,
   TraceModule,
   ComponentsModule,

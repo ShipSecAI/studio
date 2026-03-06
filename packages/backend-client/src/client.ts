@@ -900,6 +900,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/onboarding/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OnboardingController_getPreferences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["OnboardingController_updatePreferences"];
+        trace?: never;
+    };
     "/api/v1/components": {
         parameters: {
             query?: never;
@@ -3848,6 +3864,18 @@ export interface components {
              */
             maxWorkflows: number;
         };
+        OnboardingPreferencesDto: {
+            /** @example true */
+            appNavigationTourCompleted: boolean;
+            /** @example false */
+            workflowBuilderTourCompleted: boolean;
+        };
+        UpdateOnboardingPreferencesDto: {
+            /** @example true */
+            appNavigationTourCompleted?: boolean;
+            /** @example true */
+            workflowBuilderTourCompleted?: boolean;
+        };
         SecretVersionResponse: {
             id: string;
             version: number;
@@ -6486,6 +6514,48 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    OnboardingController_getPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingPreferencesDto"];
+                };
+            };
+        };
+    };
+    OnboardingController_updatePreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateOnboardingPreferencesDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingPreferencesDto"];
+                };
             };
         };
     };

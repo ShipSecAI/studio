@@ -3195,6 +3195,56 @@
         ]
       }
     },
+    "/api/v1/onboarding/preferences": {
+      "get": {
+        "operationId": "OnboardingController_getPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingPreferencesDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "onboarding"
+        ]
+      },
+      "patch": {
+        "operationId": "OnboardingController_updatePreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOnboardingPreferencesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingPreferencesDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "onboarding"
+        ]
+      }
+    },
     "/api/v1/components": {
       "get": {
         "operationId": "ComponentsController_listComponents",
@@ -12198,6 +12248,36 @@
           "analyticsRetentionDays",
           "maxWorkflows"
         ]
+      },
+      "OnboardingPreferencesDto": {
+        "type": "object",
+        "properties": {
+          "appNavigationTourCompleted": {
+            "type": "boolean",
+            "example": true
+          },
+          "workflowBuilderTourCompleted": {
+            "type": "boolean",
+            "example": false
+          }
+        },
+        "required": [
+          "appNavigationTourCompleted",
+          "workflowBuilderTourCompleted"
+        ]
+      },
+      "UpdateOnboardingPreferencesDto": {
+        "type": "object",
+        "properties": {
+          "appNavigationTourCompleted": {
+            "type": "boolean",
+            "example": true
+          },
+          "workflowBuilderTourCompleted": {
+            "type": "boolean",
+            "example": true
+          }
+        }
       },
       "SecretVersionResponse": {
         "type": "object",

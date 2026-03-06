@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useOnboardingPreferences } from '@/hooks/queries/useOnboardingQueries';
 import { useTourStore } from './store';
 
 /**
@@ -10,9 +11,22 @@ import { useTourStore } from './store';
 export function useAppTour() {
   const shouldAutoStart = useTourStore((s) => s.shouldAutoStart);
   const startTour = useTourStore((s) => s.startTour);
+  const requestedTour = useTourStore((s) => s.requestedTour);
+  const syncCompletedTours = useTourStore((s) => s.syncCompletedTours);
   const location = useLocation();
+  const { data, isLoading } = useOnboardingPreferences();
 
   useEffect(() => {
+    if (!data) return;
+    syncCompletedTours({
+      'app-navigation': data.appNavigationTourCompleted,
+      'workflow-builder': data.workflowBuilderTourCompleted,
+    });
+  }, [data, syncCompletedTours]);
+
+  useEffect(() => {
+    if (isLoading) return;
+
     // Don't auto-start the app tour on workflow builder pages
     // The workflow builder has its own dedicated tour
     const isWorkflowRoute =
@@ -21,12 +35,11 @@ export function useAppTour() {
 
     // Small delay to let the layout render and elements mount
     const timer = setTimeout(() => {
-      if (shouldAutoStart('app-navigation')) {
+      if (requestedTour === 'app-navigation' || shouldAutoStart('app-navigation')) {
         startTour('app-navigation');
       }
     }, 800);
 
     return () => clearTimeout(timer);
-    // Only run once on mount or when route changes to non-workflow page
-  }, [location.pathname]);
+  }, [isLoading, location.pathname, requestedTour, shouldAutoStart, startTour]);
 }
