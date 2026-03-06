@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { desc, eq, and, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { DRIZZLE_TOKEN } from '../../database/database.module';
@@ -147,27 +147,19 @@ export class WorkflowVersionRepository {
       conditions.push(eq(workflowVersionsTable.organizationId, options.organizationId));
     }
 
-    // Use DISTINCT ON to get the latest version per workflow
-    // Alias snake_case columns to camelCase so the result matches WorkflowVersionRecord
-    const rows = await this.db.execute(sql`
-      SELECT DISTINCT ON (workflow_id)
-        id,
-        workflow_id AS "workflowId",
-        version,
-        graph,
-        compiled_definition AS "compiledDefinition",
-        organization_id AS "organizationId",
-        created_at AS "createdAt"
-      FROM workflow_versions
-      WHERE workflow_id = ANY(${unique})
-        ${options.organizationId ? sql`AND organization_id = ${options.organizationId}` : sql``}
-      ORDER BY workflow_id, version DESC
-    `);
-
     const result = new Map<string, WorkflowVersionRecord>();
-    for (const row of rows.rows as WorkflowVersionRecord[]) {
-      result.set(row.workflowId, row);
+    const records = await this.db
+      .select()
+      .from(workflowVersionsTable)
+      .where(and(...conditions))
+      .orderBy(workflowVersionsTable.workflowId, desc(workflowVersionsTable.version));
+
+    for (const record of records) {
+      if (!result.has(record.workflowId)) {
+        result.set(record.workflowId, record);
+      }
     }
+
     return result;
   }
 
