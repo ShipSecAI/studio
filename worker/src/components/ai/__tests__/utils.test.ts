@@ -33,6 +33,23 @@ describe('LiteLLM org key helpers', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  test('fetchOrgVirtualKey accepts a backend origin and normalizes it to /api/v1', async () => {
+    const fetchMock = vi.fn(async (input: unknown) => {
+      expect(String(input)).toBe('http://backend.local:3711/api/v1/internal/billing/litellm-key');
+      return new Response(JSON.stringify({ virtualKey: 'sk-org-123' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const typedFetch = fetchMock as unknown as typeof fetch;
+    typedFetch.preconnect = () => {};
+    globalThis.fetch = typedFetch;
+
+    await expect(fetchOrgVirtualKey('org-123', 'http://backend.local:3711')).resolves.toBe(
+      'sk-org-123',
+    );
+  });
+
   test('requireOrgVirtualKey rejects LiteLLM calls without an organization', async () => {
     await expect(requireOrgVirtualKey(null, { consumer: 'Chat AI' })).rejects.toThrow(
       'Chat AI requires an organization ID',

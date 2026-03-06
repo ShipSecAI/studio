@@ -67,6 +67,15 @@ export function getLiteLLMApiKey(): string {
   return process.env.LITELLM_API_KEY?.trim() ?? '';
 }
 
+function normalizeBackendApiBaseUrl(url: string): string {
+  return (
+    url
+      .trim()
+      .replace(/\/+$/, '')
+      .replace(/\/api\/v1$/i, '') + '/api/v1'
+  );
+}
+
 export function normalizeLiteLLMModel(provider: string, model: string): string {
   if (model.includes('/')) {
     return model;
@@ -104,12 +113,13 @@ export async function fetchOrgVirtualKey(
   const cached = virtualKeyCache.get(orgId);
   if (cached) return cached;
 
-  const baseUrl =
+  const baseUrl = normalizeBackendApiBaseUrl(
     backendUrl ??
-    process.env.STUDIO_API_BASE_URL ??
-    process.env.SHIPSEC_API_BASE_URL ??
-    process.env.API_BASE_URL ??
-    DEFAULT_API_BASE_URL;
+      process.env.STUDIO_API_BASE_URL ??
+      process.env.SHIPSEC_API_BASE_URL ??
+      process.env.API_BASE_URL ??
+      DEFAULT_API_BASE_URL,
+  );
 
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
   if (!internalToken) return null;
