@@ -145,7 +145,10 @@ const VOLUME_CAPTURE_SCRIPT = [
  * For images without a shell (distroless): returns original command as-is,
  * relying on stdout-based output fallback.
  */
-function wrapCommandForOutput(runner: DockerRunnerConfig): { command: string[]; args: string[] } {
+export function wrapCommandForOutput(runner: DockerRunnerConfig): {
+  command: string[];
+  args: string[];
+} {
   const { entrypoint, command } = runner;
 
   // Volume capture suffix — only emits data when SHIPSEC_WRITABLE_MOUNTS is set
@@ -161,20 +164,23 @@ function wrapCommandForOutput(runner: DockerRunnerConfig): { command: string[]; 
     // Shell wrapper pattern: entrypoint=sh, command=['-c', 'binary "$@"', '--', ...dynamicArgs]
     const shellScript = command[1];
     const dynamicArgsMatch = shellScript.match(/^(\S+)\s+"\$@"$/);
+    const dashDashIdx = command.indexOf('--');
+    const dynamicArgs = dashDashIdx >= 0 ? command.slice(dashDashIdx + 1) : [];
+    const usesDynamicArgs = dashDashIdx >= 0 && /\$@/.test(shellScript);
 
     if (dynamicArgsMatch) {
       // Dynamic args pattern for distroless images (e.g., 'subfinder "$@"')
       // These images don't have sh — use their default ENTRYPOINT directly.
       // The dynamic args follow after '--' in the command array.
-      const dashDashIdx = command.indexOf('--');
-      const dynamicArgs = dashDashIdx >= 0 ? command.slice(dashDashIdx + 1) : [];
       // Return empty command to use image's ENTRYPOINT, pass dynamic args directly
       return { command: [], args: dynamicArgs };
     }
 
-    // Regular shell script — wrap with output capture
-    const userScript = command.slice(1).join(' ');
-    const wrapped = `${userScript}; __exit=$?; echo '${OUTPUT_DELIMITER}'; cat ${CONTAINER_OUTPUT_PATH}/${OUTPUT_FILENAME} 2>/dev/null || echo '{}'${volCapture}; exit $__exit`;
+    // Regular shell script — wrap with output capture and preserve "$@" passthrough
+    const wrapped = `${shellScript}; __exit=$?; echo '${OUTPUT_DELIMITER}'; cat ${CONTAINER_OUTPUT_PATH}/${OUTPUT_FILENAME} 2>/dev/null || echo '{}'${volCapture}; exit $__exit`;
+    if (usesDynamicArgs) {
+      return { command: [entrypoint!], args: ['-c', wrapped, '--', ...dynamicArgs] };
+    }
     return { command: [entrypoint!], args: ['-c', wrapped] };
   }
 
