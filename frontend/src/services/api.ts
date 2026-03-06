@@ -751,7 +751,8 @@ export const api = {
       cursor?: string;
     }): Promise<ListAuditLogsResponseDto> => {
       const headers = await getAuthHeaders();
-      const url = new URL(`${API_V1_URL}/audit-logs`);
+      const path = `${API_V1_URL}/audit-logs`;
+      const url = new URL(path, window.location.origin);
 
       if (query.resourceType) url.searchParams.set('resourceType', query.resourceType);
       if (query.resourceId) url.searchParams.set('resourceId', query.resourceId);
