@@ -34,13 +34,8 @@ export class BillingService {
     const settings = await this.orgSettingsService.getOrganizationSettings(auth.organizationId);
     const plan = await this.plansService.getPlanByTier(settings.subscriptionTier);
 
-    const [workflowRunsUsed, totalTokensUsed, aiSpentUsd] = await Promise.all([
+    const [workflowRunsUsed, aiSpentUsd] = await Promise.all([
       this.repository.countWorkflowRunsForPeriod({
-        organizationId: auth.organizationId,
-        start,
-        end,
-      }),
-      this.repository.sumAiTokensForPeriod({
         organizationId: auth.organizationId,
         start,
         end,
@@ -74,7 +69,6 @@ export class BillingService {
         spentUsd: aiSpentUsd,
         budgetUsd: aiBudgetUsd,
         remainingUsd: aiRemainingUsd,
-        totalTokensUsed,
       },
       limits: {
         maxConcurrentRuns: plan.maxConcurrentRuns,

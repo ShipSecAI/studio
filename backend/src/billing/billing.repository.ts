@@ -5,7 +5,6 @@ import { and, eq, gte, lt, sql } from 'drizzle-orm';
 
 import * as schema from '../database/schema';
 import { workflowRunsTable } from '../database/schema/workflow-runs';
-import { agentTraceEventsTable } from '../database/schema/agent-trace-events';
 
 @Injectable()
 export class BillingRepository {
@@ -33,41 +32,6 @@ export class BillingRepository {
       );
 
     return rows[0]?.count ?? 0;
-  }
-
-  async sumAiTokensForPeriod(options: {
-    organizationId: string;
-    start: Date;
-    end: Date;
-  }): Promise<number> {
-    // We store AI token usage as an agent trace event part with type="data-usage".
-    // Link the trace event to an organization via workflow_runs.organization_id.
-    const rows = await this.db
-      .select({
-        totalTokens: sql<number>`
-          coalesce(
-            sum(
-              (${agentTraceEventsTable.payload} -> 'data' -> 'usage' ->> 'totalTokens')::int
-            ),
-            0
-          )::int
-        `,
-      })
-      .from(agentTraceEventsTable)
-      .innerJoin(
-        workflowRunsTable,
-        eq(workflowRunsTable.runId, agentTraceEventsTable.workflowRunId),
-      )
-      .where(
-        and(
-          eq(workflowRunsTable.organizationId, options.organizationId),
-          eq(agentTraceEventsTable.partType, 'data-usage'),
-          gte(agentTraceEventsTable.timestamp, options.start),
-          lt(agentTraceEventsTable.timestamp, options.end),
-        ),
-      );
-
-    return rows[0]?.totalTokens ?? 0;
   }
 
   async findRunContextByRunId(runId: string): Promise<{

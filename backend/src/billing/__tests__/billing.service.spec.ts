@@ -6,7 +6,6 @@ describe('BillingService', () => {
   test('returns USD-based AI spend and DB-driven plan limits', async () => {
     const repository = {
       countWorkflowRunsForPeriod: async () => 10,
-      sumAiTokensForPeriod: async () => 5000,
     } as any;
 
     const orgSettingsService = {
@@ -44,7 +43,6 @@ describe('BillingService', () => {
     expect(result.ai.spentUsd).toBe(12.5);
     expect(result.ai.budgetUsd).toBe(50);
     expect(result.ai.remainingUsd).toBe(37.5);
-    expect(result.ai.totalTokensUsed).toBe(5000);
     expect(result.limits.maxConcurrentRuns).toBe(3);
     expect(result.limits.maxWorkflows).toBe(-1);
   });
@@ -52,7 +50,6 @@ describe('BillingService', () => {
   test('handles unlimited plans correctly (-1 values)', async () => {
     const repository = {
       countWorkflowRunsForPeriod: async () => 42,
-      sumAiTokensForPeriod: async () => 100000,
     } as any;
 
     const orgSettingsService = {

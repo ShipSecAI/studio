@@ -39,9 +39,6 @@ export class BillingAiUsageDto {
 
   @ApiProperty({ example: 37.5, description: 'Remaining budget (-1 = unlimited)' })
   remainingUsd!: number;
-
-  @ApiProperty({ example: 125000, description: 'Total tokens consumed (informational)' })
-  totalTokensUsed!: number;
 }
 
 export class BillingLimitsDto {
