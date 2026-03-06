@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
-import { buildGcsFuseMountOptions, resolveK8sCommand } from '../k8s-runner';
+import { wrapCommandForOutput } from '../k8s-runner';
 
-describe('resolveK8sCommand', () => {
+describe('wrapCommandForOutput', () => {
   it('passes through exact dynamic entrypoint wrappers for distroless images', () => {
     const runner: DockerRunnerConfig = {
       kind: 'docker',
@@ -13,7 +13,7 @@ describe('resolveK8sCommand', () => {
       timeoutSeconds: 60,
     };
 
-    expect(resolveK8sCommand(runner)).toEqual({
+    expect(wrapCommandForOutput(runner)).toEqual({
       command: [],
       args: ['-d', 'example.com'],
     });
@@ -40,7 +40,7 @@ describe('resolveK8sCommand', () => {
       timeoutSeconds: 600,
     };
 
-    const wrapped = resolveK8sCommand(runner);
+    const wrapped = wrapCommandForOutput(runner);
 
     expect(wrapped.command).toEqual(['sh']);
     expect(wrapped.args[0]).toBe('-c');
@@ -56,19 +56,5 @@ describe('resolveK8sCommand', () => {
       '--exclude-paths',
       '/tmp/exclude-paths.txt',
     ]);
-  });
-});
-
-describe('buildGcsFuseMountOptions', () => {
-  it('keeps read-only mounts minimal', () => {
-    expect(buildGcsFuseMountOptions('tenant/run/input', true)).toBe(
-      'implicit-dirs,only-dir=tenant/run/input',
-    );
-  });
-
-  it('adds non-root friendly ownership and mode flags for writable mounts', () => {
-    expect(buildGcsFuseMountOptions('tenant/run/output', false)).toBe(
-      'implicit-dirs,only-dir=tenant/run/output,uid=65532,gid=65532,file-mode=0666,dir-mode=0777',
-    );
   });
 });

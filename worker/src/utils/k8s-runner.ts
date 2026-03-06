@@ -7,32 +7,22 @@
  */
 import * as k8s from '@kubernetes/client-node';
 import type { DockerRunnerConfig, ExecutionContext } from '@shipsec/component-sdk';
-import {
-  ConfigurationError,
-  ContainerError,
-  TimeoutError,
-  ValidationError,
-} from '@shipsec/component-sdk';
-import { createIsolatedVolume, type IsolatedVolume } from './isolated-volume';
+import { ContainerError, TimeoutError } from '@shipsec/component-sdk';
+
+// Output delimiter — the K8s runner wraps commands to emit the output file
+// to stdout after the main process exits. The worker parses logs looking for
+// this marker to separate component logs from structured output.
+const OUTPUT_DELIMITER = '___SHIPSEC_K8S_OUTPUT___';
+const VOLUME_DELIMITER = '___SHIPSEC_K8S_VOLUME_DATA___';
 
 const CONTAINER_OUTPUT_PATH = '/shipsec-output';
 const OUTPUT_FILENAME = 'result.json';
 
 interface BuildJobResult {
   job: k8s.V1Job;
+  writableVolumeMappings: Map<string, string>; // mountPath → configMapName
   hasGcsFuse: boolean;
 }
-
-interface OutputVolumeConfig {
-  source: string;
-  target: string;
-  readOnly: boolean;
-}
-
-const DEFAULT_GCSFUSE_WRITABLE_UID = process.env.K8S_GCSFUSE_WRITABLE_UID || '65532';
-const DEFAULT_GCSFUSE_WRITABLE_GID = process.env.K8S_GCSFUSE_WRITABLE_GID || '65532';
-const DEFAULT_GCSFUSE_WRITABLE_FILE_MODE = process.env.K8S_GCSFUSE_WRITABLE_FILE_MODE || '0666';
-const DEFAULT_GCSFUSE_WRITABLE_DIR_MODE = process.env.K8S_GCSFUSE_WRITABLE_DIR_MODE || '0777';
 
 // Lazy-init shared K8s clients
 let _kc: k8s.KubeConfig | null = null;
@@ -127,32 +117,42 @@ function generateJobName(context: ExecutionContext, image: string): string {
   return `ss-${imgShort}-${runShort}-${rand}`;
 }
 
-export function buildGcsFuseMountOptions(onlyDir: string, readOnly: boolean): string {
-  const options = ['implicit-dirs', `only-dir=${onlyDir}`];
-
-  if (!readOnly) {
-    options.push(
-      `uid=${DEFAULT_GCSFUSE_WRITABLE_UID}`,
-      `gid=${DEFAULT_GCSFUSE_WRITABLE_GID}`,
-      `file-mode=${DEFAULT_GCSFUSE_WRITABLE_FILE_MODE}`,
-      `dir-mode=${DEFAULT_GCSFUSE_WRITABLE_DIR_MODE}`,
-    );
-  }
-
-  return options.join(',');
-}
+/**
+ * Shell snippet that captures files from writable volume mounts.
+ * Reads $SHIPSEC_WRITABLE_MOUNTS (space-separated paths) and emits
+ * each file as base64 between markers so the worker can parse them
+ * from pod logs and write them back to their backing ConfigMaps.
+ */
+const VOLUME_CAPTURE_SCRIPT = [
+  `echo '${VOLUME_DELIMITER}'`,
+  'for __mp in $SHIPSEC_WRITABLE_MOUNTS; do',
+  '  find "$__mp" -type f 2>/dev/null | while IFS= read -r __f; do',
+  '    __rel="${__f#$__mp/}"',
+  '    echo "___FILE_START___:$__mp:$__rel"',
+  '    base64 "$__f" 2>/dev/null || true',
+  '    echo "___FILE_END___"',
+  '  done',
+  'done',
+].join('\n');
 
 /**
- * Resolve the command/args K8s should execute.
+ * Build the command wrapper that emits the output file to stdout.
  *
- * For exact `binary "$@"` shell wrappers we strip the shell so distroless
- * images continue to work on K8s without depending on `/bin/sh`.
+ * For images with a shell: wraps original command so that after it exits,
+ * the output file is printed to stdout with a delimiter prefix.
+ * If writable volumes exist, also captures their contents as base64.
+ *
+ * For images without a shell (distroless): returns original command as-is,
+ * relying on stdout-based output fallback.
  */
-export function resolveK8sCommand(runner: DockerRunnerConfig): {
+export function wrapCommandForOutput(runner: DockerRunnerConfig): {
   command: string[];
   args: string[];
 } {
   const { entrypoint, command } = runner;
+
+  // Volume capture suffix — only emits data when SHIPSEC_WRITABLE_MOUNTS is set
+  const volCapture = `; if [ -n "$SHIPSEC_WRITABLE_MOUNTS" ]; then ${VOLUME_CAPTURE_SCRIPT}; fi`;
 
   const isShellEntrypoint =
     entrypoint === 'sh' ||
@@ -176,16 +176,21 @@ export function resolveK8sCommand(runner: DockerRunnerConfig): {
       return { command: [], args: dynamicArgs };
     }
 
+    // Regular shell script — wrap with output capture and preserve "$@" passthrough
+    const wrapped = `${shellScript}; __exit=$?; echo '${OUTPUT_DELIMITER}'; cat ${CONTAINER_OUTPUT_PATH}/${OUTPUT_FILENAME} 2>/dev/null || echo '{}'${volCapture}; exit $__exit`;
     if (usesDynamicArgs) {
-      return { command: [entrypoint!], args: ['-c', shellScript, '--', ...dynamicArgs] };
+      return { command: [entrypoint!], args: ['-c', wrapped, '--', ...dynamicArgs] };
     }
-    return { command: [entrypoint!], args: ['-c', shellScript] };
+    return { command: [entrypoint!], args: ['-c', wrapped] };
   }
 
   if (isShellEntrypoint) {
     return { command: [entrypoint!], args: command };
   }
 
+  // For non-shell entrypoints (e.g., 'httpx', 'nuclei', binary entrypoints):
+  // Use the entrypoint directly — the image may be distroless (no /bin/sh).
+  // Output is captured from stdout via parseOutputFromLogs fallback.
   if (entrypoint) {
     return { command: [entrypoint], args: command };
   }
@@ -232,27 +237,24 @@ function buildJobSpec(
   jobName: string,
   namespace: string,
   configMapName: string,
-  outputVolumeConfig: OutputVolumeConfig | null,
   runner: DockerRunnerConfig,
   context: ExecutionContext,
 ): BuildJobResult {
-  const { command, args } = resolveK8sCommand(runner);
+  const { command, args } = wrapCommandForOutput(runner);
   const timeoutSeconds = runner.timeoutSeconds || 300;
   const nodeSelector = getJobNodeSelector(context);
   const tolerations = getJobTolerations(context);
   const podSecurityContext = getJobPodSecurityContext(context);
   const containerSecurityContext = getJobContainerSecurityContext(context);
 
+  // Track writable ConfigMap volumes for post-execution data capture
+  const writableVolumeMappings = new Map<string, string>();
+
   // Build env vars
   const envVars: k8s.V1EnvVar[] = [
     { name: 'SHIPSEC_INPUT_PATH', value: '/shipsec-input/input.json' },
+    { name: 'SHIPSEC_OUTPUT_PATH', value: `${CONTAINER_OUTPUT_PATH}/${OUTPUT_FILENAME}` },
   ];
-  if ((runner as DockerRunnerConfig & { expectOutputFile?: boolean }).expectOutputFile !== false) {
-    envVars.push({
-      name: 'SHIPSEC_OUTPUT_PATH',
-      value: `${CONTAINER_OUTPUT_PATH}/${OUTPUT_FILENAME}`,
-    });
-  }
   if (runner.env) {
     for (const [key, value] of Object.entries(runner.env)) {
       // Override HOME=/root for distroless images — /root is not writable
@@ -267,6 +269,7 @@ function buildJobSpec(
   // Build volume mounts
   const volumeMounts: k8s.V1VolumeMount[] = [
     { name: 'input', mountPath: '/shipsec-input', readOnly: true },
+    { name: 'output', mountPath: CONTAINER_OUTPUT_PATH },
   ];
 
   const volumes: k8s.V1Volume[] = [
@@ -274,38 +277,14 @@ function buildJobSpec(
       name: 'input',
       configMap: { name: configMapName },
     },
-  ];
-  let hasGcsFuse = false;
-
-  if (outputVolumeConfig) {
-    volumeMounts.push({ name: 'output', mountPath: CONTAINER_OUTPUT_PATH });
-    volumes.push({
+    {
       name: 'output',
-      csi: {
-        driver: 'gcsfuse.csi.storage.gke.io',
-        readOnly: false,
-        volumeAttributes: (() => {
-          if (!outputVolumeConfig.source.startsWith('gcsfuse:')) {
-            throw new ConfigurationError(
-              'K8s runner requires a GCS-backed writable output volume for /shipsec-output',
-              {
-                details: { source: outputVolumeConfig.source },
-              },
-            );
-          }
-          const [, bucketName, ...prefixParts] = outputVolumeConfig.source.split(':');
-          const onlyDir = prefixParts.join(':');
-          return {
-            bucketName,
-            mountOptions: buildGcsFuseMountOptions(onlyDir, false),
-          };
-        })(),
-      },
-    });
-    hasGcsFuse = true;
-  }
+      emptyDir: {},
+    },
+  ];
 
   // Handle additional volumes (from IsolatedK8sVolume or IsolatedGcsVolume)
+  let hasGcsFuse = false;
   if (runner.volumes) {
     for (let i = 0; i < runner.volumes.length; i++) {
       const vol = runner.volumes[i];
@@ -326,7 +305,7 @@ function buildJobSpec(
             readOnly: vol.readOnly ?? false,
             volumeAttributes: {
               bucketName,
-              mountOptions: buildGcsFuseMountOptions(onlyDir, vol.readOnly ?? false),
+              mountOptions: `implicit-dirs,only-dir=${onlyDir}`,
             },
           },
         });
@@ -339,15 +318,14 @@ function buildJobSpec(
           configMap: { name: cmName },
         });
       } else if (vol.source.startsWith('configmap:') && !(vol.readOnly ?? true)) {
-        throw new ValidationError(
-          `Writable ConfigMap-backed volumes are no longer supported in k8s mode: ${vol.target}`,
-          {
-            fieldErrors: {
-              volumes: ['Use a GCS-backed isolated volume for writable mounts in k8s mode'],
-            },
-            details: { source: vol.source, target: vol.target },
-          },
-        );
+        const cmName = vol.source.replace('configmap:', '');
+        // Use emptyDir for the actual mount (ConfigMaps are read-only in K8s)
+        volumes.push({
+          name: volName,
+          emptyDir: {},
+        });
+        // Track for post-execution data capture
+        writableVolumeMappings.set(vol.target, cmName);
       } else {
         // Treat as emptyDir (can't use host paths in K8s Jobs)
         volumes.push({
@@ -362,6 +340,14 @@ function buildJobSpec(
         readOnly: vol.readOnly ?? false,
       });
     }
+  }
+
+  // Add env var for writable mount paths so the shell wrapper can capture files
+  if (writableVolumeMappings.size > 0) {
+    envVars.push({
+      name: 'SHIPSEC_WRITABLE_MOUNTS',
+      value: Array.from(writableVolumeMappings.keys()).join(' '),
+    });
   }
 
   const job: k8s.V1Job = {
@@ -423,7 +409,7 @@ function buildJobSpec(
     },
   };
 
-  return { job, hasGcsFuse };
+  return { job, writableVolumeMappings, hasGcsFuse };
 }
 
 /**
@@ -639,29 +625,127 @@ async function readPodLogs(podName: string, namespace: string): Promise<string> 
   return typeof logResponse === 'string' ? logResponse : String(logResponse);
 }
 
-async function readRunnerOutputFromVolume<O>(
-  outputVolume: IsolatedVolume,
-  _context: ExecutionContext,
-): Promise<O> {
-  const files = await outputVolume.readFiles([OUTPUT_FILENAME]);
-  const rawOutput = files[OUTPUT_FILENAME];
+/**
+ * Parse the volume data section from pod logs.
+ * Returns a nested map: mountPath -> (relativeFilePath -> base64Content).
+ */
+function extractVolumeDataFromLogs(logs: string): Map<string, Map<string, string>> {
+  const FILE_START = '___FILE_START___:';
+  const FILE_END = '___FILE_END___';
 
-  if (typeof rawOutput !== 'string' || rawOutput.trim().length === 0) {
-    throw new ContainerError(
-      `K8s Job completed without writing required output file: ${CONTAINER_OUTPUT_PATH}/${OUTPUT_FILENAME}`,
-      {
-        details: { outputPath: `${CONTAINER_OUTPUT_PATH}/${OUTPUT_FILENAME}` },
-      },
-    );
+  const result = new Map<string, Map<string, string>>();
+
+  const volIdx = logs.lastIndexOf(VOLUME_DELIMITER);
+  if (volIdx === -1) return result;
+
+  const volSection = logs.slice(volIdx + VOLUME_DELIMITER.length);
+  const lines = volSection.split('\n');
+
+  let currentMount = '';
+  let currentFile = '';
+  let currentData: string[] = [];
+  let inFile = false;
+
+  for (const line of lines) {
+    if (line.startsWith(FILE_START)) {
+      // Parse mount path and relative path
+      const rest = line.slice(FILE_START.length);
+      const firstColon = rest.indexOf(':');
+      if (firstColon === -1) continue;
+      currentMount = rest.slice(0, firstColon);
+      currentFile = rest.slice(firstColon + 1);
+      currentData = [];
+      inFile = true;
+    } else if (line.trim() === FILE_END && inFile) {
+      // Save the file
+      if (!result.has(currentMount)) {
+        result.set(currentMount, new Map());
+      }
+      result.get(currentMount)!.set(currentFile, currentData.join('\n'));
+      inFile = false;
+    } else if (inFile) {
+      currentData.push(line);
+    }
   }
 
-  try {
-    return JSON.parse(rawOutput) as O;
-  } catch (error) {
-    throw new ValidationError(`Failed to parse K8s job output JSON: ${(error as Error).message}`, {
-      cause: error as Error,
-    });
+  return result;
+}
+
+/**
+ * Write captured volume data back to their backing ConfigMaps.
+ * This allows volume.readFiles() to access output data after the pod terminates.
+ */
+async function writeBackVolumeData(
+  volumeData: Map<string, Map<string, string>>,
+  writableVolumeMappings: Map<string, string>,
+  namespace: string,
+  context: ExecutionContext,
+): Promise<void> {
+  const core = getCoreApi();
+
+  for (const [mountPath, files] of volumeData) {
+    const cmName = writableVolumeMappings.get(mountPath);
+    if (!cmName) continue;
+
+    const binaryData: Record<string, string> = {};
+
+    for (const [relPath, base64Content] of files) {
+      // Flatten path separators same as IsolatedK8sVolume
+      const key = relPath.replace(/\//g, '__');
+      // Store as binaryData (base64) to handle any file type
+      binaryData[key] = base64Content;
+    }
+
+    try {
+      // Read existing ConfigMap and merge
+      const existing = await core.readNamespacedConfigMap({ name: cmName, namespace });
+      const body: k8s.V1ConfigMap = {
+        ...existing,
+        data: { ...(existing.data || {}) },
+        binaryData: { ...(existing.binaryData || {}), ...binaryData },
+      };
+      await core.replaceNamespacedConfigMap({ name: cmName, namespace, body });
+      context.logger.info(`[K8sRunner] Wrote back ${files.size} files to ConfigMap ${cmName}`);
+    } catch (err) {
+      context.logger.warn(
+        `[K8sRunner] Failed to write back volume data to ${cmName}: ${(err as Error).message}`,
+      );
+    }
   }
+}
+
+/**
+ * Parse component output from pod logs.
+ * Looks for the OUTPUT_DELIMITER marker — everything after it is the JSON output.
+ * Falls back to parsing the full stdout as JSON.
+ */
+function parseOutputFromLogs<O>(logs: string, context: ExecutionContext): O {
+  // Strip volume data section if present (comes after output)
+  let cleanLogs = logs;
+  const volIdx = cleanLogs.lastIndexOf(VOLUME_DELIMITER);
+  if (volIdx !== -1) {
+    cleanLogs = cleanLogs.slice(0, volIdx);
+  }
+
+  // Look for the output delimiter
+  const delimiterIdx = cleanLogs.lastIndexOf(OUTPUT_DELIMITER);
+  if (delimiterIdx !== -1) {
+    const outputStr = cleanLogs.slice(delimiterIdx + OUTPUT_DELIMITER.length).trim();
+    if (outputStr) {
+      try {
+        return JSON.parse(outputStr) as O;
+      } catch {
+        // Not JSON — return delimited content as raw string
+        // (e.g., plain text domain lists from -o file output)
+        return outputStr as unknown as O;
+      }
+    }
+  }
+
+  // No delimiter found → binary wrote directly to stdout (distroless / no shell wrapper).
+  // Return raw stdout as a string so the component can parse it (e.g. dnsx JSON lines).
+  context.logger.info('[K8sRunner] No output delimiter found, returning raw stdout');
+  return cleanLogs.trim() as unknown as O;
 }
 
 /**
@@ -758,41 +842,21 @@ export async function runComponentInK8sJob<I, O>(
   );
   context.emitProgress(`Launching K8s Job: ${runner.image}`);
 
-  const tenantId = (context as any).tenantId ?? 'default-tenant';
-  const expectsOutputFile =
-    (runner as DockerRunnerConfig & { expectOutputFile?: boolean }).expectOutputFile !== false;
-  const outputVolume = expectsOutputFile
-    ? createIsolatedVolume(tenantId, `${context.runId}-runner-output`)
-    : null;
-
   try {
     // 1. Create input ConfigMap
     await createInputConfigMap(configMapName, namespace, params);
     context.logger.info(`[K8sRunner] Created ConfigMap ${configMapName}`);
 
-    // 2. Create writable shared output volume for the canonical result file when required
-    let outputVolumeConfig: OutputVolumeConfig | null = null;
-    if (outputVolume) {
-      const outputVolumeName = await outputVolume.initialize({});
-      outputVolumeConfig = outputVolume.getVolumeConfig(CONTAINER_OUTPUT_PATH, false);
-      context.logger.info(
-        `[K8sRunner] Created output volume ${outputVolumeName} for ${CONTAINER_OUTPUT_PATH}/${OUTPUT_FILENAME}`,
-      );
-    }
-
-    // 3. Create Job
-    const { job: jobSpec, hasGcsFuse: hasGcsFuseVolume } = buildJobSpec(
-      jobName,
-      namespace,
-      configMapName,
-      outputVolumeConfig,
-      runner,
-      context,
-    );
+    // 2. Create Job
+    const {
+      job: jobSpec,
+      writableVolumeMappings,
+      hasGcsFuse: hasGcsFuseVolume,
+    } = buildJobSpec(jobName, namespace, configMapName, runner, context);
     await getBatchApi().createNamespacedJob({ namespace, body: jobSpec });
     context.logger.info(`[K8sRunner] Created Job ${jobName}`);
 
-    // 4. Wait for completion
+    // 3. Wait for completion
     const { podName, succeeded } = await waitForJobCompletion(
       jobName,
       namespace,
@@ -800,7 +864,7 @@ export async function runComponentInK8sJob<I, O>(
       context,
     );
 
-    // 5. Read final logs for diagnostics / UI
+    // 4. Read final logs
     const logs = await readPodLogs(podName, namespace);
 
     if (!succeeded) {
@@ -813,21 +877,24 @@ export async function runComponentInK8sJob<I, O>(
     context.logger.info(`[K8sRunner] Job ${jobName} completed successfully`);
     context.emitProgress('K8s Job completed');
 
-    // 5.5 Wait for GCS FUSE sidecar to flush writes before reading output
+    // 4.5a. Wait for GCS FUSE sidecar to flush writes before reading output
     if (hasGcsFuseVolume) {
       await waitForGcsFuseFlush(podName, namespace, context);
     }
 
-    // 6. Read structured output directly from the shared output volume when required
-    if (outputVolume) {
-      return await readRunnerOutputFromVolume<O>(outputVolume, context);
+    // 4.5b. Write back writable volume data to ConfigMaps
+    // Must happen BEFORE cleanup so volume.readFiles() can access updated ConfigMaps
+    if (writableVolumeMappings.size > 0) {
+      const volumeData = extractVolumeDataFromLogs(logs);
+      if (volumeData.size > 0) {
+        await writeBackVolumeData(volumeData, writableVolumeMappings, namespace, context);
+      }
     }
 
-    context.logger.info('[K8sRunner] Runner configured without structured output file');
-    return undefined as O;
+    // 5. Parse output
+    return parseOutputFromLogs<O>(logs, context);
   } finally {
-    await outputVolume?.cleanup();
-    // 7. Cleanup
+    // 6. Cleanup
     await cleanup(jobName, configMapName, namespace, context);
   }
 }
