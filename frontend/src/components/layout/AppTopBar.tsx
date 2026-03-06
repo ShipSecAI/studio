@@ -136,6 +136,7 @@ function QuickScanButton({ isMobile }: { isMobile: boolean }) {
         size={isMobile ? 'sm' : 'default'}
         className="gap-1.5"
         onClick={() => setOpen(true)}
+        data-tour="quick-scan-btn"
       >
         <Zap className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Quick Scan</span>
