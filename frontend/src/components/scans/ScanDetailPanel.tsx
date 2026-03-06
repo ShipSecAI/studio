@@ -55,6 +55,7 @@ import type { GitHubScanResult, GitHubRepo, TriggerRule } from '@/store/githubSt
 import { useGitHubStore } from '@/store/githubStore';
 import {
   useTriggerScan,
+  useGitHubBranches,
   useGitHubScanResult,
   useGitHubRepositories,
   useTriggerRules,
@@ -76,6 +77,7 @@ import {
 } from './scan-utils';
 import { FindingsGroup } from './FindingsGroup';
 import { SeverityDonutChart } from './SeverityDonutChart';
+import { buildGitHubBranchOptions } from '@/lib/github-ui';
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -195,6 +197,7 @@ function RerunScanModal({
   const { toast } = useToast();
   const systemWorkflows = useGitHubStore((s) => s.systemWorkflows);
   const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
+  const { data: branches = [] } = useGitHubBranches(repository?.id ?? '');
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([]);
   const [workflowCompatibility, setWorkflowCompatibility] = useState<
     Record<string, WorkflowCompatibility>
@@ -256,6 +259,11 @@ function RerunScanModal({
     : null;
   const selectedWorkflowRequiresPrContext =
     selectedWorkflowCompatibility?.requiresPrContext ?? false;
+  const branchOptions = buildGitHubBranchOptions({
+    branches,
+    defaultBranch: repository?.defaultBranch ?? 'main',
+    originalBranch: defaultBranch,
+  });
 
   const handleTrigger = async (workflowId: string) => {
     if (!repository) return;
@@ -319,12 +327,11 @@ function RerunScanModal({
                 <SelectValue placeholder="Select branch" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={repository.defaultBranch || 'main'}>
-                  {repository.defaultBranch || 'main'} (default)
-                </SelectItem>
-                {defaultBranch && defaultBranch !== repository.defaultBranch && (
-                  <SelectItem value={defaultBranch}>{defaultBranch} (original)</SelectItem>
-                )}
+                {branchOptions.map((branch) => (
+                  <SelectItem key={branch.value} value={branch.value}>
+                    {branch.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

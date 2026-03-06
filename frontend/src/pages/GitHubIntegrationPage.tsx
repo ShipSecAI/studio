@@ -23,6 +23,7 @@ import {
   useSyncRepositories,
 } from '@/hooks/queries/useGithubQueries';
 import { queryKeys } from '@/lib/queryKeys';
+import { getGitHubInstallationManageUrl, parseGitHubInstallationId } from '@/lib/github-ui';
 import { useQueryClient } from '@tanstack/react-query';
 import type { GitHubInstallation, GitHubRepo } from '@/store/githubStore';
 import { formatRelativeTime } from '@/components/scans/scan-utils';
@@ -32,34 +33,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function parseInstallationId(input: string): number | null {
-  const value = input.trim();
-  if (!value) return null;
-
-  if (/^\d+$/.test(value)) {
-    const id = Number.parseInt(value, 10);
-    return Number.isInteger(id) && id > 0 ? id : null;
-  }
-
-  const pathMatch = value.match(/\/installations\/(\d+)/i);
-  if (pathMatch?.[1]) {
-    const id = Number.parseInt(pathMatch[1], 10);
-    return Number.isInteger(id) && id > 0 ? id : null;
-  }
-
-  const queryMatch = value.match(/[?&]installation_id=(\d+)/i);
-  if (queryMatch?.[1]) {
-    const id = Number.parseInt(queryMatch[1], 10);
-    return Number.isInteger(id) && id > 0 ? id : null;
-  }
-
-  return null;
-}
 
 // ---------------------------------------------------------------------------
 // Main Page
@@ -109,7 +82,7 @@ export function GitHubIntegrationPage() {
   };
 
   const handleLinkExistingInstallation = async () => {
-    const installationId = parseInstallationId(installationRef);
+    const installationId = parseGitHubInstallationId(installationRef);
     if (!installationId) {
       toast({
         title: 'Invalid installation reference',
@@ -511,7 +484,7 @@ function InstallationCard({
           </Button>
           <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs flex-1" asChild>
             <a
-              href={`https://github.com/settings/installations/${installation.installationId}`}
+              href={getGitHubInstallationManageUrl(installation)}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -569,7 +542,7 @@ function EmptyInstallationState({
             <Input
               value={installationRef}
               onChange={(e) => setInstallationRef(e.target.value)}
-              placeholder="https://github.com/settings/installations/12345678"
+              placeholder="https://github.com/organizations/your-org/settings/installations/12345678"
               disabled={linking}
             />
             <Button

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, skipToken } from '@tanstack/react-query';
 import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
 import { queryKeys } from '@/lib/queryKeys';
 import type {
@@ -77,14 +77,15 @@ export function useGitHubRepositories() {
 export function useGitHubBranches(repoId: string) {
   return useQuery({
     queryKey: queryKeys.github.branches(repoId),
-    queryFn: async () => {
-      const response = await fetchWithHeaders(
-        `${API_BASE_URL}/api/v1/github/repos/${repoId}/branches`,
-      );
-      if (!response.ok) throw new Error('Failed to fetch branches');
-      return response.json() as Promise<{ name: string; isDefault: boolean }[]>;
-    },
-    enabled: Boolean(repoId),
+    queryFn: repoId
+      ? async () => {
+          const response = await fetchWithHeaders(
+            `${API_BASE_URL}/api/v1/github/repos/${repoId}/branches`,
+          );
+          if (!response.ok) throw new Error('Failed to fetch branches');
+          return response.json() as Promise<{ name: string; isDefault: boolean }[]>;
+        }
+      : skipToken,
     staleTime: 30_000,
   });
 }
