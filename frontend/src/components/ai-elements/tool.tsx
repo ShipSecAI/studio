@@ -4,6 +4,7 @@ import type { DynamicToolUIPart, ToolUIPart } from 'ai';
 import type { ComponentProps, ReactNode } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import {
@@ -16,6 +17,7 @@ import {
   XCircleIcon,
   CopyIcon,
   CheckIcon,
+  InfoIcon,
 } from 'lucide-react';
 import { isValidElement, useState } from 'react';
 
@@ -167,6 +169,47 @@ function unwrapMcpOutput(output: unknown): { data: unknown; isError?: boolean } 
   return { data: output };
 }
 
+function formatToolErrorDetails(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (value && typeof value === 'object') {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  const stringValue = String(value).trim();
+  return stringValue.length > 0 ? stringValue : undefined;
+}
+
+export function extractToolErrorDetails(
+  output: unknown,
+  errorText?: string,
+): { summary?: string; details?: string } {
+  const { data: unwrapped, isError: mcpError } = unwrapMcpOutput(output);
+  const summary = errorText || (mcpError ? 'Tool execution failed' : undefined);
+  const rawDetails = formatToolErrorDetails(unwrapped);
+
+  if (!summary) {
+    return { summary, details: undefined };
+  }
+
+  if (!rawDetails || rawDetails === summary) {
+    return { summary, details: undefined };
+  }
+
+  return { summary, details: rawDetails };
+}
+
 // Copy button helper
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -207,9 +250,14 @@ export const ToolOutput = ({ className, output, errorText, ...props }: ToolOutpu
   }
 
   // Unwrap MCP protocol wrapper for cleaner display
-  const { data: unwrapped, isError: mcpError } = unwrapMcpOutput(output);
-  const displayError = errorText || (mcpError ? 'Tool execution failed' : undefined);
+  const { data: unwrapped } = unwrapMcpOutput(output);
+  const { summary: displayError, details: errorDetails } = extractToolErrorDetails(
+    output,
+    errorText,
+  );
   const displayOutput = unwrapped;
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
+  const canShowDevErrorDetails = import.meta.env.DEV && Boolean(errorDetails);
 
   // Decide how to render
   let renderContent: React.ReactNode;
@@ -225,6 +273,25 @@ export const ToolOutput = ({ className, output, errorText, ...props }: ToolOutpu
             <p className="whitespace-pre-wrap break-words text-xs text-destructive/80">
               {displayError}
             </p>
+            {canShowDevErrorDetails && (
+              <div className="mt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-[11px] text-destructive/80 hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setShowErrorDetails((current) => !current)}
+                >
+                  <InfoIcon className="h-3.5 w-3.5" />
+                  {showErrorDetails ? 'Hide details' : 'Show details'}
+                </Button>
+                {showErrorDetails && (
+                  <pre className="mt-2 overflow-auto rounded border border-destructive/20 bg-background/80 p-2 text-[11px] leading-relaxed text-foreground">
+                    {errorDetails}
+                  </pre>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
