@@ -14,6 +14,21 @@ import { featureRegistry } from './registry';
 import { resolveFeatureFlags } from './resolver';
 
 const CACHE_KEY = 'shipsec_feature_flags';
+const DEV_OVERRIDE_KEY = 'shipsec_feature_flags_override';
+const LOCAL_OVERRIDE_ENABLED =
+  Boolean((import.meta as ImportMeta & { env?: { DEV?: boolean; MODE?: string } }).env?.DEV) ||
+  (import.meta as ImportMeta & { env?: { DEV?: boolean; MODE?: string } }).env?.MODE === 'test' ||
+  (typeof process !== 'undefined' && process.env.NODE_ENV === 'test');
+
+declare global {
+  interface Window {
+    __shipsecFeatureFlags?: {
+      clear: () => void;
+      get: () => Partial<Record<FeatureKey, boolean>>;
+      set: (flags: Partial<Record<FeatureKey, boolean>>) => void;
+    };
+  }
+}
 
 interface FeatureFlagContextValue {
   flags: ResolvedFlags;
@@ -42,10 +57,22 @@ function getBuildTimeOverrides(): Partial<Record<FeatureKey, boolean>> {
   return overrides;
 }
 
+function readDevOverrides(): Partial<Record<FeatureKey, boolean>> {
+  if (!LOCAL_OVERRIDE_ENABLED) return {};
+
+  try {
+    const raw = localStorage.getItem(DEV_OVERRIDE_KEY);
+    return raw ? (JSON.parse(raw) as Partial<Record<FeatureKey, boolean>>) : {};
+  } catch {
+    return {};
+  }
+}
+
 function resolveResolvedFlags(rawFlags: Partial<Record<FeatureKey, boolean>>): ResolvedFlags {
   return resolveFeatureFlags(featureRegistry, {
     ...rawFlags,
     ...getBuildTimeOverrides(),
+    ...readDevOverrides(),
   });
 }
 
@@ -133,6 +160,26 @@ export function FeatureFlagProvider({ children, pollInterval = 0 }: FeatureFlagP
 
     return () => unsubscribe();
   }, [evaluate, pollInterval]);
+
+  useEffect(() => {
+    if (!LOCAL_OVERRIDE_ENABLED) return;
+
+    window.__shipsecFeatureFlags = {
+      get: () => readDevOverrides(),
+      set: (nextFlags) => {
+        localStorage.setItem(DEV_OVERRIDE_KEY, JSON.stringify(nextFlags));
+        evaluate();
+      },
+      clear: () => {
+        localStorage.removeItem(DEV_OVERRIDE_KEY);
+        evaluate();
+      },
+    };
+
+    return () => {
+      delete window.__shipsecFeatureFlags;
+    };
+  }, [evaluate]);
 
   const value = useMemo<FeatureFlagContextValue>(
     () => ({ flags, loading, refresh: () => posthog.reloadFeatureFlags() }),
