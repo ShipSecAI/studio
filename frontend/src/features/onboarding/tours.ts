@@ -19,6 +19,10 @@ export interface TourDefinition {
   steps: TourStep[];
 }
 
+function dispatchOnboardingEvent(name: string) {
+  window.dispatchEvent(new CustomEvent(name));
+}
+
 /** Scroll a sidebar nav element into view */
 function scrollTourTarget(selector: string) {
   const el = document.querySelector(`[data-tour="${selector}"]`);
@@ -107,12 +111,15 @@ export const appNavigationTour: TourDefinition = {
       beforeShow: () => scrollTourTarget('nav-workflows'),
     },
     {
-      target: 'nav-manage',
+      target: 'nav-manage-panel',
       title: 'Settings & Integrations',
       description:
-        'Configure integrations, manage secrets and API keys, and set up MCP servers. Expand this section for all management options.',
+        'Configure integrations, manage secrets and API keys, and set up MCP servers from this management section.',
       placement: 'right',
-      beforeShow: () => scrollTourTarget('nav-manage'),
+      beforeShow: () => {
+        dispatchOnboardingEvent('shipsec:onboarding-open-manage');
+        scrollTourTarget('nav-manage-panel');
+      },
     },
     {
       target: 'quick-scan-btn',
@@ -242,10 +249,10 @@ export const workflowBuilderTour: TourDefinition = {
       },
     },
     {
-      target: null,
+      target: 'wf-canvas',
       title: 'Ready to Build!',
       description:
-        "You're all set to create powerful security automation workflows. Start by dragging a component from the library onto the canvas!",
+        "You're all set to create powerful security automation workflows. Start by dropping your first component onto the canvas.",
       placement: 'bottom',
       beforeShow: () => {
         setWorkflowMode('design');

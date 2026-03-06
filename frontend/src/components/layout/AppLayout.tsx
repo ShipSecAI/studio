@@ -190,6 +190,19 @@ export function AppLayout({ children }: AppLayoutProps) {
     };
   }, [isMobile]);
 
+  useEffect(() => {
+    const handleOpenManage = () => {
+      setSidebarOpen(true);
+      setWasExplicitlyOpened(true);
+      setSettingsOpen(true);
+    };
+
+    window.addEventListener('shipsec:onboarding-open-manage', handleOpenManage);
+    return () => {
+      window.removeEventListener('shipsec:onboarding-open-manage', handleOpenManage);
+    };
+  }, []);
+
   // Handle hover to expand sidebar when collapsed (desktop only)
   const handleMouseEnter = () => {
     if (isMobile) return;
@@ -883,7 +896,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                 {!sidebarOpen && group.label && (
                   <div className="border-t border-border/40 mx-2 mt-2 mb-1" />
                 )}
-                <div className="space-y-1">
+                <div
+                  className="space-y-1"
+                  {...(group.label === 'WORKFLOWS' ? { 'data-tour': 'nav-workflows' } : {})}
+                >
                   {group.items.map((item) => {
                     const Icon = item.icon;
                     const active = isActive(item.href);
@@ -1009,6 +1025,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
             {/* Collapsible Manage Items - expands upward */}
             <div
+              data-tour="nav-manage-panel"
               className={cn(
                 'overflow-hidden transition-all duration-300',
                 settingsOpen ? 'max-h-96 mt-1 space-y-1' : 'max-h-0',
