@@ -1,6 +1,6 @@
 import { Inject, Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, eq, sql, type SQL, or, isNull } from 'drizzle-orm';
+import { and, eq, inArray, sql, type SQL, or, isNull } from 'drizzle-orm';
 
 import { DRIZZLE_TOKEN } from '../database/database.module';
 import {
@@ -341,10 +341,10 @@ export class McpServersRepository {
         await tx.delete(mcpServerTools).where(
           and(
             eq(mcpServerTools.serverId, serverId),
-            sql`${mcpServerTools.toolName} IN (${sql.join(
-              toolsToDelete.map((t) => sql`${t.toolName}`),
-              sql`, `,
-            )})`,
+            inArray(
+              mcpServerTools.toolName,
+              toolsToDelete.map((tool) => tool.toolName),
+            ),
           ),
         );
       }

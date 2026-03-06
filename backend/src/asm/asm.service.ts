@@ -64,17 +64,22 @@ export class AsmService {
     const statsMap = new Map<string, { assetCount: number; techStack: string[] }>();
 
     if (domainIds.length > 0) {
+      const domainIdArray = sql`ARRAY[${sql.join(
+        domainIds.map((domainId) => sql`${domainId}`),
+        sql`, `,
+      )}]::uuid[]`;
+
       const statsRows = await this.db.execute(sql`
         SELECT
           domain_id,
-          COUNT(*)::int AS asset_count,
+          COUNT(DISTINCT a.id)::int AS asset_count,
           COALESCE(
             ARRAY(SELECT DISTINCT unnest FROM unnest(array_agg(DISTINCT t.tech)) AS unnest WHERE unnest IS NOT NULL),
             '{}'
           ) AS techs
         FROM asm_assets a
         LEFT JOIN LATERAL unnest(a.tech_stack) AS t(tech) ON true
-        WHERE a.domain_id = ANY(${domainIds})
+        WHERE a.domain_id = ANY(${domainIdArray})
         GROUP BY domain_id
       `);
 
