@@ -3,7 +3,7 @@
 ShipSec Studio uses a **two-layer feature flag system**:
 
 1. **PostHog (runtime)** — per-user/org targeting, kill switches, A/B testing
-2. **Vite build-time flags** — tree-shake entire features from the bundle for smaller deployments
+2. **Vite build-time flags** — hard-disable entire feature families for smaller deployments
 
 ## Quick Start
 
@@ -29,8 +29,8 @@ ShipSec Studio uses a **two-layer feature flag system**:
 ┌─────────────────────────────────────────────────────────┐
 │  Vite Build-Time Layer (VITE_FF_*)                      │
 │  ─ Set in .env / CI pipeline                            │
-│  ─ Features set to 'false' are REMOVED from the bundle  │
-│  ─ Zero bytes shipped for disabled features             │
+│  ─ Features set to 'false' are forced OFF everywhere    │
+│  ─ Useful for smaller/simpler deployments               │
 │  ─ Requires rebuild to change                           │
 └─────────────────┬───────────────────────────────────────┘
                   │
@@ -93,7 +93,7 @@ MY_NEW_FEATURE: {
   dependsOn: ['WORKFLOWS'],       // optional — parent features
   defaultEnabled: false,           // false = opt-in, true = opt-out
   posthogKey: 'ff_my_new_feature', // must match PostHog dashboard
-  buildTimeEnv: 'VITE_FF_MY_FEATURE', // optional — for bundle tree-shaking
+  buildTimeEnv: 'VITE_FF_MY_FEATURE', // optional — for build-time hard disable
 },
 ```
 
@@ -150,20 +150,15 @@ If you added `buildTimeEnv`, also:
 
 1. Add to `env.schema.ts`: `VITE_FF_MY_FEATURE: viteBoolean(true)`
 2. Add to `vite-env.d.ts`: `readonly VITE_FF_MY_FEATURE?: string`
-3. Set `VITE_FF_MY_FEATURE=false` in `.env` to strip from bundle
+3. Set `VITE_FF_MY_FEATURE=false` in `.env` to force the feature off
 
 ## Build-Time Flags
 
-Build-time flags completely remove feature code from the bundle via Vite's dead code elimination.
+Build-time flags hard-disable top-level feature families before PostHog runtime evaluation.
 
 ### How it works
 
-```typescript
-// When VITE_FF_AI_AGENT=false at build time:
-// - Vite replaces env.VITE_FF_AI_AGENT with `false`
-// - Rollup eliminates the dead import() branch
-// - The ChatInterface chunk is never generated
-```
+If `VITE_FF_AI_AGENT=false`, the AI agent stays disabled even if PostHog tries to enable it.
 
 ### Setting build-time flags
 
@@ -177,7 +172,7 @@ VITE_FF_CLOUD=true
 VITE_FF_ASM=true
 ```
 
-Set any to `false` to exclude from the bundle entirely.
+Set any to `false` to force that feature family off for the whole deployment.
 
 ## Dependency Cascade
 

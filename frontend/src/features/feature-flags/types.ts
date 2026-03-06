@@ -47,7 +47,7 @@ export interface FeatureDefinition {
   defaultEnabled: boolean;
   /** PostHog feature flag key (snake_case, prefixed with ff_) */
   posthogKey: string;
-  /** Optional Vite build-time env var. If set to 'false' at build time, code is tree-shaken. */
+  /** Optional Vite build-time env var. If set to 'false', this feature is forced off. */
   buildTimeEnv?: string;
 }
 

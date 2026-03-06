@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import posthog from 'posthog-js';
+import { env } from '@/config/env';
 import type { FeatureKey, ResolvedFlags } from './types';
 import { featureRegistry } from './registry';
 import { resolveFeatureFlags } from './resolver';
@@ -25,7 +26,27 @@ const FeatureFlagContext = createContext<FeatureFlagContextValue | null>(null);
 
 /** Build default flags from the registry (all defaults, no remote overrides) */
 function buildDefaultFlags(): ResolvedFlags {
-  return resolveFeatureFlags(featureRegistry, {});
+  return resolveResolvedFlags({});
+}
+
+function getBuildTimeOverrides(): Partial<Record<FeatureKey, boolean>> {
+  const overrides: Partial<Record<FeatureKey, boolean>> = {};
+  const config = env as Record<string, boolean | string>;
+
+  for (const def of Object.values(featureRegistry)) {
+    if (def.buildTimeEnv && config[def.buildTimeEnv] === false) {
+      overrides[def.key] = false;
+    }
+  }
+
+  return overrides;
+}
+
+function resolveResolvedFlags(rawFlags: Partial<Record<FeatureKey, boolean>>): ResolvedFlags {
+  return resolveFeatureFlags(featureRegistry, {
+    ...rawFlags,
+    ...getBuildTimeOverrides(),
+  });
 }
 
 /** Read cached flags from sessionStorage to avoid layout shift */
@@ -80,7 +101,7 @@ export function FeatureFlagProvider({ children, pollInterval = 0 }: FeatureFlagP
 
   const evaluate = useCallback(() => {
     const raw = readPostHogFlags();
-    const resolved = resolveFeatureFlags(featureRegistry, raw);
+    const resolved = resolveResolvedFlags(raw);
     writeCachedFlags(resolved);
     setFlags(resolved);
     setLoading(false);

@@ -31,7 +31,7 @@ export const frontendEnvSchema = z
     VITE_ENABLE_DEVTOOLS: viteBoolean(false),
     VITE_DISABLE_ANALYTICS: viteBoolean(false),
 
-    // Build-time feature flags — set to 'false' to tree-shake entire feature from bundle
+    // Build-time feature flags — set to 'false' to hard-disable whole feature families
     VITE_FF_WORKFLOWS: viteBoolean(true),
     VITE_FF_AI_AGENT: viteBoolean(true),
     VITE_FF_GITHUB: viteBoolean(true),

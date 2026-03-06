@@ -7,7 +7,7 @@ import type { FeatureRegistry } from './types';
  * - Every feature section in the app has an entry here.
  * - `dependsOn` declares parent features — if a parent is disabled, the child is too.
  * - `posthogKey` is the flag name in the PostHog dashboard (create it there to control remotely).
- * - `buildTimeEnv` (optional) maps to a VITE_FF_* env var for compile-time tree-shaking.
+ * - `buildTimeEnv` (optional) maps to a VITE_FF_* env var that can force a feature family off.
  * - `defaultEnabled: true` means the feature is ON unless explicitly disabled.
  */
 export const featureRegistry: FeatureRegistry = {
