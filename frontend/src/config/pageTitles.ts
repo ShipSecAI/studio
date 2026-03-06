@@ -134,6 +134,12 @@ const PAGE_TITLES: Record<string, PageTitleConfig> = {
     subtitle: 'Configure data retention and storage settings',
     icon: Settings,
   },
+  '/settings/audit': {
+    title: 'Audit Logs',
+    shortTitle: 'Audit',
+    subtitle: 'Review organization audit activity',
+    icon: ShieldCheck,
+  },
   '/settings': {
     title: 'Settings',
     shortTitle: 'Settings',

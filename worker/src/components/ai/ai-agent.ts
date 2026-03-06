@@ -49,7 +49,6 @@ import {
   getGatewaySessionToken,
   shouldRouteViaLiteLLM,
   getLiteLLMBaseUrl,
-  getLiteLLMApiKey,
   normalizeLiteLLMModel,
   requireOrgVirtualKey,
   isBudgetExceededError,
@@ -613,7 +612,6 @@ Loop the Conversation State output back into the next agent invocation to keep m
       const effectiveModel = ensureModelName(effectiveProvider, chatModel?.modelId ?? null);
       const liteLLMEnabled = shouldRouteViaLiteLLM();
       const liteLLMBaseUrl = getLiteLLMBaseUrl();
-      const liteLLMApiKey = getLiteLLMApiKey();
       const routedModel = liteLLMEnabled
         ? normalizeLiteLLMModel(effectiveProvider, effectiveModel)
         : effectiveModel;
@@ -624,7 +622,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
       }
 
       // When LiteLLM is enabled and no user-provided key (BYOK), use the org's virtual key
-      let resolvedLiteLLMKey = liteLLMApiKey || null;
+      let resolvedLiteLLMKey: string | null = null;
       if (liteLLMEnabled && !overrideApiKey) {
         resolvedLiteLLMKey = await requireOrgVirtualKey(organizationId ?? null, {
           consumer: 'AI Agent',

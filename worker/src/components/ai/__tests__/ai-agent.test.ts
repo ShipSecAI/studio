@@ -334,7 +334,6 @@ describe('core.ai.agent (refactor)', () => {
 
   test('routes gemini provider through LiteLLM OpenAI-compatible path when enabled', async () => {
     process.env.LITELLM_BASE_URL = 'http://litellm.local:4000/v1';
-    process.env.LITELLM_API_KEY = 'litellm-master-key';
 
     const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
     expect(component).toBeDefined();
@@ -354,7 +353,7 @@ describe('core.ai.agent (refactor)', () => {
             provider: 'gemini',
             modelId: 'gemini-2.5-flash',
           },
-          modelApiKey: 'provider-key-ignored-when-litellm-set',
+          modelApiKey: 'provider-key',
         },
         params: {
           systemPrompt: '',
@@ -374,7 +373,7 @@ describe('core.ai.agent (refactor)', () => {
 
     const openAiCall = (createOpenAIMock as any).mock.calls[0][0] as Record<string, unknown>;
     expect(openAiCall.baseURL).toBe('http://litellm.local:4000/v1');
-    expect(openAiCall.apiKey).toBe('litellm-master-key');
+    expect(openAiCall.apiKey).toBe('provider-key');
     expect(openAiCall.headers).toBeUndefined();
   });
 });

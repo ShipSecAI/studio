@@ -448,9 +448,8 @@ function buildProviderEnv(
   orgVirtualKey?: string,
 ): Record<string, string> {
   const liteLLMBaseUrl = process.env.LITELLM_BASE_URL?.trim();
-  const liteLLMApiKey = process.env.LITELLM_API_KEY?.trim();
   if (liteLLMBaseUrl) {
-    const key = orgVirtualKey || liteLLMApiKey || model?.apiKey;
+    const key = model?.apiKey || orgVirtualKey;
     return key
       ? {
           OPENAI_API_KEY: key,

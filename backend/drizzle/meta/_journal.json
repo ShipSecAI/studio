@@ -50,6 +50,20 @@
       "when": 1772870400000,
       "tag": "0006_litellm_virtual_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1772874000000,
+      "tag": "0020_add-billing-usage-indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1772877600000,
+      "tag": "0022_create-subscription-plans",
+      "breakpoints": true
     }
   ]
 }

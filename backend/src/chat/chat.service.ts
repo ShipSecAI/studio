@@ -611,6 +611,10 @@ export class ChatService {
       }).catch((err) => {
         this.logger.warn(`Failed to emit terminal event for turn ${activeTurn.id}: ${err}`);
       });
+
+      await this.turnDraftRepository.delete(activeTurn.id).catch((err) => {
+        this.logger.warn(`Failed to clear turn draft for turn ${activeTurn.id}: ${err}`);
+      });
     }
   }
 

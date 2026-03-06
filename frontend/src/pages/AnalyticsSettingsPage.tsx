@@ -49,7 +49,7 @@ const RETENTION_PERIODS = [
 const TIER_LIMITS = {
   free: { name: 'Free', maxRetentionDays: 30 },
   pro: { name: 'Pro', maxRetentionDays: 90 },
-  team: { name: 'Team', maxRetentionDays: 180 },
+  team: { name: 'Team', maxRetentionDays: 90 },
   enterprise: { name: 'Enterprise', maxRetentionDays: 365 },
 };
 

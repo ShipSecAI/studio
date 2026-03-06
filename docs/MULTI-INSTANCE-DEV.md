@@ -259,7 +259,7 @@ If any required variable is missing or malformed, startup aborts with a clear er
 
 **Chat AI variables**: The worker requires `CHAT_AI_BASE_URL`, `CHAT_AI_API_KEY`, `CHAT_AI_MODEL_ID`, and `CHAT_AI_PROVIDER` for the chat feature. See `worker/.env.example` for reference values.
 
-**LiteLLM variables**: Shared infra now includes a LiteLLM proxy on `http://localhost:4001` (via `docker-compose.dev-ports.yml`). To route local Chat AI through the proxy, set `LITELLM_PROXY_URL` / `LITELLM_MASTER_KEY` in backend env and `LITELLM_BASE_URL` / `LITELLM_API_KEY` in worker env. The default repo config exposes `glm-4.7` and `openai/glm-4.7` aliases with z.ai public pricing and cached-input pricing.
+**LiteLLM variables**: Shared infra now includes a LiteLLM proxy on `http://localhost:4001` (via `docker-compose.dev-ports.yml`). To route local Chat AI through the proxy, set `LITELLM_PROXY_URL` / `LITELLM_MASTER_KEY` in backend env and `LITELLM_BASE_URL` / `LITELLM_API_KEY` in worker env. The default repo config exposes `gpt-5.4` and `openai/gpt-5.4` aliases, routing upstream to vibeproxy while using OpenAI GPT-5 pricing metadata for local billing tests. If your local LiteLLM build does not include the enterprise `/global/spend/report` endpoint, set `LITELLM_ALLOW_TEAM_INFO_SPEND_FALLBACK=true` in backend env to make the billing page use cumulative `/team/info` spend for the current month during local testing.
 
 ## Troubleshooting
 

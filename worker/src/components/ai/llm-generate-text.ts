@@ -17,7 +17,6 @@ import { LLMProviderSchema, type LlmProviderConfig } from '@shipsec/contracts';
 import {
   shouldRouteViaLiteLLM,
   getLiteLLMBaseUrl,
-  getLiteLLMApiKey,
   normalizeLiteLLMModel,
   requireOrgVirtualKey,
   isBudgetExceededError,
@@ -161,7 +160,6 @@ const definition = defineComponent({
     const { userPrompt, chatModel, modelApiKey } = inputs;
     const liteLLMEnabled = shouldRouteViaLiteLLM();
     const liteLLMBaseUrl = getLiteLLMBaseUrl();
-    const liteLLMApiKey = getLiteLLMApiKey();
     const routedModel = liteLLMEnabled
       ? normalizeLiteLLMModel(chatModel.provider, chatModel.modelId)
       : chatModel.modelId;
@@ -174,7 +172,7 @@ const definition = defineComponent({
     const userProvidedKey = modelApiKey?.trim() || chatModel.apiKey?.trim();
 
     // When LiteLLM is enabled and no user-provided key (BYOK), use the org's virtual key
-    let resolvedLiteLLMKey = liteLLMApiKey || null;
+    let resolvedLiteLLMKey: string | null = null;
     if (liteLLMEnabled && !userProvidedKey) {
       resolvedLiteLLMKey = await requireOrgVirtualKey(context.metadata.organizationId ?? null, {
         consumer: 'AI Generate Text',

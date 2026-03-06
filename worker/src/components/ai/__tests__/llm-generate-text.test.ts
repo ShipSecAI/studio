@@ -81,4 +81,78 @@ describe('core.ai.generate-text', () => {
     expect(createGoogleMock).toHaveBeenCalled();
     expect(createOpenAIMock).not.toHaveBeenCalled();
   });
+
+  test('keeps a user-provided key when LiteLLM routing is enabled', async () => {
+    process.env.LITELLM_BASE_URL = 'http://litellm.local:4000/v1';
+    process.env.LITELLM_API_KEY = 'shared-litellm-key';
+
+    const component = componentRegistry.get('core.ai.generate-text');
+    expect(component).toBeDefined();
+
+    const createOpenAIMock = vi.fn(() => (modelId: string) => ({ provider: 'openai', modelId }));
+    const createGoogleMock = vi.fn(() => (modelId: string) => ({ provider: 'gemini', modelId }));
+    const generateTextMock = vi.fn(async () => ({
+      text: 'ok',
+      finishReason: 'stop',
+      response: { id: 'resp-2' },
+      usage: { totalTokens: 10, inputTokens: 6, outputTokens: 4 },
+    }));
+
+    const context = {
+      runId: 'run-2',
+      componentRef: 'core.ai.generate-text',
+      logger: {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      },
+      emitProgress: () => {},
+      metadata: {
+        runId: 'run-2',
+        componentRef: 'core.ai.generate-text',
+        organizationId: 'org-1',
+      },
+      agentTracePublisher: {
+        publish: vi.fn(async () => {}),
+      },
+      http: {
+        fetch: async (input: any, init: any) => globalThis.fetch(input as any, init),
+        toCurl: () => '',
+      },
+    } as unknown as ExecutionContext;
+
+    const execute = component!.execute as any;
+    await execute(
+      {
+        inputs: {
+          userPrompt: 'hello',
+          chatModel: {
+            provider: 'openai',
+            modelId: 'gpt-4o-mini',
+          },
+          modelApiKey: 'provider-key',
+        },
+        params: {
+          systemPrompt: '',
+          temperature: 0.2,
+          maxTokens: 200,
+        },
+      },
+      context,
+      {
+        generateText: generateTextMock as any,
+        createOpenAI: createOpenAIMock as any,
+        createGoogleGenerativeAI: createGoogleMock as any,
+      },
+    );
+
+    expect(createGoogleMock).not.toHaveBeenCalled();
+    expect(createOpenAIMock).toHaveBeenCalled();
+    const openAiCall = (createOpenAIMock as any).mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(openAiCall).toMatchObject({
+      apiKey: 'provider-key',
+      baseURL: 'http://litellm.local:4000/v1',
+    });
+  });
 });

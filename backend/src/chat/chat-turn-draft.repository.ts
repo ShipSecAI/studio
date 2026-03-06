@@ -40,4 +40,8 @@ export class ChatTurnDraftRepository {
 
     return row ?? null;
   }
+
+  async delete(turnId: string): Promise<void> {
+    await this.db.delete(chatTurnDraftsTable).where(eq(chatTurnDraftsTable.turnId, turnId));
+  }
 }

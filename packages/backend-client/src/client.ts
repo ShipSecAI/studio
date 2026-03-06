@@ -884,6 +884,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal/billing/litellm-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["InternalBillingController_getLiteLLMKey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/components": {
         parameters: {
             query?: never;
@@ -2750,48 +2766,32 @@ export interface paths {
         patch: operations["ChatController_updateSession"];
         trace?: never;
     };
-    "/api/v1/chat/sessions/{id}/messages": {
+    "/api/v1/chat/sessions/{id}/submissions": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["ChatController_getMessages"];
+        get?: never;
         put?: never;
-        post: operations["ChatController_sendMessage"];
+        post: operations["ChatController_submitOperation"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/sessions/{id}/status": {
+    "/api/v1/chat/sessions/{id}/thread-history": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["ChatController_getProcessingStatus"];
+        get: operations["ChatController_getThreadHistory"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/chat/sessions/{id}/partial": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["ChatController_getPartialResponse"];
-        put?: never;
-        post: operations["ChatController_upsertPartialResponse"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2821,16 +2821,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ChatController_listRunEvents"];
+        get: operations["ChatController_listEvents"];
         put?: never;
-        post: operations["ChatController_appendRunEvent"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/sessions/{id}/complete": {
+    "/api/v1/chat/sessions/{id}/internal/events": {
         parameters: {
             query?: never;
             header?: never;
@@ -2839,7 +2839,23 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["ChatController_completeSession"];
+        post: operations["ChatController_appendInternalEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/sessions/{id}/internal/run-completion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ChatController_appendRunCompletion"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3770,11 +3786,6 @@ export interface components {
              * @example 37.5
              */
             remainingUsd: number;
-            /**
-             * @description Total tokens consumed (informational)
-             * @example 125000
-             */
-            totalTokensUsed: number;
         };
         BillingLimitsDto: {
             /**
@@ -6456,6 +6467,25 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SubscriptionPlanDto"][];
                 };
+            };
+        };
+    };
+    InternalBillingController_getLiteLLMKey: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-organization-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -10117,26 +10147,7 @@ export interface operations {
             };
         };
     };
-    ChatController_getMessages: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    ChatController_sendMessage: {
+    ChatController_submitOperation: {
         parameters: {
             query?: never;
             header?: never;
@@ -10155,7 +10166,7 @@ export interface operations {
             };
         };
     };
-    ChatController_getProcessingStatus: {
+    ChatController_getThreadHistory: {
         parameters: {
             query?: never;
             header?: never;
@@ -10167,44 +10178,6 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    ChatController_getPartialResponse: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    ChatController_upsertPartialResponse: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10215,7 +10188,6 @@ export interface operations {
     ChatController_streamLive: {
         parameters: {
             query: {
-                runId: string;
                 afterSeq: string;
             };
             header?: never;
@@ -10234,10 +10206,9 @@ export interface operations {
             };
         };
     };
-    ChatController_listRunEvents: {
+    ChatController_listEvents: {
         parameters: {
             query: {
-                runId: string;
                 afterSeq: string;
             };
             header?: never;
@@ -10256,7 +10227,7 @@ export interface operations {
             };
         };
     };
-    ChatController_appendRunEvent: {
+    ChatController_appendInternalEvent: {
         parameters: {
             query?: never;
             header?: never;
@@ -10275,7 +10246,7 @@ export interface operations {
             };
         };
     };
-    ChatController_completeSession: {
+    ChatController_appendRunCompletion: {
         parameters: {
             query?: never;
             header?: never;

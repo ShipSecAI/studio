@@ -432,6 +432,15 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/billing',
       icon: CreditCard,
     },
+    ...(canManageWorkflows
+      ? [
+          {
+            name: 'Audit Logs',
+            href: '/settings/audit',
+            icon: ShieldCheck,
+          },
+        ]
+      : []),
     ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
       ? [
           {
