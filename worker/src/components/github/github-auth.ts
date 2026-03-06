@@ -13,16 +13,24 @@ import { getBackendApiV1Url } from '../../utils/backend-url';
 /** API base URL for backend calls */
 export const getApiBaseUrl = (): string => getBackendApiV1Url();
 
+function requireOrganizationHeader(context: ExecutionContext): string {
+  const organizationId = context.organizationId ?? context.metadata.organizationId;
+  if (!organizationId) {
+    throw new Error('GitHub installation token fetch requires context.organizationId');
+  }
+  return organizationId;
+}
+
 /**
  * Build auth headers for internal worker-to-backend API calls.
  * Tries internal service token first, then falls back to Basic Auth.
  */
-function getInternalAuthHeaders(): Record<string, string> {
+function getInternalAuthHeaders(context: ExecutionContext): Record<string, string> {
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
   if (internalToken) {
     return {
       'x-internal-token': internalToken,
-      'x-organization-id': process.env.ORGANIZATION_ID ?? 'local-dev',
+      'x-organization-id': requireOrganizationHeader(context),
     };
   }
 
@@ -73,6 +81,8 @@ export async function fetchInstallationToken(
 
   // Strategy 2: Fetch fresh token via HTTP call to backend API
   if (context.http) {
+    const authHeaders = getInternalAuthHeaders(context);
+
     try {
       const baseUrl = getApiBaseUrl();
       const tokenUrl = `${baseUrl}/github/installations/${installationId}/token`;
@@ -83,7 +93,7 @@ export async function fetchInstallationToken(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getInternalAuthHeaders(),
+          ...authHeaders,
         },
       });
 

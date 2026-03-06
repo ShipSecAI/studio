@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from 'bun:test';
 
 import { createMockExecutionContext } from '../../../testing/test-utils';
+import { fetchInstallationToken } from '../github-auth';
 
 describe('GitHub auth helpers', () => {
   beforeEach(() => {
@@ -11,7 +12,6 @@ describe('GitHub auth helpers', () => {
   });
 
   test('fetchInstallationToken sends the execution organization to the backend token endpoint', async () => {
-    const { fetchInstallationToken } = await import('../installation-token');
     const fetchMock = vi.fn(async (_input: unknown, init?: RequestInit) => {
       expect(init?.headers).toMatchObject({
         'x-internal-token': 'internal-token',
@@ -31,7 +31,10 @@ describe('GitHub auth helpers', () => {
         componentRef: 'node-2',
         organizationId: 'org-runtime-123',
       },
-      secrets: undefined,
+      secrets: {
+        get: vi.fn(async () => null),
+        list: vi.fn(async () => []),
+      },
       http: {
         fetch: fetchMock as any,
         toCurl: vi.fn(() => ''),
@@ -45,7 +48,6 @@ describe('GitHub auth helpers', () => {
   });
 
   test('fetchInstallationToken throws immediately when the execution context has no organization', async () => {
-    const { fetchInstallationToken } = await import('../installation-token');
     const fetchMock = vi.fn();
 
     const context = createMockExecutionContext({
@@ -55,7 +57,10 @@ describe('GitHub auth helpers', () => {
         componentRef: 'node-2',
         organizationId: null,
       },
-      secrets: undefined,
+      secrets: {
+        get: vi.fn(async () => null),
+        list: vi.fn(async () => []),
+      },
       http: {
         fetch: fetchMock as any,
         toCurl: vi.fn(() => ''),
