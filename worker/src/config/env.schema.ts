@@ -53,8 +53,6 @@ export const workerEnvSchema = z
     OPENSEARCH_PASSWORD: z.string().optional(),
     OPENSEARCH_DASHBOARDS_URL: z.string().optional().default(''),
     OPENSEARCH_SECURITY_ENABLED: stringToBoolean(false),
-    OPENSEARCH_CA_CERT_PATH: z.string().optional().default(''),
-    OPENSEARCH_SSL_REJECT_UNAUTHORIZED: stringToBoolean(true),
 
     // --- K8s execution ---
     EXECUTION_MODE: z.string().optional(),

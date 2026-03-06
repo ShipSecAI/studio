@@ -327,14 +327,8 @@ const definition = defineComponent({
       // URL is passed via environment variable to avoid logging tokens
       cloneArgs.push('"$CLONE_URL"', '/workspace/repo');
 
-      // Mark the mounted repository as safe before any follow-up git commands.
-      // K8s GCS Fuse mounts can present ownership metadata that triggers Git's
-      // dubious ownership protection inside the pod.
-      const markRepoSafe = 'git config --global --add safe.directory /workspace/repo';
-
       // Add post-clone commands to get commit info
       const postCloneCommands = [
-        markRepoSafe,
         // If ref is specified, checkout that ref (value via env var)
         ref ? 'cd /workspace/repo && git checkout "$GIT_REF"' : '',
         // Get the commit SHA
@@ -375,7 +369,6 @@ const definition = defineComponent({
           ...(branch ? { GIT_BRANCH: branch } : {}),
           ...(ref ? { GIT_REF: ref } : {}),
         },
-        expectOutputFile: false, // Output is read from volume, not /shipsec-output/result.json
         volumes: [volume.getVolumeConfig('/workspace', false)], // Read-write for clone
       };
 

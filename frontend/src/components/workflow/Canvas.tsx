@@ -36,7 +36,7 @@ import { useWorkflowStore } from '@/store/workflowStore';
 import { track, Events } from '@/features/analytics/events';
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
-import type { NodeData, FrontendNodeData } from '@/schemas/node';
+import type { NodeData } from '@/schemas/node';
 import { useToast } from '@/components/ui/use-toast';
 import type { WorkflowSchedule } from '@shipsec/shared';
 import { cn } from '@/lib/utils';
@@ -557,7 +557,7 @@ export function Canvas({
         ];
       }
 
-      const newNode: Node<FrontendNodeData> = {
+      const newNode: Node<NodeData> = {
         id: `${component.slug ?? component.id}-${Date.now()}`,
         type: 'workflow',
         position,
@@ -576,7 +576,7 @@ export function Canvas({
           status: 'idle',
           // Pass workflowId to node data for entry point webhook URL
           workflowId: workflowId ?? undefined,
-        },
+        } as any,
       };
 
       // Update nodes and capture snapshot
@@ -699,7 +699,7 @@ export function Canvas({
       if (mode !== 'design') return;
 
       // Check if this is a text-block node
-      const nodeData = node.data as FrontendNodeData;
+      const nodeData = node.data as any;
       const componentRef = nodeData?.componentId || nodeData?.componentSlug;
       const isTextBlock = componentRef === 'core.ui.text';
 
@@ -773,7 +773,7 @@ export function Canvas({
 
   // Handle node data update from config panel
   const handleUpdateNode = useCallback(
-    (nodeId: string, data: Partial<FrontendNodeData>) => {
+    (nodeId: string, data: Partial<NodeData>) => {
       let updatedNodes = nodes.map((node) =>
         node.id === nodeId ? { ...node, data: { ...node.data, ...data } } : node,
       );
@@ -782,9 +782,10 @@ export function Canvas({
       const edgesToRemove: Edge[] = [];
 
       // Check for dynamic outputs change (e.g. Entry Point inputs renamed)
-      const dynamicOutputs = data.dynamicOutputs;
+      // We cast to any because dynamicOutputs is on FrontendNodeData, not NodeData
+      const dynamicOutputs = (data as any).dynamicOutputs;
       if (dynamicOutputs && Array.isArray(dynamicOutputs)) {
-        const validOutputIds = new Set(dynamicOutputs.map((p) => p.id));
+        const validOutputIds = new Set(dynamicOutputs.map((p: any) => p.id));
         updatedEdges.forEach((edge) => {
           if (
             edge.source === nodeId &&
@@ -797,9 +798,9 @@ export function Canvas({
       }
 
       // Check for dynamic inputs change
-      const dynamicInputs = data.dynamicInputs;
+      const dynamicInputs = (data as any).dynamicInputs;
       if (dynamicInputs && Array.isArray(dynamicInputs)) {
-        const validInputIds = new Set(dynamicInputs.map((p) => p.id));
+        const validInputIds = new Set(dynamicInputs.map((p: any) => p.id));
         updatedEdges.forEach((edge) => {
           if (
             edge.target === nodeId &&

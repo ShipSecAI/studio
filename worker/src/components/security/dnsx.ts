@@ -605,9 +605,6 @@ const definition = defineComponent({
       rateLimit,
       customFlags: customFlagArgs,
     });
-    if (parsedParams.outputMode === 'json') {
-      dnsxArgs.push('-o', `${CONTAINER_INPUT_DIR}/dnsx-output.jsonl`);
-    }
 
     const runnerPayload = {
       ...inputs,
@@ -657,8 +654,7 @@ const definition = defineComponent({
         env: { ...(baseRunner.env ?? {}) },
         // Pass dnsx CLI args directly (image default entrypoint is dnsx)
         command: [...(baseRunner.command ?? []), ...dnsxArgs],
-        expectOutputFile: false, // DNSX output is parsed from runner return, not /shipsec-output/result.json
-        volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, false)],
+        volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
       };
 
       rawPayload = await runComponentWithRunner(
@@ -667,9 +663,6 @@ const definition = defineComponent({
         runnerPayload,
         context,
       );
-      if (parsedParams.outputMode === 'json') {
-        rawPayload = (await volume.readFiles(['dnsx-output.jsonl']))['dnsx-output.jsonl'] ?? '';
-      }
     } finally {
       // Always cleanup the volume, even on error
       await volume.cleanup();

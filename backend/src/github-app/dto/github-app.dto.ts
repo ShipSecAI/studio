@@ -1,4 +1,3 @@
-import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 // Installation DTOs
@@ -17,7 +16,6 @@ export const GitHubInstallationSchema = z.object({
 });
 
 export type GitHubInstallation = z.infer<typeof GitHubInstallationSchema>;
-export class GitHubInstallationDto extends createZodDto(GitHubInstallationSchema) {}
 
 // Repository DTOs
 export const GitHubRepoSchema = z.object({
@@ -41,7 +39,6 @@ export const GitHubRepoSchema = z.object({
 });
 
 export type GitHubRepo = z.infer<typeof GitHubRepoSchema>;
-export class GitHubRepoDto extends createZodDto(GitHubRepoSchema) {}
 
 // Trigger Rule DTOs
 export const CreateTriggerRuleSchema = z.object({
@@ -64,8 +61,6 @@ export type CreateTriggerRuleInput = z.infer<typeof CreateTriggerRuleSchema>;
 
 export const UpdateTriggerRuleSchema = CreateTriggerRuleSchema.partial();
 export type UpdateTriggerRuleInput = z.infer<typeof UpdateTriggerRuleSchema>;
-export class CreateTriggerRuleDto extends createZodDto(CreateTriggerRuleSchema) {}
-export class UpdateTriggerRuleDto extends createZodDto(UpdateTriggerRuleSchema) {}
 
 export const TriggerRuleSchema = z.object({
   id: z.string().uuid(),
@@ -89,7 +84,6 @@ export const TriggerRuleSchema = z.object({
 });
 
 export type TriggerRule = z.infer<typeof TriggerRuleSchema>;
-export class TriggerRuleDto extends createZodDto(TriggerRuleSchema) {}
 
 // Scan Result DTOs
 export const ScanSummarySchema = z.object({
@@ -150,7 +144,6 @@ export const GitHubScanResultSchema = z.object({
 });
 
 export type GitHubScanResult = z.infer<typeof GitHubScanResultSchema>;
-export class GitHubScanResultDto extends createZodDto(GitHubScanResultSchema) {}
 
 // API Request DTOs
 export const StartInstallationSchema = z.object({
@@ -166,77 +159,15 @@ export const CompleteInstallationSchema = z.object({
 });
 
 export type CompleteInstallationInput = z.infer<typeof CompleteInstallationSchema>;
-export class CompleteInstallationDto extends createZodDto(CompleteInstallationSchema) {}
 
-export const GitHubTriggerScanSchema = z.object({
+export const TriggerScanSchema = z.object({
   workflowId: z.string().uuid(),
   branch: z.string().optional(),
   ref: z.string().optional(),
   prNumber: z.number().optional(),
 });
 
-export type TriggerScanInput = z.infer<typeof GitHubTriggerScanSchema>;
-export class GitHubTriggerScanDto extends createZodDto(GitHubTriggerScanSchema) {}
-
-export const GitHubStatusResponseSchema = z.object({
-  configured: z.boolean(),
-  installUrl: z.string().nullable(),
-});
-
-export class GitHubStatusResponseDto extends createZodDto(GitHubStatusResponseSchema) {}
-
-export const GitHubBranchSchema = z.object({
-  name: z.string(),
-  isDefault: z.boolean(),
-});
-
-export class GitHubBranchDto extends createZodDto(GitHubBranchSchema) {}
-
-export const ToggleRepoScansSchema = z.object({
-  enabled: z.boolean(),
-});
-
-export class ToggleRepoScansDto extends createZodDto(ToggleRepoScansSchema) {}
-
-export const InstallationTokenResponseSchema = z.object({
-  token: z.string(),
-});
-
-export class InstallationTokenResponseDto extends createZodDto(InstallationTokenResponseSchema) {}
-
-export const SyncRepositoriesResponseSchema = z.object({
-  synced: z.number().int().nonnegative(),
-});
-
-export class SyncRepositoriesResponseDto extends createZodDto(SyncRepositoriesResponseSchema) {}
-
-export const TriggerScanResponseSchema = z.object({
-  scanId: z.string().uuid(),
-  runId: z.string(),
-});
-
-export class TriggerScanResponseDto extends createZodDto(TriggerScanResponseSchema) {}
-
-export const QuickScanWorkflowSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  slug: z.string().nullable(),
-  templateId: z.string().uuid(),
-});
-
-export class QuickScanWorkflowDto extends createZodDto(QuickScanWorkflowSchema) {}
-
-export const GitHubScanResultsQuerySchema = z.object({
-  repositoryId: z.string().uuid().optional(),
-  status: z.string().optional(),
-  source: z.enum(['pr', 'push', 'manual', 'schedule']).optional(),
-  scheduleId: z.string().uuid().optional(),
-  triggerRuleId: z.string().uuid().optional(),
-  limit: z.coerce.number().int().positive().optional(),
-  offset: z.coerce.number().int().nonnegative().optional(),
-});
-
-export class GitHubScanResultsQueryDto extends createZodDto(GitHubScanResultsQuerySchema) {}
+export type TriggerScanInput = z.infer<typeof TriggerScanSchema>;
 
 // GitHub Webhook Event Types
 export interface GitHubWebhookEvent {

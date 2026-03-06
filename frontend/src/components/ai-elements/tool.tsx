@@ -136,7 +136,7 @@ function unwrapMcpOutput(output: unknown): { data: unknown; isError?: boolean } 
     output &&
     typeof output === 'object' &&
     'content' in output &&
-    Array.isArray((output as { content: unknown }).content)
+    Array.isArray((output as any).content)
   ) {
     const mcpResult = output as {
       content: { type: string; text?: string; data?: string; mimeType?: string }[];

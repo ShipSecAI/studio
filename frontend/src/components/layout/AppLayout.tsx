@@ -55,6 +55,7 @@ import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { usePrefetchOnIdle } from '@/hooks/usePrefetchOnIdle';
 import { prefetchIdleRoutes, prefetchRoute } from '@/lib/prefetch-routes';
 import { SecurityTabBar } from '@/components/security/SecurityTabBar';
+import { SpotlightTour, useAppTour } from '@/features/onboarding';
 import { useAllFeatureFlags } from '@/features/feature-flags';
 import type { FeatureKey } from '@/features/feature-flags';
 
@@ -110,6 +111,7 @@ function useIsMobile(breakpoint = 768) {
 
 export function AppLayout({ children }: AppLayoutProps) {
   usePrefetchOnIdle();
+  useAppTour();
 
   // Prefetch all route chunks during idle time
   useEffect(() => {
@@ -623,6 +625,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Sidebar */}
         <Sidebar
+          data-tour="nav-sidebar"
           className={cn(
             'h-full transition-all duration-300 z-[110]',
             // Mobile: Fixed position, slide in/out
@@ -670,7 +673,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </SidebarHeader>
 
           {/* Search - pinned to top */}
-          <div className="px-2 py-2 border-b border-border/40">
+          <div className="px-2 py-2 border-b border-border/40" data-tour="nav-search">
             <button
               onClick={openCommandPalette}
               className={cn(
@@ -776,9 +779,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </span>
                 </SidebarItem>
               </Link>
+              {/* ShipSec AI with collapsible chat history */}
               {/* ShipSec AI with collapsible chat history — gated by feature flag */}
               {(!chatItem.requiredFlag || featureFlags[chatItem.requiredFlag]) && (
-                <div>
+                <div data-tour="nav-shipsec-ai">
                   <div className="flex items-center">
                     <Link
                       to={chatItem.href}
@@ -856,9 +860,21 @@ export function AppLayout({ children }: AppLayoutProps) {
               )}
             </div>
 
-            {/* Grouped navigation — filtered by feature flags */}
+            {/* Grouped navigation */}
             {filteredNavigationGroups.map((group) => (
-              <div key={group.label ?? 'ungrouped'} className="px-2 mt-1">
+              <div
+                key={group.label ?? 'ungrouped'}
+                className="px-2 mt-1"
+                {...(group.label === 'CODE SECURITY'
+                  ? { 'data-tour': 'nav-code-security' }
+                  : group.label === 'CLOUD SECURITY'
+                    ? { 'data-tour': 'nav-cloud-security' }
+                    : group.label === 'ATTACK SURFACE'
+                      ? { 'data-tour': 'nav-attack-surface' }
+                      : group.label === 'WORKFLOWS'
+                        ? { 'data-tour': 'nav-workflows' }
+                        : {})}
+              >
                 {group.label && sidebarOpen && (
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-3 pt-4 pb-1">
                     {group.label}
@@ -957,7 +973,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </SidebarContent>
 
           {/* Manage - pinned to bottom */}
-          <div className="border-t border-border/40 px-2 py-1">
+          <div className="border-t border-border/40 px-2 py-1" data-tour="nav-manage">
             <button
               onClick={() => setSettingsOpen(!settingsOpen)}
               className={cn(
@@ -1141,6 +1157,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex-1 overflow-auto">{children}</div>
         </main>
       </div>
+      <SpotlightTour />
     </SidebarContext.Provider>
   );
 }

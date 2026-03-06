@@ -21,7 +21,6 @@ import {
   type TaskAwareMcpClient,
   type TaskToolEvent,
 } from '../../utils/task-aware-mcp-tools';
-import { createInternalBackendClient } from '../../utils/internal-backend-client';
 
 // ---------------------------------------------------------------------------
 // Types (shared with workflow)
@@ -229,10 +228,27 @@ async function appendStreamEvent(
 
   // REST fallback
   if (!globalBackendUrl) return { seq: null, staleMismatch: false };
-  const client = createInternalBackendClient({ baseUrl: globalBackendUrl });
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
   try {
-    const res = await client.appendChatInternalEvent(sessionId, envelope);
-    const data = (res.data ?? {}) as { seq?: number };
+    const res = await fetch(
+      `${globalBackendUrl}/api/v1/chat/sessions/${sessionId}/internal/events`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-token': internalToken,
+        },
+        body: JSON.stringify(envelope),
+        signal: AbortSignal.timeout(2000),
+      },
+    );
+    if (!res.ok) {
+      if (res.status === 409) {
+        return { seq: null, staleMismatch: true };
+      }
+      return { seq: null, staleMismatch: false };
+    }
+    const data = (await res.json()) as { seq?: number };
     const seq = typeof data.seq === 'number' ? data.seq : null;
     return { seq, staleMismatch: false };
   } catch {
@@ -250,9 +266,17 @@ function createTurnStatusChunk(status: TurnStatusPayload): UIMessageChunk {
 /** Notify the backend that run state can be finalized/reset as a safety fallback. */
 async function notifySessionComplete(sessionId: string, runId: string): Promise<void> {
   if (!globalBackendUrl) return;
-  const client = createInternalBackendClient({ baseUrl: globalBackendUrl });
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
   try {
-    await client.completeChatRun(sessionId, { runId });
+    await fetch(`${globalBackendUrl}/api/v1/chat/sessions/${sessionId}/internal/run-completion`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-token': internalToken,
+      },
+      body: JSON.stringify({ runId }),
+      signal: AbortSignal.timeout(5000),
+    });
   } catch {
     // Best-effort
   }

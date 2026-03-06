@@ -21,26 +21,12 @@ import { join } from 'node:path';
 import { SecurityAnalyticsService } from './security-analytics.service';
 import { OrganizationSettingsService } from './organization-settings.service';
 import { OpenSearchTenantService } from './opensearch-tenant.service';
-import {
-  AnalyticsQueryRequestDto,
-  AnalyticsQueryResponseDto,
-  ProwlerChecksMetadataResponseDto,
-  ProwlerChecksMetadataResponseSchema,
-  StorageUsageResponseDto,
-  PurgeDataResponseDto,
-  type ProwlerChecksMetadataResponse,
-} from './dto/analytics-query.dto';
+import { AnalyticsQueryRequestDto, AnalyticsQueryResponseDto } from './dto/analytics-query.dto';
 import {
   AnalyticsSettingsResponseDto,
   UpdateAnalyticsSettingsDto,
   TIER_LIMITS,
 } from './dto/analytics-settings.dto';
-import {
-  BatchRunSummariesRequestDto,
-  BatchRunSummariesResponseDto,
-  EnsureTenantRequestDto,
-  EnsureTenantResponseDto,
-} from './dto/analytics-internal.dto';
 import { AuditLogService } from '../audit/audit-log.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import { Public } from '../auth/public.decorator';
@@ -57,14 +43,13 @@ function isValidNonNegativeInt(value: unknown): value is number {
 @Controller('analytics')
 export class AnalyticsController {
   private readonly internalServiceToken: string;
-  private _prowlerChecksMetadata: ProwlerChecksMetadataResponse | null = null;
+  private _prowlerChecksMetadata: Record<string, unknown> | null = null;
 
-  private get prowlerChecksMetadata(): ProwlerChecksMetadataResponse {
+  private get prowlerChecksMetadata(): Record<string, unknown> {
     if (!this._prowlerChecksMetadata) {
       try {
         const raw = readFileSync(join(__dirname, '..', 'assets', 'prowler-checks.json'), 'utf-8');
-        const parsed = ProwlerChecksMetadataResponseSchema.safeParse(JSON.parse(raw));
-        this._prowlerChecksMetadata = parsed.success ? parsed.data : {};
+        this._prowlerChecksMetadata = JSON.parse(raw);
       } catch {
         this._prowlerChecksMetadata = {};
       }
@@ -213,8 +198,8 @@ export class AnalyticsController {
       subscriptionTier: settings.subscriptionTier,
       analyticsRetentionDays: settings.analyticsRetentionDays,
       maxRetentionDays,
-      createdAt: settings.createdAt.toISOString(),
-      updatedAt: settings.updatedAt.toISOString(),
+      createdAt: settings.createdAt,
+      updatedAt: settings.updatedAt,
     };
   }
 
@@ -291,8 +276,8 @@ export class AnalyticsController {
       subscriptionTier: updated.subscriptionTier,
       analyticsRetentionDays: updated.analyticsRetentionDays,
       maxRetentionDays,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString(),
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
     };
   }
 
@@ -301,12 +286,11 @@ export class AnalyticsController {
   @Throttle({ default: { limit: 100, ttl: 60000 } })
   @ApiOkResponse({
     description: 'Get severity counts for multiple run IDs',
-    type: BatchRunSummariesResponseDto,
   })
   async batchRunSummaries(
     @CurrentAuth() auth: AuthContext | null,
-    @Body() body: BatchRunSummariesRequestDto,
-  ): Promise<BatchRunSummariesResponseDto> {
+    @Body() body: { runIds: string[] },
+  ) {
     if (!auth || !auth.isAuthenticated) {
       throw new UnauthorizedException('Authentication required');
     }
@@ -331,7 +315,15 @@ export class AnalyticsController {
   @Get('storage-usage')
   @ApiOkResponse({
     description: 'Get OpenSearch storage usage for the authenticated organization',
-    type: StorageUsageResponseDto,
+    schema: {
+      type: 'object',
+      properties: {
+        usedBytes: { type: 'number' },
+        documentCount: { type: 'number' },
+        indexCount: { type: 'number' },
+        opensearchEnabled: { type: 'boolean' },
+      },
+    },
   })
   async getStorageUsage(@CurrentAuth() auth: AuthContext | null): Promise<{
     usedBytes: number;
@@ -352,7 +344,12 @@ export class AnalyticsController {
   @HttpCode(200)
   @ApiOkResponse({
     description: 'Purge all analytics data for the authenticated organization',
-    type: PurgeDataResponseDto,
+    schema: {
+      type: 'object',
+      properties: {
+        deletedIndices: { type: 'number' },
+      },
+    },
   })
   async purgeData(@CurrentAuth() auth: AuthContext | null): Promise<{ deletedIndices: number }> {
     if (!auth || !auth.isAuthenticated) {
@@ -372,11 +369,8 @@ export class AnalyticsController {
   @Header('Cache-Control', 'public, max-age=2592000')
   @ApiOkResponse({
     description: 'Static Prowler check metadata keyed by CheckID',
-    type: ProwlerChecksMetadataResponseDto,
   })
-  async getProwlerChecksMetadata(
-    @CurrentAuth() auth: AuthContext | null,
-  ): Promise<ProwlerChecksMetadataResponse> {
+  async getProwlerChecksMetadata(@CurrentAuth() auth: AuthContext | null) {
     if (!auth || !auth.isAuthenticated) {
       throw new UnauthorizedException('Authentication required');
     }
@@ -395,12 +389,19 @@ export class AnalyticsController {
   @Post('ensure-tenant')
   @ApiOkResponse({
     description: 'Ensure tenant resources exist for organization',
-    type: EnsureTenantResponseDto,
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        securityEnabled: { type: 'boolean' },
+        message: { type: 'string' },
+      },
+    },
   })
   async ensureTenant(
     @Headers('x-internal-token') internalToken: string | undefined,
-    @Body() body: EnsureTenantRequestDto,
-  ): Promise<EnsureTenantResponseDto> {
+    @Body() body: { organizationId: string },
+  ): Promise<{ success: boolean; securityEnabled: boolean; message: string }> {
     // Validate internal service token
     if (!this.internalServiceToken) {
       // Token not configured - allow in dev mode but log warning
@@ -419,14 +420,21 @@ export class AnalyticsController {
       throw new BadRequestException('organizationId cannot be empty');
     }
 
-    // Always ensure index templates and seed indices exist. When security mode is
-    // disabled, ensureTenantExists still provisions mappings but skips security-plugin
-    // resources (tenant/role/role-mapping/index-pattern).
+    // Check if security mode is enabled
+    if (!this.openSearchTenantService.isSecurityEnabled()) {
+      return {
+        success: true,
+        securityEnabled: false,
+        message: 'Security mode disabled, tenant provisioning skipped',
+      };
+    }
+
+    // Provision tenant resources
     const success = await this.openSearchTenantService.ensureTenantExists(orgId);
 
     return {
       success,
-      securityEnabled: this.openSearchTenantService.isSecurityEnabled(),
+      securityEnabled: true,
       message: success
         ? `Tenant provisioned for ${orgId}`
         : `Failed to provision tenant for ${orgId}`,

@@ -1,5 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs';
-
 import { Client } from '@opensearch-project/opensearch';
 import type { IScopedTraceService } from '@shipsec/component-sdk';
 
@@ -78,8 +76,6 @@ export class OpenSearchIndexer {
     const url = process.env.OPENSEARCH_URL;
     const username = process.env.OPENSEARCH_USERNAME;
     const password = process.env.OPENSEARCH_PASSWORD;
-    const caCertPath = process.env.OPENSEARCH_CA_CERT_PATH || '';
-    const rejectUnauthorized = process.env.OPENSEARCH_SSL_REJECT_UNAUTHORIZED !== 'false';
 
     // OpenSearch Dashboards URL for index pattern management
     this.dashboardsUrl = process.env.OPENSEARCH_DASHBOARDS_URL || null;
@@ -94,8 +90,6 @@ export class OpenSearchIndexer {
 
     if (url) {
       try {
-        const ca =
-          caCertPath && existsSync(caCertPath) ? readFileSync(caCertPath, 'utf8') : undefined;
         this.client = new Client({
           node: url,
           ...(username &&
@@ -106,8 +100,7 @@ export class OpenSearchIndexer {
               },
             }),
           ssl: {
-            ca,
-            rejectUnauthorized,
+            rejectUnauthorized: process.env.NODE_ENV === 'production',
           },
         });
         this.enabled = true;

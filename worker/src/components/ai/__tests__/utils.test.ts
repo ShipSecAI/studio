@@ -13,12 +13,9 @@ describe('LiteLLM org key helpers', () => {
   });
 
   test('fetchOrgVirtualKey sends the org ID as an internal header', async () => {
-    const fetchMock = vi.fn(async (input: unknown) => {
-      expect(input).toBeInstanceOf(Request);
-      const request = input as Request;
-
-      expect(request.url).toBe('http://backend.local/api/v1/internal/billing/litellm-key');
-      expect(Object.fromEntries(request.headers.entries())).toMatchObject({
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      expect(String(input)).toBe('http://backend.local/api/v1/internal/billing/litellm-key');
+      expect(init?.headers).toMatchObject({
         'x-internal-token': 'internal-token',
         'x-organization-id': 'org-123',
       });
@@ -38,10 +35,7 @@ describe('LiteLLM org key helpers', () => {
 
   test('fetchOrgVirtualKey accepts a backend origin and normalizes it to /api/v1', async () => {
     const fetchMock = vi.fn(async (input: unknown) => {
-      expect(input).toBeInstanceOf(Request);
-      const request = input as Request;
-
-      expect(request.url).toBe('http://backend.local:3711/api/v1/internal/billing/litellm-key');
+      expect(String(input)).toBe('http://backend.local:3711/api/v1/internal/billing/litellm-key');
       return new Response(JSON.stringify({ virtualKey: 'sk-org-123' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

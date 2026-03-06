@@ -176,13 +176,7 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
         lastSeqRef.current = seq;
       }
 
-      const generation = Number(
-        chunk.generationId ??
-          (chunk.data && typeof chunk.data === 'object'
-            ? (chunk.data as Record<string, unknown>).generationId
-            : undefined) ??
-          0,
-      );
+      const generation = Number(chunk.generationId ?? (chunk.data as any)?.generationId ?? 0);
       if (Number.isFinite(generation) && generation > 0) {
         if (generation < activeGenerationRef.current) {
           return;

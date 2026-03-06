@@ -1,5 +1,5 @@
-import { createZodDto } from 'nestjs-zod';
-import { z } from 'zod';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsInt, Min, Max, IsOptional } from 'class-validator';
 import type { SubscriptionTier } from '../../database/schema/organization-settings';
 
 export type { SubscriptionTier };
@@ -11,20 +11,66 @@ export const TIER_LIMITS: Record<SubscriptionTier, { name: string; maxRetentionD
   enterprise: { name: 'Enterprise', maxRetentionDays: 365 },
 };
 
-export const AnalyticsSettingsResponseSchema = z.object({
-  organizationId: z.string(),
-  subscriptionTier: z.enum(['free', 'pro', 'team', 'enterprise']),
-  analyticsRetentionDays: z.number(),
-  maxRetentionDays: z.number(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-});
+export class AnalyticsSettingsResponseDto {
+  @ApiProperty({
+    description: 'Organization ID',
+    example: 'org_abc123',
+  })
+  organizationId!: string;
 
-export class AnalyticsSettingsResponseDto extends createZodDto(AnalyticsSettingsResponseSchema) {}
+  @ApiProperty({
+    description: 'Subscription tier',
+    enum: ['free', 'pro', 'team', 'enterprise'],
+    example: 'free',
+  })
+  subscriptionTier!: SubscriptionTier;
 
-export const UpdateAnalyticsSettingsSchema = z.object({
-  analyticsRetentionDays: z.number().int().min(1).max(365).optional(),
-  subscriptionTier: z.enum(['free', 'pro', 'team', 'enterprise']).optional(),
-});
+  @ApiProperty({
+    description: 'Data retention period in days',
+    example: 30,
+  })
+  analyticsRetentionDays!: number;
 
-export class UpdateAnalyticsSettingsDto extends createZodDto(UpdateAnalyticsSettingsSchema) {}
+  @ApiProperty({
+    description: 'Maximum retention days allowed for this tier',
+    example: 30,
+  })
+  maxRetentionDays!: number;
+
+  @ApiProperty({
+    description: 'Timestamp when settings were created',
+    example: '2026-01-20T00:00:00.000Z',
+  })
+  createdAt!: Date;
+
+  @ApiProperty({
+    description: 'Timestamp when settings were last updated',
+    example: '2026-01-20T00:00:00.000Z',
+  })
+  updatedAt!: Date;
+}
+
+export class UpdateAnalyticsSettingsDto {
+  @ApiProperty({
+    description: 'Data retention period in days (must be within tier limits)',
+    example: 30,
+    minimum: 1,
+    maximum: 365,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  analyticsRetentionDays?: number;
+
+  // Optional: allow updating subscription tier (if needed in the future)
+  @ApiProperty({
+    description: 'Subscription tier (optional - usually set by billing system)',
+    enum: ['free', 'pro', 'team', 'enterprise'],
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(['free', 'pro', 'team', 'enterprise'])
+  subscriptionTier?: SubscriptionTier;
+}

@@ -140,15 +140,6 @@ export interface AsmAssetHit {
   [key: string]: unknown;
 }
 
-type SearchQueryValue =
-  | string
-  | number
-  | boolean
-  | null
-  | SearchQueryValue[]
-  | { [key: string]: SearchQueryValue };
-type SearchQueryClause = Record<string, SearchQueryValue>;
-
 export function useAsmAssetsFromOpenSearch(filters: {
   scanner?: string[];
   search?: string;
@@ -158,7 +149,7 @@ export function useAsmAssetsFromOpenSearch(filters: {
   return useQuery({
     queryKey: queryKeys.asm.assets(filters),
     queryFn: async () => {
-      const must: SearchQueryClause[] = [
+      const must: Record<string, unknown>[] = [
         { terms: { scanner: filters.scanner ?? ['dnsx', 'httpx'] } },
       ];
       if (filters.search) {
@@ -200,9 +191,9 @@ export function useAsmScans(options?: {
   domainId?: string;
 }) {
   const filters = options ?? {};
-  return useQuery({
+  return useQuery<{ runs: unknown[]; total?: number }>({
     queryKey: queryKeys.asm.scans(filters),
-    queryFn: () => api.asm.listScans(options),
+    queryFn: () => api.asm.listScans(options) as Promise<{ runs: unknown[]; total?: number }>,
     staleTime: 30_000,
   });
 }

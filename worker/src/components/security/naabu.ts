@@ -353,7 +353,6 @@ const definition = defineComponent({
         targetFile: `${CONTAINER_INPUT_DIR}/${TARGETS_FILE_NAME}`,
         ...effectiveOptions,
       });
-      naabuArgs.push('-o', `${CONTAINER_INPUT_DIR}/naabu-output.jsonl`);
 
       const runnerConfig: DockerRunnerConfig = {
         kind: 'docker',
@@ -364,26 +363,28 @@ const definition = defineComponent({
         stdinJson: false,
         // Pass naabu CLI args directly (image default entrypoint is naabu)
         command: [...(baseRunner.command ?? []), ...naabuArgs],
-        expectOutputFile: false, // Output is read from volume, not /shipsec-output/result.json
-        volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, false)],
+        volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
       };
 
       try {
-        await runComponentWithRunner(runnerConfig, async () => ({}) as Output, {}, context);
-        rawOutput = (await volume.readFiles(['naabu-output.jsonl']))['naabu-output.jsonl'] ?? '';
+        const result = await runComponentWithRunner(
+          runnerConfig,
+          async () => ({}) as Output,
+          {},
+          context,
+        );
+        rawOutput = typeof result === 'string' ? result : '';
       } catch (error) {
         // Naabu can exit non-zero when some probes fail,
         // but may still have produced valid output. Preserve partial results.
         if (error instanceof ContainerError) {
           const details = (error as any).details as Record<string, unknown> | undefined;
-          const capturedOutput =
-            (await volume.readFiles(['naabu-output.jsonl']))['naabu-output.jsonl'] ??
-            (typeof details?.stdout === 'string' ? details.stdout : '');
-          if (capturedOutput.trim().length > 0) {
+          const capturedStdout = details?.stdout;
+          if (typeof capturedStdout === 'string' && capturedStdout.trim().length > 0) {
             context.logger.warn(
               `[Naabu] Container exited non-zero but produced output. Preserving partial results.`,
             );
-            rawOutput = capturedOutput;
+            rawOutput = capturedStdout;
           } else {
             throw error;
           }

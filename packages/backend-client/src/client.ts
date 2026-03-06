@@ -900,22 +900,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/onboarding/preferences": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OnboardingController_getPreferences"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["OnboardingController_updatePreferences"];
-        trace?: never;
-    };
     "/api/v1/components": {
         parameters: {
             query?: never;
@@ -2750,86 +2734,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/asset-discovery/internal/sync-runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_createSyncRun"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/internal/assets/reconcile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_reconcileAssets"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/internal/sync-runs/{id}/scopes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_persistSyncRunScopes"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/internal/assets/mark-stale": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_markStaleAssets"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/internal/sync-runs/{id}/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_updateSyncRunStatus"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/chat/sessions": {
         parameters: {
             query?: never;
@@ -3010,23 +2914,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        AgentPartsResponseDto: {
-            agentRunId: string;
-            workflowRunId: string;
-            nodeRef: string;
-            cursor: number;
-            parts: {
-                sequence: number;
-                /** Format: date-time */
-                timestamp: string;
-                chunk: {
-                    [key: string]: unknown;
-                };
-            }[];
-        };
-        AgentChatRequestDto: {
-            cursor?: number;
-        };
         CreateWorkflowRequestDto: {
             id?: string;
             name: string;
@@ -3270,128 +3157,6 @@ export interface components {
             icon?: string | null;
             iconColor?: string | null;
         };
-        WorkflowSummaryResponseDto: {
-            /** Format: uuid */
-            id: string;
-            name: string;
-            description: string | null;
-            icon: string | null;
-            iconColor: string | null;
-            organizationId: string | null;
-            isSystem: boolean;
-            /** Format: uuid */
-            templateId: string | null;
-            /** Format: date-time */
-            lastRun: string | null;
-            /** @enum {string|null} */
-            latestRunStatus: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN" | "AWAITING_INPUT" | "STALE" | null;
-            runCount: number;
-            nodeCount: number;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        RunActivityResponseDto: {
-            totalRuns: number;
-            activity: {
-                date: string;
-                count: number;
-            }[];
-        };
-        RunListResponseDto: {
-            runs: {
-                id: string;
-                workflowId: string;
-                organizationId: string;
-                /** @enum {string} */
-                status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
-                /** Format: date-time */
-                startTime: string;
-                /** Format: date-time */
-                endTime: string | null;
-                temporalRunId: string;
-                workflowVersionId: string | null;
-                workflowVersion: number | null;
-                workflowName: string;
-                eventCount: number;
-                nodeCount: number;
-                duration: number;
-                /** @enum {string} */
-                triggerType: "manual" | "schedule" | "api";
-                triggerSource: string | null;
-                triggerLabel: string | null;
-                inputPreview?: {
-                    runtimeInputs?: {
-                        [key: string]: unknown;
-                    };
-                    nodeOverrides?: {
-                        [key: string]: {
-                            /** @default {} */
-                            params: {
-                                [key: string]: unknown;
-                            };
-                            /** @default {} */
-                            inputOverrides: {
-                                [key: string]: unknown;
-                            };
-                        };
-                    };
-                };
-            }[];
-        };
-        RunDetailDto: {
-            id: string;
-            workflowId: string;
-            organizationId: string;
-            /** @enum {string} */
-            status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
-            /** Format: date-time */
-            startTime: string;
-            /** Format: date-time */
-            endTime: string | null;
-            temporalRunId: string | null;
-            workflowVersionId: string | null;
-            workflowVersion: number | null;
-            workflowName: string;
-            eventCount: number;
-            nodeCount: number;
-            duration: number;
-            /** @enum {string} */
-            triggerType: "manual" | "schedule" | "api";
-            triggerSource: string | null;
-            triggerLabel: string | null;
-            inputPreview?: {
-                runtimeInputs?: {
-                    [key: string]: unknown;
-                };
-                nodeOverrides?: {
-                    [key: string]: {
-                        /** @default {} */
-                        params: {
-                            [key: string]: unknown;
-                        };
-                        /** @default {} */
-                        inputOverrides: {
-                            [key: string]: unknown;
-                        };
-                    };
-                };
-            };
-        };
-        ChildRunListResponseDto: {
-            runs: {
-                runId: string;
-                workflowId: string;
-                workflowName: string;
-                parentNodeRef: string | null;
-                status: string;
-                /** Format: date-time */
-                startedAt: string;
-                /** Format: date-time */
-                completedAt: string | null;
-            }[];
-        };
         WorkflowRuntimeInputsResponseDto: {
             workflowId: string;
             inputs: {
@@ -3484,20 +3249,6 @@ export interface components {
             };
             createdAt: string;
         };
-        CommitResponseDto: {
-            title: string;
-            description: string | null;
-            entrypoint: {
-                ref: string;
-            };
-            actions: {
-                ref: string;
-                componentId: string;
-                params?: {
-                    [key: string]: unknown;
-                };
-            }[];
-        };
         RunWorkflowRequestDto: {
             inputs?: {
                 [key: string]: unknown;
@@ -3505,132 +3256,6 @@ export interface components {
             /** Format: uuid */
             versionId?: string;
             version?: number;
-        };
-        RunExecutionResponseDto: {
-            /** @description Temporal workflow identifier */
-            runId: string;
-            /** @description Workflow record id */
-            workflowId: string;
-            /** @description Temporal first execution run id */
-            temporalRunId: string;
-            /** @description Temporal task queue used for execution */
-            taskQueue: string;
-            /** @description Workflow version identifier used for execution */
-            workflowVersionId: string;
-            /** @description Workflow version number used for execution */
-            workflowVersion: number;
-            /** @enum {string} */
-            status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
-        };
-        WorkflowRunStatusDto: {
-            runId: string;
-            workflowId: string;
-            /** @enum {string} */
-            status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN" | "AWAITING_INPUT" | "STALE";
-            /** Format: date-time */
-            startedAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-            /** Format: date-time */
-            completedAt?: string;
-            taskQueue: string;
-            historyLength: number;
-            progress?: {
-                completedActions: number;
-                totalActions: number;
-            };
-            failure?: {
-                reason: string;
-                temporalCode?: string;
-                details?: {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        RunConfigDto: {
-            runId: string;
-            workflowId: string;
-            workflowVersionId: string | null;
-            workflowVersion: number | null;
-            inputs: {
-                [key: string]: unknown;
-            };
-        };
-        TraceEnvelopeDto: {
-            runId: string;
-            events: {
-                id: string;
-                runId: string;
-                nodeId: string;
-                /** @enum {string} */
-                type: "STARTED" | "PROGRESS" | "COMPLETED" | "FAILED";
-                /** @enum {string} */
-                level: "info" | "warn" | "error" | "debug";
-                /** Format: date-time */
-                timestamp: string;
-                message: string | null;
-                error?: {
-                    message: string;
-                    stack: string;
-                    code: string;
-                    type: string;
-                    details?: {
-                        [key: string]: unknown;
-                    };
-                    fieldErrors?: {
-                        [key: string]: string[];
-                    };
-                } | null;
-                outputSummary?: {
-                    [key: string]: unknown;
-                } | null;
-                data?: {
-                    [key: string]: unknown;
-                } | null;
-                metadata?: {
-                    activityId: string;
-                    attempt: number;
-                    correlationId: string;
-                    streamId: string;
-                    /** @enum {string} */
-                    joinStrategy: "all" | "any" | "first";
-                    triggeredBy: string;
-                    failure?: {
-                        /** Format: date-time */
-                        at: string;
-                        reason: {
-                            message: string;
-                            name: string;
-                        };
-                    } | null;
-                    retryPolicy?: {
-                        maxAttempts: number;
-                        initialIntervalSeconds: number;
-                        maximumIntervalSeconds: number;
-                        backoffCoefficient: number;
-                        nonRetryableErrorTypes: string[];
-                    } | null;
-                } | null;
-            }[];
-            cursor: string | null;
-        };
-        DataFlowEnvelopeDto: {
-            runId: string;
-            packets: {
-                id: string;
-                runId: string;
-                sourceNode: string;
-                targetNode: string;
-                inputKey: string | null;
-                payload: {
-                    [key: string]: unknown;
-                } | null;
-                timestamp: number;
-                visualTime: number;
-                size: number;
-                /** @enum {string} */
-                type: "file" | "json" | "text" | "binary";
-            }[];
         };
         RunArtifactsResponseDto: {
             runId: string;
@@ -3672,86 +3297,6 @@ export interface components {
                 organizationId?: string | null;
                 /** Format: date-time */
                 createdAt: string;
-            }[];
-        };
-        NodeIOListResponseDto: {
-            runId: string;
-            nodes: {
-                nodeRef: string;
-                componentId: string;
-                /** @enum {string} */
-                status: "running" | "completed" | "failed" | "skipped";
-                /** Format: date-time */
-                startedAt: string | null;
-                /** Format: date-time */
-                completedAt: string | null;
-                durationMs: number | null;
-                inputs: {
-                    [key: string]: unknown;
-                } | null;
-                outputs: {
-                    [key: string]: unknown;
-                } | null;
-                inputsSize: number;
-                outputsSize: number;
-                inputsSpilled: boolean;
-                outputsSpilled: boolean;
-                errorMessage: string | null;
-            }[];
-        };
-        NodeIODetailDto: {
-            nodeRef: string;
-            componentId: string;
-            /** @enum {string} */
-            status: "running" | "completed" | "failed" | "skipped";
-            /** Format: date-time */
-            startedAt: string | null;
-            /** Format: date-time */
-            completedAt: string | null;
-            durationMs: number | null;
-            inputs: {
-                [key: string]: unknown;
-            } | null;
-            outputs: {
-                [key: string]: unknown;
-            } | null;
-            inputsSize: number;
-            outputsSize: number;
-            inputsSpilled: boolean;
-            outputsSpilled: boolean;
-            errorMessage: string | null;
-            inputsTruncated: boolean;
-            outputsTruncated: boolean;
-        };
-        LogsResponseDto: {
-            runId: string;
-            logs: {
-                id: string;
-                runId: string;
-                nodeId: string;
-                /** @enum {string} */
-                level: "debug" | "info" | "warn" | "error";
-                message: string;
-                /** Format: date-time */
-                timestamp: string;
-            }[];
-            totalCount: number;
-            hasMore: boolean;
-            nextCursor: string | null;
-        };
-        TerminalChunksResponseDto: {
-            runId: string;
-            cursor: string;
-            chunks: {
-                nodeRef: string;
-                stream: string;
-                chunkIndex: number;
-                payload: string;
-                /** Format: date-time */
-                recordedAt: string;
-                deltaMs: number;
-                origin?: string;
-                runnerKind?: string;
             }[];
         };
         TerminalArchiveRequestDto: {
@@ -3821,50 +3366,6 @@ export interface components {
             parentRunId?: string;
             parentNodeRef?: string;
         };
-        PrepareRunResponseDto: {
-            /** Format: uuid */
-            runId: string;
-            /** Format: uuid */
-            workflowId: string;
-            /** Format: uuid */
-            workflowVersionId: string;
-            workflowVersion: number;
-            organizationId: string | null;
-            definition: {
-                [key: string]: unknown;
-            };
-            inputs: {
-                [key: string]: unknown;
-            };
-            trigger: {
-                /** @enum {string} */
-                type: "manual" | "schedule" | "api" | "webhook";
-                sourceId?: string | null;
-                label?: string | null;
-            };
-            inputPreview?: {
-                [key: string]: unknown;
-            };
-        };
-        FileUploadResponseDto: {
-            /** Format: uuid */
-            id: string;
-            fileName: string;
-            mimeType: string;
-            size: number;
-            storageKey: string;
-            /** Format: date-time */
-            uploadedAt: string;
-        };
-        FileListItemDto: {
-            /** Format: uuid */
-            id: string;
-            fileName: string;
-            mimeType: string;
-            size: number;
-            /** Format: date-time */
-            uploadedAt: string;
-        };
         ArtifactListResponseDto: {
             artifacts: {
                 /** Format: uuid */
@@ -3907,101 +3408,103 @@ export interface components {
             }[];
         };
         AnalyticsQueryRequestDto: {
-            /** @description OpenSearch DSL query object */
-            query?: {
-                [key: string]: unknown;
-            };
-            /** @description Number of results to return */
-            size?: number;
-            /** @description Offset for pagination */
-            from?: number;
-            /** @description OpenSearch aggregations object */
-            aggs?: {
-                [key: string]: unknown;
-            };
+            /**
+             * @description OpenSearch DSL query object
+             * @example {
+             *       "match_all": {}
+             *     }
+             */
+            query?: Record<string, never>;
+            /**
+             * @description Number of results to return
+             * @default 10
+             * @example 10
+             */
+            size: number;
+            /**
+             * @description Offset for pagination
+             * @default 0
+             * @example 0
+             */
+            from: number;
+            /**
+             * @description OpenSearch aggregations object
+             * @example {
+             *       "components": {
+             *         "terms": {
+             *           "field": "component_id"
+             *         }
+             *       }
+             *     }
+             */
+            aggs?: Record<string, never>;
             /** @description Sort specification */
-            sort?: {
-                [key: string]: unknown;
-            }[];
+            sort?: string[];
             /** @description Field collapsing specification for deduplication */
-            collapse?: {
-                [key: string]: unknown;
-            };
-            /** @description Query the deduplicated latest-state index instead of the event log */
-            useLatest?: boolean;
+            collapse?: Record<string, never>;
+            /**
+             * @description Query the deduplicated latest-state index instead of the event log
+             * @default false
+             */
+            useLatest: boolean;
         };
         AnalyticsQueryResponseDto: {
-            /** @description Total number of matching documents */
+            /**
+             * @description Total number of matching documents
+             * @example 100
+             */
             total: number;
-            hits: {
-                _id: string;
-                _source: {
-                    [key: string]: unknown;
-                };
-                _score?: number;
-            }[];
+            /** @description Search hits */
+            hits: Record<string, never>[];
             /** @description Aggregation results */
-            aggregations?: {
-                [key: string]: unknown;
-            };
+            aggregations?: Record<string, never>;
         };
         AnalyticsSettingsResponseDto: {
+            /**
+             * @description Organization ID
+             * @example org_abc123
+             */
             organizationId: string;
-            /** @enum {string} */
+            /**
+             * @description Subscription tier
+             * @example free
+             * @enum {string}
+             */
             subscriptionTier: "free" | "pro" | "team" | "enterprise";
+            /**
+             * @description Data retention period in days
+             * @example 30
+             */
             analyticsRetentionDays: number;
+            /**
+             * @description Maximum retention days allowed for this tier
+             * @example 30
+             */
             maxRetentionDays: number;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Timestamp when settings were created
+             * @example 2026-01-20T00:00:00.000Z
+             */
             createdAt: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Timestamp when settings were last updated
+             * @example 2026-01-20T00:00:00.000Z
+             */
             updatedAt: string;
         };
         UpdateAnalyticsSettingsDto: {
+            /**
+             * @description Data retention period in days (must be within tier limits)
+             * @example 30
+             */
             analyticsRetentionDays?: number;
-            /** @enum {string} */
+            /**
+             * @description Subscription tier (optional - usually set by billing system)
+             * @enum {string}
+             */
             subscriptionTier?: "free" | "pro" | "team" | "enterprise";
-        };
-        BatchRunSummariesRequestDto: {
-            runIds: string[];
-        };
-        BatchRunSummariesResponseDto: {
-            summaries: {
-                [key: string]: {
-                    critical: number;
-                    high: number;
-                    medium: number;
-                    low: number;
-                    info: number;
-                };
-            };
-        };
-        StorageUsageResponseDto: {
-            usedBytes: number;
-            documentCount: number;
-            indexCount: number;
-            opensearchEnabled: boolean;
-        };
-        PurgeDataResponseDto: {
-            deletedIndices: number;
-        };
-        ProwlerChecksMetadataResponseDto: {
-            [key: string]: {
-                checkTitle: string | null;
-                recommendation: string | null;
-                recommendationUrl: string | null;
-                cli: string | null;
-                nativeIaC: string | null;
-                terraform: string | null;
-                other: string | null;
-            };
-        };
-        EnsureTenantRequestDto: {
-            organizationId: string;
-        };
-        EnsureTenantResponseDto: {
-            success: boolean;
-            securityEnabled: boolean;
-            message: string;
         };
         ListAuditLogsResponseDto: {
             items: {
@@ -4018,7 +3521,7 @@ export interface components {
                 resourceId: string | null;
                 resourceName: string | null;
                 metadata: {
-                    [key: string]: (string | null) | (number | null) | (boolean | null);
+                    [key: string]: unknown;
                 } | null;
                 ip: string | null;
                 userAgent: string | null;
@@ -4236,345 +3739,133 @@ export interface components {
         DeleteApiKeyResponseDto: {
             success: boolean;
         };
+        BillingPlanSummaryDto: {
+            /** @example pro */
+            id: string;
+            /** @example Pro */
+            displayName: string;
+            /**
+             * @description Monthly price in USD cents
+             * @example 4900
+             */
+            priceUsdCents: number;
+        };
+        BillingPeriodDto: {
+            /** @example 2026-02-01T00:00:00.000Z */
+            start: string;
+            /** @example 2026-03-01T00:00:00.000Z */
+            end: string;
+        };
+        BillingMeterDto: {
+            /** @example 42 */
+            used: number;
+            /**
+             * @description -1 means unlimited
+             * @example 500
+             */
+            limit: number;
+            /**
+             * @description -1 means unlimited
+             * @example 458
+             */
+            remaining: number;
+        };
+        BillingAiUsageDto: {
+            /**
+             * @description USD spent via LiteLLM this period
+             * @example 12.5
+             */
+            spentUsd: number;
+            /**
+             * @description Budget in USD (-1 = unlimited)
+             * @example 50
+             */
+            budgetUsd: number;
+            /**
+             * @description Remaining budget (-1 = unlimited)
+             * @example 37.5
+             */
+            remainingUsd: number;
+        };
+        BillingLimitsDto: {
+            /**
+             * @description -1 means unlimited
+             * @example 3
+             */
+            maxConcurrentRuns: number;
+            /**
+             * @description -1 means unlimited
+             * @example -1
+             */
+            maxWorkflows: number;
+            /** @example 30 */
+            analyticsRetentionDays: number;
+        };
         BillingUsageResponseDto: {
+            /** @example org_abc123 */
             organizationId: string;
-            /** @enum {string} */
+            /**
+             * @example pro
+             * @enum {string}
+             */
             subscriptionTier: "free" | "pro" | "team" | "enterprise";
-            plan: {
-                id: string;
-                displayName: string;
-                /** @description Monthly price in USD cents */
-                priceUsdCents: number;
-            };
-            period: {
-                start: string;
-                end: string;
-            };
-            workflowRuns: {
-                used: number;
-                /** @description -1 means unlimited */
-                limit: number;
-                /** @description -1 means unlimited */
-                remaining: number;
-            };
-            ai: {
-                /** @description USD spent via LiteLLM this period */
-                spentUsd: number;
-                /** @description Budget in USD (-1 = unlimited) */
-                budgetUsd: number;
-                /** @description Remaining budget (-1 = unlimited) */
-                remainingUsd: number;
-            };
-            limits: {
-                /** @description -1 means unlimited */
-                maxConcurrentRuns: number;
-                /** @description -1 means unlimited */
-                maxWorkflows: number;
-                analyticsRetentionDays: number;
-            };
+            plan: components["schemas"]["BillingPlanSummaryDto"];
+            period: components["schemas"]["BillingPeriodDto"];
+            workflowRuns: components["schemas"]["BillingMeterDto"];
+            ai: components["schemas"]["BillingAiUsageDto"];
+            limits: components["schemas"]["BillingLimitsDto"];
         };
         SubscriptionPlanDto: {
+            /** @example pro */
             id: string;
+            /** @example Pro */
             displayName: string;
-            /** @description Monthly price in USD cents (0 = free or custom) */
+            /**
+             * @description Monthly price in USD cents (0 = free or custom)
+             * @example 4900
+             */
             priceUsdCents: number;
-            /** @description -1 means unlimited */
+            /**
+             * @description -1 means unlimited
+             * @example 500
+             */
             workflowRunsPerMonth: number;
-            /** @description AI budget in USD cents (-1 = unlimited) */
+            /**
+             * @description AI budget in USD cents (-1 = unlimited)
+             * @example 5000
+             */
             aiBudgetUsdCents: number;
-            /** @description -1 means unlimited */
+            /**
+             * @description -1 means unlimited
+             * @example 3
+             */
             maxConcurrentRuns: number;
+            /** @example 30 */
             analyticsRetentionDays: number;
-            /** @description -1 means unlimited */
+            /**
+             * @description -1 means unlimited
+             * @example -1
+             */
             maxWorkflows: number;
         };
-        LiteLLMKeyResponseDto: {
-            virtualKey: string | null;
-        };
-        OnboardingPreferencesDto: {
-            /** @description example: true */
-            appNavigationTourCompleted: boolean;
-            /** @description example: false */
-            workflowBuilderTourCompleted: boolean;
-        };
-        UpdateOnboardingPreferencesDto: {
-            /** @description example: true */
-            appNavigationTourCompleted?: boolean;
-            /** @description example: true */
-            workflowBuilderTourCompleted?: boolean;
-        };
-        ComponentListItemDto: {
+        SecretVersionResponse: {
             id: string;
-            slug: string;
-            name: string;
-            version: string;
-            /** @enum {string} */
-            type: "trigger" | "input" | "scan" | "process" | "output";
-            /** @enum {string} */
-            category: "input" | "transform" | "ai" | "mcp" | "security" | "scanners" | "it_ops" | "notification" | "manual_action" | "output" | "process" | "cloud" | "core";
-            categoryConfig: {
-                label: string;
-                color: string;
-                description: string;
-                emoji: string;
-                icon: string;
-            };
-            description: string;
-            documentation: string | null;
-            documentationUrl: string | null;
-            icon: string | null;
-            logo: string | null;
-            author: {
-                name: string;
-                /** @enum {string} */
-                type: "shipsecai" | "community";
-                url: string | null;
-            } | null;
-            isLatest: boolean | null;
-            deprecated: boolean | null;
-            example: string | null;
-            runner: {
-                /** @enum {string} */
-                kind: "inline" | "docker" | "remote";
-                image?: string | null;
-                command?: string[] | null;
-            };
-            inputs: {
-                id: string;
-                label: string;
-                connectionType: {
-                    /** @enum {string} */
-                    kind: "primitive" | "list" | "map" | "contract" | "any";
-                    name?: string | null;
-                    element?: {
-                        [key: string]: unknown;
-                    } | null;
-                    credential?: boolean | null;
-                } & {
-                    [key: string]: unknown;
-                };
-                /** @enum {string|null} */
-                editor?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret" | null;
-                required: boolean;
-                description?: string | null;
-                /** @enum {string|null} */
-                valuePriority?: "manual-first" | "connection-first" | null;
-            }[];
-            outputs: {
-                id: string;
-                label: string;
-                connectionType: {
-                    /** @enum {string} */
-                    kind: "primitive" | "list" | "map" | "contract" | "any";
-                    name?: string | null;
-                    element?: {
-                        [key: string]: unknown;
-                    } | null;
-                    credential?: boolean | null;
-                } & {
-                    [key: string]: unknown;
-                };
-                description?: string | null;
-                isBranching?: boolean | null;
-                /** @enum {string|null} */
-                branchColor?: "green" | "red" | "amber" | "blue" | "purple" | "slate" | null;
-            }[];
-            parameters: {
-                id: string;
-                label: string;
-                /** @enum {string} */
-                type: "text" | "textarea" | "number" | "boolean" | "toggle" | "select" | "multi-select" | "file" | "json" | "secret" | "artifact" | "variable-list" | "form-fields" | "selection-options";
-                required: boolean;
-                default?: unknown;
-                exposeToTool?: boolean | null;
-                placeholder?: string | null;
-                description?: string | null;
-                helpText?: string | null;
-                options?: {
-                    label: string;
-                    value: unknown;
-                }[] | null;
-                min?: number | null;
-                max?: number | null;
-                rows?: number | null;
-                visibleWhen?: {
-                    [key: string]: unknown;
-                } | null;
-            }[];
-            examples: string[];
-            toolProvider: {
-                /** @enum {string} */
-                kind: "component" | "mcp-server" | "mcp-group";
-                name: string;
-                description: string;
-            } | null;
-            toolSchema?: {
-                enabled: boolean;
-                toolName?: string | null;
-                toolDescription?: string | null;
-            } | null;
-        };
-        ComponentDetailDto: {
-            id: string;
-            slug: string;
-            name: string;
-            version: string;
-            /** @enum {string} */
-            type: "trigger" | "input" | "scan" | "process" | "output";
-            /** @enum {string} */
-            category: "input" | "transform" | "ai" | "mcp" | "security" | "scanners" | "it_ops" | "notification" | "manual_action" | "output" | "process" | "cloud" | "core";
-            categoryConfig: {
-                label: string;
-                color: string;
-                description: string;
-                emoji: string;
-                icon: string;
-            };
-            description: string;
-            documentation: string | null;
-            documentationUrl: string | null;
-            icon: string | null;
-            logo: string | null;
-            author: {
-                name: string;
-                /** @enum {string} */
-                type: "shipsecai" | "community";
-                url: string | null;
-            } | null;
-            isLatest: boolean | null;
-            deprecated: boolean | null;
-            example: string | null;
-            runner: {
-                /** @enum {string} */
-                kind: "inline" | "docker" | "remote";
-                image?: string | null;
-                command?: string[] | null;
-            };
-            inputs: {
-                id: string;
-                label: string;
-                connectionType: {
-                    /** @enum {string} */
-                    kind: "primitive" | "list" | "map" | "contract" | "any";
-                    name?: string | null;
-                    element?: {
-                        [key: string]: unknown;
-                    } | null;
-                    credential?: boolean | null;
-                } & {
-                    [key: string]: unknown;
-                };
-                /** @enum {string|null} */
-                editor?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret" | null;
-                required: boolean;
-                description?: string | null;
-                /** @enum {string|null} */
-                valuePriority?: "manual-first" | "connection-first" | null;
-            }[];
-            outputs: {
-                id: string;
-                label: string;
-                connectionType: {
-                    /** @enum {string} */
-                    kind: "primitive" | "list" | "map" | "contract" | "any";
-                    name?: string | null;
-                    element?: {
-                        [key: string]: unknown;
-                    } | null;
-                    credential?: boolean | null;
-                } & {
-                    [key: string]: unknown;
-                };
-                description?: string | null;
-                isBranching?: boolean | null;
-                /** @enum {string|null} */
-                branchColor?: "green" | "red" | "amber" | "blue" | "purple" | "slate" | null;
-            }[];
-            parameters: {
-                id: string;
-                label: string;
-                /** @enum {string} */
-                type: "text" | "textarea" | "number" | "boolean" | "toggle" | "select" | "multi-select" | "file" | "json" | "secret" | "artifact" | "variable-list" | "form-fields" | "selection-options";
-                required: boolean;
-                default?: unknown;
-                exposeToTool?: boolean | null;
-                placeholder?: string | null;
-                description?: string | null;
-                helpText?: string | null;
-                options?: {
-                    label: string;
-                    value: unknown;
-                }[] | null;
-                min?: number | null;
-                max?: number | null;
-                rows?: number | null;
-                visibleWhen?: {
-                    [key: string]: unknown;
-                } | null;
-            }[];
-            examples: string[];
-            toolProvider: {
-                /** @enum {string} */
-                kind: "component" | "mcp-server" | "mcp-group";
-                name: string;
-                description: string;
-            } | null;
-            toolSchema?: {
-                enabled: boolean;
-                toolName?: string | null;
-                toolDescription?: string | null;
-            } | null;
-            agentTool?: {
-                enabled: boolean;
-                toolName?: string | null;
-                toolDescription?: string | null;
-            } | null;
-        };
-        ResolvePortsRequestDto: {
-            [key: string]: (string | null) | (number | null) | (boolean | null) | (string[] | null) | (number[] | null) | (boolean[] | null);
-        };
-        ResolvePortsResponseDto: {
-            inputs: {
-                id: string;
-                label: string;
-                required?: boolean;
-                description?: string;
-                editor?: string;
-                valuePriority?: string;
-                connectionType: {
-                    kind: string;
-                    name?: string;
-                    credential?: boolean;
-                };
-            }[];
-            outputs: {
-                id: string;
-                label: string;
-                description?: string;
-                connectionType: {
-                    kind: string;
-                    name?: string;
-                    credential?: boolean;
-                };
-            }[];
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            createdBy?: string;
         };
         SecretSummaryResponse: {
             id: string;
             name: string;
-            description?: string | null;
-            tags?: string[] | null;
+            description?: string;
+            tags?: string[];
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
             /** @description Metadata about the active version (value is never returned) */
-            activeVersion?: {
-                id: string;
-                version: number;
-                /** Format: date-time */
-                createdAt: string;
-                createdBy?: string | null;
-            } | null;
+            activeVersion?: components["schemas"]["SecretVersionResponse"];
         };
         SecretValueResponse: {
             secretId: string;
@@ -4600,43 +3891,9 @@ export interface components {
             /** @description Updated secret name (must remain unique) */
             name?: string;
             /** @description Updated description for the secret */
-            description?: string | null;
+            description?: string;
             /** @description Updated tags for the secret */
-            tags?: string[] | null;
-        };
-        IntegrationCatalogEntryDto: {
-            id: string;
-            name: string;
-            description: string;
-            docsUrl?: string;
-            iconUrl?: string;
-            authMethods: {
-                type: string;
-                label: string;
-                description: string;
-                fields: {
-                    id: string;
-                    label: string;
-                    /** @enum {string} */
-                    type: "text" | "password" | "select";
-                    required: boolean;
-                    placeholder?: string;
-                    helpText?: string;
-                    options?: {
-                        label: string;
-                        value: string;
-                    }[];
-                }[];
-            }[];
-            supportsMultipleConnections: boolean;
-            setupInstructions: {
-                sections: {
-                    title: string;
-                    authMethodType: string;
-                    scenario: string;
-                    steps: string[];
-                }[];
-            };
+            tags?: string[];
         };
         IntegrationProviderResponse: {
             id: string;
@@ -4651,7 +3908,7 @@ export interface components {
         ProviderConfigurationResponse: {
             provider: string;
             /** @description Stored OAuth client identifier */
-            clientId?: string | null;
+            clientId?: string;
             /** @description True when a client secret has been stored for this provider */
             hasClientSecret: boolean;
             /**
@@ -4660,7 +3917,7 @@ export interface components {
              */
             configuredBy: "environment" | "user";
             /** @description Last update timestamp in ISO 8601 format */
-            updatedAt?: string | null;
+            updatedAt?: string;
         };
         UpsertProviderConfigDto: {
             /** @description OAuth client identifier used for this provider */
@@ -4678,10 +3935,10 @@ export interface components {
             organizationId?: string;
             scopes: string[];
             tokenType: string;
-            expiresAt?: string | null;
-            lastValidatedAt?: string | null;
-            lastValidationStatus?: string | null;
-            lastUsedAt?: string | null;
+            expiresAt?: string;
+            lastValidatedAt?: string;
+            lastValidationStatus?: string;
+            lastUsedAt?: string;
             createdAt: string;
             updatedAt: string;
             /** @enum {string} */
@@ -4689,15 +3946,10 @@ export interface components {
             supportsRefresh: boolean;
             hasRefreshToken: boolean;
             /** @description Provider-specific metadata saved alongside the connection */
-            metadata?: {
-                [key: string]: unknown;
-            };
+            metadata?: Record<string, never>;
         };
         StartOAuthDto: {
-            /**
-             * Format: uri
-             * @description Frontend callback URL that receives the OAuth code
-             */
+            /** @description Frontend callback URL that receives the OAuth code */
             redirectUri: string;
             /** @description Optional override of scopes to request */
             scopes?: string[];
@@ -4706,14 +3958,14 @@ export interface components {
             provider: string;
             authorizationUrl: string;
             state: string;
-            /** @description Suggested client-side TTL for the authorization URL */
+            /**
+             * @description Suggested client-side TTL for the authorization URL
+             * @example 300
+             */
             expiresIn: number;
         };
         CompleteOAuthDto: {
-            /**
-             * Format: uri
-             * @description Frontend callback URL that receives the OAuth code
-             */
+            /** @description Frontend callback URL that receives the OAuth code */
             redirectUri: string;
             /** @description Optional override of scopes to request */
             scopes?: string[];
@@ -4728,16 +3980,14 @@ export interface components {
             accessToken: string;
             tokenType: string;
             scopes: string[];
-            expiresAt?: string | null;
+            expiresAt?: string;
         };
         ConnectionCredentialsResponseDto: {
             /** @description Credential type discriminator */
             credentialType: string;
             provider: string;
             /** @description Type-specific credential data */
-            data: {
-                [key: string]: unknown;
-            };
+            data: Record<string, never>;
             /** @description Provider account identifier (e.g. AWS 12-digit account ID) */
             accountId?: string;
             /** @description Default region from the connection */
@@ -4770,13 +4020,14 @@ export interface components {
             arn?: string;
             error?: string;
         };
+        OrgAccountDto: {
+            id: string;
+            name: string;
+            status: string;
+            email?: string;
+        };
         DiscoverOrgAccountsResponseDto: {
-            accounts: {
-                id: string;
-                name: string;
-                status: string;
-                email?: string;
-            }[];
+            accounts: components["schemas"]["OrgAccountDto"][];
         };
         CreateSlackWebhookConnectionDto: {
             /** @description Display name for this webhook connection */
@@ -4878,10 +4129,6 @@ export interface components {
             };
             versionId?: string;
             version?: number;
-        };
-        WebhookDeliveryInboundResponseDto: {
-            status: string;
-            runId: string;
         };
         WebhookConfigurationResponseDto: {
             /** Format: uuid */
@@ -5274,48 +4521,8 @@ export interface components {
                 updatedAt: string;
             };
         };
-        GenerateMcpTokenRequestDto: {
-            runId: string;
-            organizationId?: string | null;
-            agentId?: string;
-            allowedNodeIds?: string[];
-        };
-        GenerateMcpTokenResponseDto: {
-            token: string;
-        };
         RegisterComponentToolInput: Record<string, never>;
-        RegisterComponentResponseDto: {
-            success: boolean;
-        };
         RegisterMcpServerInput: Record<string, never>;
-        RegisterMcpServerResponseDto: {
-            success: boolean;
-            toolCount: number;
-        };
-        CleanupRunRequestDto: {
-            runId: string;
-        };
-        CleanupRunResponseDto: {
-            containerIds: string[];
-        };
-        ToolsReadyRequestDto: {
-            runId: string;
-            requiredNodeIds: string[];
-        };
-        ToolsReadyResponseDto: {
-            ready: boolean;
-        };
-        RegisterGroupServerRequestDto: {
-            runId: string;
-            nodeId: string;
-            groupSlug: string;
-            serverId: string;
-        };
-        RegisterGroupServerResponseDto: {
-            command: string;
-            args?: string[];
-            endpoint?: string;
-        };
         DiscoveryInputDto: {
             /**
              * @description Transport type for MCP server
@@ -5467,433 +4674,6 @@ export interface components {
             error?: string;
             errorCode?: string;
         };
-        GitHubStatusResponseDto: {
-            configured: boolean;
-            installUrl: string | null;
-        };
-        GitHubInstallationDto: {
-            /** Format: uuid */
-            id: string;
-            installationId: number;
-            /** @enum {string} */
-            accountType: "Organization" | "User";
-            accountLogin: string;
-            accountId: number;
-            accountAvatarUrl: string | null;
-            /** @enum {string|null} */
-            repositorySelection: "all" | "selected" | null;
-            isActive: boolean;
-            organizationId: string;
-            createdAt: string;
-            updatedAt: string;
-        };
-        GitHubRepoDto: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            installationId: string;
-            repoId: number;
-            fullName: string;
-            name: string;
-            owner: string;
-            isPrivate: boolean;
-            defaultBranch: string | null;
-            description: string | null;
-            language: string | null;
-            htmlUrl: string | null;
-            starsCount: number;
-            forksCount: number;
-            scansEnabled: boolean;
-            lastSyncedAt: string | null;
-            createdAt: string;
-            updatedAt: string;
-        };
-        GitHubBranchDto: {
-            name: string;
-            isDefault: boolean;
-        };
-        ToggleRepoScansDto: {
-            enabled: boolean;
-        };
-        CompleteInstallationDto: {
-            installationId: number;
-            /** @enum {string} */
-            setupAction?: "install" | "update" | "request";
-        };
-        InstallationTokenResponseDto: {
-            token: string;
-        };
-        QuickScanWorkflowDto: {
-            /** Format: uuid */
-            id: string;
-            name: string;
-            slug: string | null;
-            /** Format: uuid */
-            templateId: string;
-        };
-        GitHubTriggerScanDto: {
-            /** Format: uuid */
-            workflowId: string;
-            branch?: string;
-            ref?: string;
-            prNumber?: number;
-        };
-        TriggerScanResponseDto: {
-            /** Format: uuid */
-            scanId: string;
-            runId: string;
-        };
-        SyncRepositoriesResponseDto: {
-            synced: number;
-        };
-        TriggerRuleDto: {
-            /** Format: uuid */
-            id: string;
-            name: string;
-            description: string | null;
-            repositoryPattern: string;
-            event: string;
-            actions: string[];
-            branches: string[];
-            /** Format: uuid */
-            workflowId: string;
-            postPrComment: boolean;
-            createCheckRun: boolean;
-            postPrReview: boolean;
-            failOn: string;
-            enabled: boolean;
-            priority: number;
-            organizationId: string;
-            createdBy: string | null;
-            createdAt: string;
-            updatedAt: string;
-        };
-        CreateTriggerRuleDto: {
-            name: string;
-            description?: string;
-            repositoryPattern: string;
-            /** @enum {string} */
-            event: "pull_request" | "push" | "release" | "repository_added";
-            /** @default [] */
-            actions: string[];
-            /** @default [] */
-            branches: string[];
-            /** Format: uuid */
-            workflowId: string;
-            /** @default true */
-            postPrComment: boolean;
-            /** @default true */
-            createCheckRun: boolean;
-            /** @default false */
-            postPrReview: boolean;
-            /**
-             * @default high
-             * @enum {string}
-             */
-            failOn: "critical" | "high" | "medium" | "low" | "info" | "none";
-            /** @default true */
-            enabled: boolean;
-            /** @default 100 */
-            priority: number;
-        };
-        UpdateTriggerRuleDto: {
-            name?: string;
-            description?: string;
-            repositoryPattern?: string;
-            /** @enum {string} */
-            event?: "pull_request" | "push" | "release" | "repository_added";
-            /** @default [] */
-            actions: string[];
-            /** @default [] */
-            branches: string[];
-            /** Format: uuid */
-            workflowId?: string;
-            /** @default true */
-            postPrComment: boolean;
-            /** @default true */
-            createCheckRun: boolean;
-            /** @default false */
-            postPrReview: boolean;
-            /**
-             * @default high
-             * @enum {string}
-             */
-            failOn: "critical" | "high" | "medium" | "low" | "info" | "none";
-            /** @default true */
-            enabled: boolean;
-            /** @default 100 */
-            priority: number;
-        };
-        GitHubScanResultDto: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            repositoryId: string;
-            workflowRunId: string;
-            /** @enum {string} */
-            sourceType: "pr" | "push" | "manual" | "schedule";
-            triggerType: string | null;
-            triggerSource: string | null;
-            triggerLabel: string | null;
-            scheduleId: string | null;
-            scheduleName: string | null;
-            prNumber: number | null;
-            branch: string | null;
-            commitSha: string | null;
-            /** @enum {string} */
-            status: "pending" | "running" | "success" | "failure" | "error";
-            summary: {
-                critical: number;
-                high: number;
-                medium: number;
-                low: number;
-                info: number;
-            };
-            findingsCount: number;
-            findings: {
-                id: string;
-                type: string;
-                /** @enum {string} */
-                severity: "critical" | "high" | "medium" | "low" | "info";
-                file: string;
-                line?: number;
-                endLine?: number;
-                message: string;
-                snippet?: string;
-                ruleId?: string;
-                category?: string;
-            }[];
-            checkRunId: number | null;
-            prCommentId: number | null;
-            prReviewId: number | null;
-            resultsUrl: string | null;
-            errorMessage: string | null;
-            /** Format: uuid */
-            triggerRuleId: string | null;
-            organizationId: string;
-            startedAt: string | null;
-            completedAt: string | null;
-            createdAt: string;
-            updatedAt: string;
-            workflowName: string | null;
-            workflowVersion: number | null;
-        };
-        WorkflowTemplateResponseDto: {
-            /** Format: uuid */
-            id: string;
-            name: string;
-            slug?: string | null;
-            description: string | null;
-            /** @enum {string} */
-            category: "code-security" | "cloud-security" | "attack-surface" | "notification";
-            graph: {
-                id?: string;
-                name: string;
-                description?: string;
-                nodes: {
-                    id: string;
-                    type: string;
-                    position: {
-                        x: number;
-                        y: number;
-                    };
-                    data: {
-                        label: string;
-                        /**
-                         * @default {
-                         *       "params": {},
-                         *       "inputOverrides": {}
-                         *     }
-                         */
-                        config: {
-                            /** @default {} */
-                            params: {
-                                [key: string]: unknown;
-                            };
-                            /** @default {} */
-                            inputOverrides: {
-                                [key: string]: unknown;
-                            };
-                            /** @enum {string} */
-                            joinStrategy?: "all" | "any" | "first";
-                            streamId?: string;
-                            groupId?: string;
-                            maxConcurrency?: number;
-                            /** @enum {string} */
-                            mode?: "normal" | "tool";
-                            toolConfig?: {
-                                /** @default [] */
-                                boundInputIds: string[];
-                                /** @default [] */
-                                exposedInputIds: string[];
-                            };
-                            connectedToolNodeIds?: string[];
-                        };
-                        dynamicInputs?: {
-                            [key: string]: unknown;
-                        }[];
-                        dynamicOutputs?: {
-                            [key: string]: unknown;
-                        }[];
-                    };
-                }[];
-                edges: {
-                    id: string;
-                    source: string;
-                    target: string;
-                    sourceHandle?: string;
-                    targetHandle?: string;
-                    /** @enum {string} */
-                    type?: "default" | "smoothstep" | "step" | "straight" | "bezier";
-                }[];
-                /**
-                 * @default {
-                 *       "x": 0,
-                 *       "y": 0,
-                 *       "zoom": 1
-                 *     }
-                 */
-                viewport: {
-                    x: number;
-                    y: number;
-                    zoom: number;
-                };
-            };
-            icon: string | null;
-            screenshotUrl?: string | null;
-            isFeatured?: boolean;
-            runCount?: number;
-            isDefault: boolean;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        CreateWorkflowTemplateRequestDto: {
-            name: string;
-            description?: string;
-            /** @enum {string} */
-            category: "code-security" | "cloud-security" | "attack-surface" | "notification";
-            graph: {
-                id?: string;
-                name: string;
-                description?: string;
-                nodes: {
-                    id: string;
-                    type: string;
-                    position: {
-                        x: number;
-                        y: number;
-                    };
-                    data: {
-                        label: string;
-                        /**
-                         * @default {
-                         *       "params": {},
-                         *       "inputOverrides": {}
-                         *     }
-                         */
-                        config: {
-                            /** @default {} */
-                            params: {
-                                [key: string]: unknown;
-                            };
-                            /** @default {} */
-                            inputOverrides: {
-                                [key: string]: unknown;
-                            };
-                            /** @enum {string} */
-                            joinStrategy?: "all" | "any" | "first";
-                            streamId?: string;
-                            groupId?: string;
-                            maxConcurrency?: number;
-                            /** @enum {string} */
-                            mode?: "normal" | "tool";
-                            toolConfig?: {
-                                /** @default [] */
-                                boundInputIds: string[];
-                                /** @default [] */
-                                exposedInputIds: string[];
-                            };
-                            connectedToolNodeIds?: string[];
-                        };
-                        dynamicInputs?: {
-                            [key: string]: unknown;
-                        }[];
-                        dynamicOutputs?: {
-                            [key: string]: unknown;
-                        }[];
-                    };
-                }[];
-                edges: {
-                    id: string;
-                    source: string;
-                    target: string;
-                    sourceHandle?: string;
-                    targetHandle?: string;
-                    /** @enum {string} */
-                    type?: "default" | "smoothstep" | "step" | "straight" | "bezier";
-                }[];
-                /**
-                 * @default {
-                 *       "x": 0,
-                 *       "y": 0,
-                 *       "zoom": 1
-                 *     }
-                 */
-                viewport: {
-                    x: number;
-                    y: number;
-                    zoom: number;
-                };
-            };
-            icon?: string;
-            isDefault?: boolean;
-        };
-        InstantiateWorkflowTemplateRequestDto: {
-            name?: string;
-        };
-        DeleteWorkflowTemplateResponseDto: {
-            /** @enum {boolean} */
-            success: true;
-        };
-        AsmDomainWithStatsDto: {
-            /** Format: uuid */
-            id: string;
-            organizationId: string;
-            domain: string;
-            scopeInclude: string[] | null;
-            scopeExclude: string[] | null;
-            monitoringEnabled: boolean;
-            frequency: string | null;
-            /** Format: date-time */
-            lastScanAt: string | null;
-            /** Format: date-time */
-            deletedAt: string | null;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-            assetCount: number;
-        };
-        AsmDomainDto: {
-            /** Format: uuid */
-            id: string;
-            organizationId: string;
-            domain: string;
-            scopeInclude: string[] | null;
-            scopeExclude: string[] | null;
-            monitoringEnabled: boolean;
-            frequency: string | null;
-            /** Format: date-time */
-            lastScanAt: string | null;
-            /** Format: date-time */
-            deletedAt: string | null;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
         CreateDomainDto: {
             domain: string;
             scopeInclude?: string[];
@@ -5901,575 +4681,17 @@ export interface components {
             /** @default false */
             scanNow: boolean;
         };
-        AsmDomainCreateResponseDto: {
-            /** Format: uuid */
-            id: string;
-            organizationId: string;
-            domain: string;
-            scopeInclude: string[] | null;
-            scopeExclude: string[] | null;
-            monitoringEnabled: boolean;
-            frequency: string | null;
-            /** Format: date-time */
-            lastScanAt: string | null;
-            /** Format: date-time */
-            deletedAt: string | null;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-            assetCount: number;
-            scanTriggered: boolean;
-            runId: string;
-        };
         UpdateDomainDto: {
             scopeInclude?: string[];
             scopeExclude?: string[];
-        };
-        AsmDeleteResponseDto: {
-            success: boolean;
         };
         TriggerScanDto: {
             /** @default sys-attack-surface-recon */
             templateSlug: string;
         };
-        AsmScanTriggerResponseDto: {
-            runId: string;
-            domain: string;
-        };
-        AsmAssetListResponseDto: {
-            assets: {
-                /** Format: uuid */
-                id: string;
-                organizationId: string;
-                /** Format: uuid */
-                domainId: string;
-                hostname: string;
-                type: string;
-                ipAddresses: string[] | null;
-                techStack: string[] | null;
-                ports: {
-                    port: number;
-                    protocol: string;
-                    service: string;
-                }[] | null;
-                riskScore: string | null;
-                dnsRecords: {
-                    [key: string]: unknown;
-                } | null;
-                tlsInfo: {
-                    [key: string]: unknown;
-                } | null;
-                /** Format: date-time */
-                firstSeen: string;
-                /** Format: date-time */
-                lastSeen: string;
-                metadata: {
-                    [key: string]: unknown;
-                } | null;
-            }[];
-            total: number;
-        };
-        AsmAssetDto: {
-            /** Format: uuid */
-            id: string;
-            organizationId: string;
-            /** Format: uuid */
-            domainId: string;
-            hostname: string;
-            type: string;
-            ipAddresses: string[] | null;
-            techStack: string[] | null;
-            ports: {
-                port: number;
-                protocol: string;
-                service: string;
-            }[] | null;
-            riskScore: string | null;
-            dnsRecords: {
-                [key: string]: unknown;
-            } | null;
-            tlsInfo: {
-                [key: string]: unknown;
-            } | null;
-            /** Format: date-time */
-            firstSeen: string;
-            /** Format: date-time */
-            lastSeen: string;
-            metadata: {
-                [key: string]: unknown;
-            } | null;
-        };
-        AsmScanListResponseDto: {
-            runs: {
-                id: string;
-                workflowId: string;
-                organizationId: string;
-                /** @enum {string} */
-                status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
-                /** Format: date-time */
-                startTime: string;
-                /** Format: date-time */
-                endTime: string | null;
-                temporalRunId: string;
-                workflowVersionId: string | null;
-                workflowVersion: number | null;
-                workflowName: string;
-                eventCount: number;
-                nodeCount: number;
-                duration: number;
-                /** @enum {string} */
-                triggerType: "manual" | "schedule" | "api";
-                triggerSource: string | null;
-                triggerLabel: string | null;
-                inputPreview?: {
-                    runtimeInputs?: {
-                        [key: string]: unknown;
-                    };
-                    nodeOverrides?: {
-                        [key: string]: {
-                            /** @default {} */
-                            params: {
-                                [key: string]: unknown;
-                            };
-                            /** @default {} */
-                            inputOverrides: {
-                                [key: string]: unknown;
-                            };
-                        };
-                    };
-                };
-            }[];
-            total: number;
-        };
-        AsmDashboardStatsDto: {
-            domains: number;
-            assets: number;
-        };
-        CloudAssetListResponseDto: {
-            assets: {
-                /** Format: uuid */
-                id: string;
-                organizationId: string;
-                /** Format: uuid */
-                integrationId: string | null;
-                provider: string;
-                accountIdentifier: string | null;
-                assetType: string;
-                externalId: string;
-                name: string | null;
-                region: string | null;
-                status: string;
-                metadata: {
-                    [key: string]: unknown;
-                } | null;
-                /** Format: date-time */
-                firstDiscoveredAt: string;
-                /** Format: date-time */
-                lastSeenAt: string;
-                /** Format: date-time */
-                createdAt: string;
-                /** Format: date-time */
-                updatedAt: string;
-            }[];
-            total: number;
-            page: number;
-            limit: number;
-        };
-        CloudAssetSummaryDto: {
-            totalAssets: number;
-            byType: {
-                assetType: string;
-                count: number;
-            }[];
-            byRegion: {
-                region: string;
-                count: number;
-            }[];
-            byStatus: {
-                status: string;
-                count: number;
-            }[];
-        };
-        CloudAssetDto: {
-            /** Format: uuid */
-            id: string;
-            organizationId: string;
-            /** Format: uuid */
-            integrationId: string | null;
-            provider: string;
-            accountIdentifier: string | null;
-            assetType: string;
-            externalId: string;
-            name: string | null;
-            region: string | null;
-            status: string;
-            metadata: {
-                [key: string]: unknown;
-            } | null;
-            /** Format: date-time */
-            firstDiscoveredAt: string;
-            /** Format: date-time */
-            lastSeenAt: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
         TriggerSyncDto: {
             /** Format: uuid */
             integrationId: string;
-        };
-        CloudSyncTriggerResponseDto: {
-            workflowId: string;
-        };
-        CloudSyncRunListResponseDto: {
-            syncRuns: {
-                /** Format: uuid */
-                id: string;
-                organizationId: string;
-                /** Format: uuid */
-                integrationId: string;
-                accountIdentifier: string | null;
-                temporalWorkflowId: string | null;
-                temporalRunId: string | null;
-                status: string;
-                coveredRegions: string[] | null;
-                assetsDiscovered: number | null;
-                assetsCreated: number | null;
-                assetsUpdated: number | null;
-                assetsStale: number | null;
-                errors: {
-                    message: string;
-                    timestamp: string;
-                }[] | null;
-                /** Format: date-time */
-                startedAt: string;
-                /** Format: date-time */
-                completedAt: string | null;
-                /** Format: date-time */
-                createdAt: string;
-            }[];
-            total: number;
-            page: number;
-            limit: number;
-        };
-        CloudSyncRunDto: {
-            /** Format: uuid */
-            id: string;
-            organizationId: string;
-            /** Format: uuid */
-            integrationId: string;
-            accountIdentifier: string | null;
-            temporalWorkflowId: string | null;
-            temporalRunId: string | null;
-            status: string;
-            coveredRegions: string[] | null;
-            assetsDiscovered: number | null;
-            assetsCreated: number | null;
-            assetsUpdated: number | null;
-            assetsStale: number | null;
-            errors: {
-                message: string;
-                timestamp: string;
-            }[] | null;
-            /** Format: date-time */
-            startedAt: string;
-            /** Format: date-time */
-            completedAt: string | null;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        CreateSyncRunRequestDto: {
-            /** Format: uuid */
-            integrationId: string;
-            accountIdentifier: string;
-            regions: string[];
-            temporalWorkflowId?: string;
-            temporalRunId?: string;
-        };
-        CreateSyncRunResponseDto: {
-            /** Format: uuid */
-            id: string;
-            organizationId: string;
-            /** Format: uuid */
-            integrationId: string;
-            accountIdentifier: string | null;
-            temporalWorkflowId: string | null;
-            temporalRunId: string | null;
-            status: string;
-            coveredRegions: string[] | null;
-            assetsDiscovered: number | null;
-            assetsCreated: number | null;
-            assetsUpdated: number | null;
-            assetsStale: number | null;
-            errors: {
-                message: string;
-                /** Format: date-time */
-                timestamp: string;
-            }[] | null;
-            /** Format: date-time */
-            startedAt: string;
-            /** Format: date-time */
-            completedAt: string | null;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        ReconcileAssetsRequestDto: {
-            /** Format: uuid */
-            integrationId: string;
-            accountIdentifier: string;
-            /** Format: uuid */
-            syncRunId: string;
-            assets: {
-                assetType: string;
-                externalId: string;
-                name: string;
-                region?: string;
-                metadata: {
-                    [key: string]: unknown;
-                };
-            }[];
-        };
-        ReconcileAssetsResponseDto: {
-            created: {
-                /** Format: uuid */
-                id: string;
-                assetType: string;
-                externalId: string;
-                name: string | null;
-                provider: string;
-                region: string | null;
-                accountIdentifier: string | null;
-            }[];
-            updated: {
-                /** Format: uuid */
-                id: string;
-                assetType: string;
-                externalId: string;
-                name: string | null;
-                provider: string;
-                region: string | null;
-                accountIdentifier: string | null;
-                changedFields: string[];
-            }[];
-            unchangedCount: number;
-        };
-        PersistSyncRunScopesRequestDto: {
-            scopes: {
-                assetType: string;
-                region: string;
-            }[];
-        };
-        PersistSyncRunScopesResponseDto: {
-            /** @enum {boolean} */
-            success: true;
-        };
-        MarkStaleAssetsRequestDto: {
-            /** Format: uuid */
-            integrationId: string;
-            accountIdentifier: string;
-            /** Format: uuid */
-            syncRunId: string;
-            /** Format: date-time */
-            syncStartTime: string;
-        };
-        MarkStaleAssetsResponseDto: {
-            newlyStale: {
-                /** Format: uuid */
-                id: string;
-                assetType: string;
-                externalId: string;
-                name: string | null;
-                provider: string;
-                region: string | null;
-                accountIdentifier: string | null;
-            }[];
-            newlyRemoved: {
-                /** Format: uuid */
-                id: string;
-                assetType: string;
-                externalId: string;
-                name: string | null;
-                provider: string;
-                region: string | null;
-                accountIdentifier: string | null;
-            }[];
-        };
-        UpdateSyncRunStatusRequestDto: {
-            status: string;
-            assetsDiscovered?: number;
-            assetsCreated?: number;
-            assetsUpdated?: number;
-            assetsStale?: number;
-            coveredRegions?: string[];
-            errors?: {
-                message: string;
-                /** Format: date-time */
-                timestamp: string;
-            }[];
-        };
-        UpdateSyncRunStatusResponseDto: {
-            /** Format: uuid */
-            id: string;
-            organizationId: string;
-            /** Format: uuid */
-            integrationId: string;
-            accountIdentifier: string | null;
-            temporalWorkflowId: string | null;
-            temporalRunId: string | null;
-            status: string;
-            coveredRegions: string[] | null;
-            assetsDiscovered: number | null;
-            assetsCreated: number | null;
-            assetsUpdated: number | null;
-            assetsStale: number | null;
-            errors: {
-                message: string;
-                /** Format: date-time */
-                timestamp: string;
-            }[] | null;
-            /** Format: date-time */
-            startedAt: string;
-            /** Format: date-time */
-            completedAt: string | null;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        CreateSessionDto: {
-            title?: string;
-        };
-        ChatSessionResponseDto: {
-            /** Format: uuid */
-            id: string;
-            title: string;
-            status: string;
-            /** @enum {string} */
-            processingStatus: "idle" | "processing" | "stopping";
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        UpdateSessionDto: {
-            title: string;
-        };
-        DeleteSessionResponseDto: {
-            /** @enum {boolean} */
-            success: true;
-        };
-        SubmitOperationDto: {
-            /** @enum {string} */
-            op: "UserTurn" | "Interrupt" | "SteerNow";
-            text?: string;
-            clientSubmissionId: string;
-            clientTurnHint?: string;
-        };
-        SubmitOperationResponseDto: {
-            submissionId: string;
-            /** @enum {string} */
-            op?: "UserTurn" | "Interrupt" | "SteerNow";
-            /** @enum {string} */
-            operation: "UserTurn" | "Interrupt" | "SteerNow";
-            /** Format: uuid */
-            turnId?: string | null;
-            /** Format: uuid */
-            interruptedTurnId?: string | null;
-            generationId?: number;
-            acceptedAtSeq: number;
-        };
-        ThreadHistoryResponseDto: {
-            messages: {
-                id: string;
-                /** @enum {string} */
-                role: "system" | "user" | "assistant" | "tool";
-                parts: {
-                    [key: string]: unknown;
-                }[];
-                /** Format: date-time */
-                createdAt?: string;
-            }[];
-            interruptionBoundaries: {
-                /** Format: uuid */
-                turnId: string;
-                beforeMessageIndex: number;
-            }[];
-            activeTurn: {
-                /** Format: uuid */
-                turnId: string;
-                status: string;
-                generationId: number | null;
-            } | null;
-            generationId: number;
-            activeGeneration: number;
-            pendingCount: number;
-            queue: {
-                /** Format: uuid */
-                turnId: string;
-                queuePosition: number;
-                status: string;
-                preview?: string | null;
-                /** Format: date-time */
-                queuedAt?: string | null;
-                /** Format: date-time */
-                startedAt?: string | null;
-                /** Format: date-time */
-                completedAt?: string | null;
-            }[];
-            queuedTurns: {
-                /** Format: uuid */
-                turnId: string;
-                queuePosition: number;
-                status: string;
-                preview?: string | null;
-                /** Format: date-time */
-                queuedAt?: string | null;
-                /** Format: date-time */
-                startedAt?: string | null;
-                /** Format: date-time */
-                completedAt?: string | null;
-            }[];
-            queueOrder: string[];
-            /** @enum {string} */
-            processingStatus: "idle" | "processing" | "stopping";
-            afterSeq: number;
-            lastSeq: number;
-        };
-        ChatEventsResponseDto: {
-            events: {
-                seq: number;
-                /** Format: uuid */
-                turnId: string;
-                /** Format: uuid */
-                runId: string | null;
-                generationId: string | null;
-                eventId: string;
-                chunk: {
-                    [key: string]: unknown;
-                };
-            }[];
-        };
-        AppendInternalEventDto: {
-            /** Format: uuid */
-            turnId: string;
-            /** Format: uuid */
-            runId?: string;
-            generationId?: string | number;
-            eventId: string;
-            chunk: {
-                [key: string]: unknown;
-            };
-        };
-        AppendInternalEventResponseDto: {
-            seq: number;
-        };
-        CompleteRunRequestDto: {
-            /** Format: uuid */
-            runId?: string;
-        };
-        RunCompletionResponseDto: {
-            /** @enum {boolean} */
-            success: true;
         };
     };
     responses: never;
@@ -6552,9 +4774,7 @@ export interface operations {
     };
     AgentsController_parts: {
         parameters: {
-            query?: {
-                cursor?: string;
-            };
+            query?: never;
             header?: never;
             path: {
                 agentRunId: string;
@@ -6568,9 +4788,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["AgentPartsResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -6583,11 +4801,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AgentChatRequestDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description AI SDK-compatible SSE for agent run */
             200: {
@@ -6745,7 +4959,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WorkflowSummaryResponseDto"][];
+                    "application/json": {
+                        /** Format: uuid */
+                        id?: string;
+                        name?: string;
+                        description?: string | null;
+                        icon?: string | null;
+                        iconColor?: string | null;
+                        isSystem?: boolean;
+                        /** Format: uuid */
+                        templateId?: string | null;
+                        /** Format: date-time */
+                        lastRun?: string | null;
+                        runCount?: number;
+                        nodeCount?: number;
+                        /** Format: date-time */
+                        createdAt?: string;
+                        /** Format: date-time */
+                        updatedAt?: string;
+                    }[];
                 };
             };
         };
@@ -6765,7 +4997,14 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunActivityResponseDto"];
+                    "application/json": {
+                        totalRuns?: number;
+                        activity?: {
+                            /** Format: date */
+                            date?: string;
+                            count?: number;
+                        }[];
+                    };
                 };
             };
         };
@@ -6793,7 +5032,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunListResponseDto"];
+                    "application/json": {
+                        runs?: {
+                            id?: string;
+                            workflowId?: string;
+                            organizationId?: string;
+                            /** @enum {string} */
+                            status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
+                            /** Format: date-time */
+                            startTime?: string;
+                            /** Format: date-time */
+                            endTime?: string | null;
+                            temporalRunId?: string;
+                            workflowVersionId?: string | null;
+                            workflowVersion?: number | null;
+                            workflowName?: string;
+                            eventCount?: number;
+                            nodeCount?: number;
+                            duration?: number;
+                            /** @enum {string} */
+                            triggerType?: "manual" | "schedule" | "api";
+                            triggerSource?: string | null;
+                            triggerLabel?: string | null;
+                            inputPreview?: {
+                                runtimeInputs?: {
+                                    [key: string]: unknown;
+                                };
+                                nodeOverrides?: {
+                                    [key: string]: {
+                                        [key: string]: unknown;
+                                    };
+                                };
+                            };
+                        }[];
+                    };
                 };
             };
         };
@@ -6815,7 +5087,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunDetailDto"];
+                    "application/json": {
+                        id?: string;
+                        workflowId?: string;
+                        organizationId?: string;
+                        /** @enum {string} */
+                        status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
+                        /** Format: date-time */
+                        startTime?: string;
+                        /** Format: date-time */
+                        endTime?: string | null;
+                        temporalRunId?: string | null;
+                        workflowVersionId?: string | null;
+                        workflowVersion?: number | null;
+                        workflowName?: string;
+                        eventCount?: number;
+                        nodeCount?: number;
+                        duration?: number;
+                        /** @enum {string} */
+                        triggerType?: "manual" | "schedule" | "api";
+                        triggerSource?: string | null;
+                        triggerLabel?: string | null;
+                        inputPreview?: {
+                            runtimeInputs?: {
+                                [key: string]: unknown;
+                            };
+                            nodeOverrides?: {
+                                [key: string]: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
                 };
             };
         };
@@ -6837,7 +5140,19 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ChildRunListResponseDto"];
+                    "application/json": {
+                        runs?: {
+                            runId?: string;
+                            workflowId?: string;
+                            workflowName?: string;
+                            parentNodeRef?: string | null;
+                            status?: string;
+                            /** Format: date-time */
+                            startedAt?: string;
+                            /** Format: date-time */
+                            completedAt?: string | null;
+                        }[];
+                    };
                 };
             };
         };
@@ -6903,7 +5218,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CommitResponseDto"];
+                    "application/json": {
+                        title?: string;
+                        description?: string | null;
+                        entrypoint?: {
+                            ref?: string;
+                        };
+                        actions?: {
+                            ref?: string;
+                            componentId?: string;
+                            params?: {
+                                [key: string]: unknown;
+                            };
+                            dependsOn?: string[];
+                        }[];
+                        config?: {
+                            environment?: string;
+                            timeoutSeconds?: number;
+                        };
+                    };
                 };
             };
         };
@@ -6929,7 +5262,22 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunExecutionResponseDto"];
+                    "application/json": {
+                        /** @description Temporal workflow identifier */
+                        runId?: string;
+                        /** @description Workflow record id */
+                        workflowId?: string;
+                        /** @description Temporal first execution run id */
+                        temporalRunId?: string;
+                        /** @description Temporal task queue used for execution */
+                        taskQueue?: string;
+                        /** @description Workflow version identifier used for execution */
+                        workflowVersionId?: string;
+                        /** @description Workflow version number used for execution */
+                        workflowVersion?: number;
+                        /** @enum {string} */
+                        status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
+                    };
                 };
             };
         };
@@ -6952,9 +5300,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["WorkflowRunStatusDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -6997,7 +5343,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunConfigDto"];
+                    "application/json": {
+                        runId?: string;
+                        workflowId?: string;
+                        workflowVersionId?: string | null;
+                        workflowVersion?: number | null;
+                        inputs?: {
+                            [key: string]: unknown;
+                        };
+                    };
                 };
             };
         };
@@ -7041,7 +5395,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TraceEnvelopeDto"];
+                    "application/json": {
+                        runId?: string;
+                        events?: {
+                            id?: string;
+                            runId?: string;
+                            nodeId?: string;
+                            /** @enum {string} */
+                            type?: "STARTED" | "PROGRESS" | "COMPLETED" | "FAILED";
+                            /** @enum {string} */
+                            level?: "info" | "warn" | "error" | "debug";
+                            /** Format: date-time */
+                            timestamp?: string;
+                            message?: string | null;
+                            error?: {
+                                message?: string;
+                                stack?: string;
+                                code?: string;
+                                type?: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                                fieldErrors?: {
+                                    [key: string]: string[];
+                                };
+                            } | null;
+                            outputSummary?: {
+                                [key: string]: unknown;
+                            } | null;
+                            data?: {
+                                [key: string]: unknown;
+                            } | null;
+                            metadata?: {
+                                activityId?: string;
+                                attempt?: number;
+                                correlationId?: string;
+                                streamId?: string;
+                                /** @enum {string} */
+                                joinStrategy?: "all" | "any" | "first";
+                                triggeredBy?: string;
+                                failure?: {
+                                    /** Format: date-time */
+                                    at?: string;
+                                    reason?: {
+                                        message?: string;
+                                        name?: string;
+                                    };
+                                } | null;
+                                retryPolicy?: {
+                                    maxAttempts?: number;
+                                    initialIntervalSeconds?: number;
+                                    maximumIntervalSeconds?: number;
+                                    backoffCoefficient?: number;
+                                    nonRetryableErrorTypes?: string[];
+                                } | null;
+                            } | null;
+                        }[];
+                        cursor?: string | null;
+                    };
                 };
             };
         };
@@ -7063,7 +5474,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TraceEnvelopeDto"];
+                    "application/json": {
+                        runId?: string;
+                        events?: {
+                            id?: string;
+                            runId?: string;
+                            nodeId?: string;
+                            /** @enum {string} */
+                            type?: "STARTED" | "PROGRESS" | "COMPLETED" | "FAILED";
+                            /** @enum {string} */
+                            level?: "info" | "warn" | "error" | "debug";
+                            /** Format: date-time */
+                            timestamp?: string;
+                            message?: string | null;
+                            error?: {
+                                message?: string;
+                                stack?: string;
+                                code?: string;
+                                type?: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                                fieldErrors?: {
+                                    [key: string]: string[];
+                                };
+                            } | null;
+                            outputSummary?: {
+                                [key: string]: unknown;
+                            } | null;
+                            data?: {
+                                [key: string]: unknown;
+                            } | null;
+                            metadata?: {
+                                activityId?: string;
+                                attempt?: number;
+                                correlationId?: string;
+                                streamId?: string;
+                                /** @enum {string} */
+                                joinStrategy?: "all" | "any" | "first";
+                                triggeredBy?: string;
+                                failure?: {
+                                    /** Format: date-time */
+                                    at?: string;
+                                    reason?: {
+                                        message?: string;
+                                        name?: string;
+                                    };
+                                } | null;
+                                retryPolicy?: {
+                                    maxAttempts?: number;
+                                    initialIntervalSeconds?: number;
+                                    maximumIntervalSeconds?: number;
+                                    backoffCoefficient?: number;
+                                    nonRetryableErrorTypes?: string[];
+                                } | null;
+                            } | null;
+                        }[];
+                        cursor?: string | null;
+                    };
                 };
             };
         };
@@ -7085,7 +5553,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DataFlowEnvelopeDto"];
+                    "application/json": {
+                        runId?: string;
+                        packets?: {
+                            id?: string;
+                            runId?: string;
+                            sourceNode?: string;
+                            targetNode?: string;
+                            inputKey?: string | null;
+                            payload?: {
+                                [key: string]: unknown;
+                            } | null;
+                            timestamp?: number;
+                            visualTime?: number;
+                            size?: number;
+                            /** @enum {string} */
+                            type?: "file" | "json" | "text" | "binary";
+                        }[];
+                    };
                 };
             };
         };
@@ -7150,7 +5635,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["NodeIOListResponseDto"];
+                    "application/json": {
+                        runId?: string;
+                        nodes?: {
+                            nodeRef?: string;
+                            componentId?: string;
+                            /** @enum {string} */
+                            status?: "running" | "completed" | "failed" | "skipped";
+                            /** Format: date-time */
+                            startedAt?: string | null;
+                            /** Format: date-time */
+                            completedAt?: string | null;
+                            durationMs?: number | null;
+                            inputs?: {
+                                [key: string]: unknown;
+                            } | null;
+                            outputs?: {
+                                [key: string]: unknown;
+                            } | null;
+                            inputsSize?: number;
+                            outputsSize?: number;
+                            inputsSpilled?: boolean;
+                            outputsSpilled?: boolean;
+                            errorMessage?: string | null;
+                        }[];
+                    };
                 };
             };
         };
@@ -7176,7 +5685,30 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["NodeIODetailDto"];
+                    "application/json": {
+                        nodeRef?: string;
+                        componentId?: string;
+                        /** @enum {string} */
+                        status?: "running" | "completed" | "failed" | "skipped";
+                        /** Format: date-time */
+                        startedAt?: string | null;
+                        /** Format: date-time */
+                        completedAt?: string | null;
+                        durationMs?: number | null;
+                        inputs?: {
+                            [key: string]: unknown;
+                        } | null;
+                        outputs?: {
+                            [key: string]: unknown;
+                        } | null;
+                        inputsSize?: number;
+                        outputsSize?: number;
+                        inputsSpilled?: boolean;
+                        outputsSpilled?: boolean;
+                        inputsTruncated?: boolean;
+                        outputsTruncated?: boolean;
+                        errorMessage?: string | null;
+                    };
                 };
             };
         };
@@ -7231,7 +5763,22 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LogsResponseDto"];
+                    "application/json": {
+                        runId?: string;
+                        logs?: {
+                            id?: string;
+                            runId?: string;
+                            nodeId?: string;
+                            /** @enum {string} */
+                            level?: "debug" | "info" | "warn" | "error";
+                            message?: string;
+                            /** Format: date-time */
+                            timestamp?: string;
+                        }[];
+                        totalCount?: number;
+                        hasMore?: boolean;
+                        nextCursor?: string | null;
+                    };
                 };
             };
         };
@@ -7258,9 +5805,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["TerminalChunksResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -7348,9 +5893,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["PrepareRunResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -7379,7 +5922,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FileUploadResponseDto"];
+                    "application/json": {
+                        /** Format: uuid */
+                        id?: string;
+                        fileName?: string;
+                        mimeType?: string;
+                        size?: number;
+                        storageKey?: string;
+                        /** Format: date-time */
+                        uploadedAt?: string;
+                    };
                 };
             };
         };
@@ -7401,7 +5953,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FileListItemDto"][];
+                    "application/json": {
+                        /** Format: uuid */
+                        id?: string;
+                        fileName?: string;
+                        mimeType?: string;
+                        size?: number;
+                        /** Format: date-time */
+                        uploadedAt?: string;
+                    }[];
                 };
             };
         };
@@ -7616,20 +6176,14 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchRunSummariesRequestDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Get severity counts for multiple run IDs */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["BatchRunSummariesResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -7648,7 +6202,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StorageUsageResponseDto"];
+                    "application/json": {
+                        usedBytes?: number;
+                        documentCount?: number;
+                        indexCount?: number;
+                        opensearchEnabled?: boolean;
+                    };
                 };
             };
         };
@@ -7668,7 +6227,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PurgeDataResponseDto"];
+                    "application/json": {
+                        deletedIndices?: number;
+                    };
                 };
             };
         };
@@ -7687,9 +6248,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ProwlerChecksMetadataResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -7702,11 +6261,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EnsureTenantRequestDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Ensure tenant resources exist for organization */
             200: {
@@ -7714,23 +6269,18 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EnsureTenantResponseDto"];
+                    "application/json": {
+                        success?: boolean;
+                        securityEnabled?: boolean;
+                        message?: string;
+                    };
                 };
             };
         };
     };
     AuditLogsController_list: {
         parameters: {
-            query?: {
-                resourceType?: string;
-                resourceId?: string;
-                action?: string;
-                actorId?: string;
-                from?: string;
-                to?: string;
-                limit?: number;
-                cursor?: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -7935,51 +6485,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["LiteLLMKeyResponseDto"];
-                };
-            };
-        };
-    };
-    OnboardingController_getPreferences: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OnboardingPreferencesDto"];
-                };
-            };
-        };
-    };
-    OnboardingController_updatePreferences: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateOnboardingPreferencesDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OnboardingPreferencesDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -7998,7 +6504,115 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ComponentListItemDto"][];
+                    "application/json": {
+                        /** @example core.file.loader */
+                        id?: string;
+                        /** @example file-loader */
+                        slug?: string;
+                        /** @example File Loader */
+                        name?: string;
+                        /** @example 1.0.0 */
+                        version?: string;
+                        /** @example input */
+                        type?: string;
+                        /** @example input */
+                        category?: string;
+                        categoryConfig?: {
+                            /** @example Input */
+                            label?: string;
+                            /** @example text-blue-600 */
+                            color?: string;
+                            /** @example Data sources, triggers, and credential access */
+                            description?: string;
+                            /** @example 📥 */
+                            emoji?: string;
+                            /** @example Download */
+                            icon?: string;
+                        };
+                        /** @example Load files from filesystem */
+                        description?: string;
+                        documentation?: string | null;
+                        documentationUrl?: string | null;
+                        /** @example FileUp */
+                        icon?: string;
+                        logo?: string | null;
+                        isLatest?: boolean | null;
+                        deprecated?: boolean | null;
+                        example?: string | null;
+                        author?: {
+                            name?: string;
+                            /** @enum {string} */
+                            type?: "shipsecai" | "community";
+                            url?: string | null;
+                        } | null;
+                        runner?: {
+                            /**
+                             * @example inline
+                             * @enum {string}
+                             */
+                            kind?: "inline" | "docker" | "remote";
+                            image?: string | null;
+                            command?: string[] | null;
+                        };
+                        inputs?: {
+                            id?: string;
+                            label?: string;
+                            connectionType?: {
+                                /** @enum {string} */
+                                kind: "primitive" | "list" | "map" | "contract" | "any";
+                                name?: string | null;
+                                element?: Record<string, never> | null;
+                                credential?: boolean | null;
+                            } & {
+                                [key: string]: unknown;
+                            };
+                            /** @enum {string|null} */
+                            editor?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret" | null;
+                            required?: boolean;
+                            description?: string | null;
+                            /** @enum {string|null} */
+                            valuePriority?: "manual-first" | "connection-first" | null;
+                        }[];
+                        outputs?: {
+                            id?: string;
+                            label?: string;
+                            connectionType?: {
+                                /** @enum {string} */
+                                kind: "primitive" | "list" | "map" | "contract" | "any";
+                                name?: string | null;
+                                element?: Record<string, never> | null;
+                                credential?: boolean | null;
+                            } & {
+                                [key: string]: unknown;
+                            };
+                            description?: string | null;
+                        }[];
+                        parameters?: {
+                            id?: string;
+                            label?: string;
+                            /** @enum {string} */
+                            type?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret";
+                            required?: boolean;
+                            default?: unknown;
+                            placeholder?: string | null;
+                            description?: string | null;
+                            helpText?: string | null;
+                            options?: {
+                                label?: string;
+                                value?: unknown;
+                            }[] | null;
+                            min?: number | null;
+                            max?: number | null;
+                            rows?: number | null;
+                        }[];
+                        examples?: string[];
+                        toolProvider?: {
+                            /** @enum {string} */
+                            kind?: "component" | "mcp-server" | "mcp-group";
+                            name?: string;
+                            description?: string;
+                        } | null;
+                    }[];
                 };
             };
         };
@@ -8020,7 +6634,74 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ComponentDetailDto"];
+                    "application/json": {
+                        id?: string;
+                        slug?: string;
+                        name?: string;
+                        version?: string;
+                        type?: string;
+                        category?: string;
+                        categoryConfig?: {
+                            label?: string;
+                            color?: string;
+                            description?: string;
+                            emoji?: string;
+                            icon?: string;
+                        };
+                        description?: string | null;
+                        documentation?: string | null;
+                        documentationUrl?: string | null;
+                        icon?: string | null;
+                        logo?: string | null;
+                        author?: {
+                            name?: string;
+                            type?: string;
+                            url?: string | null;
+                        } | null;
+                        runner?: Record<string, never>;
+                        inputs?: {
+                            id?: string;
+                            label?: string;
+                            connectionType?: {
+                                /** @enum {string} */
+                                kind: "primitive" | "list" | "map" | "contract" | "any";
+                                name?: string | null;
+                                element?: Record<string, never> | null;
+                                credential?: boolean | null;
+                            } & {
+                                [key: string]: unknown;
+                            };
+                            /** @enum {string|null} */
+                            editor?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret" | null;
+                            required?: boolean;
+                            description?: string | null;
+                            /** @enum {string|null} */
+                            valuePriority?: "manual-first" | "connection-first" | null;
+                        }[];
+                        outputs?: {
+                            id?: string;
+                            label?: string;
+                            connectionType?: {
+                                /** @enum {string} */
+                                kind: "primitive" | "list" | "map" | "contract" | "any";
+                                name?: string | null;
+                                element?: Record<string, never> | null;
+                                credential?: boolean | null;
+                            } & {
+                                [key: string]: unknown;
+                            };
+                            description?: string | null;
+                        }[];
+                        parameters?: unknown[];
+                        examples?: unknown[];
+                        deprecated?: boolean | null;
+                        example?: string | null;
+                        agentTool?: {
+                            enabled?: boolean;
+                            toolName?: string | null;
+                            toolDescription?: string | null;
+                        } | null;
+                    };
                 };
             };
         };
@@ -8034,20 +6715,14 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ResolvePortsRequestDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Resolve dynamic ports based on parameters */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ResolvePortsResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -8221,9 +6896,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["IntegrationCatalogEntryDto"][];
-                };
+                content?: never;
             };
         };
     };
@@ -8334,8 +7007,8 @@ export interface operations {
     };
     IntegrationsController_listOrgConnections: {
         parameters: {
-            query?: {
-                provider?: string;
+            query: {
+                provider: string;
             };
             header?: never;
             path?: never;
@@ -8909,7 +7582,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WebhookDeliveryInboundResponseDto"];
+                    "application/json": {
+                        /** @example delivered */
+                        status?: string;
+                        /** @example shipsec-run-123 */
+                        runId?: string;
+                    };
                 };
             };
             /** @description Invalid payload or parsing failed */
@@ -9237,8 +7915,8 @@ export interface operations {
     };
     McpServersController_listServers: {
         parameters: {
-            query?: {
-                groupId?: string;
+            query: {
+                groupId: string;
             };
             header?: never;
             path?: never;
@@ -9281,8 +7959,8 @@ export interface operations {
     };
     McpServersController_listEnabledServers: {
         parameters: {
-            query?: {
-                groupId?: string;
+            query: {
+                groupId: string;
             };
             header?: never;
             path?: never;
@@ -9921,19 +8599,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GenerateMcpTokenRequestDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["GenerateMcpTokenResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -9954,9 +8626,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["RegisterComponentResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -9977,9 +8647,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["RegisterMcpServerResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -9990,19 +8658,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CleanupRunRequestDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["CleanupRunResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10013,19 +8675,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ToolsReadyRequestDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ToolsReadyResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10036,19 +8692,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RegisterGroupServerRequestDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["RegisterGroupServerResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10171,9 +8821,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["GitHubStatusResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10190,9 +8838,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["GitHubInstallationDto"][];
-                };
+                content?: never;
             };
         };
     };
@@ -10209,9 +8855,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["GitHubRepoDto"][];
-                };
+                content?: never;
             };
         };
     };
@@ -10230,9 +8874,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["GitHubRepoDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10251,9 +8893,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["GitHubBranchDto"][];
-                };
+                content?: never;
             };
         };
     };
@@ -10266,19 +8906,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ToggleRepoScansDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["GitHubRepoDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10289,19 +8923,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CompleteInstallationDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["GitHubInstallationDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10316,13 +8944,11 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["InstallationTokenResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10339,9 +8965,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["QuickScanWorkflowDto"][];
-                };
+                content?: never;
             };
         };
     };
@@ -10354,19 +8978,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GitHubTriggerScanDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["TriggerScanResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10379,13 +8997,11 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SyncRepositoriesResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10402,9 +9018,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["TriggerRuleDto"][];
-                };
+                content?: never;
             };
         };
     };
@@ -10415,19 +9029,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateTriggerRuleDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["TriggerRuleDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10446,9 +9054,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["TriggerRuleDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10480,32 +9086,26 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateTriggerRuleDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["TriggerRuleDto"];
-                };
+                content?: never;
             };
         };
     };
     GitHubAppController_listScanResults: {
         parameters: {
-            query?: {
-                repositoryId?: string;
-                status?: string;
-                source?: "pr" | "push" | "manual" | "schedule";
-                scheduleId?: string;
-                triggerRuleId?: string;
-                limit?: number;
-                offset?: number;
+            query: {
+                repositoryId: string;
+                status: string;
+                source: string;
+                scheduleId: string;
+                triggerRuleId: string;
+                limit: string;
+                offset: string;
             };
             header?: never;
             path?: never;
@@ -10517,9 +9117,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["GitHubScanResultDto"][];
-                };
+                content?: never;
             };
         };
     };
@@ -10538,9 +9136,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["GitHubScanResultDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10697,9 +9293,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["WorkflowTemplateResponseDto"][];
-                };
+                content?: never;
             };
         };
     };
@@ -10710,19 +9304,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateWorkflowTemplateRequestDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["WorkflowTemplateResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10741,9 +9329,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["WorkflowTemplateResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10762,9 +9348,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["DeleteWorkflowTemplateResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10777,20 +9361,14 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InstantiateWorkflowTemplateRequestDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Creates a new workflow from the template */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["WorkflowResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -10814,7 +9392,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AsmDomainWithStatsDto"][];
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        organizationId: string;
+                        domain: string;
+                        scopeInclude?: string[] | null;
+                        scopeExclude?: string[] | null;
+                        monitoringEnabled: boolean;
+                        frequency?: string | null;
+                        /** Format: date-time */
+                        lastScanAt?: string | null;
+                        /** Format: date-time */
+                        deletedAt?: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                        assetCount: number;
+                    }[];
                 };
             };
         };
@@ -10838,7 +9434,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AsmDomainCreateResponseDto"];
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        organizationId: string;
+                        domain: string;
+                        scopeInclude?: string[] | null;
+                        scopeExclude?: string[] | null;
+                        monitoringEnabled: boolean;
+                        frequency?: string | null;
+                        /** Format: date-time */
+                        lastScanAt?: string | null;
+                        /** Format: date-time */
+                        deletedAt?: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                        assetCount: number;
+                        scanTriggered?: boolean;
+                        runId?: string;
+                    };
                 };
             };
         };
@@ -10860,7 +9476,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AsmDomainDto"];
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        organizationId: string;
+                        domain: string;
+                        scopeInclude?: string[] | null;
+                        scopeExclude?: string[] | null;
+                        monitoringEnabled: boolean;
+                        frequency?: string | null;
+                        /** Format: date-time */
+                        lastScanAt?: string | null;
+                        /** Format: date-time */
+                        deletedAt?: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                    };
                 };
             };
         };
@@ -10882,7 +9515,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AsmDeleteResponseDto"];
+                    "application/json": {
+                        success: boolean;
+                    };
                 };
             };
         };
@@ -10908,7 +9543,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AsmDomainDto"];
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        organizationId: string;
+                        domain: string;
+                        scopeInclude?: string[] | null;
+                        scopeExclude?: string[] | null;
+                        monitoringEnabled: boolean;
+                        frequency?: string | null;
+                        /** Format: date-time */
+                        lastScanAt?: string | null;
+                        /** Format: date-time */
+                        deletedAt?: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                    };
                 };
             };
         };
@@ -10934,7 +9586,10 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AsmScanTriggerResponseDto"];
+                    "application/json": {
+                        runId: string;
+                        domain: string;
+                    };
                 };
             };
         };
@@ -10962,7 +9617,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AsmAssetListResponseDto"];
+                    "application/json": {
+                        assets: {
+                            /** Format: uuid */
+                            id: string;
+                            organizationId: string;
+                            /** Format: uuid */
+                            domainId: string;
+                            hostname: string;
+                            type: string;
+                            ipAddresses?: string[] | null;
+                            techStack?: string[] | null;
+                            ports?: {
+                                port: number;
+                                protocol: string;
+                                service: string;
+                            }[] | null;
+                            riskScore?: string | null;
+                            dnsRecords?: {
+                                [key: string]: unknown;
+                            } | null;
+                            tlsInfo?: {
+                                [key: string]: unknown;
+                            } | null;
+                            /** Format: date-time */
+                            firstSeen: string;
+                            /** Format: date-time */
+                            lastSeen: string;
+                            metadata?: {
+                                [key: string]: unknown;
+                            } | null;
+                        }[];
+                        total: number;
+                    };
                 };
             };
         };
@@ -10984,7 +9671,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AsmAssetDto"];
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        organizationId: string;
+                        /** Format: uuid */
+                        domainId: string;
+                        hostname: string;
+                        type: string;
+                        ipAddresses?: string[] | null;
+                        techStack?: string[] | null;
+                        ports?: {
+                            port: number;
+                            protocol: string;
+                            service: string;
+                        }[] | null;
+                        riskScore?: string | null;
+                        dnsRecords?: {
+                            [key: string]: unknown;
+                        } | null;
+                        tlsInfo?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** Format: date-time */
+                        firstSeen: string;
+                        /** Format: date-time */
+                        lastSeen: string;
+                        metadata?: {
+                            [key: string]: unknown;
+                        } | null;
+                    };
                 };
             };
         };
@@ -11010,7 +9726,10 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AsmScanTriggerResponseDto"];
+                    "application/json": {
+                        runId: string;
+                        domain: string;
+                    };
                 };
             };
         };
@@ -11035,7 +9754,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AsmScanListResponseDto"];
+                    "application/json": {
+                        runs: {
+                            [key: string]: unknown;
+                        }[];
+                        total?: number;
+                    };
                 };
             };
         };
@@ -11055,7 +9779,10 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AsmDashboardStatsDto"];
+                    "application/json": {
+                        domains: number;
+                        assets: number;
+                    };
                 };
             };
         };
@@ -11063,17 +9790,17 @@ export interface operations {
     AssetDiscoveryController_listAssets: {
         parameters: {
             query?: {
-                provider?: string;
-                assetType?: string;
-                region?: string;
-                status?: "active" | "stale" | "removed";
-                integrationId?: string;
-                search?: string;
-                page?: number;
-                offset?: number;
-                limit?: number;
-                sortBy?: "name" | "lastSeenAt" | "firstDiscoveredAt";
                 sortOrder?: "asc" | "desc";
+                sortBy?: "name" | "lastSeenAt" | "firstDiscoveredAt";
+                limit?: number;
+                offset?: number;
+                page?: number;
+                search?: string;
+                integrationId?: string;
+                status?: "active" | "stale" | "removed";
+                region?: string;
+                assetType?: string;
+                provider?: string;
             };
             header?: never;
             path?: never;
@@ -11087,7 +9814,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CloudAssetListResponseDto"];
+                    "application/json": {
+                        assets: {
+                            /** Format: uuid */
+                            id: string;
+                            organizationId: string;
+                            /** Format: uuid */
+                            integrationId?: string | null;
+                            provider: string;
+                            accountIdentifier?: string | null;
+                            assetType: string;
+                            externalId: string;
+                            name?: string | null;
+                            region?: string | null;
+                            status: string;
+                            metadata?: {
+                                [key: string]: unknown;
+                            } | null;
+                            /** Format: date-time */
+                            firstDiscoveredAt: string;
+                            /** Format: date-time */
+                            lastSeenAt: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        }[];
+                        total: number;
+                        page: number;
+                        limit: number;
+                    };
                 };
             };
         };
@@ -11107,7 +9863,21 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CloudAssetSummaryDto"];
+                    "application/json": {
+                        totalAssets: number;
+                        byType: {
+                            assetType: string;
+                            count: number;
+                        }[];
+                        byRegion: {
+                            region: string;
+                            count: number;
+                        }[];
+                        byStatus: {
+                            status: string;
+                            count: number;
+                        }[];
+                    };
                 };
             };
         };
@@ -11129,7 +9899,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CloudAssetDto"];
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        organizationId: string;
+                        /** Format: uuid */
+                        integrationId?: string | null;
+                        provider: string;
+                        accountIdentifier?: string | null;
+                        assetType: string;
+                        externalId: string;
+                        name?: string | null;
+                        region?: string | null;
+                        status: string;
+                        metadata?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** Format: date-time */
+                        firstDiscoveredAt: string;
+                        /** Format: date-time */
+                        lastSeenAt: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                    };
                 };
             };
         };
@@ -11153,7 +9947,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CloudSyncTriggerResponseDto"];
+                    "application/json": {
+                        workflowId: string;
+                    };
                 };
             };
         };
@@ -11161,10 +9957,10 @@ export interface operations {
     AssetDiscoveryController_listSyncRuns: {
         parameters: {
             query?: {
-                integrationId?: string;
-                page?: number;
-                offset?: number;
                 limit?: number;
+                offset?: number;
+                page?: number;
+                integrationId?: string;
             };
             header?: never;
             path?: never;
@@ -11178,7 +9974,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CloudSyncRunListResponseDto"];
+                    "application/json": {
+                        syncRuns: {
+                            /** Format: uuid */
+                            id: string;
+                            organizationId: string;
+                            /** Format: uuid */
+                            integrationId: string;
+                            accountIdentifier?: string | null;
+                            temporalWorkflowId?: string | null;
+                            temporalRunId?: string | null;
+                            status: string;
+                            coveredRegions?: string[] | null;
+                            assetsDiscovered?: number | null;
+                            assetsCreated?: number | null;
+                            assetsUpdated?: number | null;
+                            assetsStale?: number | null;
+                            errors?: {
+                                message: string;
+                                timestamp: string;
+                            }[] | null;
+                            /** Format: date-time */
+                            startedAt: string;
+                            /** Format: date-time */
+                            completedAt?: string | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                        total: number;
+                        page: number;
+                        limit: number;
+                    };
                 };
             };
         };
@@ -11200,132 +10026,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CloudSyncRunDto"];
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_createSyncRun: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-organization-id": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateSyncRunRequestDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CreateSyncRunResponseDto"];
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_reconcileAssets: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-organization-id": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReconcileAssetsRequestDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReconcileAssetsResponseDto"];
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_persistSyncRunScopes: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PersistSyncRunScopesRequestDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PersistSyncRunScopesResponseDto"];
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_markStaleAssets: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-organization-id": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MarkStaleAssetsRequestDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MarkStaleAssetsResponseDto"];
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_updateSyncRunStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateSyncRunStatusRequestDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UpdateSyncRunStatusResponseDto"];
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        organizationId: string;
+                        /** Format: uuid */
+                        integrationId: string;
+                        accountIdentifier?: string | null;
+                        temporalWorkflowId?: string | null;
+                        temporalRunId?: string | null;
+                        status: string;
+                        coveredRegions?: string[] | null;
+                        assetsDiscovered?: number | null;
+                        assetsCreated?: number | null;
+                        assetsUpdated?: number | null;
+                        assetsStale?: number | null;
+                        errors?: {
+                            message: string;
+                            timestamp: string;
+                        }[] | null;
+                        /** Format: date-time */
+                        startedAt: string;
+                        /** Format: date-time */
+                        completedAt?: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                    };
                 };
             };
         };
@@ -11343,9 +10069,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ChatSessionResponseDto"][];
-                };
+                content?: never;
             };
         };
     };
@@ -11356,19 +10080,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateSessionDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ChatSessionResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -11387,9 +10105,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ChatSessionResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -11408,9 +10124,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["DeleteSessionResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -11423,19 +10137,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateSessionDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ChatSessionResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -11448,19 +10156,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SubmitOperationDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SubmitOperationResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -11479,9 +10181,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ThreadHistoryResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -11523,9 +10223,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ChatEventsResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -11538,19 +10236,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AppendInternalEventDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["AppendInternalEventResponseDto"];
-                };
+                content?: never;
             };
         };
     };
@@ -11563,19 +10255,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CompleteRunRequestDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["RunCompletionResponseDto"];
-                };
+                content?: never;
             };
         };
     };

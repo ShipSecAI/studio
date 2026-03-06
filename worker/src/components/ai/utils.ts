@@ -1,10 +1,9 @@
 import { ConfigurationError } from '@shipsec/component-sdk';
-import { createInternalBackendClient } from '../../utils/internal-backend-client';
-import { getBackendOrigin } from '../../utils/backend-url';
+import { getBackendApiV1Url } from '../../utils/backend-url';
 
-export const DEFAULT_API_BASE_URL = getBackendOrigin({ preferDockerHost: true });
+export const DEFAULT_API_BASE_URL = getBackendApiV1Url({ preferDockerHost: true });
 
-export const DEFAULT_GATEWAY_URL = `${DEFAULT_API_BASE_URL}/api/v1/mcp/gateway`;
+export const DEFAULT_GATEWAY_URL = `${DEFAULT_API_BASE_URL}/mcp/gateway`;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -24,13 +23,27 @@ export async function getGatewaySessionToken(
     );
   }
 
+  const url = `${DEFAULT_API_BASE_URL}/internal/mcp/generate-token`;
   // If connectedToolNodeIds is empty or undefined, we might still want to generate a token
   // without specific allowedNodeIds if the API supports it, or handle it otherwise.
   // The original code passed `allowedNodeIds: connectedToolNodeIds`.
   const body = { runId, organizationId, allowedNodeIds: connectedToolNodeIds };
-  const client = createInternalBackendClient({ baseUrl: DEFAULT_API_BASE_URL });
-  const response = await client.generateMcpGatewayToken(body);
-  const payload = response.data;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Internal-Token': internalToken,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to generate gateway session token: ${errorText}`);
+  }
+
+  const payload = await response.json();
   const token = isRecord(payload) && typeof payload.token === 'string' ? payload.token : null;
   if (!token) {
     throw new Error('Failed to generate gateway session token: invalid response shape');
@@ -54,11 +67,13 @@ export function getLiteLLMApiKey(): string {
   return process.env.LITELLM_API_KEY?.trim() ?? '';
 }
 
-function normalizeBackendOrigin(url: string): string {
-  return url
-    .trim()
-    .replace(/\/+$/, '')
-    .replace(/\/api\/v1$/i, '');
+function normalizeBackendApiBaseUrl(url: string): string {
+  return (
+    url
+      .trim()
+      .replace(/\/+$/, '')
+      .replace(/\/api\/v1$/i, '') + '/api/v1'
+  );
 }
 
 export function normalizeLiteLLMModel(provider: string, model: string): string {
@@ -98,7 +113,7 @@ export async function fetchOrgVirtualKey(
   const cached = virtualKeyCache.get(orgId);
   if (cached) return cached;
 
-  const baseUrl = normalizeBackendOrigin(
+  const baseUrl = normalizeBackendApiBaseUrl(
     backendUrl ??
       process.env.STUDIO_API_BASE_URL ??
       process.env.SHIPSEC_API_BASE_URL ??
@@ -110,10 +125,16 @@ export async function fetchOrgVirtualKey(
   if (!internalToken) return null;
 
   try {
-    const client = createInternalBackendClient({ baseUrl });
-    const res: { data?: { virtualKey?: string | null } } = await client.getLiteLLMVirtualKey(orgId);
-    const data = res.data;
-    if (!data) return null;
+    const res = await fetch(`${baseUrl}/internal/billing/litellm-key`, {
+      headers: {
+        'x-internal-token': internalToken,
+        'x-organization-id': orgId,
+      },
+    });
+
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as { virtualKey?: string | null };
     if (!data.virtualKey) return null;
 
     virtualKeyCache.set(orgId, data.virtualKey);
