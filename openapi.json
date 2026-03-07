@@ -8596,7 +8596,9 @@
               "FAILED",
               "CANCELLED",
               "TERMINATED",
+              "CONTINUED_AS_NEW",
               "TIMED_OUT",
+              "UNKNOWN",
               "AWAITING_INPUT",
               "STALE"
             ],
@@ -8767,10 +8769,24 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "propertyNames": {
-                          "type": "string"
-                        },
-                        "additionalProperties": {}
+                        "properties": {
+                          "params": {
+                            "default": {},
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "inputOverrides": {
+                            "default": {},
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        }
                       }
                     }
                   }
@@ -8894,10 +8910,24 @@
                 },
                 "additionalProperties": {
                   "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {}
+                  "properties": {
+                    "params": {
+                      "default": {},
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "inputOverrides": {
+                      "default": {},
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  }
                 }
               }
             }
@@ -18173,10 +18203,24 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "propertyNames": {
-                          "type": "string"
-                        },
-                        "additionalProperties": {}
+                        "properties": {
+                          "params": {
+                            "default": {},
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "inputOverrides": {
+                            "default": {},
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        }
                       }
                     }
                   }

@@ -136,7 +136,15 @@ export class RunActivityResponseDto extends createZodDto(RunActivityResponseSche
 
 const InputPreviewSchema = z.object({
   runtimeInputs: z.record(z.string(), z.unknown()).optional(),
-  nodeOverrides: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
+  nodeOverrides: z
+    .record(
+      z.string(),
+      z.object({
+        params: z.record(z.string(), z.unknown()).default({}),
+        inputOverrides: z.record(z.string(), z.unknown()).default({}),
+      }),
+    )
+    .optional(),
 });
 
 export const RunListItemSchema = z.object({

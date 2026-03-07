@@ -1,4 +1,4 @@
-import { TERMINAL_STATUSES, type ExecutionInputPreview } from '@shipsec/shared';
+import { TERMINAL_STATUSES } from '@shipsec/shared';
 import type { ExecutionStatus } from '@/schemas/execution';
 import type { ExecutionRun } from '@/hooks/queries/useRunQueries';
 import type { components } from '../../../../../packages/backend-client/src/client';
@@ -11,7 +11,7 @@ type ApiRunDetail = components['schemas']['RunDetailDto'];
 type RawRun = ApiRunItem | ApiRunDetail;
 
 export const normalizeRunSummary = (run: RawRun): ExecutionRun => {
-  const status = run.status as ExecutionStatus;
+  const status: ExecutionStatus = run.status;
   const startTime = run.startTime;
   const endTime = run.endTime ?? undefined;
 
@@ -32,9 +32,9 @@ export const normalizeRunSummary = (run: RawRun): ExecutionRun => {
     triggerType: run.triggerType ?? 'manual',
     triggerSource: run.triggerSource,
     triggerLabel: run.triggerLabel,
-    inputPreview: (run.inputPreview as ExecutionInputPreview) ?? {
-      runtimeInputs: {},
-      nodeOverrides: {},
+    inputPreview: {
+      runtimeInputs: run.inputPreview?.runtimeInputs ?? {},
+      nodeOverrides: run.inputPreview?.nodeOverrides ?? {},
     },
   };
 };
