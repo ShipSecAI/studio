@@ -22,7 +22,9 @@ export const EXECUTION_STATUS = [
   'FAILED',
   'CANCELLED',
   'TERMINATED',
+  'CONTINUED_AS_NEW',
   'TIMED_OUT',
+  'UNKNOWN',
   'AWAITING_INPUT',
   'STALE',
 ] as const;

@@ -3284,7 +3284,7 @@ export interface components {
             /** Format: date-time */
             lastRun: string | null;
             /** @enum {string|null} */
-            latestRunStatus: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "TIMED_OUT" | "AWAITING_INPUT" | "STALE" | null;
+            latestRunStatus: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN" | "AWAITING_INPUT" | "STALE" | null;
             runCount: number;
             nodeCount: number;
             /** Format: date-time */
@@ -3327,7 +3327,14 @@ export interface components {
                     };
                     nodeOverrides?: {
                         [key: string]: {
-                            [key: string]: unknown;
+                            /** @default {} */
+                            params: {
+                                [key: string]: unknown;
+                            };
+                            /** @default {} */
+                            inputOverrides: {
+                                [key: string]: unknown;
+                            };
                         };
                     };
                 };
@@ -3360,7 +3367,14 @@ export interface components {
                 };
                 nodeOverrides?: {
                     [key: string]: {
-                        [key: string]: unknown;
+                        /** @default {} */
+                        params: {
+                            [key: string]: unknown;
+                        };
+                        /** @default {} */
+                        inputOverrides: {
+                            [key: string]: unknown;
+                        };
                     };
                 };
             };
@@ -5971,7 +5985,14 @@ export interface components {
                     };
                     nodeOverrides?: {
                         [key: string]: {
-                            [key: string]: unknown;
+                            /** @default {} */
+                            params: {
+                                [key: string]: unknown;
+                            };
+                            /** @default {} */
+                            inputOverrides: {
+                                [key: string]: unknown;
+                            };
                         };
                     };
                 };
