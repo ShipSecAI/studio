@@ -15,6 +15,7 @@ import {
   analyticsResultSchema,
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
+import { resolveVolumeSource } from '../../utils/isolated-volume';
 
 /**
  * Trivy Scanner Component
@@ -507,7 +508,7 @@ const definition = defineComponent({
     // Only mount volume for filesystem/config scans
     if (parsedParams.scanType !== 'image' && parsedInputs.volumeName) {
       volumes.push({
-        source: parsedInputs.volumeName,
+        source: resolveVolumeSource(parsedInputs.volumeName),
         target: '/scan',
         readOnly: true,
       });

@@ -15,6 +15,7 @@ import {
   analyticsResultSchema,
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
+import { resolveVolumeSource } from '../../utils/isolated-volume';
 
 /**
  * TruffleHog Secret Scanner Component
@@ -437,7 +438,7 @@ const definition = defineComponent({
       command: ['-c', shellScript, '--', ...args],
       volumes: [
         {
-          source: parsedInputs.volumeName,
+          source: resolveVolumeSource(parsedInputs.volumeName),
           target: '/scan',
           readOnly: true,
         },

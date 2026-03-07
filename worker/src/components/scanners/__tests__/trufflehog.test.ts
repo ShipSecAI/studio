@@ -3,12 +3,16 @@ import * as sdk from '@shipsec/component-sdk';
 import { componentRegistry } from '../../index';
 
 describe('scanner.trufflehog component', () => {
+  const originalEnv = { ...process.env };
+
   beforeAll(async () => {
     await import('../../index');
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    process.env.EXECUTION_MODE = originalEnv.EXECUTION_MODE;
+    process.env.GCS_VOLUME_BUCKET = originalEnv.GCS_VOLUME_BUCKET;
   });
 
   it('should not pass --results flag when onlyVerified is false', async () => {
@@ -205,6 +209,41 @@ describe('scanner.trufflehog component', () => {
     expect(shellScript).toContain("printf '%s\\n' '(^|/)\\.git/config$' > /tmp/exclude-paths.txt");
     expect(shellScript).toContain('/tmp/include-paths.txt');
     expect(shellScript).toContain('trufflehog "$@" 2>&1');
+  });
+
+  it('should resolve raw k8s volume names to gcsfuse sources', async () => {
+    process.env.EXECUTION_MODE = 'k8s';
+    process.env.GCS_VOLUME_BUCKET = 'shipsec-volumes-staging';
+
+    const component = componentRegistry.get('scanner.trufflehog');
+    if (!component) throw new Error('Component not registered');
+
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'trufflehog-scanner-test',
+    });
+
+    const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('');
+
+    await component.execute(
+      {
+        inputs: {
+          volumeName: 'shipsec-run-abc/shipsec-run-abc/123',
+        },
+        params: {},
+      },
+      context,
+    );
+
+    const runnerConfig = spy.mock.calls[0]?.[0] as {
+      volumes?: { source: string; target: string; readOnly: boolean }[];
+    };
+
+    expect(runnerConfig.volumes?.[0]).toEqual({
+      source: 'gcsfuse:shipsec-volumes-staging:shipsec-run-abc/shipsec-run-abc/123',
+      target: '/scan',
+      readOnly: true,
+    });
   });
 
   it('should ignore non-finding status JSON lines', async () => {

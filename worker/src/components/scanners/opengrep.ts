@@ -15,6 +15,7 @@ import {
   analyticsResultSchema,
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
+import { resolveVolumeSource } from '../../utils/isolated-volume';
 
 /**
  * OpenGrep SAST Scanner Component
@@ -386,7 +387,7 @@ const definition = defineComponent({
       timeoutSeconds: parsedParams.timeout + 60, // Add buffer for startup
       volumes: [
         {
-          source: volumeName,
+          source: resolveVolumeSource(volumeName),
           target: '/workspace',
           readOnly: true,
         },

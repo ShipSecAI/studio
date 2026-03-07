@@ -15,6 +15,7 @@ import {
   analyticsResultSchema,
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
+import { resolveVolumeSource } from '../../utils/isolated-volume';
 
 /**
  * Dependency Scanner Component (using safedep/vet)
@@ -310,7 +311,7 @@ const definition = defineComponent({
       command: args,
       volumes: [
         {
-          source: parsedInputs.volumeName,
+          source: resolveVolumeSource(parsedInputs.volumeName),
           target: '/scan',
           readOnly: true,
         },
