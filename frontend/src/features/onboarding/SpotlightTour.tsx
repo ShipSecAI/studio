@@ -368,7 +368,7 @@ export function SpotlightTour() {
               style={{
                 borderRadius: SPOTLIGHT_RADIUS,
                 boxShadow:
-                  '0 0 0 2px rgba(99, 102, 241, 0.5), 0 0 24px 4px rgba(99, 102, 241, 0.15)',
+                  '0 0 0 2px hsl(var(--primary) / 0.5), 0 0 24px 4px hsl(var(--primary) / 0.15)',
                 transform: `translate(${targetRect.x - SPOTLIGHT_PADDING}px, ${targetRect.y - SPOTLIGHT_PADDING}px)`,
                 width: targetRect.width + SPOTLIGHT_PADDING * 2,
                 height: targetRect.height + SPOTLIGHT_PADDING * 2,
@@ -403,7 +403,7 @@ export function SpotlightTour() {
               damping: 32,
             }}
           >
-            <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+            <div className="h-1 bg-gradient-to-r from-primary/0 via-primary to-primary/0" />
 
             {targetRect && <TooltipArrow placement={actualPlacement} />}
 
@@ -411,8 +411,8 @@ export function SpotlightTour() {
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2.5">
                   {!step.target && (
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/50">
-                      <Sparkles className="w-4 h-4 text-indigo-500" />
+                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+                      <Sparkles className="w-4 h-4 text-primary" />
                     </div>
                   )}
                   <div>
@@ -446,9 +446,9 @@ export function SpotlightTour() {
                       className={cn(
                         'rounded-full transition-all duration-300',
                         i === currentStep
-                          ? 'w-6 h-2 bg-indigo-500'
+                          ? 'w-6 h-2 bg-primary'
                           : i < currentStep
-                            ? 'w-2 h-2 bg-indigo-300 dark:bg-indigo-700 hover:bg-indigo-400'
+                            ? 'w-2 h-2 bg-primary/40 hover:bg-primary/60'
                             : 'w-2 h-2 bg-muted-foreground/20 hover:bg-muted-foreground/40',
                       )}
                       aria-label={`Go to step ${i + 1}`}
@@ -476,7 +476,7 @@ export function SpotlightTour() {
                   )}
                   <button
                     onClick={handleNext}
-                    className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-lg transition-all bg-indigo-500 hover:bg-indigo-600 text-white shadow-sm hover:shadow"
+                    className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-lg transition-all bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow"
                   >
                     {isLastStep ? "Let's Go!" : 'Next'}
                     {!isLastStep && <ChevronRight className="w-3.5 h-3.5" />}
