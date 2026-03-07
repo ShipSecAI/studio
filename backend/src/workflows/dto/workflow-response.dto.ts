@@ -139,7 +139,7 @@ const InputPreviewSchema = z.object({
   nodeOverrides: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
 });
 
-const RunListItemSchema = z.object({
+export const RunListItemSchema = z.object({
   id: z.string(),
   workflowId: z.string(),
   organizationId: z.string(),

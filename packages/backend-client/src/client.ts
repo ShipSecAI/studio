@@ -5945,7 +5945,36 @@ export interface components {
         };
         AsmScanListResponseDto: {
             runs: {
-                [key: string]: unknown;
+                id: string;
+                workflowId: string;
+                organizationId: string;
+                /** @enum {string} */
+                status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
+                /** Format: date-time */
+                startTime: string;
+                /** Format: date-time */
+                endTime: string | null;
+                temporalRunId: string;
+                workflowVersionId: string | null;
+                workflowVersion: number | null;
+                workflowName: string;
+                eventCount: number;
+                nodeCount: number;
+                duration: number;
+                /** @enum {string} */
+                triggerType: "manual" | "schedule" | "api";
+                triggerSource: string | null;
+                triggerLabel: string | null;
+                inputPreview?: {
+                    runtimeInputs?: {
+                        [key: string]: unknown;
+                    };
+                    nodeOverrides?: {
+                        [key: string]: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
             }[];
             total: number;
         };

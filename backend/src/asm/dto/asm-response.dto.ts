@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { RunListItemSchema } from '../../workflows/dto/workflow-response.dto';
 
 // --- Base entity schemas ---
 
@@ -73,7 +74,7 @@ export const AsmScanTriggerResponseSchema = z.object({
 export class AsmScanTriggerResponseDto extends createZodDto(AsmScanTriggerResponseSchema) {}
 
 export const AsmScanListResponseSchema = z.object({
-  runs: z.array(z.record(z.string(), z.unknown())),
+  runs: z.array(RunListItemSchema),
   total: z.number(),
 });
 export class AsmScanListResponseDto extends createZodDto(AsmScanListResponseSchema) {}

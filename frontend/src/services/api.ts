@@ -1067,7 +1067,8 @@ export const api = {
         status: options?.status as 'running' | 'completed' | 'failed' | 'timed_out' | undefined,
       });
       if (response.error) throw new Error('Failed to fetch ASM scans');
-      return response.data || { runs: [], total: 0 };
+      if (!response.data) throw new Error('ASM scans data not found');
+      return response.data;
     },
 
     getStats: async () => {
