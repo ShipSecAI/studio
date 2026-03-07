@@ -13,7 +13,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import { Public } from '../auth/public.decorator';
@@ -143,6 +143,7 @@ export class IntegrationsController {
   /* ------------------------------------------------------------------ */
 
   @Get('org/connections')
+  @ApiQuery({ name: 'provider', required: false, type: String })
   @ApiOkResponse({ type: [IntegrationConnectionResponse] })
   async listOrgConnections(
     @CurrentAuth() auth: AuthContext | null,

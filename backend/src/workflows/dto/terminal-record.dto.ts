@@ -34,3 +34,24 @@ export const TerminalRecordParamSchema = z.object({
 });
 
 export class TerminalRecordParamDto extends createZodDto(TerminalRecordParamSchema) {}
+
+export const TerminalChunkSchema = z.object({
+  nodeRef: z.string(),
+  stream: z.string(),
+  chunkIndex: z.number().int().nonnegative(),
+  payload: z.string(),
+  recordedAt: z.string().datetime(),
+  deltaMs: z.number().nonnegative(),
+  origin: z.string().optional(),
+  runnerKind: z.string().optional(),
+});
+
+export class TerminalChunkDto extends createZodDto(TerminalChunkSchema) {}
+
+export const TerminalChunksResponseSchema = z.object({
+  runId: z.string(),
+  cursor: z.string(),
+  chunks: z.array(TerminalChunkSchema),
+});
+
+export class TerminalChunksResponseDto extends createZodDto(TerminalChunksResponseSchema) {}

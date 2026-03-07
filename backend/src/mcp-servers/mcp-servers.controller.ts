@@ -17,6 +17,7 @@ import {
   ApiOkResponse,
   ApiTags,
   ApiOperation,
+  ApiQuery,
 } from '@nestjs/swagger';
 
 import { McpServersService } from './mcp-servers.service';
@@ -38,6 +39,7 @@ export class McpServersController {
 
   @Get()
   @ApiOperation({ summary: 'List all MCP servers' })
+  @ApiQuery({ name: 'groupId', required: false, type: String })
   @ApiOkResponse({ type: [McpServerResponse] })
   async listServers(
     @CurrentAuth() auth: AuthContext | null,
@@ -48,6 +50,7 @@ export class McpServersController {
 
   @Get('enabled')
   @ApiOperation({ summary: 'List enabled MCP servers only' })
+  @ApiQuery({ name: 'groupId', required: false, type: String })
   @ApiOkResponse({ type: [McpServerResponse] })
   async listEnabledServers(
     @CurrentAuth() auth: AuthContext | null,

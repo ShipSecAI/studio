@@ -27,6 +27,12 @@ import {
   UpdateAnalyticsSettingsDto,
   TIER_LIMITS,
 } from './dto/analytics-settings.dto';
+import {
+  BatchRunSummariesRequestDto,
+  BatchRunSummariesResponseDto,
+  EnsureTenantRequestDto,
+  EnsureTenantResponseDto,
+} from './dto/analytics-internal.dto';
 import { AuditLogService } from '../audit/audit-log.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import { Public } from '../auth/public.decorator';
@@ -286,11 +292,12 @@ export class AnalyticsController {
   @Throttle({ default: { limit: 100, ttl: 60000 } })
   @ApiOkResponse({
     description: 'Get severity counts for multiple run IDs',
+    type: BatchRunSummariesResponseDto,
   })
   async batchRunSummaries(
     @CurrentAuth() auth: AuthContext | null,
-    @Body() body: { runIds: string[] },
-  ) {
+    @Body() body: BatchRunSummariesRequestDto,
+  ): Promise<BatchRunSummariesResponseDto> {
     if (!auth || !auth.isAuthenticated) {
       throw new UnauthorizedException('Authentication required');
     }
@@ -389,19 +396,12 @@ export class AnalyticsController {
   @Post('ensure-tenant')
   @ApiOkResponse({
     description: 'Ensure tenant resources exist for organization',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean' },
-        securityEnabled: { type: 'boolean' },
-        message: { type: 'string' },
-      },
-    },
+    type: EnsureTenantResponseDto,
   })
   async ensureTenant(
     @Headers('x-internal-token') internalToken: string | undefined,
-    @Body() body: { organizationId: string },
-  ): Promise<{ success: boolean; securityEnabled: boolean; message: string }> {
+    @Body() body: EnsureTenantRequestDto,
+  ): Promise<EnsureTenantResponseDto> {
     // Validate internal service token
     if (!this.internalServiceToken) {
       // Token not configured - allow in dev mode but log warning

@@ -21,15 +21,38 @@ import { GitHubAppService } from './github-app.service';
 import { Public } from '../auth/public.decorator';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
+import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ZodValidationPipe } from 'nestjs-zod';
 import {
+  CompleteInstallationDto,
+  CompleteInstallationSchema,
   CreateTriggerRuleSchema,
+  CreateTriggerRuleDto,
+  GitHubBranchDto,
+  GitHubInstallationDto,
+  GitHubRepoDto,
+  GitHubScanResultDto,
+  GitHubScanResultsQueryDto,
+  GitHubScanResultsQuerySchema,
+  GitHubStatusResponseDto,
+  InstallationTokenResponseDto,
+  QuickScanWorkflowDto,
+  SyncRepositoriesResponseDto,
+  ToggleRepoScansDto,
+  ToggleRepoScansSchema,
+  TriggerRuleDto,
+  GitHubTriggerScanDto,
+  GitHubTriggerScanSchema,
+  TriggerScanResponseDto,
   UpdateTriggerRuleSchema,
+  UpdateTriggerRuleDto,
   type GitHubWebhookEvent,
   type GitHubPullRequestEvent,
   type GitHubPushEvent,
 } from './dto/github-app.dto';
 import type { GitHubAppConfig } from '../config/github-app.config';
 
+@ApiTags('github')
 @Controller('github')
 export class GitHubAppController {
   private readonly logger = new Logger(GitHubAppController.name);
@@ -45,6 +68,7 @@ export class GitHubAppController {
   // ============ Configuration ============
 
   @Get('status')
+  @ApiOkResponse({ type: GitHubStatusResponseDto })
   getStatus(@CurrentAuth() _auth: AuthContext) {
     return {
       configured: this.githubAppService.isConfigured(),
@@ -57,6 +81,7 @@ export class GitHubAppController {
   // ============ Installations ============
 
   @Get('installations')
+  @ApiOkResponse({ type: [GitHubInstallationDto] })
   async listInstallations(@CurrentAuth() auth: AuthContext) {
     return this.githubAppService.listInstallations(auth);
   }
@@ -64,24 +89,28 @@ export class GitHubAppController {
   // ============ Repositories ============
 
   @Get('repos')
+  @ApiOkResponse({ type: [GitHubRepoDto] })
   async listRepositories(@CurrentAuth() auth: AuthContext) {
     return this.githubAppService.listRepositories(auth);
   }
 
   @Get('repos/:id')
+  @ApiOkResponse({ type: GitHubRepoDto })
   async getRepository(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
     return this.githubAppService.getRepository(id, auth);
   }
 
   @Get('repos/:id/branches')
+  @ApiOkResponse({ type: [GitHubBranchDto] })
   async listBranches(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
     return this.githubAppService.listBranches(id, auth);
   }
 
   @Patch('repos/:id/scans')
+  @ApiOkResponse({ type: GitHubRepoDto })
   async toggleRepoScans(
     @Param('id') id: string,
-    @Body() body: { enabled: boolean },
+    @Body(new ZodValidationPipe(ToggleRepoScansSchema)) body: ToggleRepoScansDto,
     @CurrentAuth() auth: AuthContext,
   ) {
     return this.githubAppService.toggleRepoScans(id, body.enabled, auth);
@@ -93,8 +122,9 @@ export class GitHubAppController {
    * Ensures the installation record exists and repositories are synced.
    */
   @Post('installations/setup')
+  @ApiOkResponse({ type: GitHubInstallationDto })
   async setupInstallation(
-    @Body() body: { installationId: number },
+    @Body(new ZodValidationPipe(CompleteInstallationSchema)) body: CompleteInstallationDto,
     @CurrentAuth() auth: AuthContext,
   ) {
     if (!body.installationId || typeof body.installationId !== 'number') {
@@ -110,6 +140,7 @@ export class GitHubAppController {
    * when cloning private repositories or making API calls
    */
   @Post('installations/:installationId/token')
+  @ApiOkResponse({ type: InstallationTokenResponseDto })
   async getInstallationToken(
     @Param('installationId') installationId: string,
     @CurrentAuth() auth: AuthContext,
@@ -124,14 +155,16 @@ export class GitHubAppController {
   }
 
   @Get('quick-scan-workflows')
+  @ApiOkResponse({ type: [QuickScanWorkflowDto] })
   async getQuickScanWorkflows(@CurrentAuth() auth: AuthContext) {
     return this.githubAppService.getQuickScanWorkflows(auth);
   }
 
   @Post('repos/:id/scan')
+  @ApiCreatedResponse({ type: TriggerScanResponseDto })
   async triggerScan(
     @Param('id') id: string,
-    @Body() body: { workflowId?: string; branch?: string },
+    @Body(new ZodValidationPipe(GitHubTriggerScanSchema)) body: GitHubTriggerScanDto,
     @CurrentAuth() auth: AuthContext,
   ) {
     if (!body.workflowId) {
@@ -146,6 +179,7 @@ export class GitHubAppController {
   }
 
   @Post('repos/sync')
+  @ApiOkResponse({ type: SyncRepositoriesResponseDto })
   async syncRepositories(@CurrentAuth() auth: AuthContext) {
     // Get all installations for the organization
     const installations = await this.githubAppService.listInstallations(auth);
@@ -168,33 +202,39 @@ export class GitHubAppController {
   // ============ Trigger Rules ============
 
   @Get('triggers')
+  @ApiOkResponse({ type: [TriggerRuleDto] })
   async listTriggerRules(@CurrentAuth() auth: AuthContext) {
     return this.githubAppService.listTriggerRules(auth);
   }
 
   @Get('triggers/:id')
+  @ApiOkResponse({ type: TriggerRuleDto })
   async getTriggerRule(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
     return this.githubAppService.getTriggerRule(id, auth);
   }
 
   @Post('triggers')
-  async createTriggerRule(@Body() body: unknown, @CurrentAuth() auth: AuthContext) {
-    const input = CreateTriggerRuleSchema.parse(body);
-    return this.githubAppService.createTriggerRule(input, auth);
+  @ApiCreatedResponse({ type: TriggerRuleDto })
+  async createTriggerRule(
+    @Body(new ZodValidationPipe(CreateTriggerRuleSchema)) body: CreateTriggerRuleDto,
+    @CurrentAuth() auth: AuthContext,
+  ) {
+    return this.githubAppService.createTriggerRule(body, auth);
   }
 
   @Patch('triggers/:id')
+  @ApiOkResponse({ type: TriggerRuleDto })
   async updateTriggerRule(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body(new ZodValidationPipe(UpdateTriggerRuleSchema)) body: UpdateTriggerRuleDto,
     @CurrentAuth() auth: AuthContext,
   ) {
-    const input = UpdateTriggerRuleSchema.parse(body);
-    return this.githubAppService.updateTriggerRule(id, input, auth);
+    return this.githubAppService.updateTriggerRule(id, body, auth);
   }
 
   @Delete('triggers/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
   async deleteTriggerRule(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
     await this.githubAppService.deleteTriggerRule(id, auth);
   }
@@ -202,38 +242,30 @@ export class GitHubAppController {
   // ============ Scan Results ============
 
   @Get('scans')
+  @ApiOkResponse({ type: [GitHubScanResultDto] })
   async listScanResults(
     @CurrentAuth() auth: AuthContext,
-    @Query('repositoryId') repositoryId?: string,
-    @Query('status') status?: string,
-    @Query('source') source?: string,
-    @Query('scheduleId') scheduleId?: string,
-    @Query('triggerRuleId') triggerRuleId?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
+    @Query(new ZodValidationPipe(GitHubScanResultsQuerySchema))
+    query: GitHubScanResultsQueryDto,
   ) {
-    const statuses = status
+    const statuses = query.status
       ?.split(',')
       .map((value) => value.trim())
       .filter((value) => value.length > 0);
 
-    const sourceValue =
-      source === 'pr' || source === 'push' || source === 'manual' || source === 'schedule'
-        ? source
-        : undefined;
-
     return this.githubAppService.listScanResults(auth, {
-      repositoryId,
+      repositoryId: query.repositoryId,
       statuses: statuses && statuses.length > 0 ? statuses : undefined,
-      source: sourceValue,
-      scheduleId: scheduleId || undefined,
-      triggerRuleId: triggerRuleId || undefined,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
+      source: query.source,
+      scheduleId: query.scheduleId,
+      triggerRuleId: query.triggerRuleId,
+      limit: query.limit,
+      offset: query.offset,
     });
   }
 
   @Get('scans/:id')
+  @ApiOkResponse({ type: GitHubScanResultDto })
   async getScanResult(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
     return this.githubAppService.getScanResult(id, auth);
   }

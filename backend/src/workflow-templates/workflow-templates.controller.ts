@@ -6,7 +6,13 @@ import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
 import { WorkflowTemplatesService } from './workflow-templates.service';
 import { WorkflowsService } from '../workflows/workflows.service';
-import type { WorkflowGraphDto } from '../workflows/dto/workflow-graph.dto';
+import { WorkflowGraphSchema, WorkflowResponseDto } from '../workflows/dto/workflow-graph.dto';
+import {
+  CreateWorkflowTemplateRequestDto,
+  DeleteWorkflowTemplateResponseDto,
+  InstantiateWorkflowTemplateRequestDto,
+  WorkflowTemplateResponseDto,
+} from './dto/workflow-template.dto';
 
 @ApiTags('workflow-templates')
 @Controller('workflow-templates')
@@ -18,35 +24,24 @@ export class WorkflowTemplatesController {
   ) {}
 
   @Get()
+  @ApiOkResponse({ type: [WorkflowTemplateResponseDto] })
   async list() {
     return this.templatesService.list();
   }
 
   @Get(':id')
+  @ApiOkResponse({ type: WorkflowTemplateResponseDto })
   async getById(@Param('id') id: string) {
     return this.templatesService.getById(id);
   }
 
   @Post()
-  async create(
-    @Body()
-    body: {
-      name: string;
-      description?: string;
-      category: string;
-      graph: unknown;
-      icon?: string;
-      isDefault?: boolean;
-    },
-  ) {
+  @ApiOkResponse({ type: WorkflowTemplateResponseDto })
+  async create(@Body() body: CreateWorkflowTemplateRequestDto) {
     return this.templatesService.create({
       name: body.name,
       description: body.description,
-      category: body.category as
-        | 'code-security'
-        | 'cloud-security'
-        | 'attack-surface'
-        | 'notification',
+      category: body.category,
       graph: body.graph,
       icon: body.icon,
       isDefault: body.isDefault ?? false,
@@ -54,19 +49,17 @@ export class WorkflowTemplatesController {
   }
 
   @Post(':id/instantiate')
-  @ApiOkResponse({ description: 'Creates a new workflow from the template' })
+  @ApiOkResponse({
+    description: 'Creates a new workflow from the template',
+    type: WorkflowResponseDto,
+  })
   async instantiate(
     @CurrentAuth() auth: AuthContext,
     @Param('id') id: string,
-    @Body() body: { name?: string } | undefined,
+    @Body() body: InstantiateWorkflowTemplateRequestDto | undefined,
   ) {
     const template = await this.templatesService.getById(id);
-    const graph = template.graph as {
-      nodes: unknown[];
-      edges: unknown[];
-      name?: string;
-      description?: string;
-    };
+    const graph = WorkflowGraphSchema.parse(template.graph);
 
     const workflowName = body?.name ?? template.name;
     const workflowGraph = {
@@ -75,14 +68,12 @@ export class WorkflowTemplatesController {
       description: template.description ?? graph.description ?? '',
     };
 
-    const workflow = await this.workflowsService.create(
-      workflowGraph as unknown as WorkflowGraphDto,
-      auth,
-    );
+    const workflow = await this.workflowsService.create(workflowGraph, auth);
     return workflow;
   }
 
   @Delete(':id')
+  @ApiOkResponse({ type: DeleteWorkflowTemplateResponseDto })
   async delete(@Param('id') id: string) {
     await this.templatesService.delete(id);
     return { success: true };

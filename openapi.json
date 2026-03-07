@@ -2228,7 +2228,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Terminal chunks for a workflow run"
+            "description": "Terminal chunks for a workflow run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalChunksResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2800,9 +2807,26 @@
       "post": {
         "operationId": "AnalyticsController_batchRunSummaries",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchRunSummariesRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Get severity counts for multiple run IDs"
+            "description": "Get severity counts for multiple run IDs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchRunSummariesResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2898,24 +2922,23 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnsureTenantRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Ensure tenant resources exist for organization",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "securityEnabled": {
-                      "type": "boolean"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/EnsureTenantResponseDto"
                 }
               }
             }
@@ -3219,11 +3242,27 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "schema": {
+              "type": "object",
+              "properties": {
+                "virtualKey": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            },
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiteLLMKeyResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "InternalBilling"
+          "internal-billing"
         ]
       }
     },
@@ -3924,9 +3963,26 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolvePortsRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Resolve dynamic ports based on parameters"
+            "description": "Resolve dynamic ports based on parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvePortsResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -4321,7 +4377,7 @@
         "parameters": [
           {
             "name": "provider",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
               "type": "string"
@@ -5609,7 +5665,7 @@
         "parameters": [
           {
             "name": "groupId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
               "type": "string"
@@ -5673,7 +5729,7 @@
         "parameters": [
           {
             "name": "groupId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
               "type": "string"
@@ -6560,13 +6616,30 @@
       "post": {
         "operationId": "InternalMcpController_generateToken",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateMcpTokenRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateMcpTokenResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "InternalMcp"
+          "internal-mcp"
         ]
       }
     },
@@ -6586,11 +6659,23 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
-          "InternalMcp"
+          "internal-mcp"
         ]
       }
     },
@@ -6610,11 +6695,26 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "toolCount": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
-          "InternalMcp"
+          "internal-mcp"
         ]
       }
     },
@@ -6622,13 +6722,30 @@
       "post": {
         "operationId": "InternalMcpController_cleanupRun",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleanupRunRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanupRunResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "InternalMcp"
+          "internal-mcp"
         ]
       }
     },
@@ -6636,13 +6753,30 @@
       "post": {
         "operationId": "InternalMcpController_areToolsReady",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolsReadyRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolsReadyResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "InternalMcp"
+          "internal-mcp"
         ]
       }
     },
@@ -6650,13 +6784,30 @@
       "post": {
         "operationId": "InternalMcpController_registerGroupServer",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterGroupServerRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterGroupServerResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "InternalMcp"
+          "internal-mcp"
         ]
       }
     },
@@ -6802,11 +6953,18 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitHubStatusResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -6816,11 +6974,21 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GitHubInstallationDto"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -6830,11 +6998,21 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GitHubRepoDto"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -6853,11 +7031,18 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitHubRepoDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -6876,11 +7061,21 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GitHubBranchDto"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -6897,13 +7092,30 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToggleRepoScansDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitHubRepoDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -6911,13 +7123,30 @@
       "post": {
         "operationId": "GitHubAppController_setupInstallation",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteInstallationDto"
+              }
+            }
+          }
+        },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitHubInstallationDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -6935,12 +7164,19 @@
           }
         ],
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationTokenResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -6950,11 +7186,21 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuickScanWorkflowDto"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -6971,13 +7217,30 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitHubTriggerScanDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerScanResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -6986,12 +7249,19 @@
         "operationId": "GitHubAppController_syncRepositories",
         "parameters": [],
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncRepositoriesResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -7001,23 +7271,50 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TriggerRuleDto"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       },
       "post": {
         "operationId": "GitHubAppController_createTriggerRule",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTriggerRuleDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerRuleDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -7036,11 +7333,18 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerRuleDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       },
       "patch": {
@@ -7055,13 +7359,30 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTriggerRuleDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerRuleDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       },
       "delete": {
@@ -7082,7 +7403,7 @@
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -7092,15 +7413,17 @@
         "parameters": [
           {
             "name": "repositoryId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "type": "string"
             }
           },
           {
             "name": "status",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
               "type": "string"
@@ -7108,52 +7431,76 @@
           },
           {
             "name": "source",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "pr",
+                "push",
+                "manual",
+                "schedule"
+              ]
             }
           },
           {
             "name": "scheduleId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "type": "string"
             }
           },
           {
             "name": "triggerRuleId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "type": "string"
             }
           },
           {
             "name": "limit",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
-              "type": "string"
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": 0,
+              "type": "integer"
             }
           },
           {
             "name": "offset",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
-              "type": "string"
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "type": "integer"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GitHubScanResultDto"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -7172,11 +7519,18 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitHubScanResultDto"
+                }
+              }
+            }
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -7215,7 +7569,7 @@
           }
         },
         "tags": [
-          "GitHubApp"
+          "github"
         ]
       }
     },
@@ -7331,7 +7685,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowTemplateResponseDto"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -7341,9 +7705,26 @@
       "post": {
         "operationId": "WorkflowTemplatesController_create",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowTemplateRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTemplateResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -7366,7 +7747,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTemplateResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -7387,7 +7775,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteWorkflowTemplateResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -7408,9 +7803,26 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstantiateWorkflowTemplateRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Creates a new workflow from the template"
+            "description": "Creates a new workflow from the template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -11120,6 +11532,67 @@
           "artifacts"
         ]
       },
+      "TerminalChunksResponseDto": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "chunks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "nodeRef": {
+                  "type": "string"
+                },
+                "stream": {
+                  "type": "string"
+                },
+                "chunkIndex": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "payload": {
+                  "type": "string"
+                },
+                "recordedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "deltaMs": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "origin": {
+                  "type": "string"
+                },
+                "runnerKind": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "nodeRef",
+                "stream",
+                "chunkIndex",
+                "payload",
+                "recordedAt",
+                "deltaMs"
+              ]
+            }
+          }
+        },
+        "required": [
+          "runId",
+          "cursor",
+          "chunks"
+        ]
+      },
       "TerminalArchiveRequestDto": {
         "type": "object",
         "properties": {
@@ -11739,6 +12212,104 @@
             ]
           }
         }
+      },
+      "BatchRunSummariesRequestDto": {
+        "type": "object",
+        "properties": {
+          "runIds": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "runIds"
+        ]
+      },
+      "BatchRunSummariesResponseDto": {
+        "type": "object",
+        "properties": {
+          "summaries": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "critical": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "high": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "medium": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "low": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "info": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "critical",
+                "high",
+                "medium",
+                "low",
+                "info"
+              ]
+            }
+          }
+        },
+        "required": [
+          "summaries"
+        ]
+      },
+      "EnsureTenantRequestDto": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "organizationId"
+        ]
+      },
+      "EnsureTenantResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "securityEnabled": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "securityEnabled",
+          "message"
+        ]
       },
       "ListAuditLogsResponseDto": {
         "type": "object",
@@ -12755,6 +13326,18 @@
           "maxWorkflows"
         ]
       },
+      "LiteLLMKeyResponseDto": {
+        "type": "object",
+        "properties": {
+          "virtualKey": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "virtualKey"
+        ]
+      },
       "OnboardingPreferencesDto": {
         "type": "object",
         "properties": {
@@ -12784,6 +13367,145 @@
             "example": true
           }
         }
+      },
+      "ResolvePortsRequestDto": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "type": "string",
+              "nullable": true
+            },
+            {
+              "type": "number",
+              "nullable": true
+            },
+            {
+              "type": "boolean",
+              "nullable": true
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "nullable": true
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "boolean"
+              },
+              "nullable": true
+            }
+          ]
+        }
+      },
+      "ResolvePortsResponseDto": {
+        "type": "object",
+        "properties": {
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "editor": {
+                  "type": "string"
+                },
+                "valuePriority": {
+                  "type": "string"
+                },
+                "connectionType": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "credential": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "connectionType"
+              ]
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "connectionType": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "credential": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "connectionType"
+              ]
+            }
+          }
+        },
+        "required": [
+          "inputs",
+          "outputs"
+        ]
       },
       "SecretVersionResponse": {
         "type": "object",
@@ -15050,6 +15772,45 @@
           "group"
         ]
       },
+      "GenerateMcpTokenRequestDto": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "organizationId": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": true
+          },
+          "agentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "allowedNodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "runId"
+        ]
+      },
+      "GenerateMcpTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
       "RegisterComponentToolInput": {
         "type": "object",
         "properties": {}
@@ -15057,6 +15818,110 @@
       "RegisterMcpServerInput": {
         "type": "object",
         "properties": {}
+      },
+      "CleanupRunRequestDto": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "runId"
+        ]
+      },
+      "CleanupRunResponseDto": {
+        "type": "object",
+        "properties": {
+          "containerIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "containerIds"
+        ]
+      },
+      "ToolsReadyRequestDto": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requiredNodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "runId",
+          "requiredNodeIds"
+        ]
+      },
+      "ToolsReadyResponseDto": {
+        "type": "object",
+        "properties": {
+          "ready": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ready"
+        ]
+      },
+      "RegisterGroupServerRequestDto": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "groupSlug": {
+            "type": "string",
+            "minLength": 1
+          },
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "runId",
+          "nodeId",
+          "groupSlug",
+          "serverId"
+        ]
+      },
+      "RegisterGroupServerResponseDto": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "endpoint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ]
       },
       "DiscoveryInputDto": {
         "type": "object",
@@ -15406,6 +16271,1364 @@
         "required": [
           "workflowId",
           "status"
+        ]
+      },
+      "GitHubStatusResponseDto": {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "installUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "configured",
+          "installUrl"
+        ]
+      },
+      "GitHubInstallationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "installationId": {
+            "type": "number"
+          },
+          "accountType": {
+            "type": "string",
+            "enum": [
+              "Organization",
+              "User"
+            ]
+          },
+          "accountLogin": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "number"
+          },
+          "accountAvatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "repositorySelection": {
+            "type": "string",
+            "enum": [
+              "all",
+              "selected"
+            ],
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "installationId",
+          "accountType",
+          "accountLogin",
+          "accountId",
+          "accountAvatarUrl",
+          "repositorySelection",
+          "isActive",
+          "organizationId",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "GitHubRepoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "installationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "repoId": {
+            "type": "number"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "isPrivate": {
+            "type": "boolean"
+          },
+          "defaultBranch": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "language": {
+            "type": "string",
+            "nullable": true
+          },
+          "htmlUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "starsCount": {
+            "type": "number"
+          },
+          "forksCount": {
+            "type": "number"
+          },
+          "scansEnabled": {
+            "type": "boolean"
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "installationId",
+          "repoId",
+          "fullName",
+          "name",
+          "owner",
+          "isPrivate",
+          "defaultBranch",
+          "description",
+          "language",
+          "htmlUrl",
+          "starsCount",
+          "forksCount",
+          "scansEnabled",
+          "lastSyncedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "GitHubBranchDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "isDefault"
+        ]
+      },
+      "ToggleRepoScansDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "CompleteInstallationDto": {
+        "type": "object",
+        "properties": {
+          "installationId": {
+            "type": "number"
+          },
+          "setupAction": {
+            "type": "string",
+            "enum": [
+              "install",
+              "update",
+              "request"
+            ]
+          }
+        },
+        "required": [
+          "installationId"
+        ]
+      },
+      "InstallationTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "QuickScanWorkflowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string",
+            "nullable": true
+          },
+          "templateId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "templateId"
+        ]
+      },
+      "GitHubTriggerScanDto": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "prNumber": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "workflowId"
+        ]
+      },
+      "TriggerScanResponseDto": {
+        "type": "object",
+        "properties": {
+          "scanId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "runId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scanId",
+          "runId"
+        ]
+      },
+      "SyncRepositoriesResponseDto": {
+        "type": "object",
+        "properties": {
+          "synced": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "synced"
+        ]
+      },
+      "TriggerRuleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "repositoryPattern": {
+            "type": "string"
+          },
+          "event": {
+            "type": "string"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "postPrComment": {
+            "type": "boolean"
+          },
+          "createCheckRun": {
+            "type": "boolean"
+          },
+          "postPrReview": {
+            "type": "boolean"
+          },
+          "failOn": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "priority": {
+            "type": "number"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "repositoryPattern",
+          "event",
+          "actions",
+          "branches",
+          "workflowId",
+          "postPrComment",
+          "createCheckRun",
+          "postPrReview",
+          "failOn",
+          "enabled",
+          "priority",
+          "organizationId",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateTriggerRuleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "description": {
+            "type": "string"
+          },
+          "repositoryPattern": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "event": {
+            "type": "string",
+            "enum": [
+              "pull_request",
+              "push",
+              "release",
+              "repository_added"
+            ]
+          },
+          "actions": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "branches": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "postPrComment": {
+            "default": true,
+            "type": "boolean"
+          },
+          "createCheckRun": {
+            "default": true,
+            "type": "boolean"
+          },
+          "postPrReview": {
+            "default": false,
+            "type": "boolean"
+          },
+          "failOn": {
+            "default": "high",
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "info",
+              "none"
+            ]
+          },
+          "enabled": {
+            "default": true,
+            "type": "boolean"
+          },
+          "priority": {
+            "default": 100,
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "repositoryPattern",
+          "event",
+          "workflowId"
+        ]
+      },
+      "UpdateTriggerRuleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "description": {
+            "type": "string"
+          },
+          "repositoryPattern": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "event": {
+            "type": "string",
+            "enum": [
+              "pull_request",
+              "push",
+              "release",
+              "repository_added"
+            ]
+          },
+          "actions": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "branches": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "postPrComment": {
+            "default": true,
+            "type": "boolean"
+          },
+          "createCheckRun": {
+            "default": true,
+            "type": "boolean"
+          },
+          "postPrReview": {
+            "default": false,
+            "type": "boolean"
+          },
+          "failOn": {
+            "default": "high",
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "info",
+              "none"
+            ]
+          },
+          "enabled": {
+            "default": true,
+            "type": "boolean"
+          },
+          "priority": {
+            "default": 100,
+            "type": "number"
+          }
+        }
+      },
+      "GitHubScanResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "repositoryId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "workflowRunId": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "pr",
+              "push",
+              "manual",
+              "schedule"
+            ]
+          },
+          "triggerType": {
+            "type": "string",
+            "nullable": true
+          },
+          "triggerSource": {
+            "type": "string",
+            "nullable": true
+          },
+          "triggerLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "scheduleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "scheduleName": {
+            "type": "string",
+            "nullable": true
+          },
+          "prNumber": {
+            "type": "number",
+            "nullable": true
+          },
+          "branch": {
+            "type": "string",
+            "nullable": true
+          },
+          "commitSha": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "success",
+              "failure",
+              "error"
+            ]
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "critical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              },
+              "medium": {
+                "type": "number"
+              },
+              "low": {
+                "type": "number"
+              },
+              "info": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "info"
+            ]
+          },
+          "findingsCount": {
+            "type": "number"
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "high",
+                    "medium",
+                    "low",
+                    "info"
+                  ]
+                },
+                "file": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": "number"
+                },
+                "endLine": {
+                  "type": "number"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "snippet": {
+                  "type": "string"
+                },
+                "ruleId": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "severity",
+                "file",
+                "message"
+              ]
+            }
+          },
+          "checkRunId": {
+            "type": "number",
+            "nullable": true
+          },
+          "prCommentId": {
+            "type": "number",
+            "nullable": true
+          },
+          "prReviewId": {
+            "type": "number",
+            "nullable": true
+          },
+          "resultsUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "triggerRuleId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "workflowName": {
+            "type": "string",
+            "nullable": true
+          },
+          "workflowVersion": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "repositoryId",
+          "workflowRunId",
+          "sourceType",
+          "triggerType",
+          "triggerSource",
+          "triggerLabel",
+          "scheduleId",
+          "scheduleName",
+          "prNumber",
+          "branch",
+          "commitSha",
+          "status",
+          "summary",
+          "findingsCount",
+          "findings",
+          "checkRunId",
+          "prCommentId",
+          "prReviewId",
+          "resultsUrl",
+          "errorMessage",
+          "triggerRuleId",
+          "organizationId",
+          "startedAt",
+          "completedAt",
+          "createdAt",
+          "updatedAt",
+          "workflowName",
+          "workflowVersion"
+        ]
+      },
+      "WorkflowTemplateResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "code-security",
+              "cloud-security",
+              "attack-surface",
+              "notification"
+            ]
+          },
+          "graph": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "nodes": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y"
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "config": {
+                          "default": {
+                            "params": {},
+                            "inputOverrides": {}
+                          },
+                          "type": "object",
+                          "properties": {
+                            "params": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "inputOverrides": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "joinStrategy": {
+                              "type": "string",
+                              "enum": [
+                                "all",
+                                "any",
+                                "first"
+                              ]
+                            },
+                            "streamId": {
+                              "type": "string"
+                            },
+                            "groupId": {
+                              "type": "string"
+                            },
+                            "maxConcurrency": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "normal",
+                                "tool"
+                              ]
+                            },
+                            "toolConfig": {
+                              "type": "object",
+                              "properties": {
+                                "boundInputIds": {
+                                  "default": [],
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "exposedInputIds": {
+                                  "default": [],
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "connectedToolNodeIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "dynamicInputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "dynamicOutputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        }
+                      },
+                      "required": [
+                        "label"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "position",
+                    "data"
+                  ]
+                }
+              },
+              "edges": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "sourceHandle": {
+                      "type": "string"
+                    },
+                    "targetHandle": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "smoothstep",
+                        "step",
+                        "straight",
+                        "bezier"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "source",
+                    "target"
+                  ]
+                }
+              },
+              "viewport": {
+                "default": {
+                  "x": 0,
+                  "y": 0,
+                  "zoom": 1
+                },
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "zoom": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "zoom"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "nodes",
+              "edges"
+            ]
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "screenshotUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "isFeatured": {
+            "type": "boolean"
+          },
+          "runCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "category",
+          "graph",
+          "icon",
+          "isDefault",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateWorkflowTemplateRequestDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "code-security",
+              "cloud-security",
+              "attack-surface",
+              "notification"
+            ]
+          },
+          "graph": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "nodes": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y"
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "config": {
+                          "default": {
+                            "params": {},
+                            "inputOverrides": {}
+                          },
+                          "type": "object",
+                          "properties": {
+                            "params": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "inputOverrides": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "joinStrategy": {
+                              "type": "string",
+                              "enum": [
+                                "all",
+                                "any",
+                                "first"
+                              ]
+                            },
+                            "streamId": {
+                              "type": "string"
+                            },
+                            "groupId": {
+                              "type": "string"
+                            },
+                            "maxConcurrency": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "normal",
+                                "tool"
+                              ]
+                            },
+                            "toolConfig": {
+                              "type": "object",
+                              "properties": {
+                                "boundInputIds": {
+                                  "default": [],
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "exposedInputIds": {
+                                  "default": [],
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "connectedToolNodeIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "dynamicInputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "dynamicOutputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        }
+                      },
+                      "required": [
+                        "label"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "position",
+                    "data"
+                  ]
+                }
+              },
+              "edges": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "sourceHandle": {
+                      "type": "string"
+                    },
+                    "targetHandle": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "smoothstep",
+                        "step",
+                        "straight",
+                        "bezier"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "source",
+                    "target"
+                  ]
+                }
+              },
+              "viewport": {
+                "default": {
+                  "x": 0,
+                  "y": 0,
+                  "zoom": 1
+                },
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "zoom": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "zoom"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "nodes",
+              "edges"
+            ]
+          },
+          "icon": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "category",
+          "graph"
+        ]
+      },
+      "InstantiateWorkflowTemplateRequestDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "DeleteWorkflowTemplateResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "success"
         ]
       },
       "CreateDomainDto": {

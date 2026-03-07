@@ -11,6 +11,7 @@ import {
   type CachedComponentMetadata,
 } from '@shipsec/component-sdk';
 import { categorizeComponent, getCategoryConfig } from './utils/categorization';
+import { ResolvePortsRequestDto, ResolvePortsResponseDto } from './dto/resolve-ports.dto';
 
 function serializeComponent(entry: CachedComponentMetadata) {
   const component = entry.definition;
@@ -373,8 +374,9 @@ export class ComponentsController {
   @Post(':id/resolve-ports')
   @ApiOkResponse({
     description: 'Resolve dynamic ports based on parameters',
+    type: ResolvePortsResponseDto,
   })
-  resolvePorts(@Param('id') id: string, @Body() body: Record<string, unknown>) {
+  resolvePorts(@Param('id') id: string, @Body() body: ResolvePortsRequestDto) {
     const entry = componentRegistry.getMetadata(id);
 
     if (!entry) {

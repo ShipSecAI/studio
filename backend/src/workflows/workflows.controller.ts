@@ -48,6 +48,7 @@ import {
 import {
   TerminalArchiveRequestDto,
   TerminalRecordingDto,
+  TerminalChunksResponseDto,
   TerminalRecordListDto,
   TerminalRecordParamDto,
   TerminalArchiveRequestSchema,
@@ -1218,6 +1219,7 @@ export class WorkflowsController {
   @Get('/runs/:runId/terminal')
   @ApiOkResponse({
     description: 'Terminal chunks for a workflow run',
+    type: TerminalChunksResponseDto,
   })
   async terminalChunks(
     @Param('runId') runId: string,
