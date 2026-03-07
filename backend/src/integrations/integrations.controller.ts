@@ -28,6 +28,8 @@ import {
   CreateAwsConnectionDto,
   CreateSlackWebhookConnectionDto,
   DiscoverOrgAccountsResponseDto,
+  IntegrationCatalogEntryDto,
+  type IntegrationCatalogEntry,
   IntegrationConnectionResponse,
   IntegrationProviderResponse,
   OAuthStartResponseDto,
@@ -37,7 +39,6 @@ import {
   ValidateAwsResponseDto,
 } from './integrations.dto';
 import { IntegrationsService } from './integrations.service';
-import type { IntegrationProviderDefinition } from './integration-catalog';
 
 @ApiTags('integrations')
 @Controller('integrations')
@@ -51,8 +52,12 @@ export class IntegrationsController {
   /* ------------------------------------------------------------------ */
 
   @Get('catalog')
-  @ApiOkResponse({ description: 'Returns the integration provider catalog (AWS + Slack)' })
-  getCatalog(): IntegrationProviderDefinition[] {
+  @ApiOkResponse({
+    description: 'Returns the integration provider catalog (AWS + Slack)',
+    type: IntegrationCatalogEntryDto,
+    isArray: true,
+  })
+  getCatalog(): IntegrationCatalogEntry[] {
     return this.integrations.getCatalog();
   }
 

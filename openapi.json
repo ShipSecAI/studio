@@ -331,55 +331,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "format": "uuid"
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "description": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "icon": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "iconColor": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "isSystem": {
-                        "type": "boolean"
-                      },
-                      "templateId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "nullable": true
-                      },
-                      "lastRun": {
-                        "type": "string",
-                        "format": "date-time",
-                        "nullable": true
-                      },
-                      "runCount": {
-                        "type": "integer"
-                      },
-                      "nodeCount": {
-                        "type": "integer"
-                      },
-                      "createdAt": {
-                        "type": "string",
-                        "format": "date-time"
-                      },
-                      "updatedAt": {
-                        "type": "string",
-                        "format": "date-time"
-                      }
-                    }
+                    "$ref": "#/components/schemas/WorkflowSummaryResponseDto"
                   }
                 }
               }
@@ -2901,7 +2853,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Static Prowler check metadata keyed by CheckID"
+            "description": "Static Prowler check metadata keyed by CheckID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProwlerChecksMetadataResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2958,19 +2917,7 @@
             "required": false,
             "in": "query",
             "schema": {
-              "type": "string",
-              "enum": [
-                "workflow",
-                "secret",
-                "api_key",
-                "webhook",
-                "artifact",
-                "analytics",
-                "schedule",
-                "mcp_server",
-                "mcp_group",
-                "human_input"
-              ]
+              "type": "string"
             }
           },
           {
@@ -4301,7 +4248,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Returns the integration provider catalog (AWS + Slack)"
+            "description": "Returns the integration provider catalog (AWS + Slack)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrationCatalogEntryDto"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -11142,6 +11099,101 @@
           "name"
         ]
       },
+      "WorkflowSummaryResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "iconColor": {
+            "type": "string",
+            "nullable": true
+          },
+          "organizationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "isSystem": {
+            "type": "boolean"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
+          },
+          "lastRun": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "latestRunStatus": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED",
+              "TERMINATED",
+              "TIMED_OUT",
+              "AWAITING_INPUT",
+              "STALE"
+            ],
+            "nullable": true
+          },
+          "runCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "nodeCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "icon",
+          "iconColor",
+          "organizationId",
+          "isSystem",
+          "templateId",
+          "lastRun",
+          "latestRunStatus",
+          "runCount",
+          "nodeCount",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
       "WorkflowRuntimeInputsResponseDto": {
         "type": "object",
         "properties": {
@@ -12386,6 +12438,54 @@
           "summaries"
         ]
       },
+      "ProwlerChecksMetadataResponseDto": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "checkTitle": {
+              "type": "string",
+              "nullable": true
+            },
+            "recommendation": {
+              "type": "string",
+              "nullable": true
+            },
+            "recommendationUrl": {
+              "type": "string",
+              "nullable": true
+            },
+            "cli": {
+              "type": "string",
+              "nullable": true
+            },
+            "nativeIaC": {
+              "type": "string",
+              "nullable": true
+            },
+            "terraform": {
+              "type": "string",
+              "nullable": true
+            },
+            "other": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          "required": [
+            "checkTitle",
+            "recommendation",
+            "recommendationUrl",
+            "cli",
+            "nativeIaC",
+            "terraform",
+            "other"
+          ]
+        }
+      },
       "EnsureTenantRequestDto": {
         "type": "object",
         "properties": {
@@ -12415,39 +12515,6 @@
           "success",
           "securityEnabled",
           "message"
-        ]
-      },
-      "ListAuditLogsResponseDto__schema0": {
-        "anyOf": [
-          {
-            "type": "string",
-            "nullable": true
-          },
-          {
-            "type": "number",
-            "nullable": true
-          },
-          {
-            "type": "boolean",
-            "nullable": true
-          },
-          {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ListAuditLogsResponseDto__schema0"
-            },
-            "nullable": true
-          },
-          {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {
-              "$ref": "#/components/schemas/ListAuditLogsResponseDto__schema0"
-            },
-            "nullable": true
-          }
         ]
       },
       "ListAuditLogsResponseDto": {
@@ -12516,7 +12583,20 @@
                     "type": "string"
                   },
                   "additionalProperties": {
-                    "$ref": "#/components/schemas/ListAuditLogsResponseDto__schema0"
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      {
+                        "type": "number",
+                        "nullable": true
+                      },
+                      {
+                        "type": "boolean",
+                        "nullable": true
+                      }
+                    ]
                   },
                   "nullable": true
                 },
@@ -13792,6 +13872,152 @@
             }
           }
         }
+      },
+      "IntegrationCatalogEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "docsUrl": {
+            "type": "string"
+          },
+          "iconUrl": {
+            "type": "string"
+          },
+          "authMethods": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "text",
+                          "password",
+                          "select"
+                        ]
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "placeholder": {
+                        "type": "string"
+                      },
+                      "helpText": {
+                        "type": "string"
+                      },
+                      "options": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "value"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "label",
+                      "type",
+                      "required"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "type",
+                "label",
+                "description",
+                "fields"
+              ]
+            }
+          },
+          "supportsMultipleConnections": {
+            "type": "boolean"
+          },
+          "setupInstructions": {
+            "type": "object",
+            "properties": {
+              "sections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    },
+                    "authMethodType": {
+                      "type": "string"
+                    },
+                    "scenario": {
+                      "type": "string"
+                    },
+                    "steps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "authMethodType",
+                    "scenario",
+                    "steps"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "sections"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "authMethods",
+          "supportsMultipleConnections",
+          "setupInstructions"
+        ]
       },
       "IntegrationProviderResponse": {
         "type": "object",

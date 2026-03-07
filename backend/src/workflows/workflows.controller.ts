@@ -40,6 +40,8 @@ import {
   ServiceWorkflowResponse,
   WorkflowVersionResponseDto,
   WorkflowRuntimeInputsResponseDto,
+  WorkflowSummaryResponseDto,
+  type WorkflowSummaryResponsePayload,
   ENTRY_POINT_COMPONENT_IDS,
   RunActivityQuerySchema,
   type RunActivityQueryDto,
@@ -291,28 +293,12 @@ export class WorkflowsController {
   @Get('summary')
   @ApiOkResponse({
     description: 'Lightweight workflow list without graph data',
-    schema: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' },
-          name: { type: 'string' },
-          description: { type: 'string', nullable: true },
-          icon: { type: 'string', nullable: true },
-          iconColor: { type: 'string', nullable: true },
-          isSystem: { type: 'boolean' },
-          templateId: { type: 'string', format: 'uuid', nullable: true },
-          lastRun: { type: 'string', format: 'date-time', nullable: true },
-          runCount: { type: 'integer' },
-          nodeCount: { type: 'integer' },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
-        },
-      },
-    },
+    type: WorkflowSummaryResponseDto,
+    isArray: true,
   })
-  async listSummary(@CurrentAuth() auth: AuthContext | null) {
+  async listSummary(
+    @CurrentAuth() auth: AuthContext | null,
+  ): Promise<WorkflowSummaryResponsePayload[]> {
     return this.workflowsService.listSummary(auth);
   }
 

@@ -1,5 +1,5 @@
 import { createShipSecClient } from '../../../packages/backend-client/src/api-client';
-import type { components, operations } from '../../../packages/backend-client/src/client';
+import type { components, operations, paths } from '../../../packages/backend-client/src/client';
 import type {
   RunArtifactsResponse,
   WorkflowSchedule,
@@ -15,33 +15,10 @@ type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 type JsonObject = Record<string, JsonValue>;
 
-// TODO: regenerate OpenAPI types to pull from schema
-export interface ProwlerCheckMetadata {
-  checkTitle: string | null;
-  recommendation: string | null;
-  recommendationUrl: string | null;
-  cli: string | null;
-  nativeIaC: string | null;
-  terraform: string | null;
-  other: string | null;
-}
-
-export interface WorkflowSummary {
-  id: string;
-  name: string;
-  description: string | null;
-  icon: string | null;
-  iconColor: string | null;
-  organizationId: string | null;
-  isSystem: boolean;
-  templateId: string | null;
-  lastRun: string | null;
-  latestRunStatus: string | null;
-  runCount: number;
-  nodeCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
+export type ProwlerCheckMetadata =
+  paths['/api/v1/analytics/prowler-checks-metadata']['get']['responses'][200]['content']['application/json'][string];
+export type WorkflowSummary =
+  paths['/api/v1/workflows/summary']['get']['responses'][200]['content']['application/json'][number];
 
 export type IntegrationProvider = components['schemas']['IntegrationProviderResponse'];
 export type IntegrationConnection = components['schemas']['IntegrationConnectionResponse'];
@@ -49,37 +26,8 @@ export type IntegrationProviderConfiguration =
   components['schemas']['ProviderConfigurationResponse'];
 export type OAuthStartResponse = components['schemas']['OAuthStartResponseDto'];
 
-// Catalog types (from backend integration-catalog.ts)
-export interface IntegrationCatalogEntry {
-  id: string;
-  name: string;
-  description: string;
-  docsUrl?: string;
-  iconUrl?: string;
-  authMethods: {
-    type: string;
-    label: string;
-    description: string;
-    fields: {
-      id: string;
-      label: string;
-      type: 'text' | 'password' | 'select';
-      required: boolean;
-      placeholder?: string;
-      helpText?: string;
-      options?: { label: string; value: string }[];
-    }[];
-  }[];
-  supportsMultipleConnections: boolean;
-  setupInstructions: {
-    sections: {
-      title: string;
-      authMethodType: string;
-      scenario: string;
-      steps: string[];
-    }[];
-  };
-}
+export type IntegrationCatalogEntry =
+  paths['/api/v1/integrations/catalog']['get']['responses'][200]['content']['application/json'][number];
 
 /**
  * API Client Configuration
@@ -224,7 +172,7 @@ export const api = {
     listSummary: async (): Promise<WorkflowSummary[]> => {
       const response = await apiClient.listWorkflowSummaries();
       if (response.error) throw new Error('Failed to fetch workflow summaries');
-      return (response.data ?? []) as WorkflowSummary[];
+      return response.data ?? [];
     },
 
     get: async (id: string): Promise<components['schemas']['WorkflowResponseDto']> => {
@@ -403,7 +351,7 @@ export const api = {
     getCatalog: async (): Promise<IntegrationCatalogEntry[]> => {
       const response = await apiClient.getIntegrationCatalog();
       if (response.error) throw new Error('Failed to load integration catalog');
-      return (response.data ?? []) as IntegrationCatalogEntry[];
+      return response.data ?? [];
     },
 
     // D16: userId removed from OAuth payloads
@@ -655,9 +603,20 @@ export const api = {
 
   auditLogs: {
     list: async (
-      query: operations['AuditLogsController_list']['parameters']['query'] = {},
+      query: {
+        resourceType?: string;
+        resourceId?: string;
+        action?: string;
+        actorId?: string;
+        from?: string;
+        to?: string;
+        limit?: number;
+        cursor?: string;
+      } = {},
     ): Promise<components['schemas']['ListAuditLogsResponseDto']> => {
-      const response = await apiClient.listAuditLogs(query);
+      const response = await apiClient.listAuditLogs(
+        query as Parameters<typeof apiClient.listAuditLogs>[0],
+      );
       if (response.error || !response.data) {
         throw new Error('Failed to fetch audit logs');
       }
@@ -1505,7 +1464,7 @@ export const api = {
     prowlerChecksMetadata: async (): Promise<Record<string, ProwlerCheckMetadata>> => {
       const response = await apiClient.getAnalyticsProwlerChecksMetadata();
       if (response.error || !response.data) throw new Error('Prowler checks metadata failed');
-      return response.data as Record<string, ProwlerCheckMetadata>;
+      return response.data;
     },
 
     batchRunSummaries: async (runIds: string[]) => {

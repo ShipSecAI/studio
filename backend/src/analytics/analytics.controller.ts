@@ -21,7 +21,13 @@ import { join } from 'node:path';
 import { SecurityAnalyticsService } from './security-analytics.service';
 import { OrganizationSettingsService } from './organization-settings.service';
 import { OpenSearchTenantService } from './opensearch-tenant.service';
-import { AnalyticsQueryRequestDto, AnalyticsQueryResponseDto } from './dto/analytics-query.dto';
+import {
+  AnalyticsQueryRequestDto,
+  AnalyticsQueryResponseDto,
+  ProwlerChecksMetadataResponseDto,
+  ProwlerChecksMetadataResponseSchema,
+  type ProwlerChecksMetadataResponse,
+} from './dto/analytics-query.dto';
 import {
   AnalyticsSettingsResponseDto,
   UpdateAnalyticsSettingsDto,
@@ -49,13 +55,14 @@ function isValidNonNegativeInt(value: unknown): value is number {
 @Controller('analytics')
 export class AnalyticsController {
   private readonly internalServiceToken: string;
-  private _prowlerChecksMetadata: Record<string, unknown> | null = null;
+  private _prowlerChecksMetadata: ProwlerChecksMetadataResponse | null = null;
 
-  private get prowlerChecksMetadata(): Record<string, unknown> {
+  private get prowlerChecksMetadata(): ProwlerChecksMetadataResponse {
     if (!this._prowlerChecksMetadata) {
       try {
         const raw = readFileSync(join(__dirname, '..', 'assets', 'prowler-checks.json'), 'utf-8');
-        this._prowlerChecksMetadata = JSON.parse(raw);
+        const parsed = ProwlerChecksMetadataResponseSchema.safeParse(JSON.parse(raw));
+        this._prowlerChecksMetadata = parsed.success ? parsed.data : {};
       } catch {
         this._prowlerChecksMetadata = {};
       }
@@ -376,8 +383,11 @@ export class AnalyticsController {
   @Header('Cache-Control', 'public, max-age=2592000')
   @ApiOkResponse({
     description: 'Static Prowler check metadata keyed by CheckID',
+    type: ProwlerChecksMetadataResponseDto,
   })
-  async getProwlerChecksMetadata(@CurrentAuth() auth: AuthContext | null) {
+  async getProwlerChecksMetadata(
+    @CurrentAuth() auth: AuthContext | null,
+  ): Promise<ProwlerChecksMetadataResponse> {
     if (!auth || !auth.isAuthenticated) {
       throw new UnauthorizedException('Authentication required');
     }
