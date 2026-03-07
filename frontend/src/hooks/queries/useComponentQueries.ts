@@ -3,18 +3,23 @@ import { api } from '@/services/api';
 import { queryKeys } from '@/lib/queryKeys';
 import { queryClient } from '@/lib/queryClient';
 import { ComponentMetadata } from '@/schemas/component';
+import type { components } from '../../../../packages/backend-client/src/client';
+
+type ComponentListItem = components['schemas']['ComponentListItemDto'];
 
 interface ComponentIndex {
   byId: Record<string, ComponentMetadata>;
   slugIndex: Record<string, string>;
 }
 
-function buildIndexes(components: any[]): ComponentIndex {
+function buildIndexes(components: ComponentListItem[]): ComponentIndex {
   const byId: Record<string, ComponentMetadata> = {};
   const slugIndex: Record<string, string> = {};
 
   components.forEach((component) => {
     if (!component?.id || !component?.slug || !component?.name) return;
+
+    const nullToUndef = <T>(v: T | null | undefined): T | undefined => v ?? undefined;
 
     const metadata: ComponentMetadata = {
       id: component.id,
@@ -35,14 +40,36 @@ function buildIndexes(components: any[]): ComponentIndex {
       documentationUrl: component.documentationUrl || null,
       icon: component.icon || null,
       logo: component.logo || null,
-      author: component.author || null,
+      author: component.author
+        ? { ...component.author, url: nullToUndef(component.author.url) }
+        : null,
       isLatest: component.isLatest ?? true,
       deprecated: component.deprecated ?? false,
       example: component.example || null,
       runner: component.runner || { kind: 'inline' },
-      inputs: component.inputs || [],
-      outputs: component.outputs || [],
-      parameters: component.parameters || [],
+      inputs:
+        component.inputs?.map((i) => ({
+          ...i,
+          editor: nullToUndef(i.editor),
+          description: nullToUndef(i.description),
+          valuePriority: nullToUndef(i.valuePriority),
+        })) || [],
+      outputs:
+        component.outputs?.map((o) => ({
+          ...o,
+          description: nullToUndef(o.description),
+        })) || [],
+      parameters:
+        component.parameters?.map((p) => ({
+          ...p,
+          options: nullToUndef(p.options),
+          placeholder: nullToUndef(p.placeholder),
+          description: nullToUndef(p.description),
+          helpText: nullToUndef(p.helpText),
+          min: nullToUndef(p.min),
+          max: nullToUndef(p.max),
+          rows: nullToUndef(p.rows),
+        })) || [],
       examples: component.examples || [],
       toolProvider: component.toolProvider || null,
       toolSchema: component.toolSchema ?? null,

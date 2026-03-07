@@ -12167,10 +12167,32 @@
             "type": "string"
           },
           "type": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "trigger",
+              "input",
+              "scan",
+              "process",
+              "output"
+            ]
           },
           "category": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "input",
+              "transform",
+              "ai",
+              "mcp",
+              "security",
+              "scanners",
+              "it_ops",
+              "notification",
+              "manual_action",
+              "output",
+              "process",
+              "cloud",
+              "core"
+            ]
           },
           "categoryConfig": {
             "type": "object",
@@ -12442,10 +12464,16 @@
                     "textarea",
                     "number",
                     "boolean",
+                    "toggle",
                     "select",
                     "multi-select",
+                    "file",
                     "json",
-                    "secret"
+                    "secret",
+                    "artifact",
+                    "variable-list",
+                    "form-fields",
+                    "selection-options"
                   ]
                 },
                 "required": {
@@ -12597,10 +12625,32 @@
             "type": "string"
           },
           "type": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "trigger",
+              "input",
+              "scan",
+              "process",
+              "output"
+            ]
           },
           "category": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "input",
+              "transform",
+              "ai",
+              "mcp",
+              "security",
+              "scanners",
+              "it_ops",
+              "notification",
+              "manual_action",
+              "output",
+              "process",
+              "cloud",
+              "core"
+            ]
           },
           "categoryConfig": {
             "type": "object",
@@ -12872,10 +12922,16 @@
                     "textarea",
                     "number",
                     "boolean",
+                    "toggle",
                     "select",
                     "multi-select",
+                    "file",
                     "json",
-                    "secret"
+                    "secret",
+                    "artifact",
+                    "variable-list",
+                    "form-fields",
+                    "selection-options"
                   ]
                 },
                 "required": {
