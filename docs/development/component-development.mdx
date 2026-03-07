@@ -155,6 +155,58 @@ const definition = defineComponent({
 export default definition;
 ```
 
+### Docker Output Strategy
+
+For Docker and K8s-executed CLI tools, treat live terminal output and parsed results as two separate concerns:
+
+- Use PTY-capable terminal streaming for user-visible progress, spinners, and logs.
+- Do not rely on PTY `stdout` as the source of truth for structured findings.
+- Prefer native tool output files when the CLI supports them.
+- If a tool only emits structured results on `stdout`, redirect `stdout` into a mounted output file and parse that file after execution.
+
+This avoids control-sequence corruption in K8s PTY streams while preserving the live terminal UX.
+
+```typescript
+import {
+  TOOL_OUTPUT_DIR,
+  createToolOutputVolume,
+  readToolOutputFile,
+} from '../../utils/tool-output';
+
+async execute({ inputs }, context) {
+  const tenantId = (context as any).tenantId ?? 'default-tenant';
+  const outputVolume = await createToolOutputVolume(tenantId, context.runId, 'my-tool-output');
+
+  try {
+    const runnerConfig: DockerRunnerConfig = {
+      ...this.runner,
+      command: [
+        '-c',
+        `my-tool \"$@\" 1>${TOOL_OUTPUT_DIR}/report.json`,
+        '--',
+        '--json',
+        '/scan',
+      ],
+      volumes: [
+        outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false),
+      ],
+    };
+
+    await runComponentWithRunner(
+      runnerConfig,
+      async () => ({}) as { results: unknown[] },
+      inputs,
+      context,
+    );
+
+    const rawOutput = await readToolOutputFile(outputVolume, 'report.json', 'My Tool');
+    return { results: JSON.parse(rawOutput) };
+  } finally {
+    await outputVolume.cleanup();
+  }
+}
+```
+
 ---
 
 ## ExecutionContext
@@ -190,6 +242,27 @@ async execute({ inputs, params }, context) {
 ```
 
 ---
+
+## Docker And K8s Guidance
+
+### PTY vs Parsed Output
+
+PTY is useful for live terminal UX, but it is not a safe parser input for JSON or NDJSON tools. In K8s, PTY attach can include terminal control bytes, progress updates, and merged stream behavior that break strict parsing.
+
+Use this rule:
+
+- `stderr` / PTY stream: for humans watching the run
+- output file in a mounted volume: for TypeScript parsers
+
+### Writable Volumes For Non-Root Images
+
+Most security images in this repo run as non-root. When these components execute in K8s, writable isolated volumes are mounted through GCS Fuse with runner-managed ownership and mode options so the container can create output files safely.
+
+That means:
+
+- Read-only shared inputs can stay read-only.
+- Writable report volumes should be mounted with `getVolumeConfig(..., false)`.
+- If the tool writes a report file, parse the file from the isolated volume instead of parsing PTY output.
 
 ## Component Definition
 

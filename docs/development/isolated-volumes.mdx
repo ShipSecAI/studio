@@ -11,6 +11,8 @@ In a Docker-in-Docker (DinD) setup where the worker container runs inside Docker
 2. **Security Risk**: Shared volumes in multi-tenant SaaS allow cross-tenant data access
 3. **Limited stdin Approach**: Using stdin for data transfer doesn't support file-based tools
 
+In K8s mode, isolated volumes are also used as workflow-shared GCS-backed storage. This is the correct place for tool-native report files that need to survive outside the container process.
+
 ---
 
 ## Solution: Isolated Named Volumes
@@ -177,6 +179,35 @@ try {
 }
 ```
 
+### Structured Tool Output Files
+
+For scanners that emit JSON or JSONL, prefer writing their structured result into a writable isolated volume and parse the file afterward.
+
+```typescript
+const outputVolume = createIsolatedVolume(tenantId, `${runId}-tool-output`);
+
+try {
+  await outputVolume.initialize({});
+
+  const config = {
+    command: [
+      '-o',
+      '/tool-output/report.jsonl',
+    ],
+    volumes: [outputVolume.getVolumeConfig('/tool-output', false)],
+  };
+
+  await runTool(config);
+
+  const outputs = await outputVolume.readFiles(['report.jsonl']);
+  return parseReport(outputs['report.jsonl'] ?? '');
+} finally {
+  await outputVolume.cleanup();
+}
+```
+
+This is safer than parsing PTY terminal output, especially in K8s.
+
 ### Multiple Volumes
 
 ```typescript
@@ -215,6 +246,8 @@ try {
 3. **Mount**: Container uses the volume via `-v volumeName:/path`
 4. **Read**: Use temporary Alpine container to read files
 5. **Cleanup**: `docker volume rm tenant-A-run-123-...`
+
+In K8s mode, the same lifecycle maps to a workflow-scoped GCS prefix mounted into the pod. Writable mounts are configured so non-root scanner images can create output files successfully.
 
 ### Automatic Cleanup
 

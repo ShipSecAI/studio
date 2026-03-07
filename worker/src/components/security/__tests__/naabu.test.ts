@@ -2,19 +2,41 @@ import { describe, it, expect, beforeAll, afterEach, vi, mock } from 'bun:test';
 import * as sdk from '@shipsec/component-sdk';
 import type { NaabuInput, NaabuOutput } from '../naabu';
 
+let mockedVolumeFiles: Record<string, string> = {};
+
 // Mock IsolatedContainerVolume BEFORE any component imports.
 // ../../index eagerly imports naabu.ts which pulls in the real
 // IsolatedContainerVolume; using a dynamic import in beforeAll()
 // ensures the mock is registered first.
+const MockIsolatedContainerVolume = class {
+  async initialize() {
+    return 'mock-volume';
+  }
+  async readFiles(filenames: string[]) {
+    return Object.fromEntries(
+      filenames.map((filename) => [filename, mockedVolumeFiles[filename] ?? '']),
+    );
+  }
+  getVolumeConfig(containerPath = '/inputs', readOnly = true) {
+    return { source: 'mock-volume', target: containerPath, readOnly };
+  }
+  async cleanup() {}
+};
+
 mock.module('../../../utils/isolated-volume', () => ({
-  IsolatedContainerVolume: class {
-    async initialize() {
-      return 'mock-volume';
+  IsolatedContainerVolume: MockIsolatedContainerVolume,
+  createIsolatedVolume: () => new MockIsolatedContainerVolume(),
+  resolveVolumeSource: (volumeName: string) => {
+    if (volumeName.startsWith('gcsfuse:') || volumeName.startsWith('configmap:')) {
+      return volumeName;
     }
-    getVolumeConfig(containerPath = '/inputs', readOnly = true) {
-      return { source: 'mock-volume', target: containerPath, readOnly };
+    if (process.env.EXECUTION_MODE !== 'k8s') {
+      return volumeName;
     }
-    async cleanup() {}
+    if (process.env.GCS_VOLUME_BUCKET) {
+      return `gcsfuse:${process.env.GCS_VOLUME_BUCKET}:${volumeName}`;
+    }
+    return `configmap:${volumeName}`;
   },
 }));
 
@@ -27,6 +49,7 @@ describe('naabu component', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    mockedVolumeFiles = {};
   });
 
   it('should be registered with correct metadata', () => {
@@ -72,7 +95,8 @@ describe('naabu component', () => {
       JSON.stringify({ host: 'scanme.sh', ip: '45.33.32.156', port: 443, proto: 'tcp' }),
     ].join('\n');
 
-    vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(rawOutput);
+    mockedVolumeFiles['naabu-output.jsonl'] = rawOutput;
+    vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('');
 
     const result = await component.execute(executePayload, context);
 
@@ -102,7 +126,8 @@ describe('naabu component', () => {
       params: {},
     };
 
-    vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('scanme.sh:22\n');
+    mockedVolumeFiles['naabu-output.jsonl'] = 'scanme.sh:22\n';
+    vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('');
 
     const result = await component.execute(
       {

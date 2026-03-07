@@ -357,6 +357,8 @@ const definition = defineComponent({
         '-verbose', // Show findings in terminal (overrides silent mode)
         '-l',
         '/inputs/targets.txt', // Targets file
+        '-o',
+        '/inputs/nuclei-output.jsonl',
       ];
 
       // Conditionally disable httpx probing
@@ -507,7 +509,7 @@ const definition = defineComponent({
         // ✅ Preserve shell wrapper + append TypeScript-built args
         command: [...(baseRunner.command ?? []), ...args],
         volumes: [
-          volume.getVolumeConfig('/inputs', true),
+          volume.getVolumeConfig('/inputs', false),
           // ✅ Templates are pre-installed in ghcr.io/shipsecai/nuclei:latest
           // No need for persistent volume since templates are baked into the image
         ],
@@ -544,8 +546,9 @@ const definition = defineComponent({
         stdout = rawRunnerResult;
       }
 
-      // Parse findings (TypeScript)
-      const findings = parseNucleiOutput(stdout, context);
+      const rawOutput =
+        (await volume.readFiles(['nuclei-output.jsonl']))['nuclei-output.jsonl'] ?? '';
+      const findings = parseNucleiOutput(rawOutput, context);
 
       if (stderr && !stderr.includes('No results found')) {
         context.logger.info(`[Nuclei] stderr: ${stderr}`);
@@ -569,7 +572,7 @@ const definition = defineComponent({
       const output = {
         findings,
         results,
-        rawOutput: stdout,
+        rawOutput,
         targetCount: parsedInputs.targets.length,
         findingCount: findings.length,
         stats,

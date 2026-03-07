@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
-import { wrapCommandForOutput } from '../k8s-runner';
+import { buildGcsFuseMountOptions, wrapCommandForOutput } from '../k8s-runner';
 
 describe('wrapCommandForOutput', () => {
   it('passes through exact dynamic entrypoint wrappers for distroless images', () => {
@@ -56,5 +56,19 @@ describe('wrapCommandForOutput', () => {
       '--exclude-paths',
       '/tmp/exclude-paths.txt',
     ]);
+  });
+});
+
+describe('buildGcsFuseMountOptions', () => {
+  it('keeps read-only mounts minimal', () => {
+    expect(buildGcsFuseMountOptions('tenant/run/input', true)).toBe(
+      'implicit-dirs,only-dir=tenant/run/input',
+    );
+  });
+
+  it('adds non-root friendly ownership and mode flags for writable mounts', () => {
+    expect(buildGcsFuseMountOptions('tenant/run/output', false)).toBe(
+      'implicit-dirs,only-dir=tenant/run/output,uid=65532,gid=65532,file-mode=0666,dir-mode=0777',
+    );
   });
 });
