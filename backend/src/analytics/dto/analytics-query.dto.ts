@@ -1,12 +1,35 @@
+import { createZodDto } from 'nestjs-zod';
 import { ApiProperty } from '@nestjs/swagger';
+import { z } from 'zod';
+
+export const ProwlerCheckMetadataSchema = z.object({
+  checkTitle: z.string().nullable(),
+  recommendation: z.string().nullable(),
+  recommendationUrl: z.string().nullable(),
+  cli: z.string().nullable(),
+  nativeIaC: z.string().nullable(),
+  terraform: z.string().nullable(),
+  other: z.string().nullable(),
+});
+
+export class ProwlerCheckMetadataDto extends createZodDto(ProwlerCheckMetadataSchema) {}
+
+export const ProwlerChecksMetadataResponseSchema = z.record(z.string(), ProwlerCheckMetadataSchema);
+
+export class ProwlerChecksMetadataResponseDto extends createZodDto(
+  ProwlerChecksMetadataResponseSchema,
+) {}
+export type ProwlerChecksMetadataResponse = z.infer<typeof ProwlerChecksMetadataResponseSchema>;
 
 export class AnalyticsQueryRequestDto {
   @ApiProperty({
     description: 'OpenSearch DSL query object',
     example: { match_all: {} },
     required: false,
+    type: 'object',
+    additionalProperties: true,
   })
-  query?: Record<string, any>;
+  query?: Record<string, object | string | number | boolean | null>;
 
   @ApiProperty({
     description: 'Number of results to return',
@@ -36,20 +59,29 @@ export class AnalyticsQueryRequestDto {
       },
     },
     required: false,
+    type: 'object',
+    additionalProperties: true,
   })
-  aggs?: Record<string, any>;
+  aggs?: Record<string, object | string | number | boolean | null>;
 
   @ApiProperty({
     description: 'Sort specification',
     required: false,
+    type: 'array',
+    items: {
+      type: 'object',
+      additionalProperties: true,
+    },
   })
-  sort?: Record<string, any>[];
+  sort?: Record<string, object | string | number | boolean | null>[];
 
   @ApiProperty({
     description: 'Field collapsing specification for deduplication',
     required: false,
+    type: 'object',
+    additionalProperties: true,
   })
-  collapse?: Record<string, any>;
+  collapse?: Record<string, object | string | number | boolean | null>;
 
   @ApiProperty({
     description: 'Query the deduplicated latest-state index instead of the event log',
@@ -69,17 +101,31 @@ export class AnalyticsQueryResponseDto {
   @ApiProperty({
     description: 'Search hits',
     type: 'array',
-    items: { type: 'object' },
+    items: {
+      type: 'object',
+      properties: {
+        _id: { type: 'string' },
+        _source: {
+          type: 'object',
+          additionalProperties: true,
+        },
+        _score: { type: 'number' },
+      },
+      required: ['_id', '_source'],
+      additionalProperties: false,
+    },
   })
   hits!: {
     _id: string;
-    _source: Record<string, any>;
+    _source: Record<string, object | string | number | boolean | null>;
     _score?: number;
   }[];
 
   @ApiProperty({
     description: 'Aggregation results',
     required: false,
+    type: 'object',
+    additionalProperties: true,
   })
-  aggregations?: Record<string, any>;
+  aggregations?: Record<string, object | string | number | boolean | null>;
 }

@@ -3270,6 +3270,28 @@ export interface components {
             icon?: string | null;
             iconColor?: string | null;
         };
+        WorkflowSummaryResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string | null;
+            icon: string | null;
+            iconColor: string | null;
+            organizationId: string | null;
+            isSystem: boolean;
+            /** Format: uuid */
+            templateId: string | null;
+            /** Format: date-time */
+            lastRun: string | null;
+            /** @enum {string|null} */
+            latestRunStatus: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "TIMED_OUT" | "AWAITING_INPUT" | "STALE" | null;
+            runCount: number;
+            nodeCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         WorkflowRuntimeInputsResponseDto: {
             workflowId: string;
             inputs: {
@@ -3689,6 +3711,17 @@ export interface components {
                 };
             };
         };
+        ProwlerChecksMetadataResponseDto: {
+            [key: string]: {
+                checkTitle: string | null;
+                recommendation: string | null;
+                recommendationUrl: string | null;
+                cli: string | null;
+                nativeIaC: string | null;
+                terraform: string | null;
+                other: string | null;
+            };
+        };
         EnsureTenantRequestDto: {
             organizationId: string;
         };
@@ -3712,7 +3745,7 @@ export interface components {
                 resourceId: string | null;
                 resourceName: string | null;
                 metadata: {
-                    [key: string]: unknown;
+                    [key: string]: (string | null) | (number | null) | (boolean | null);
                 } | null;
                 ip: string | null;
                 userAgent: string | null;
@@ -4128,6 +4161,40 @@ export interface components {
             description?: string;
             /** @description Updated tags for the secret */
             tags?: string[];
+        };
+        IntegrationCatalogEntryDto: {
+            id: string;
+            name: string;
+            description: string;
+            docsUrl?: string;
+            iconUrl?: string;
+            authMethods: {
+                type: string;
+                label: string;
+                description: string;
+                fields: {
+                    id: string;
+                    label: string;
+                    /** @enum {string} */
+                    type: "text" | "password" | "select";
+                    required: boolean;
+                    placeholder?: string;
+                    helpText?: string;
+                    options?: {
+                        label: string;
+                        value: string;
+                    }[];
+                }[];
+            }[];
+            supportsMultipleConnections: boolean;
+            setupInstructions: {
+                sections: {
+                    title: string;
+                    authMethodType: string;
+                    scenario: string;
+                    steps: string[];
+                }[];
+            };
         };
         IntegrationProviderResponse: {
             id: string;
@@ -5915,25 +5982,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id?: string;
-                        name?: string;
-                        description?: string | null;
-                        icon?: string | null;
-                        iconColor?: string | null;
-                        isSystem?: boolean;
-                        /** Format: uuid */
-                        templateId?: string | null;
-                        /** Format: date-time */
-                        lastRun?: string | null;
-                        runCount?: number;
-                        nodeCount?: number;
-                        /** Format: date-time */
-                        createdAt?: string;
-                        /** Format: date-time */
-                        updatedAt?: string;
-                    }[];
+                    "application/json": components["schemas"]["WorkflowSummaryResponseDto"][];
                 };
             };
         };
@@ -7214,7 +7263,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ProwlerChecksMetadataResponseDto"];
+                };
             };
         };
     };
@@ -7247,14 +7298,14 @@ export interface operations {
     AuditLogsController_list: {
         parameters: {
             query?: {
-                cursor?: string;
-                limit?: number;
-                to?: string;
-                from?: string;
-                actorId?: string;
-                action?: string;
+                resourceType?: "workflow" | "secret" | "api_key" | "webhook" | "artifact" | "analytics" | "schedule" | "mcp_server" | "mcp_group" | "human_input";
                 resourceId?: string;
-                resourceType?: string;
+                action?: string;
+                actorId?: string;
+                from?: string;
+                to?: string;
+                limit?: number;
+                cursor?: string;
             };
             header?: never;
             path?: never;
@@ -7921,7 +7972,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["IntegrationCatalogEntryDto"][];
+                };
             };
         };
     };

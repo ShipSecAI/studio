@@ -1,5 +1,64 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsOptional, IsString, IsUrl, Matches, MinLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
+export const IntegrationCatalogOptionSchema = z.object({
+  label: z.string(),
+  value: z.string(),
+});
+
+export class IntegrationCatalogOptionDto extends createZodDto(IntegrationCatalogOptionSchema) {}
+
+export const IntegrationCatalogFieldSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  type: z.enum(['text', 'password', 'select']),
+  required: z.boolean(),
+  placeholder: z.string().optional(),
+  helpText: z.string().optional(),
+  options: z.array(IntegrationCatalogOptionSchema).optional(),
+});
+
+export class IntegrationCatalogFieldDto extends createZodDto(IntegrationCatalogFieldSchema) {}
+
+export const IntegrationCatalogAuthMethodSchema = z.object({
+  type: z.string(),
+  label: z.string(),
+  description: z.string(),
+  fields: z.array(IntegrationCatalogFieldSchema),
+});
+
+export class IntegrationCatalogAuthMethodDto extends createZodDto(
+  IntegrationCatalogAuthMethodSchema,
+) {}
+
+export const IntegrationCatalogInstructionSectionSchema = z.object({
+  title: z.string(),
+  authMethodType: z.string(),
+  scenario: z.string(),
+  steps: z.array(z.string()),
+});
+
+export class IntegrationCatalogInstructionSectionDto extends createZodDto(
+  IntegrationCatalogInstructionSectionSchema,
+) {}
+
+export const IntegrationCatalogEntrySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  docsUrl: z.string().optional(),
+  iconUrl: z.string().optional(),
+  authMethods: z.array(IntegrationCatalogAuthMethodSchema),
+  supportsMultipleConnections: z.boolean(),
+  setupInstructions: z.object({
+    sections: z.array(IntegrationCatalogInstructionSectionSchema),
+  }),
+});
+
+export class IntegrationCatalogEntryDto extends createZodDto(IntegrationCatalogEntrySchema) {}
+export type IntegrationCatalogEntry = z.infer<typeof IntegrationCatalogEntrySchema>;
 
 // --- OAuth DTOs (D16: userId removed, derived from auth context) ---
 

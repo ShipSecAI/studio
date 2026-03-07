@@ -242,6 +242,26 @@ export const TerminalChunksQuerySchema = z.object({
 
 export class TerminalChunksQueryDto extends createZodDto(TerminalChunksQuerySchema) {}
 
+export const WorkflowSummaryResponseSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  description: z.string().nullable(),
+  icon: z.string().nullable(),
+  iconColor: z.string().nullable(),
+  organizationId: z.string().nullable(),
+  isSystem: z.boolean(),
+  templateId: z.string().uuid().nullable(),
+  lastRun: z.string().datetime().nullable(),
+  latestRunStatus: ExecutionStatusSchema.nullable(),
+  runCount: z.number().int().nonnegative(),
+  nodeCount: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export class WorkflowSummaryResponseDto extends createZodDto(WorkflowSummaryResponseSchema) {}
+export type WorkflowSummaryResponsePayload = z.infer<typeof WorkflowSummaryResponseSchema>;
+
 // API Response DTOs for flattened workflow structures
 // These represent the actual API response format after the service flattens the graph fields
 

@@ -62,7 +62,6 @@ type CreateGitHubTriggerRulePayload = components['schemas']['CreateTriggerRuleDt
 type UpdateGitHubTriggerRulePayload = components['schemas']['UpdateTriggerRuleDto'];
 type TriggerGitHubScanPayload = components['schemas']['GitHubTriggerScanDto'];
 type ListGitHubScansQuery = operations['GitHubAppController_listScanResults']['parameters']['query'];
-type ListAuditLogsQuery = operations['AuditLogsController_list']['parameters']['query'];
 type AppendChatInternalEventPayload = components['schemas']['AppendInternalEventDto'];
 type CompleteChatRunPayload = components['schemas']['CompleteRunRequestDto'];
 
@@ -993,10 +992,19 @@ export class ShipSecApiClient {
 
   // ===== Audit =====
 
-  async listAuditLogs(options?: ListAuditLogsQuery) {
+  async listAuditLogs(options?: {
+    resourceType?: string;
+    resourceId?: string;
+    action?: string;
+    actorId?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+    cursor?: string;
+  }) {
     return this.client.GET('/api/v1/audit-logs', {
       params: {
-        query: options,
+        query: options as operations['AuditLogsController_list']['parameters']['query'],
       },
     });
   }
