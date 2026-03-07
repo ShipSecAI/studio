@@ -7,11 +7,6 @@ export interface ClientConfig {
   middleware?: Middleware | Middleware[];
 }
 
-type ClientResponse<T> = {
-  data?: T;
-  error?: never;
-};
-
 type CreateWorkflowPayload = components['schemas']['CreateWorkflowRequestDto'];
 type UpdateWorkflowPayload = components['schemas']['UpdateWorkflowRequestDto'];
 type UpdateWorkflowMetadataPayload = components['schemas']['UpdateWorkflowMetadataDto'];
@@ -42,28 +37,6 @@ type UpdateOnboardingPreferencesPayload = components['schemas']['UpdateOnboardin
 type AnalyticsQueryPayload = components['schemas']['AnalyticsQueryRequestDto'];
 type DiscoveryInputPayload = components['schemas']['DiscoveryInputDto'];
 type GroupDiscoveryInputPayload = components['schemas']['GroupDiscoveryInputDto'];
-type ResolvePortsPayload = components['schemas']['ResolvePortsRequestDto'];
-type BatchRunSummariesPayload = components['schemas']['BatchRunSummariesRequestDto'];
-type PrepareRunPayload = components['schemas']['PrepareRunRequestDto'];
-type EnsureAnalyticsTenantPayload = components['schemas']['EnsureTenantRequestDto'];
-type GenerateMcpTokenPayload = components['schemas']['GenerateMcpTokenRequestDto'];
-type RegisterComponentToolPayload = components['schemas']['RegisterComponentToolInput'];
-type RegisterMcpServerPayload = components['schemas']['RegisterMcpServerInput'];
-type CleanupMcpRunPayload = components['schemas']['CleanupRunRequestDto'];
-type ToolsReadyPayload = components['schemas']['ToolsReadyRequestDto'];
-type RegisterGroupServerPayload = components['schemas']['RegisterGroupServerRequestDto'];
-type InstantiateWorkflowTemplatePayload =
-  components['schemas']['InstantiateWorkflowTemplateRequestDto'];
-type WorkflowRunTerminalQuery =
-  operations['WorkflowsController_terminalChunks']['parameters']['query'];
-type ToggleGitHubRepositoryScansPayload = components['schemas']['ToggleRepoScansDto'];
-type SetupGitHubInstallationPayload = components['schemas']['CompleteInstallationDto'];
-type CreateGitHubTriggerRulePayload = components['schemas']['CreateTriggerRuleDto'];
-type UpdateGitHubTriggerRulePayload = components['schemas']['UpdateTriggerRuleDto'];
-type TriggerGitHubScanPayload = components['schemas']['GitHubTriggerScanDto'];
-type ListGitHubScansQuery = operations['GitHubAppController_listScanResults']['parameters']['query'];
-type AppendChatInternalEventPayload = components['schemas']['AppendInternalEventDto'];
-type CompleteChatRunPayload = components['schemas']['CompleteRunRequestDto'];
 
 /**
  * ShipSec API Client
@@ -157,49 +130,6 @@ export class ShipSecApiClient {
     });
   }
 
-  async listWorkflowTemplates() {
-    return this.client.GET('/api/v1/workflow-templates');
-  }
-
-  async getWorkflowTemplate(id: string) {
-    return this.client.GET('/api/v1/workflow-templates/{id}', {
-      params: { path: { id } },
-    });
-  }
-
-  async instantiateWorkflowTemplate(
-    id: string,
-    body: InstantiateWorkflowTemplatePayload = {},
-  ) {
-    return this.client.POST('/api/v1/workflow-templates/{id}/instantiate', {
-      params: { path: { id } },
-      body,
-    });
-  }
-
-  async listChatSessions() {
-    return this.client.GET('/api/v1/chat/sessions');
-  }
-
-  async createChatSession(body: components['schemas']['CreateSessionDto'] = {}) {
-    return this.client.POST('/api/v1/chat/sessions', {
-      body,
-    });
-  }
-
-  async updateChatSession(id: string, body: components['schemas']['UpdateSessionDto']) {
-    return this.client.PATCH('/api/v1/chat/sessions/{id}', {
-      params: { path: { id } },
-      body,
-    });
-  }
-
-  async deleteChatSession(id: string) {
-    return this.client.DELETE('/api/v1/chat/sessions/{id}', {
-      params: { path: { id } },
-    });
-  }
-
   async createWorkflow(workflow: CreateWorkflowPayload) {
     return this.client.POST('/api/v1/workflows', {
       body: workflow,
@@ -240,12 +170,6 @@ export class ShipSecApiClient {
     });
   }
 
-  async prepareRunPayload(body: PrepareRunPayload) {
-    return this.client.POST('/api/v1/internal/runs', {
-      body,
-    });
-  }
-
   // ===== Workflow Runs =====
   
   async getWorkflowRunStatus(runId: string, temporalRunId?: string) {
@@ -275,15 +199,6 @@ export class ShipSecApiClient {
   async getWorkflowRunTrace(runId: string) {
     return this.client.GET('/api/v1/workflows/runs/{runId}/trace', {
       params: { path: { runId } },
-    });
-  }
-
-  async getAgentParts(agentRunId: string, cursor?: string) {
-    return this.client.GET('/api/v1/agents/{agentRunId}/parts', {
-      params: {
-        path: { agentRunId },
-        query: cursor ? { cursor } : undefined,
-      },
     });
   }
 
@@ -367,15 +282,6 @@ export class ShipSecApiClient {
   async getWorkflowRunArtifacts(runId: string) {
     return this.client.GET('/api/v1/workflows/runs/{runId}/artifacts', {
       params: { path: { runId } },
-    });
-  }
-
-  async getWorkflowRunTerminal(runId: string, query?: WorkflowRunTerminalQuery) {
-    return this.client.GET('/api/v1/workflows/runs/{runId}/terminal', {
-      params: {
-        path: { runId },
-        query,
-      },
     });
   }
 
@@ -490,25 +396,6 @@ export class ShipSecApiClient {
     });
   }
 
-  async downloadArtifact(id: string): Promise<Blob> {
-    const response = await this.client.GET('/api/v1/artifacts/{id}/download', {
-      params: { path: { id } },
-      parseAs: 'blob',
-    });
-
-    if (response.error) {
-      throw new Error('Failed to download artifact');
-    }
-
-    return response.data;
-  }
-
-  async deleteArtifact(id: string) {
-    return this.client.DELETE('/api/v1/artifacts/{id}', {
-      params: { path: { id } },
-    });
-  }
-
   // ===== Files =====
   
   async listFiles(limit: number = 100) {
@@ -568,13 +455,6 @@ export class ShipSecApiClient {
   async getComponent(id: string) {
     return this.client.GET('/api/v1/components/{id}', {
       params: { path: { id } },
-    });
-  }
-
-  async resolveComponentPorts(id: string, body: ResolvePortsPayload) {
-    return this.client.POST('/api/v1/components/{id}/resolve-ports', {
-      params: { path: { id } },
-      body,
     });
   }
 
@@ -733,15 +613,11 @@ export class ShipSecApiClient {
   }
 
   async listOrgIntegrationConnections(provider?: string) {
-    if (provider) {
-      return this.client.GET('/api/v1/integrations/org/connections', {
-        params: {
-          query: { provider },
-        },
-      });
-    }
-
-    return this.client.GET('/api/v1/integrations/org/connections', {});
+    return this.client.GET('/api/v1/integrations/org/connections', {
+      params: {
+        query: (provider ? { provider } : {}) as any,
+      },
+    });
   }
 
   async getIntegrationCatalog() {
@@ -975,36 +851,12 @@ export class ShipSecApiClient {
     return this.client.GET('/api/v1/analytics/prowler-checks-metadata');
   }
 
-  async ensureAnalyticsTenant(body: EnsureAnalyticsTenantPayload, internalToken: string) {
-    return this.client.POST('/api/v1/analytics/ensure-tenant', {
-      params: {
-        header: { 'x-internal-token': internalToken },
-      },
-      body,
-    });
-  }
-
-  async getAnalyticsBatchRunSummaries(body: BatchRunSummariesPayload) {
-    return this.client.POST('/api/v1/analytics/batch-run-summaries', {
-      body,
-    });
-  }
-
   // ===== Audit =====
 
-  async listAuditLogs(options?: {
-    resourceType?: string;
-    resourceId?: string;
-    action?: string;
-    actorId?: string;
-    from?: string;
-    to?: string;
-    limit?: number;
-    cursor?: string;
-  }) {
+  async listAuditLogs(options?: operations['AuditLogsController_list']['parameters']['query']) {
     return this.client.GET('/api/v1/audit-logs', {
       params: {
-        query: options as operations['AuditLogsController_list']['parameters']['query'],
+        query: options,
       },
     });
   }
@@ -1017,16 +869,6 @@ export class ShipSecApiClient {
 
   async listSubscriptionPlans() {
     return this.client.GET('/api/v1/billing/plans');
-  }
-
-  async getLiteLLMVirtualKey(
-    organizationId: string,
-  ): Promise<ClientResponse<components['schemas']['LiteLLMKeyResponseDto']>> {
-    return this.client.GET('/api/v1/internal/billing/litellm-key', {
-      params: {
-        header: { 'x-organization-id': organizationId },
-      },
-    });
   }
 
   // ===== MCP Discovery =====
@@ -1058,27 +900,19 @@ export class ShipSecApiClient {
   // ===== MCP Servers =====
 
   async listMcpServers(groupId?: string) {
-    if (groupId) {
-      return this.client.GET('/api/v1/mcp-servers', {
-        params: {
-          query: { groupId },
-        },
-      });
-    }
-
-    return this.client.GET('/api/v1/mcp-servers', {});
+    return this.client.GET('/api/v1/mcp-servers', {
+      params: {
+        query: (groupId ? { groupId } : {}) as any,
+      },
+    });
   }
 
   async listEnabledMcpServers(groupId?: string) {
-    if (groupId) {
-      return this.client.GET('/api/v1/mcp-servers/enabled', {
-        params: {
-          query: { groupId },
-        },
-      });
-    }
-
-    return this.client.GET('/api/v1/mcp-servers/enabled', {});
+    return this.client.GET('/api/v1/mcp-servers/enabled', {
+      params: {
+        query: (groupId ? { groupId } : {}) as any,
+      },
+    });
   }
 
   async listMcpTools() {
@@ -1141,42 +975,6 @@ export class ShipSecApiClient {
   async resolveMcpServer(id: string) {
     return this.client.GET('/api/v1/mcp-servers/{id}/resolve', {
       params: { path: { id } },
-    });
-  }
-
-  async generateMcpGatewayToken(body: GenerateMcpTokenPayload) {
-    return this.client.POST('/api/v1/internal/mcp/generate-token', {
-      body,
-    });
-  }
-
-  async registerInternalComponentTool(body: RegisterComponentToolPayload) {
-    return this.client.POST('/api/v1/internal/mcp/register-component', {
-      body,
-    });
-  }
-
-  async registerInternalMcpServer(body: RegisterMcpServerPayload) {
-    return this.client.POST('/api/v1/internal/mcp/register-mcp-server', {
-      body,
-    });
-  }
-
-  async cleanupInternalMcpRun(body: CleanupMcpRunPayload) {
-    return this.client.POST('/api/v1/internal/mcp/cleanup', {
-      body,
-    });
-  }
-
-  async areInternalMcpToolsReady(body: ToolsReadyPayload) {
-    return this.client.POST('/api/v1/internal/mcp/tools-ready', {
-      body,
-    });
-  }
-
-  async registerInternalGroupServer(body: RegisterGroupServerPayload) {
-    return this.client.POST('/api/v1/internal/mcp/register-group-server', {
-      body,
     });
   }
 
@@ -1358,105 +1156,6 @@ export class ShipSecApiClient {
   async regenerateWebhookPath(id: string) {
     return this.client.POST('/api/v1/webhooks/configurations/{id}/regenerate-path', {
       params: { path: { id } },
-    });
-  }
-
-  // ===== GitHub =====
-
-  async getGitHubStatus() {
-    return this.client.GET('/api/v1/github/status');
-  }
-
-  async listGitHubInstallations() {
-    return this.client.GET('/api/v1/github/installations');
-  }
-
-  async listGitHubRepositories() {
-    return this.client.GET('/api/v1/github/repos');
-  }
-
-  async listGitHubBranches(id: string) {
-    return this.client.GET('/api/v1/github/repos/{id}/branches', {
-      params: { path: { id } },
-    });
-  }
-
-  async toggleGitHubRepositoryScans(id: string, body: ToggleGitHubRepositoryScansPayload) {
-    return this.client.PATCH('/api/v1/github/repos/{id}/scans', {
-      params: { path: { id } },
-      body,
-    });
-  }
-
-  async setupGitHubInstallation(body: SetupGitHubInstallationPayload) {
-    return this.client.POST('/api/v1/github/installations/setup', {
-      body,
-    });
-  }
-
-  async syncGitHubRepositories() {
-    return this.client.POST('/api/v1/github/repos/sync');
-  }
-
-  async listGitHubTriggerRules() {
-    return this.client.GET('/api/v1/github/triggers');
-  }
-
-  async createGitHubTriggerRule(body: CreateGitHubTriggerRulePayload) {
-    return this.client.POST('/api/v1/github/triggers', {
-      body,
-    });
-  }
-
-  async updateGitHubTriggerRule(id: string, body: UpdateGitHubTriggerRulePayload) {
-    return this.client.PATCH('/api/v1/github/triggers/{id}', {
-      params: { path: { id } },
-      body,
-    });
-  }
-
-  async deleteGitHubTriggerRule(id: string) {
-    return this.client.DELETE('/api/v1/github/triggers/{id}', {
-      params: { path: { id } },
-    });
-  }
-
-  async listGitHubScans(query?: ListGitHubScansQuery) {
-    if (query) {
-      return this.client.GET('/api/v1/github/scans', {
-        params: { query },
-      });
-    }
-
-    return this.client.GET('/api/v1/github/scans');
-  }
-
-  async getGitHubScan(id: string) {
-    return this.client.GET('/api/v1/github/scans/{id}', {
-      params: { path: { id } },
-    });
-  }
-
-  async triggerGitHubScan(id: string, body: TriggerGitHubScanPayload) {
-    return this.client.POST('/api/v1/github/repos/{id}/scan', {
-      params: { path: { id } },
-      body,
-    });
-  }
-
-  // ===== Chat Internal =====
-
-  async appendChatInternalEvent(id: string, body: AppendChatInternalEventPayload) {
-    return this.client.POST('/api/v1/chat/sessions/{id}/internal/events', {
-      params: { path: { id } },
-      body,
-    });
-  }
-
-  async completeChatRun(id: string, body: CompleteChatRunPayload) {
-    return this.client.POST('/api/v1/chat/sessions/{id}/internal/run-completion', {
-      params: { path: { id } },
-      body,
     });
   }
 }
