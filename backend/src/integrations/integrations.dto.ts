@@ -1,5 +1,3 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsOptional, IsString, IsUrl, Matches, MinLength } from 'class-validator';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
@@ -62,308 +60,187 @@ export type IntegrationCatalogEntry = z.infer<typeof IntegrationCatalogEntrySche
 
 // --- OAuth DTOs (D16: userId removed, derived from auth context) ---
 
-export class StartOAuthDto {
-  @ApiProperty({ description: 'Frontend callback URL that receives the OAuth code' })
-  @IsString()
-  @IsUrl()
-  redirectUri!: string;
+export const StartOAuthSchema = z.object({
+  redirectUri: z.string().url().describe('Frontend callback URL that receives the OAuth code'),
+  scopes: z.array(z.string()).describe('Optional override of scopes to request').optional(),
+});
+export class StartOAuthDto extends createZodDto(StartOAuthSchema) {}
 
-  @ApiPropertyOptional({ description: 'Optional override of scopes to request', type: [String] })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  scopes?: string[];
-}
-
-export class CompleteOAuthDto extends StartOAuthDto {
-  @ApiProperty({ description: 'Opaque OAuth state returned from the authorize redirect' })
-  @IsString()
-  @MinLength(1)
-  state!: string;
-
-  @ApiProperty({ description: 'Authorization code issued by the provider' })
-  @IsString()
-  @MinLength(1)
-  code!: string;
-}
+export const CompleteOAuthSchema = StartOAuthSchema.extend({
+  state: z.string().min(1).describe('Opaque OAuth state returned from the authorize redirect'),
+  code: z.string().min(1).describe('Authorization code issued by the provider'),
+});
+export class CompleteOAuthDto extends createZodDto(CompleteOAuthSchema) {}
 
 // D16: userId removed from these DTOs — now derived from @CurrentAuth()
-export class RefreshConnectionDto {}
+export const RefreshConnectionSchema = z.object({});
+export class RefreshConnectionDto extends createZodDto(RefreshConnectionSchema) {}
 
-export class DisconnectConnectionDto {}
+export const DisconnectConnectionSchema = z.object({});
+export class DisconnectConnectionDto extends createZodDto(DisconnectConnectionSchema) {}
 
 // --- Provider config DTOs ---
 
-export class UpsertProviderConfigDto {
-  @ApiProperty({ description: 'OAuth client identifier used for this provider' })
-  @IsString()
-  @MinLength(1)
-  clientId!: string;
-
-  @ApiPropertyOptional({
-    description: 'OAuth client secret. Required when configuring the provider for the first time.',
-  })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  clientSecret?: string;
-}
+export const UpsertProviderConfigSchema = z.object({
+  clientId: z.string().min(1).describe('OAuth client identifier used for this provider'),
+  clientSecret: z
+    .string()
+    .min(1)
+    .describe('OAuth client secret. Required when configuring the provider for the first time.')
+    .optional(),
+});
+export class UpsertProviderConfigDto extends createZodDto(UpsertProviderConfigSchema) {}
 
 // --- AWS connection DTOs ---
 
-export class CreateAwsConnectionDto {
-  @ApiProperty({ description: 'Display name for this connection' })
-  @IsString()
-  @MinLength(1)
-  displayName!: string;
+export const CreateAwsConnectionSchema = z.object({
+  displayName: z.string().min(1).describe('Display name for this connection'),
+  roleArn: z
+    .string()
+    .regex(
+      /^arn:aws:iam::\d{12}:role\/.+$/,
+      'roleArn must be a valid IAM role ARN (arn:aws:iam::<account-id>:role/<role-name>)',
+    )
+    .describe('IAM role ARN for ShipSec to assume'),
+  region: z.string().describe('Default AWS region').optional(),
+  externalId: z.string().min(1).describe('External ID from setup-info endpoint'),
+  setupToken: z.string().min(1).describe('Signed setup token from setup-info endpoint'),
+});
+export class CreateAwsConnectionDto extends createZodDto(CreateAwsConnectionSchema) {}
 
-  @ApiProperty({ description: 'IAM role ARN for ShipSec to assume' })
-  @IsString()
-  @Matches(/^arn:aws:iam::\d{12}:role\/.+$/, {
-    message: 'roleArn must be a valid IAM role ARN (arn:aws:iam::<account-id>:role/<role-name>)',
-  })
-  roleArn!: string;
-
-  @ApiPropertyOptional({ description: 'Default AWS region' })
-  @IsOptional()
-  @IsString()
-  region?: string;
-
-  @ApiProperty({ description: 'External ID from setup-info endpoint' })
-  @IsString()
-  @MinLength(1)
-  externalId!: string;
-
-  @ApiProperty({ description: 'Signed setup token from setup-info endpoint' })
-  @IsString()
-  @MinLength(1)
-  setupToken!: string;
-}
-
-export class AwsSetupInfoResponseDto {
-  @ApiProperty()
-  platformRoleArn!: string;
-
-  @ApiProperty()
-  externalId!: string;
-
-  @ApiProperty()
-  setupToken!: string;
-
-  @ApiProperty()
-  trustPolicyTemplate!: string;
-
-  @ApiPropertyOptional()
-  externalIdDisplay?: string;
-}
+export const AwsSetupInfoResponseSchema = z.object({
+  platformRoleArn: z.string(),
+  externalId: z.string(),
+  setupToken: z.string(),
+  trustPolicyTemplate: z.string(),
+  externalIdDisplay: z.string().optional(),
+});
+export class AwsSetupInfoResponseDto extends createZodDto(AwsSetupInfoResponseSchema) {}
 
 // --- Slack connection DTOs ---
 
-export class CreateSlackWebhookConnectionDto {
-  @ApiProperty({ description: 'Display name for this webhook connection' })
-  @IsString()
-  @MinLength(1)
-  displayName!: string;
-
-  @ApiProperty({ description: 'Slack incoming webhook URL' })
-  @IsString()
-  @Matches(/^https:\/\/hooks\.slack\.com\//, {
-    message: 'webhookUrl must be a valid Slack webhook URL (https://hooks.slack.com/...)',
-  })
-  webhookUrl!: string;
-}
+export const CreateSlackWebhookConnectionSchema = z.object({
+  displayName: z.string().min(1).describe('Display name for this webhook connection'),
+  webhookUrl: z
+    .string()
+    .regex(
+      /^https:\/\/hooks\.slack\.com\//,
+      'webhookUrl must be a valid Slack webhook URL (https://hooks.slack.com/...)',
+    )
+    .describe('Slack incoming webhook URL'),
+});
+export class CreateSlackWebhookConnectionDto extends createZodDto(
+  CreateSlackWebhookConnectionSchema,
+) {}
 
 // --- Response DTOs ---
 
-export class ProviderConfigurationResponse {
-  @ApiProperty()
-  provider!: string;
+export const ProviderConfigurationResponseSchema = z.object({
+  provider: z.string(),
+  clientId: z.string().nullable().describe('Stored OAuth client identifier').optional(),
+  hasClientSecret: z
+    .boolean()
+    .describe('True when a client secret has been stored for this provider'),
+  configuredBy: z.enum(['environment', 'user']).describe('Origin of the credential configuration'),
+  updatedAt: z.string().nullable().describe('Last update timestamp in ISO 8601 format').optional(),
+});
+export class ProviderConfigurationResponse extends createZodDto(
+  ProviderConfigurationResponseSchema,
+) {}
 
-  @ApiPropertyOptional({ description: 'Stored OAuth client identifier' })
-  clientId?: string | null;
+export const IntegrationProviderResponseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  docsUrl: z.string().optional(),
+  defaultScopes: z.array(z.string()),
+  supportsRefresh: z.boolean(),
+  isConfigured: z
+    .boolean()
+    .describe('Indicates whether the provider has been configured with client credentials'),
+});
+export class IntegrationProviderResponse extends createZodDto(IntegrationProviderResponseSchema) {}
 
-  @ApiProperty({ description: 'True when a client secret has been stored for this provider' })
-  hasClientSecret!: boolean;
+export const OAuthStartResponseSchema = z.object({
+  provider: z.string(),
+  authorizationUrl: z.string(),
+  state: z.string(),
+  expiresIn: z.number().describe('Suggested client-side TTL for the authorization URL'),
+});
+export class OAuthStartResponseDto extends createZodDto(OAuthStartResponseSchema) {}
 
-  @ApiProperty({
-    enum: ['environment', 'user'],
-    description: 'Origin of the credential configuration',
-  })
-  configuredBy!: 'environment' | 'user';
+export const IntegrationConnectionResponseSchema = z.object({
+  id: z.string(),
+  provider: z.string(),
+  providerName: z.string(),
+  userId: z.string(),
+  credentialType: z.string(),
+  displayName: z.string(),
+  organizationId: z.string().optional(),
+  scopes: z.array(z.string()),
+  tokenType: z.string(),
+  expiresAt: z.string().nullable().optional(),
+  lastValidatedAt: z.string().nullable().optional(),
+  lastValidationStatus: z.string().nullable().optional(),
+  lastUsedAt: z.string().nullable().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  status: z.enum(['active', 'expired']),
+  supportsRefresh: z.boolean(),
+  hasRefreshToken: z.boolean(),
+  metadata: z
+    .record(z.string(), z.unknown())
+    .describe('Provider-specific metadata saved alongside the connection')
+    .optional(),
+});
+export class IntegrationConnectionResponse extends createZodDto(
+  IntegrationConnectionResponseSchema,
+) {}
 
-  @ApiPropertyOptional({ description: 'Last update timestamp in ISO 8601 format' })
-  updatedAt?: string | null;
-}
+export const ConnectionTokenResponseSchema = z.object({
+  provider: z.string(),
+  userId: z.string(),
+  accessToken: z.string(),
+  tokenType: z.string(),
+  scopes: z.array(z.string()),
+  expiresAt: z.string().nullable().optional(),
+});
+export class ConnectionTokenResponseDto extends createZodDto(ConnectionTokenResponseSchema) {}
 
-export class IntegrationProviderResponse {
-  @ApiProperty()
-  id!: string;
+export const ValidateAwsResponseSchema = z.object({
+  valid: z.boolean(),
+  accountId: z.string().optional(),
+  arn: z.string().optional(),
+  error: z.string().optional(),
+});
+export class ValidateAwsResponseDto extends createZodDto(ValidateAwsResponseSchema) {}
 
-  @ApiProperty()
-  name!: string;
+export const OrgAccountSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.string(),
+  email: z.string().optional(),
+});
+export class OrgAccountDto extends createZodDto(OrgAccountSchema) {}
 
-  @ApiProperty()
-  description!: string;
+export const DiscoverOrgAccountsResponseSchema = z.object({
+  accounts: z.array(OrgAccountSchema),
+});
+export class DiscoverOrgAccountsResponseDto extends createZodDto(
+  DiscoverOrgAccountsResponseSchema,
+) {}
 
-  @ApiPropertyOptional()
-  docsUrl?: string;
-
-  @ApiProperty({ type: [String] })
-  defaultScopes!: string[];
-
-  @ApiProperty()
-  supportsRefresh!: boolean;
-
-  @ApiProperty({
-    description: 'Indicates whether the provider has been configured with client credentials',
-  })
-  isConfigured!: boolean;
-}
-
-export class OAuthStartResponseDto {
-  @ApiProperty()
-  provider!: string;
-
-  @ApiProperty()
-  authorizationUrl!: string;
-
-  @ApiProperty()
-  state!: string;
-
-  @ApiProperty({ description: 'Suggested client-side TTL for the authorization URL', example: 300 })
-  expiresIn!: number;
-}
-
-export class IntegrationConnectionResponse {
-  @ApiProperty()
-  id!: string;
-
-  @ApiProperty()
-  provider!: string;
-
-  @ApiProperty()
-  providerName!: string;
-
-  @ApiProperty()
-  userId!: string;
-
-  @ApiProperty()
-  credentialType!: string;
-
-  @ApiProperty()
-  displayName!: string;
-
-  @ApiPropertyOptional()
-  organizationId?: string;
-
-  @ApiProperty({ type: [String] })
-  scopes!: string[];
-
-  @ApiProperty()
-  tokenType!: string;
-
-  @ApiPropertyOptional()
-  expiresAt?: string | null;
-
-  @ApiPropertyOptional()
-  lastValidatedAt?: string | null;
-
-  @ApiPropertyOptional()
-  lastValidationStatus?: string | null;
-
-  @ApiPropertyOptional()
-  lastUsedAt?: string | null;
-
-  @ApiProperty()
-  createdAt!: string;
-
-  @ApiProperty()
-  updatedAt!: string;
-
-  @ApiProperty({ enum: ['active', 'expired'] })
-  status!: 'active' | 'expired';
-
-  @ApiProperty()
-  supportsRefresh!: boolean;
-
-  @ApiProperty()
-  hasRefreshToken!: boolean;
-
-  @ApiPropertyOptional({ description: 'Provider-specific metadata saved alongside the connection' })
-  metadata?: Record<string, unknown>;
-}
-
-export class ConnectionTokenResponseDto {
-  @ApiProperty()
-  provider!: string;
-
-  @ApiProperty()
-  userId!: string;
-
-  @ApiProperty()
-  accessToken!: string;
-
-  @ApiProperty()
-  tokenType!: string;
-
-  @ApiProperty({ type: [String] })
-  scopes!: string[];
-
-  @ApiPropertyOptional()
-  expiresAt?: string | null;
-}
-
-export class ValidateAwsResponseDto {
-  @ApiProperty()
-  valid!: boolean;
-
-  @ApiPropertyOptional()
-  accountId?: string;
-
-  @ApiPropertyOptional()
-  arn?: string;
-
-  @ApiPropertyOptional()
-  error?: string;
-}
-
-export class OrgAccountDto {
-  @ApiProperty()
-  id!: string;
-
-  @ApiProperty()
-  name!: string;
-
-  @ApiProperty()
-  status!: string;
-
-  @ApiPropertyOptional()
-  email?: string;
-}
-
-export class DiscoverOrgAccountsResponseDto {
-  @ApiProperty({ type: [OrgAccountDto] })
-  accounts!: OrgAccountDto[];
-}
-
-export class ConnectionCredentialsResponseDto {
-  @ApiProperty({ description: 'Credential type discriminator' })
-  credentialType!: string;
-
-  @ApiProperty()
-  provider!: string;
-
-  @ApiProperty({ description: 'Type-specific credential data' })
-  data!: Record<string, unknown>;
-
-  @ApiPropertyOptional({
-    description: 'Provider account identifier (e.g. AWS 12-digit account ID)',
-  })
-  accountId?: string;
-
-  @ApiPropertyOptional({ description: 'Default region from the connection' })
-  region?: string;
-
-  @ApiPropertyOptional({ description: 'Display name of the connection' })
-  displayName?: string;
-}
+export const ConnectionCredentialsResponseSchema = z.object({
+  credentialType: z.string().describe('Credential type discriminator'),
+  provider: z.string(),
+  data: z.record(z.string(), z.unknown()).describe('Type-specific credential data'),
+  accountId: z
+    .string()
+    .describe('Provider account identifier (e.g. AWS 12-digit account ID)')
+    .optional(),
+  region: z.string().describe('Default region from the connection').optional(),
+  displayName: z.string().describe('Display name of the connection').optional(),
+});
+export class ConnectionCredentialsResponseDto extends createZodDto(
+  ConnectionCredentialsResponseSchema,
+) {}

@@ -1,7 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { WebhookConfiguration } from '@shipsec/shared';
 import { api } from '@/services/api';
-import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
 import { queryKeys } from '@/lib/queryKeys';
 
 export function useWebhooks() {
@@ -43,7 +41,8 @@ export function useDeleteWebhook() {
 export function useCreateWebhook() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Partial<WebhookConfiguration>) => api.webhooks.create(payload),
+    mutationFn: (payload: Parameters<typeof api.webhooks.create>[0]) =>
+      api.webhooks.create(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['webhooks'] });
     },
@@ -53,8 +52,13 @@ export function useCreateWebhook() {
 export function useUpdateWebhook() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: Partial<WebhookConfiguration> }) =>
-      api.webhooks.update(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: Parameters<typeof api.webhooks.update>[1];
+    }) => api.webhooks.update(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['webhooks'] });
     },
@@ -64,15 +68,7 @@ export function useUpdateWebhook() {
 export function useRegenerateWebhookPath() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const headers = await getApiAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/webhooks/configurations/${id}/regenerate-path`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-      });
-      if (!response.ok) throw new Error('Failed to regenerate webhook path');
-      return response.json() as Promise<{ id: string; webhookPath: string; url: string }>;
-    },
+    mutationFn: (id: string) => api.webhooks.regeneratePath(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['webhooks'] });
     },
@@ -83,7 +79,7 @@ export function useTestWebhookScript() {
   return useMutation({
     mutationFn: (dto: {
       parsingScript: string;
-      testPayload: Record<string, unknown>;
+      testPayload: Parameters<typeof api.webhooks.testScript>[0]['payload'];
       testHeaders?: Record<string, string>;
       webhookId?: string;
     }) =>

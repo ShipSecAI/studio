@@ -1,17 +1,27 @@
 import type { PreparedRunPayload } from '@shipsec/shared';
-import { ConfigurationError, ServiceError } from '@shipsec/component-sdk';
-import { getBackendApiV1Url } from '../../utils/backend-url';
+import { ConfigurationError } from '@shipsec/component-sdk';
+import { createInternalBackendClient } from '../../utils/internal-backend-client';
 
 import type { PrepareRunPayloadActivityInput } from '../types';
 
-type FetchResponse = Awaited<ReturnType<typeof fetch>>;
-
-async function readErrorBody(response: FetchResponse): Promise<string> {
-  try {
-    return await response.text();
-  } catch {
-    return '<unable to read response body>';
+function normalizeNodeOverrides(
+  value: PrepareRunPayloadActivityInput['nodeOverrides'],
+):
+  | Record<string, { params: Record<string, unknown>; inputOverrides: Record<string, unknown> }>
+  | undefined {
+  if (!value) {
+    return undefined;
   }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, override]) => [
+      key,
+      {
+        params: override.params ?? {},
+        inputOverrides: override.inputOverrides ?? {},
+      },
+    ]),
+  );
 }
 
 export async function prepareRunPayloadActivity(
@@ -27,41 +37,22 @@ export async function prepareRunPayloadActivity(
     );
   }
 
-  const baseUrl = getBackendApiV1Url();
   const organizationId = input.organizationId ?? process.env.DEFAULT_ORGANIZATION_ID ?? null;
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'X-Internal-Token': internalToken,
-  };
-
-  if (organizationId) {
-    headers['X-Organization-Id'] = organizationId;
-  }
-
-  const response = await fetch(`${baseUrl}/internal/runs`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      workflowId: input.workflowId,
-      inputs: input.inputs,
-      versionId: input.versionId,
-      version: input.version,
-      nodeOverrides: input.nodeOverrides,
-      trigger: input.trigger,
-      runId: input.runId,
-      parentRunId: input.parentRunId,
-      parentNodeRef: input.parentNodeRef,
-    }),
+  const client = createInternalBackendClient({
+    headers: organizationId ? { 'X-Organization-Id': organizationId } : undefined,
   });
 
-  if (!response.ok) {
-    const raw = await readErrorBody(response);
-    throw new ServiceError(`Failed to prepare run payload: ${raw}`, {
-      statusCode: response.status,
-      details: { statusText: response.statusText, workflowId: input.workflowId },
-    });
-  }
+  const response = await client.prepareRunPayload({
+    workflowId: input.workflowId,
+    inputs: input.inputs,
+    versionId: input.versionId,
+    version: input.version,
+    nodeOverrides: normalizeNodeOverrides(input.nodeOverrides),
+    trigger: input.trigger,
+    runId: input.runId,
+    parentRunId: input.parentRunId,
+    parentNodeRef: input.parentNodeRef,
+  });
 
-  return (await response.json()) as PreparedRunPayload;
+  return response.data as PreparedRunPayload;
 }

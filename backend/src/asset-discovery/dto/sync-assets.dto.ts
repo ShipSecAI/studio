@@ -1,13 +1,10 @@
-import { IsUUID } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-export class TriggerSyncDto {
-  @ApiProperty({ format: 'uuid' })
-  @IsUUID()
-  integrationId!: string;
-}
+export const TriggerSyncSchema = z.object({
+  integrationId: z.string().uuid(),
+});
+export class TriggerSyncDto extends createZodDto(TriggerSyncSchema) {}
 
 const AssetSyncErrorSchema = z.object({
   message: z.string(),

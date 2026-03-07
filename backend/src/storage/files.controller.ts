@@ -17,7 +17,12 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import type { Response } from 'express-serve-static-core';
 
 import { FilesService } from './files.service';
-import { ListFilesQueryDto, ListFilesQuerySchema } from './dto/files.dto';
+import {
+  ListFilesQueryDto,
+  ListFilesQuerySchema,
+  FileUploadResponseDto,
+  FileListItemDto,
+} from './dto/files.dto';
 import { FileIdParamDto, FileIdParamSchema } from './dto/file-param.dto';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
@@ -41,20 +46,7 @@ export class FilesController {
       },
     },
   })
-  @ApiOkResponse({
-    description: 'File uploaded successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', format: 'uuid' },
-        fileName: { type: 'string' },
-        mimeType: { type: 'string' },
-        size: { type: 'number' },
-        storageKey: { type: 'string' },
-        uploadedAt: { type: 'string', format: 'date-time' },
-      },
-    },
-  })
+  @ApiOkResponse({ description: 'File uploaded successfully', type: FileUploadResponseDto })
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(@CurrentAuth() auth: AuthContext | null, @NestUploadedFile() file: any) {
     if (!file) {
@@ -65,22 +57,7 @@ export class FilesController {
   }
 
   @Get()
-  @ApiOkResponse({
-    description: 'List all uploaded files',
-    schema: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' },
-          fileName: { type: 'string' },
-          mimeType: { type: 'string' },
-          size: { type: 'number' },
-          uploadedAt: { type: 'string', format: 'date-time' },
-        },
-      },
-    },
-  })
+  @ApiOkResponse({ description: 'List all uploaded files', type: FileListItemDto, isArray: true })
   async listFiles(
     @CurrentAuth() auth: AuthContext | null,
     @Query(new ZodValidationPipe(ListFilesQuerySchema)) query: ListFilesQueryDto,

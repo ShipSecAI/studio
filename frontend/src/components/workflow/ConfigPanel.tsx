@@ -53,6 +53,12 @@ import { useGitHubInstallations } from '@/hooks/queries/useGithubQueries';
 import type { WorkflowSchedule } from '@shipsec/shared';
 import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/useWorkflowSchedulesContext';
 import { formatScheduleTimestamp, scheduleStatusVariant } from './schedules-utils';
+import {
+  normalizeResolvedInputs,
+  normalizeResolvedOutputs,
+  toResolvePortsRequest,
+} from '@/lib/resolvePorts';
+import type { InputPort, OutputPort } from '@/schemas/component';
 
 const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint';
 
@@ -474,8 +480,8 @@ export function ConfigPanel({
   const inputOverrides = (nodeData.config?.inputOverrides ?? {}) as Record<string, unknown>;
 
   // Dynamic Ports Resolution
-  const [dynamicInputs, setDynamicInputs] = useState<any[] | null>(null);
-  const [dynamicOutputs, setDynamicOutputs] = useState<any[] | null>(null);
+  const [dynamicInputs, setDynamicInputs] = useState<InputPort[] | null>(null);
+  const [dynamicOutputs, setDynamicOutputs] = useState<OutputPort[] | null>(null);
 
   // Node name editing state
   const [isEditingNodeName, setIsEditingNodeName] = useState(false);
@@ -508,23 +514,28 @@ export function ConfigPanel({
       try {
         // Only call if we have parameters
         // combine params and overrides for resolvePorts as it might need both
-        const result = await api.components.resolvePorts(component.id, {
-          ...manualParameters,
-          ...inputOverrides,
-        });
+        const result = await api.components.resolvePorts(
+          component.id,
+          toResolvePortsRequest({
+            ...manualParameters,
+            ...inputOverrides,
+          }),
+        );
         if (result) {
           if (result.inputs) {
-            setDynamicInputs(result.inputs);
+            const normalizedInputs = normalizeResolvedInputs(result.inputs);
+            setDynamicInputs(normalizedInputs);
             const currentDynamic = selectedNode?.data?.dynamicInputs;
-            if (JSON.stringify(currentDynamic) !== JSON.stringify(result.inputs)) {
-              onUpdateNode?.(selectedNode!.id, { dynamicInputs: result.inputs });
+            if (JSON.stringify(currentDynamic) !== JSON.stringify(normalizedInputs)) {
+              onUpdateNode?.(selectedNode!.id, { dynamicInputs: normalizedInputs });
             }
           }
           if (result.outputs) {
-            setDynamicOutputs(result.outputs);
+            const normalizedOutputs = normalizeResolvedOutputs(result.outputs);
+            setDynamicOutputs(normalizedOutputs);
             const currentDynamicOutputs = selectedNode?.data?.dynamicOutputs;
-            if (JSON.stringify(currentDynamicOutputs) !== JSON.stringify(result.outputs)) {
-              onUpdateNode?.(selectedNode!.id, { dynamicOutputs: result.outputs });
+            if (JSON.stringify(currentDynamicOutputs) !== JSON.stringify(normalizedOutputs)) {
+              onUpdateNode?.(selectedNode!.id, { dynamicOutputs: normalizedOutputs });
             }
           }
         }

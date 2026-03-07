@@ -22,66 +22,17 @@ import { TriggerScanDto, TriggerScanSchema } from './dto/trigger-scan.dto';
 import { ListDomainsQueryDto, ListDomainsQuerySchema } from './dto/list-domains.dto';
 import { ListAssetsQueryDto, ListAssetsQuerySchema } from './dto/list-assets.dto';
 import { ListScansQueryDto, ListScansQuerySchema } from './dto/list-scans.dto';
-
-const asmDomainSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string', format: 'uuid' },
-    organizationId: { type: 'string' },
-    domain: { type: 'string' },
-    scopeInclude: { type: 'array', items: { type: 'string' }, nullable: true },
-    scopeExclude: { type: 'array', items: { type: 'string' }, nullable: true },
-    monitoringEnabled: { type: 'boolean' },
-    frequency: { type: 'string', nullable: true },
-    lastScanAt: { type: 'string', format: 'date-time', nullable: true },
-    deletedAt: { type: 'string', format: 'date-time', nullable: true },
-    createdAt: { type: 'string', format: 'date-time' },
-    updatedAt: { type: 'string', format: 'date-time' },
-  },
-  required: ['id', 'organizationId', 'domain', 'monitoringEnabled', 'createdAt', 'updatedAt'],
-};
-
-const asmDomainWithStatsSchema = {
-  ...asmDomainSchema,
-  properties: {
-    ...asmDomainSchema.properties,
-    assetCount: { type: 'number' },
-  },
-  required: [...asmDomainSchema.required, 'assetCount'],
-};
-
-const asmAssetSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string', format: 'uuid' },
-    organizationId: { type: 'string' },
-    domainId: { type: 'string', format: 'uuid' },
-    hostname: { type: 'string' },
-    type: { type: 'string' },
-    ipAddresses: { type: 'array', items: { type: 'string' }, nullable: true },
-    techStack: { type: 'array', items: { type: 'string' }, nullable: true },
-    ports: {
-      type: 'array',
-      nullable: true,
-      items: {
-        type: 'object',
-        properties: {
-          port: { type: 'number' },
-          protocol: { type: 'string' },
-          service: { type: 'string' },
-        },
-        required: ['port', 'protocol', 'service'],
-      },
-    },
-    riskScore: { type: 'string', nullable: true },
-    dnsRecords: { type: 'object', additionalProperties: true, nullable: true },
-    tlsInfo: { type: 'object', additionalProperties: true, nullable: true },
-    firstSeen: { type: 'string', format: 'date-time' },
-    lastSeen: { type: 'string', format: 'date-time' },
-    metadata: { type: 'object', additionalProperties: true, nullable: true },
-  },
-  required: ['id', 'organizationId', 'domainId', 'hostname', 'type', 'firstSeen', 'lastSeen'],
-};
+import {
+  AsmDomainDto,
+  AsmDomainWithStatsDto,
+  AsmDomainCreateResponseDto,
+  AsmAssetDto,
+  AsmAssetListResponseDto,
+  AsmDeleteResponseDto,
+  AsmScanTriggerResponseDto,
+  AsmScanListResponseDto,
+  AsmDashboardStatsDto,
+} from './dto/asm-response.dto';
 
 @ApiTags('asm')
 @Controller('asm')
@@ -106,10 +57,8 @@ export class AsmController {
   })
   @ApiOkResponse({
     description: 'List of ASM domains',
-    schema: {
-      type: 'array',
-      items: asmDomainWithStatsSchema,
-    },
+    type: AsmDomainWithStatsDto,
+    isArray: true,
   })
   async listDomains(
     @CurrentAuth() auth: AuthContext,
@@ -124,7 +73,7 @@ export class AsmController {
   @Get('domains/:id')
   @ApiOkResponse({
     description: 'Single ASM domain',
-    schema: asmDomainSchema,
+    type: AsmDomainDto,
   })
   async getDomain(@CurrentAuth() auth: AuthContext, @Param('id') id: string) {
     return this.asmService.getDomain(auth, id);
@@ -133,14 +82,7 @@ export class AsmController {
   @Post('domains')
   @ApiCreatedResponse({
     description: 'Newly created ASM domain',
-    schema: {
-      ...asmDomainWithStatsSchema,
-      properties: {
-        ...asmDomainWithStatsSchema.properties,
-        scanTriggered: { type: 'boolean' },
-        runId: { type: 'string' },
-      },
-    },
+    type: AsmDomainCreateResponseDto,
   })
   async createDomain(
     @CurrentAuth() auth: AuthContext,
@@ -157,7 +99,7 @@ export class AsmController {
   @Patch('domains/:id')
   @ApiOkResponse({
     description: 'Updated ASM domain',
-    schema: asmDomainSchema,
+    type: AsmDomainDto,
   })
   async updateDomain(
     @CurrentAuth() auth: AuthContext,
@@ -170,13 +112,7 @@ export class AsmController {
   @Delete('domains/:id')
   @ApiOkResponse({
     description: 'Domain deleted',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean' },
-      },
-      required: ['success'],
-    },
+    type: AsmDeleteResponseDto,
   })
   async deleteDomain(@CurrentAuth() auth: AuthContext, @Param('id') id: string) {
     return this.asmService.deleteDomain(auth, id);
@@ -185,14 +121,7 @@ export class AsmController {
   @Post('domains/:id/scan')
   @ApiCreatedResponse({
     description: 'Scan triggered',
-    schema: {
-      type: 'object',
-      properties: {
-        runId: { type: 'string' },
-        domain: { type: 'string' },
-      },
-      required: ['runId', 'domain'],
-    },
+    type: AsmScanTriggerResponseDto,
   })
   async triggerScan(
     @CurrentAuth() auth: AuthContext,
@@ -218,14 +147,7 @@ export class AsmController {
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
   @ApiOkResponse({
     description: 'List of ASM assets',
-    schema: {
-      type: 'object',
-      properties: {
-        assets: { type: 'array', items: asmAssetSchema },
-        total: { type: 'number' },
-      },
-      required: ['assets', 'total'],
-    },
+    type: AsmAssetListResponseDto,
   })
   async listAssets(
     @CurrentAuth() auth: AuthContext,
@@ -245,7 +167,7 @@ export class AsmController {
   @Get('assets/:id')
   @ApiOkResponse({
     description: 'Single ASM asset',
-    schema: asmAssetSchema,
+    type: AsmAssetDto,
   })
   async getAsset(@CurrentAuth() auth: AuthContext, @Param('id') id: string) {
     return this.asmService.getAsset(auth, id);
@@ -254,14 +176,7 @@ export class AsmController {
   @Post('assets/:id/scan')
   @ApiCreatedResponse({
     description: 'Asset scan triggered',
-    schema: {
-      type: 'object',
-      properties: {
-        runId: { type: 'string' },
-        domain: { type: 'string' },
-      },
-      required: ['runId', 'domain'],
-    },
+    type: AsmScanTriggerResponseDto,
   })
   async triggerAssetScan(
     @CurrentAuth() auth: AuthContext,
@@ -285,14 +200,7 @@ export class AsmController {
   @ApiQuery({ name: 'domainId', required: false, type: String })
   @ApiOkResponse({
     description: 'List of ASM scans',
-    schema: {
-      type: 'object',
-      properties: {
-        runs: { type: 'array', items: { type: 'object', additionalProperties: true } },
-        total: { type: 'number' },
-      },
-      required: ['runs'],
-    },
+    type: AsmScanListResponseDto,
   })
   async listScans(
     @CurrentAuth() auth: AuthContext,
@@ -311,14 +219,7 @@ export class AsmController {
   @Get('stats')
   @ApiOkResponse({
     description: 'ASM dashboard statistics',
-    schema: {
-      type: 'object',
-      properties: {
-        domains: { type: 'number' },
-        assets: { type: 'number' },
-      },
-      required: ['domains', 'assets'],
-    },
+    type: AsmDashboardStatsDto,
   })
   async getDashboardStats(@CurrentAuth() auth: AuthContext) {
     return this.asmService.getDashboardStats(auth);

@@ -3292,6 +3292,92 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        RunActivityResponseDto: {
+            totalRuns: number;
+            activity: {
+                date: string;
+                count: number;
+            }[];
+        };
+        RunListResponseDto: {
+            runs: {
+                id: string;
+                workflowId: string;
+                organizationId: string;
+                /** @enum {string} */
+                status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
+                /** Format: date-time */
+                startTime: string;
+                /** Format: date-time */
+                endTime: string | null;
+                temporalRunId: string;
+                workflowVersionId: string | null;
+                workflowVersion: number | null;
+                workflowName: string;
+                eventCount: number;
+                nodeCount: number;
+                duration: number;
+                /** @enum {string} */
+                triggerType: "manual" | "schedule" | "api";
+                triggerSource: string | null;
+                triggerLabel: string | null;
+                inputPreview?: {
+                    runtimeInputs?: {
+                        [key: string]: unknown;
+                    };
+                    nodeOverrides?: {
+                        [key: string]: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            }[];
+        };
+        RunDetailDto: {
+            id: string;
+            workflowId: string;
+            organizationId: string;
+            /** @enum {string} */
+            status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
+            /** Format: date-time */
+            startTime: string;
+            /** Format: date-time */
+            endTime: string | null;
+            temporalRunId: string | null;
+            workflowVersionId: string | null;
+            workflowVersion: number | null;
+            workflowName: string;
+            eventCount: number;
+            nodeCount: number;
+            duration: number;
+            /** @enum {string} */
+            triggerType: "manual" | "schedule" | "api";
+            triggerSource: string | null;
+            triggerLabel: string | null;
+            inputPreview?: {
+                runtimeInputs?: {
+                    [key: string]: unknown;
+                };
+                nodeOverrides?: {
+                    [key: string]: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        ChildRunListResponseDto: {
+            runs: {
+                runId: string;
+                workflowId: string;
+                workflowName: string;
+                parentNodeRef: string | null;
+                status: string;
+                /** Format: date-time */
+                startedAt: string;
+                /** Format: date-time */
+                completedAt: string | null;
+            }[];
+        };
         WorkflowRuntimeInputsResponseDto: {
             workflowId: string;
             inputs: {
@@ -3384,6 +3470,20 @@ export interface components {
             };
             createdAt: string;
         };
+        CommitResponseDto: {
+            title: string;
+            description: string | null;
+            entrypoint: {
+                ref: string;
+            };
+            actions: {
+                ref: string;
+                componentId: string;
+                params?: {
+                    [key: string]: unknown;
+                };
+            }[];
+        };
         RunWorkflowRequestDto: {
             inputs?: {
                 [key: string]: unknown;
@@ -3391,6 +3491,107 @@ export interface components {
             /** Format: uuid */
             versionId?: string;
             version?: number;
+        };
+        RunExecutionResponseDto: {
+            /** @description Temporal workflow identifier */
+            runId: string;
+            /** @description Workflow record id */
+            workflowId: string;
+            /** @description Temporal first execution run id */
+            temporalRunId: string;
+            /** @description Temporal task queue used for execution */
+            taskQueue: string;
+            /** @description Workflow version identifier used for execution */
+            workflowVersionId: string;
+            /** @description Workflow version number used for execution */
+            workflowVersion: number;
+            /** @enum {string} */
+            status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
+        };
+        RunConfigDto: {
+            runId: string;
+            workflowId: string;
+            workflowVersionId: string | null;
+            workflowVersion: number | null;
+            inputs: {
+                [key: string]: unknown;
+            };
+        };
+        TraceEnvelopeDto: {
+            runId: string;
+            events: {
+                id: string;
+                runId: string;
+                nodeId: string;
+                /** @enum {string} */
+                type: "STARTED" | "PROGRESS" | "COMPLETED" | "FAILED";
+                /** @enum {string} */
+                level: "info" | "warn" | "error" | "debug";
+                /** Format: date-time */
+                timestamp: string;
+                message: string | null;
+                error?: {
+                    message: string;
+                    stack: string;
+                    code: string;
+                    type: string;
+                    details?: {
+                        [key: string]: unknown;
+                    };
+                    fieldErrors?: {
+                        [key: string]: string[];
+                    };
+                } | null;
+                outputSummary?: {
+                    [key: string]: unknown;
+                } | null;
+                data?: {
+                    [key: string]: unknown;
+                } | null;
+                metadata?: {
+                    activityId: string;
+                    attempt: number;
+                    correlationId: string;
+                    streamId: string;
+                    /** @enum {string} */
+                    joinStrategy: "all" | "any" | "first";
+                    triggeredBy: string;
+                    failure?: {
+                        /** Format: date-time */
+                        at: string;
+                        reason: {
+                            message: string;
+                            name: string;
+                        };
+                    } | null;
+                    retryPolicy?: {
+                        maxAttempts: number;
+                        initialIntervalSeconds: number;
+                        maximumIntervalSeconds: number;
+                        backoffCoefficient: number;
+                        nonRetryableErrorTypes: string[];
+                    } | null;
+                } | null;
+            }[];
+            cursor: string | null;
+        };
+        DataFlowEnvelopeDto: {
+            runId: string;
+            packets: {
+                id: string;
+                runId: string;
+                sourceNode: string;
+                targetNode: string;
+                inputKey: string | null;
+                payload: {
+                    [key: string]: unknown;
+                } | null;
+                timestamp: number;
+                visualTime: number;
+                size: number;
+                /** @enum {string} */
+                type: "file" | "json" | "text" | "binary";
+            }[];
         };
         RunArtifactsResponseDto: {
             runId: string;
@@ -3433,6 +3634,71 @@ export interface components {
                 /** Format: date-time */
                 createdAt: string;
             }[];
+        };
+        NodeIOListResponseDto: {
+            runId: string;
+            nodes: {
+                nodeRef: string;
+                componentId: string;
+                /** @enum {string} */
+                status: "running" | "completed" | "failed" | "skipped";
+                /** Format: date-time */
+                startedAt: string | null;
+                /** Format: date-time */
+                completedAt: string | null;
+                durationMs: number | null;
+                inputs: {
+                    [key: string]: unknown;
+                } | null;
+                outputs: {
+                    [key: string]: unknown;
+                } | null;
+                inputsSize: number;
+                outputsSize: number;
+                inputsSpilled: boolean;
+                outputsSpilled: boolean;
+                errorMessage: string | null;
+            }[];
+        };
+        NodeIODetailDto: {
+            nodeRef: string;
+            componentId: string;
+            /** @enum {string} */
+            status: "running" | "completed" | "failed" | "skipped";
+            /** Format: date-time */
+            startedAt: string | null;
+            /** Format: date-time */
+            completedAt: string | null;
+            durationMs: number | null;
+            inputs: {
+                [key: string]: unknown;
+            } | null;
+            outputs: {
+                [key: string]: unknown;
+            } | null;
+            inputsSize: number;
+            outputsSize: number;
+            inputsSpilled: boolean;
+            outputsSpilled: boolean;
+            errorMessage: string | null;
+            inputsTruncated: boolean;
+            outputsTruncated: boolean;
+        };
+        LogsResponseDto: {
+            runId: string;
+            logs: {
+                id: string;
+                runId: string;
+                nodeId: string;
+                /** @enum {string} */
+                level: "debug" | "info" | "warn" | "error";
+                message: string;
+                /** Format: date-time */
+                timestamp: string;
+            }[];
+            totalCount: number;
+            hasMore: boolean;
+            nextCursor: string | null;
         };
         TerminalChunksResponseDto: {
             runId: string;
@@ -3541,6 +3807,25 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        FileUploadResponseDto: {
+            /** Format: uuid */
+            id: string;
+            fileName: string;
+            mimeType: string;
+            size: number;
+            storageKey: string;
+            /** Format: date-time */
+            uploadedAt: string;
+        };
+        FileListItemDto: {
+            /** Format: uuid */
+            id: string;
+            fileName: string;
+            mimeType: string;
+            size: number;
+            /** Format: date-time */
+            uploadedAt: string;
+        };
         ArtifactListResponseDto: {
             artifacts: {
                 /** Format: uuid */
@@ -3583,37 +3868,15 @@ export interface components {
             }[];
         };
         AnalyticsQueryRequestDto: {
-            /**
-             * @description OpenSearch DSL query object
-             * @example {
-             *       "match_all": {}
-             *     }
-             */
+            /** @description OpenSearch DSL query object */
             query?: {
                 [key: string]: unknown;
             };
-            /**
-             * @description Number of results to return
-             * @default 10
-             * @example 10
-             */
-            size: number;
-            /**
-             * @description Offset for pagination
-             * @default 0
-             * @example 0
-             */
-            from: number;
-            /**
-             * @description OpenSearch aggregations object
-             * @example {
-             *       "components": {
-             *         "terms": {
-             *           "field": "component_id"
-             *         }
-             *       }
-             *     }
-             */
+            /** @description Number of results to return */
+            size?: number;
+            /** @description Offset for pagination */
+            from?: number;
+            /** @description OpenSearch aggregations object */
             aggs?: {
                 [key: string]: unknown;
             };
@@ -3625,19 +3888,12 @@ export interface components {
             collapse?: {
                 [key: string]: unknown;
             };
-            /**
-             * @description Query the deduplicated latest-state index instead of the event log
-             * @default false
-             */
-            useLatest: boolean;
+            /** @description Query the deduplicated latest-state index instead of the event log */
+            useLatest?: boolean;
         };
         AnalyticsQueryResponseDto: {
-            /**
-             * @description Total number of matching documents
-             * @example 100
-             */
+            /** @description Total number of matching documents */
             total: number;
-            /** @description Search hits */
             hits: {
                 _id: string;
                 _source: {
@@ -3651,50 +3907,19 @@ export interface components {
             };
         };
         AnalyticsSettingsResponseDto: {
-            /**
-             * @description Organization ID
-             * @example org_abc123
-             */
             organizationId: string;
-            /**
-             * @description Subscription tier
-             * @example free
-             * @enum {string}
-             */
+            /** @enum {string} */
             subscriptionTier: "free" | "pro" | "team" | "enterprise";
-            /**
-             * @description Data retention period in days
-             * @example 30
-             */
             analyticsRetentionDays: number;
-            /**
-             * @description Maximum retention days allowed for this tier
-             * @example 30
-             */
             maxRetentionDays: number;
-            /**
-             * Format: date-time
-             * @description Timestamp when settings were created
-             * @example 2026-01-20T00:00:00.000Z
-             */
+            /** Format: date-time */
             createdAt: string;
-            /**
-             * Format: date-time
-             * @description Timestamp when settings were last updated
-             * @example 2026-01-20T00:00:00.000Z
-             */
+            /** Format: date-time */
             updatedAt: string;
         };
         UpdateAnalyticsSettingsDto: {
-            /**
-             * @description Data retention period in days (must be within tier limits)
-             * @example 30
-             */
             analyticsRetentionDays?: number;
-            /**
-             * @description Subscription tier (optional - usually set by billing system)
-             * @enum {string}
-             */
+            /** @enum {string} */
             subscriptionTier?: "free" | "pro" | "team" | "enterprise";
         };
         BatchRunSummariesRequestDto: {
@@ -3710,6 +3935,15 @@ export interface components {
                     info: number;
                 };
             };
+        };
+        StorageUsageResponseDto: {
+            usedBytes: number;
+            documentCount: number;
+            indexCount: number;
+            opensearchEnabled: boolean;
+        };
+        PurgeDataResponseDto: {
+            deletedIndices: number;
         };
         ProwlerChecksMetadataResponseDto: {
             [key: string]: {
@@ -3963,129 +4197,281 @@ export interface components {
         DeleteApiKeyResponseDto: {
             success: boolean;
         };
-        BillingPlanSummaryDto: {
-            /** @example pro */
-            id: string;
-            /** @example Pro */
-            displayName: string;
-            /**
-             * @description Monthly price in USD cents
-             * @example 4900
-             */
-            priceUsdCents: number;
-        };
-        BillingPeriodDto: {
-            /** @example 2026-02-01T00:00:00.000Z */
-            start: string;
-            /** @example 2026-03-01T00:00:00.000Z */
-            end: string;
-        };
-        BillingMeterDto: {
-            /** @example 42 */
-            used: number;
-            /**
-             * @description -1 means unlimited
-             * @example 500
-             */
-            limit: number;
-            /**
-             * @description -1 means unlimited
-             * @example 458
-             */
-            remaining: number;
-        };
-        BillingAiUsageDto: {
-            /**
-             * @description USD spent via LiteLLM this period
-             * @example 12.5
-             */
-            spentUsd: number;
-            /**
-             * @description Budget in USD (-1 = unlimited)
-             * @example 50
-             */
-            budgetUsd: number;
-            /**
-             * @description Remaining budget (-1 = unlimited)
-             * @example 37.5
-             */
-            remainingUsd: number;
-        };
-        BillingLimitsDto: {
-            /**
-             * @description -1 means unlimited
-             * @example 3
-             */
-            maxConcurrentRuns: number;
-            /**
-             * @description -1 means unlimited
-             * @example -1
-             */
-            maxWorkflows: number;
-            /** @example 30 */
-            analyticsRetentionDays: number;
-        };
         BillingUsageResponseDto: {
-            /** @example org_abc123 */
             organizationId: string;
-            /**
-             * @example pro
-             * @enum {string}
-             */
+            /** @enum {string} */
             subscriptionTier: "free" | "pro" | "team" | "enterprise";
-            plan: components["schemas"]["BillingPlanSummaryDto"];
-            period: components["schemas"]["BillingPeriodDto"];
-            workflowRuns: components["schemas"]["BillingMeterDto"];
-            ai: components["schemas"]["BillingAiUsageDto"];
-            limits: components["schemas"]["BillingLimitsDto"];
+            plan: {
+                id: string;
+                displayName: string;
+                /** @description Monthly price in USD cents */
+                priceUsdCents: number;
+            };
+            period: {
+                start: string;
+                end: string;
+            };
+            workflowRuns: {
+                used: number;
+                /** @description -1 means unlimited */
+                limit: number;
+                /** @description -1 means unlimited */
+                remaining: number;
+            };
+            ai: {
+                /** @description USD spent via LiteLLM this period */
+                spentUsd: number;
+                /** @description Budget in USD (-1 = unlimited) */
+                budgetUsd: number;
+                /** @description Remaining budget (-1 = unlimited) */
+                remainingUsd: number;
+            };
+            limits: {
+                /** @description -1 means unlimited */
+                maxConcurrentRuns: number;
+                /** @description -1 means unlimited */
+                maxWorkflows: number;
+                analyticsRetentionDays: number;
+            };
         };
         SubscriptionPlanDto: {
-            /** @example pro */
             id: string;
-            /** @example Pro */
             displayName: string;
-            /**
-             * @description Monthly price in USD cents (0 = free or custom)
-             * @example 4900
-             */
+            /** @description Monthly price in USD cents (0 = free or custom) */
             priceUsdCents: number;
-            /**
-             * @description -1 means unlimited
-             * @example 500
-             */
+            /** @description -1 means unlimited */
             workflowRunsPerMonth: number;
-            /**
-             * @description AI budget in USD cents (-1 = unlimited)
-             * @example 5000
-             */
+            /** @description AI budget in USD cents (-1 = unlimited) */
             aiBudgetUsdCents: number;
-            /**
-             * @description -1 means unlimited
-             * @example 3
-             */
+            /** @description -1 means unlimited */
             maxConcurrentRuns: number;
-            /** @example 30 */
             analyticsRetentionDays: number;
-            /**
-             * @description -1 means unlimited
-             * @example -1
-             */
+            /** @description -1 means unlimited */
             maxWorkflows: number;
         };
         LiteLLMKeyResponseDto: {
             virtualKey: string | null;
         };
         OnboardingPreferencesDto: {
-            /** @example true */
+            /** @description example: true */
             appNavigationTourCompleted: boolean;
-            /** @example false */
+            /** @description example: false */
             workflowBuilderTourCompleted: boolean;
         };
         UpdateOnboardingPreferencesDto: {
-            /** @example true */
+            /** @description example: true */
             appNavigationTourCompleted?: boolean;
-            /** @example true */
+            /** @description example: true */
             workflowBuilderTourCompleted?: boolean;
+        };
+        ComponentListItemDto: {
+            id: string;
+            slug: string;
+            name: string;
+            version: string;
+            type: string;
+            category: string;
+            categoryConfig: {
+                label: string;
+                color: string;
+                description: string;
+                emoji: string;
+                icon: string;
+            };
+            description: string;
+            documentation: string | null;
+            documentationUrl: string | null;
+            icon: string | null;
+            logo: string | null;
+            author: {
+                name: string;
+                /** @enum {string} */
+                type: "shipsecai" | "community";
+                url: string | null;
+            } | null;
+            isLatest: boolean | null;
+            deprecated: boolean | null;
+            example: string | null;
+            runner: {
+                /** @enum {string} */
+                kind: "inline" | "docker" | "remote";
+                image?: string | null;
+                command?: string[] | null;
+            };
+            inputs: {
+                id: string;
+                label: string;
+                connectionType: {
+                    /** @enum {string} */
+                    kind: "primitive" | "list" | "map" | "contract" | "any";
+                    name?: string | null;
+                    element?: {
+                        [key: string]: unknown;
+                    } | null;
+                    credential?: boolean | null;
+                } & {
+                    [key: string]: unknown;
+                };
+                /** @enum {string|null} */
+                editor?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret" | null;
+                required: boolean;
+                description?: string | null;
+                /** @enum {string|null} */
+                valuePriority?: "manual-first" | "connection-first" | null;
+            }[];
+            outputs: {
+                id: string;
+                label: string;
+                connectionType: {
+                    /** @enum {string} */
+                    kind: "primitive" | "list" | "map" | "contract" | "any";
+                    name?: string | null;
+                    element?: {
+                        [key: string]: unknown;
+                    } | null;
+                    credential?: boolean | null;
+                } & {
+                    [key: string]: unknown;
+                };
+                description?: string | null;
+            }[];
+            parameters: {
+                id: string;
+                label: string;
+                /** @enum {string} */
+                type: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret";
+                required: boolean;
+                default?: unknown;
+                placeholder?: string | null;
+                description?: string | null;
+                helpText?: string | null;
+                options?: {
+                    label: string;
+                    value: unknown;
+                }[] | null;
+                min?: number | null;
+                max?: number | null;
+                rows?: number | null;
+            }[];
+            examples: string[];
+            toolProvider: {
+                /** @enum {string} */
+                kind: "component" | "mcp-server" | "mcp-group";
+                name: string;
+                description: string;
+            } | null;
+            toolSchema?: {
+                enabled: boolean;
+                toolName?: string | null;
+                toolDescription?: string | null;
+            } | null;
+        };
+        ComponentDetailDto: {
+            id: string;
+            slug: string;
+            name: string;
+            version: string;
+            type: string;
+            category: string;
+            categoryConfig: {
+                label: string;
+                color: string;
+                description: string;
+                emoji: string;
+                icon: string;
+            };
+            description: string;
+            documentation: string | null;
+            documentationUrl: string | null;
+            icon: string | null;
+            logo: string | null;
+            author: {
+                name: string;
+                /** @enum {string} */
+                type: "shipsecai" | "community";
+                url: string | null;
+            } | null;
+            isLatest: boolean | null;
+            deprecated: boolean | null;
+            example: string | null;
+            runner: {
+                /** @enum {string} */
+                kind: "inline" | "docker" | "remote";
+                image?: string | null;
+                command?: string[] | null;
+            };
+            inputs: {
+                id: string;
+                label: string;
+                connectionType: {
+                    /** @enum {string} */
+                    kind: "primitive" | "list" | "map" | "contract" | "any";
+                    name?: string | null;
+                    element?: {
+                        [key: string]: unknown;
+                    } | null;
+                    credential?: boolean | null;
+                } & {
+                    [key: string]: unknown;
+                };
+                /** @enum {string|null} */
+                editor?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret" | null;
+                required: boolean;
+                description?: string | null;
+                /** @enum {string|null} */
+                valuePriority?: "manual-first" | "connection-first" | null;
+            }[];
+            outputs: {
+                id: string;
+                label: string;
+                connectionType: {
+                    /** @enum {string} */
+                    kind: "primitive" | "list" | "map" | "contract" | "any";
+                    name?: string | null;
+                    element?: {
+                        [key: string]: unknown;
+                    } | null;
+                    credential?: boolean | null;
+                } & {
+                    [key: string]: unknown;
+                };
+                description?: string | null;
+            }[];
+            parameters: {
+                id: string;
+                label: string;
+                /** @enum {string} */
+                type: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret";
+                required: boolean;
+                default?: unknown;
+                placeholder?: string | null;
+                description?: string | null;
+                helpText?: string | null;
+                options?: {
+                    label: string;
+                    value: unknown;
+                }[] | null;
+                min?: number | null;
+                max?: number | null;
+                rows?: number | null;
+            }[];
+            examples: string[];
+            toolProvider: {
+                /** @enum {string} */
+                kind: "component" | "mcp-server" | "mcp-group";
+                name: string;
+                description: string;
+            } | null;
+            toolSchema?: {
+                enabled: boolean;
+                toolName?: string | null;
+                toolDescription?: string | null;
+            } | null;
+            agentTool?: {
+                enabled: boolean;
+                toolName?: string | null;
+                toolDescription?: string | null;
+            } | null;
         };
         ResolvePortsRequestDto: {
             [key: string]: (string | null) | (number | null) | (boolean | null) | (string[] | null) | (number[] | null) | (boolean[] | null);
@@ -4115,24 +4501,23 @@ export interface components {
                 };
             }[];
         };
-        SecretVersionResponse: {
-            id: string;
-            version: number;
-            /** Format: date-time */
-            createdAt: string;
-            createdBy?: string;
-        };
         SecretSummaryResponse: {
             id: string;
             name: string;
-            description?: string;
-            tags?: string[];
+            description?: string | null;
+            tags?: string[] | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
             /** @description Metadata about the active version (value is never returned) */
-            activeVersion?: components["schemas"]["SecretVersionResponse"];
+            activeVersion?: {
+                id: string;
+                version: number;
+                /** Format: date-time */
+                createdAt: string;
+                createdBy?: string | null;
+            } | null;
         };
         SecretValueResponse: {
             secretId: string;
@@ -4158,9 +4543,9 @@ export interface components {
             /** @description Updated secret name (must remain unique) */
             name?: string;
             /** @description Updated description for the secret */
-            description?: string;
+            description?: string | null;
             /** @description Updated tags for the secret */
-            tags?: string[];
+            tags?: string[] | null;
         };
         IntegrationCatalogEntryDto: {
             id: string;
@@ -4209,7 +4594,7 @@ export interface components {
         ProviderConfigurationResponse: {
             provider: string;
             /** @description Stored OAuth client identifier */
-            clientId?: string;
+            clientId?: string | null;
             /** @description True when a client secret has been stored for this provider */
             hasClientSecret: boolean;
             /**
@@ -4218,7 +4603,7 @@ export interface components {
              */
             configuredBy: "environment" | "user";
             /** @description Last update timestamp in ISO 8601 format */
-            updatedAt?: string;
+            updatedAt?: string | null;
         };
         UpsertProviderConfigDto: {
             /** @description OAuth client identifier used for this provider */
@@ -4236,10 +4621,10 @@ export interface components {
             organizationId?: string;
             scopes: string[];
             tokenType: string;
-            expiresAt?: string;
-            lastValidatedAt?: string;
-            lastValidationStatus?: string;
-            lastUsedAt?: string;
+            expiresAt?: string | null;
+            lastValidatedAt?: string | null;
+            lastValidationStatus?: string | null;
+            lastUsedAt?: string | null;
             createdAt: string;
             updatedAt: string;
             /** @enum {string} */
@@ -4247,10 +4632,15 @@ export interface components {
             supportsRefresh: boolean;
             hasRefreshToken: boolean;
             /** @description Provider-specific metadata saved alongside the connection */
-            metadata?: Record<string, never>;
+            metadata?: {
+                [key: string]: unknown;
+            };
         };
         StartOAuthDto: {
-            /** @description Frontend callback URL that receives the OAuth code */
+            /**
+             * Format: uri
+             * @description Frontend callback URL that receives the OAuth code
+             */
             redirectUri: string;
             /** @description Optional override of scopes to request */
             scopes?: string[];
@@ -4259,14 +4649,14 @@ export interface components {
             provider: string;
             authorizationUrl: string;
             state: string;
-            /**
-             * @description Suggested client-side TTL for the authorization URL
-             * @example 300
-             */
+            /** @description Suggested client-side TTL for the authorization URL */
             expiresIn: number;
         };
         CompleteOAuthDto: {
-            /** @description Frontend callback URL that receives the OAuth code */
+            /**
+             * Format: uri
+             * @description Frontend callback URL that receives the OAuth code
+             */
             redirectUri: string;
             /** @description Optional override of scopes to request */
             scopes?: string[];
@@ -4281,14 +4671,16 @@ export interface components {
             accessToken: string;
             tokenType: string;
             scopes: string[];
-            expiresAt?: string;
+            expiresAt?: string | null;
         };
         ConnectionCredentialsResponseDto: {
             /** @description Credential type discriminator */
             credentialType: string;
             provider: string;
             /** @description Type-specific credential data */
-            data: Record<string, never>;
+            data: {
+                [key: string]: unknown;
+            };
             /** @description Provider account identifier (e.g. AWS 12-digit account ID) */
             accountId?: string;
             /** @description Default region from the connection */
@@ -4321,14 +4713,13 @@ export interface components {
             arn?: string;
             error?: string;
         };
-        OrgAccountDto: {
-            id: string;
-            name: string;
-            status: string;
-            email?: string;
-        };
         DiscoverOrgAccountsResponseDto: {
-            accounts: components["schemas"]["OrgAccountDto"][];
+            accounts: {
+                id: string;
+                name: string;
+                status: string;
+                email?: string;
+            }[];
         };
         CreateSlackWebhookConnectionDto: {
             /** @description Display name for this webhook connection */
@@ -4430,6 +4821,10 @@ export interface components {
             };
             versionId?: string;
             version?: number;
+        };
+        WebhookDeliveryInboundResponseDto: {
+            status: string;
+            runId: string;
         };
         WebhookConfigurationResponseDto: {
             /** Format: uuid */
@@ -4832,7 +5227,14 @@ export interface components {
             token: string;
         };
         RegisterComponentToolInput: Record<string, never>;
+        RegisterComponentResponseDto: {
+            success: boolean;
+        };
         RegisterMcpServerInput: Record<string, never>;
+        RegisterMcpServerResponseDto: {
+            success: boolean;
+            toolCount: number;
+        };
         CleanupRunRequestDto: {
             runId: string;
         };
@@ -5398,6 +5800,43 @@ export interface components {
             /** @enum {boolean} */
             success: true;
         };
+        AsmDomainWithStatsDto: {
+            /** Format: uuid */
+            id: string;
+            organizationId: string;
+            domain: string;
+            scopeInclude: string[] | null;
+            scopeExclude: string[] | null;
+            monitoringEnabled: boolean;
+            frequency: string | null;
+            /** Format: date-time */
+            lastScanAt: string | null;
+            /** Format: date-time */
+            deletedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            assetCount: number;
+        };
+        AsmDomainDto: {
+            /** Format: uuid */
+            id: string;
+            organizationId: string;
+            domain: string;
+            scopeInclude: string[] | null;
+            scopeExclude: string[] | null;
+            monitoringEnabled: boolean;
+            frequency: string | null;
+            /** Format: date-time */
+            lastScanAt: string | null;
+            /** Format: date-time */
+            deletedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         CreateDomainDto: {
             domain: string;
             scopeInclude?: string[];
@@ -5405,17 +5844,248 @@ export interface components {
             /** @default false */
             scanNow: boolean;
         };
+        AsmDomainCreateResponseDto: {
+            /** Format: uuid */
+            id: string;
+            organizationId: string;
+            domain: string;
+            scopeInclude: string[] | null;
+            scopeExclude: string[] | null;
+            monitoringEnabled: boolean;
+            frequency: string | null;
+            /** Format: date-time */
+            lastScanAt: string | null;
+            /** Format: date-time */
+            deletedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            assetCount: number;
+            scanTriggered: boolean;
+            runId: string;
+        };
         UpdateDomainDto: {
             scopeInclude?: string[];
             scopeExclude?: string[];
+        };
+        AsmDeleteResponseDto: {
+            success: boolean;
         };
         TriggerScanDto: {
             /** @default sys-attack-surface-recon */
             templateSlug: string;
         };
+        AsmScanTriggerResponseDto: {
+            runId: string;
+            domain: string;
+        };
+        AsmAssetListResponseDto: {
+            assets: {
+                /** Format: uuid */
+                id: string;
+                organizationId: string;
+                /** Format: uuid */
+                domainId: string;
+                hostname: string;
+                type: string;
+                ipAddresses: string[] | null;
+                techStack: string[] | null;
+                ports: {
+                    port: number;
+                    protocol: string;
+                    service: string;
+                }[] | null;
+                riskScore: string | null;
+                dnsRecords: {
+                    [key: string]: unknown;
+                } | null;
+                tlsInfo: {
+                    [key: string]: unknown;
+                } | null;
+                /** Format: date-time */
+                firstSeen: string;
+                /** Format: date-time */
+                lastSeen: string;
+                metadata: {
+                    [key: string]: unknown;
+                } | null;
+            }[];
+            total: number;
+        };
+        AsmAssetDto: {
+            /** Format: uuid */
+            id: string;
+            organizationId: string;
+            /** Format: uuid */
+            domainId: string;
+            hostname: string;
+            type: string;
+            ipAddresses: string[] | null;
+            techStack: string[] | null;
+            ports: {
+                port: number;
+                protocol: string;
+                service: string;
+            }[] | null;
+            riskScore: string | null;
+            dnsRecords: {
+                [key: string]: unknown;
+            } | null;
+            tlsInfo: {
+                [key: string]: unknown;
+            } | null;
+            /** Format: date-time */
+            firstSeen: string;
+            /** Format: date-time */
+            lastSeen: string;
+            metadata: {
+                [key: string]: unknown;
+            } | null;
+        };
+        AsmScanListResponseDto: {
+            runs: {
+                [key: string]: unknown;
+            }[];
+            total: number;
+        };
+        AsmDashboardStatsDto: {
+            domains: number;
+            assets: number;
+        };
+        CloudAssetListResponseDto: {
+            assets: {
+                /** Format: uuid */
+                id: string;
+                organizationId: string;
+                /** Format: uuid */
+                integrationId: string | null;
+                provider: string;
+                accountIdentifier: string | null;
+                assetType: string;
+                externalId: string;
+                name: string | null;
+                region: string | null;
+                status: string;
+                metadata: {
+                    [key: string]: unknown;
+                } | null;
+                /** Format: date-time */
+                firstDiscoveredAt: string;
+                /** Format: date-time */
+                lastSeenAt: string;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                updatedAt: string;
+            }[];
+            total: number;
+            page: number;
+            limit: number;
+        };
+        CloudAssetSummaryDto: {
+            totalAssets: number;
+            byType: {
+                assetType: string;
+                count: number;
+            }[];
+            byRegion: {
+                region: string;
+                count: number;
+            }[];
+            byStatus: {
+                status: string;
+                count: number;
+            }[];
+        };
+        CloudAssetDto: {
+            /** Format: uuid */
+            id: string;
+            organizationId: string;
+            /** Format: uuid */
+            integrationId: string | null;
+            provider: string;
+            accountIdentifier: string | null;
+            assetType: string;
+            externalId: string;
+            name: string | null;
+            region: string | null;
+            status: string;
+            metadata: {
+                [key: string]: unknown;
+            } | null;
+            /** Format: date-time */
+            firstDiscoveredAt: string;
+            /** Format: date-time */
+            lastSeenAt: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         TriggerSyncDto: {
             /** Format: uuid */
             integrationId: string;
+        };
+        CloudSyncTriggerResponseDto: {
+            workflowId: string;
+        };
+        CloudSyncRunListResponseDto: {
+            syncRuns: {
+                /** Format: uuid */
+                id: string;
+                organizationId: string;
+                /** Format: uuid */
+                integrationId: string;
+                accountIdentifier: string | null;
+                temporalWorkflowId: string | null;
+                temporalRunId: string | null;
+                status: string;
+                coveredRegions: string[] | null;
+                assetsDiscovered: number | null;
+                assetsCreated: number | null;
+                assetsUpdated: number | null;
+                assetsStale: number | null;
+                errors: {
+                    message: string;
+                    timestamp: string;
+                }[] | null;
+                /** Format: date-time */
+                startedAt: string;
+                /** Format: date-time */
+                completedAt: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            }[];
+            total: number;
+            page: number;
+            limit: number;
+        };
+        CloudSyncRunDto: {
+            /** Format: uuid */
+            id: string;
+            organizationId: string;
+            /** Format: uuid */
+            integrationId: string;
+            accountIdentifier: string | null;
+            temporalWorkflowId: string | null;
+            temporalRunId: string | null;
+            status: string;
+            coveredRegions: string[] | null;
+            assetsDiscovered: number | null;
+            assetsCreated: number | null;
+            assetsUpdated: number | null;
+            assetsStale: number | null;
+            errors: {
+                message: string;
+                timestamp: string;
+            }[] | null;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            completedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
         };
         CreateSyncRunRequestDto: {
             /** Format: uuid */
@@ -6002,14 +6672,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        totalRuns?: number;
-                        activity?: {
-                            /** Format: date */
-                            date?: string;
-                            count?: number;
-                        }[];
-                    };
+                    "application/json": components["schemas"]["RunActivityResponseDto"];
                 };
             };
         };
@@ -6037,40 +6700,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        runs?: {
-                            id?: string;
-                            workflowId?: string;
-                            organizationId?: string;
-                            /** @enum {string} */
-                            status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
-                            /** Format: date-time */
-                            startTime?: string;
-                            /** Format: date-time */
-                            endTime?: string | null;
-                            temporalRunId?: string;
-                            workflowVersionId?: string | null;
-                            workflowVersion?: number | null;
-                            workflowName?: string;
-                            eventCount?: number;
-                            nodeCount?: number;
-                            duration?: number;
-                            /** @enum {string} */
-                            triggerType?: "manual" | "schedule" | "api";
-                            triggerSource?: string | null;
-                            triggerLabel?: string | null;
-                            inputPreview?: {
-                                runtimeInputs?: {
-                                    [key: string]: unknown;
-                                };
-                                nodeOverrides?: {
-                                    [key: string]: {
-                                        [key: string]: unknown;
-                                    };
-                                };
-                            };
-                        }[];
-                    };
+                    "application/json": components["schemas"]["RunListResponseDto"];
                 };
             };
         };
@@ -6092,38 +6722,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        id?: string;
-                        workflowId?: string;
-                        organizationId?: string;
-                        /** @enum {string} */
-                        status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
-                        /** Format: date-time */
-                        startTime?: string;
-                        /** Format: date-time */
-                        endTime?: string | null;
-                        temporalRunId?: string | null;
-                        workflowVersionId?: string | null;
-                        workflowVersion?: number | null;
-                        workflowName?: string;
-                        eventCount?: number;
-                        nodeCount?: number;
-                        duration?: number;
-                        /** @enum {string} */
-                        triggerType?: "manual" | "schedule" | "api";
-                        triggerSource?: string | null;
-                        triggerLabel?: string | null;
-                        inputPreview?: {
-                            runtimeInputs?: {
-                                [key: string]: unknown;
-                            };
-                            nodeOverrides?: {
-                                [key: string]: {
-                                    [key: string]: unknown;
-                                };
-                            };
-                        };
-                    };
+                    "application/json": components["schemas"]["RunDetailDto"];
                 };
             };
         };
@@ -6145,19 +6744,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        runs?: {
-                            runId?: string;
-                            workflowId?: string;
-                            workflowName?: string;
-                            parentNodeRef?: string | null;
-                            status?: string;
-                            /** Format: date-time */
-                            startedAt?: string;
-                            /** Format: date-time */
-                            completedAt?: string | null;
-                        }[];
-                    };
+                    "application/json": components["schemas"]["ChildRunListResponseDto"];
                 };
             };
         };
@@ -6223,25 +6810,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        title?: string;
-                        description?: string | null;
-                        entrypoint?: {
-                            ref?: string;
-                        };
-                        actions?: {
-                            ref?: string;
-                            componentId?: string;
-                            params?: {
-                                [key: string]: unknown;
-                            };
-                            dependsOn?: string[];
-                        }[];
-                        config?: {
-                            environment?: string;
-                            timeoutSeconds?: number;
-                        };
-                    };
+                    "application/json": components["schemas"]["CommitResponseDto"];
                 };
             };
         };
@@ -6267,22 +6836,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** @description Temporal workflow identifier */
-                        runId?: string;
-                        /** @description Workflow record id */
-                        workflowId?: string;
-                        /** @description Temporal first execution run id */
-                        temporalRunId?: string;
-                        /** @description Temporal task queue used for execution */
-                        taskQueue?: string;
-                        /** @description Workflow version identifier used for execution */
-                        workflowVersionId?: string;
-                        /** @description Workflow version number used for execution */
-                        workflowVersion?: number;
-                        /** @enum {string} */
-                        status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
-                    };
+                    "application/json": components["schemas"]["RunExecutionResponseDto"];
                 };
             };
         };
@@ -6348,15 +6902,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        runId?: string;
-                        workflowId?: string;
-                        workflowVersionId?: string | null;
-                        workflowVersion?: number | null;
-                        inputs?: {
-                            [key: string]: unknown;
-                        };
-                    };
+                    "application/json": components["schemas"]["RunConfigDto"];
                 };
             };
         };
@@ -6400,64 +6946,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        runId?: string;
-                        events?: {
-                            id?: string;
-                            runId?: string;
-                            nodeId?: string;
-                            /** @enum {string} */
-                            type?: "STARTED" | "PROGRESS" | "COMPLETED" | "FAILED";
-                            /** @enum {string} */
-                            level?: "info" | "warn" | "error" | "debug";
-                            /** Format: date-time */
-                            timestamp?: string;
-                            message?: string | null;
-                            error?: {
-                                message?: string;
-                                stack?: string;
-                                code?: string;
-                                type?: string;
-                                details?: {
-                                    [key: string]: unknown;
-                                };
-                                fieldErrors?: {
-                                    [key: string]: string[];
-                                };
-                            } | null;
-                            outputSummary?: {
-                                [key: string]: unknown;
-                            } | null;
-                            data?: {
-                                [key: string]: unknown;
-                            } | null;
-                            metadata?: {
-                                activityId?: string;
-                                attempt?: number;
-                                correlationId?: string;
-                                streamId?: string;
-                                /** @enum {string} */
-                                joinStrategy?: "all" | "any" | "first";
-                                triggeredBy?: string;
-                                failure?: {
-                                    /** Format: date-time */
-                                    at?: string;
-                                    reason?: {
-                                        message?: string;
-                                        name?: string;
-                                    };
-                                } | null;
-                                retryPolicy?: {
-                                    maxAttempts?: number;
-                                    initialIntervalSeconds?: number;
-                                    maximumIntervalSeconds?: number;
-                                    backoffCoefficient?: number;
-                                    nonRetryableErrorTypes?: string[];
-                                } | null;
-                            } | null;
-                        }[];
-                        cursor?: string | null;
-                    };
+                    "application/json": components["schemas"]["TraceEnvelopeDto"];
                 };
             };
         };
@@ -6479,64 +6968,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        runId?: string;
-                        events?: {
-                            id?: string;
-                            runId?: string;
-                            nodeId?: string;
-                            /** @enum {string} */
-                            type?: "STARTED" | "PROGRESS" | "COMPLETED" | "FAILED";
-                            /** @enum {string} */
-                            level?: "info" | "warn" | "error" | "debug";
-                            /** Format: date-time */
-                            timestamp?: string;
-                            message?: string | null;
-                            error?: {
-                                message?: string;
-                                stack?: string;
-                                code?: string;
-                                type?: string;
-                                details?: {
-                                    [key: string]: unknown;
-                                };
-                                fieldErrors?: {
-                                    [key: string]: string[];
-                                };
-                            } | null;
-                            outputSummary?: {
-                                [key: string]: unknown;
-                            } | null;
-                            data?: {
-                                [key: string]: unknown;
-                            } | null;
-                            metadata?: {
-                                activityId?: string;
-                                attempt?: number;
-                                correlationId?: string;
-                                streamId?: string;
-                                /** @enum {string} */
-                                joinStrategy?: "all" | "any" | "first";
-                                triggeredBy?: string;
-                                failure?: {
-                                    /** Format: date-time */
-                                    at?: string;
-                                    reason?: {
-                                        message?: string;
-                                        name?: string;
-                                    };
-                                } | null;
-                                retryPolicy?: {
-                                    maxAttempts?: number;
-                                    initialIntervalSeconds?: number;
-                                    maximumIntervalSeconds?: number;
-                                    backoffCoefficient?: number;
-                                    nonRetryableErrorTypes?: string[];
-                                } | null;
-                            } | null;
-                        }[];
-                        cursor?: string | null;
-                    };
+                    "application/json": components["schemas"]["TraceEnvelopeDto"];
                 };
             };
         };
@@ -6558,24 +6990,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        runId?: string;
-                        packets?: {
-                            id?: string;
-                            runId?: string;
-                            sourceNode?: string;
-                            targetNode?: string;
-                            inputKey?: string | null;
-                            payload?: {
-                                [key: string]: unknown;
-                            } | null;
-                            timestamp?: number;
-                            visualTime?: number;
-                            size?: number;
-                            /** @enum {string} */
-                            type?: "file" | "json" | "text" | "binary";
-                        }[];
-                    };
+                    "application/json": components["schemas"]["DataFlowEnvelopeDto"];
                 };
             };
         };
@@ -6640,31 +7055,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        runId?: string;
-                        nodes?: {
-                            nodeRef?: string;
-                            componentId?: string;
-                            /** @enum {string} */
-                            status?: "running" | "completed" | "failed" | "skipped";
-                            /** Format: date-time */
-                            startedAt?: string | null;
-                            /** Format: date-time */
-                            completedAt?: string | null;
-                            durationMs?: number | null;
-                            inputs?: {
-                                [key: string]: unknown;
-                            } | null;
-                            outputs?: {
-                                [key: string]: unknown;
-                            } | null;
-                            inputsSize?: number;
-                            outputsSize?: number;
-                            inputsSpilled?: boolean;
-                            outputsSpilled?: boolean;
-                            errorMessage?: string | null;
-                        }[];
-                    };
+                    "application/json": components["schemas"]["NodeIOListResponseDto"];
                 };
             };
         };
@@ -6690,30 +7081,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        nodeRef?: string;
-                        componentId?: string;
-                        /** @enum {string} */
-                        status?: "running" | "completed" | "failed" | "skipped";
-                        /** Format: date-time */
-                        startedAt?: string | null;
-                        /** Format: date-time */
-                        completedAt?: string | null;
-                        durationMs?: number | null;
-                        inputs?: {
-                            [key: string]: unknown;
-                        } | null;
-                        outputs?: {
-                            [key: string]: unknown;
-                        } | null;
-                        inputsSize?: number;
-                        outputsSize?: number;
-                        inputsSpilled?: boolean;
-                        outputsSpilled?: boolean;
-                        inputsTruncated?: boolean;
-                        outputsTruncated?: boolean;
-                        errorMessage?: string | null;
-                    };
+                    "application/json": components["schemas"]["NodeIODetailDto"];
                 };
             };
         };
@@ -6768,22 +7136,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        runId?: string;
-                        logs?: {
-                            id?: string;
-                            runId?: string;
-                            nodeId?: string;
-                            /** @enum {string} */
-                            level?: "debug" | "info" | "warn" | "error";
-                            message?: string;
-                            /** Format: date-time */
-                            timestamp?: string;
-                        }[];
-                        totalCount?: number;
-                        hasMore?: boolean;
-                        nextCursor?: string | null;
-                    };
+                    "application/json": components["schemas"]["LogsResponseDto"];
                 };
             };
         };
@@ -6931,16 +7284,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id?: string;
-                        fileName?: string;
-                        mimeType?: string;
-                        size?: number;
-                        storageKey?: string;
-                        /** Format: date-time */
-                        uploadedAt?: string;
-                    };
+                    "application/json": components["schemas"]["FileUploadResponseDto"];
                 };
             };
         };
@@ -6962,15 +7306,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id?: string;
-                        fileName?: string;
-                        mimeType?: string;
-                        size?: number;
-                        /** Format: date-time */
-                        uploadedAt?: string;
-                    }[];
+                    "application/json": components["schemas"]["FileListItemDto"][];
                 };
             };
         };
@@ -7217,12 +7553,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        usedBytes?: number;
-                        documentCount?: number;
-                        indexCount?: number;
-                        opensearchEnabled?: boolean;
-                    };
+                    "application/json": components["schemas"]["StorageUsageResponseDto"];
                 };
             };
         };
@@ -7242,9 +7573,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        deletedIndices?: number;
-                    };
+                    "application/json": components["schemas"]["PurgeDataResponseDto"];
                 };
             };
         };
@@ -7298,7 +7627,7 @@ export interface operations {
     AuditLogsController_list: {
         parameters: {
             query?: {
-                resourceType?: "workflow" | "secret" | "api_key" | "webhook" | "artifact" | "analytics" | "schedule" | "mcp_server" | "mcp_group" | "human_input";
+                resourceType?: string;
                 resourceId?: string;
                 action?: string;
                 actorId?: string;
@@ -7574,115 +7903,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** @example core.file.loader */
-                        id?: string;
-                        /** @example file-loader */
-                        slug?: string;
-                        /** @example File Loader */
-                        name?: string;
-                        /** @example 1.0.0 */
-                        version?: string;
-                        /** @example input */
-                        type?: string;
-                        /** @example input */
-                        category?: string;
-                        categoryConfig?: {
-                            /** @example Input */
-                            label?: string;
-                            /** @example text-blue-600 */
-                            color?: string;
-                            /** @example Data sources, triggers, and credential access */
-                            description?: string;
-                            /** @example 📥 */
-                            emoji?: string;
-                            /** @example Download */
-                            icon?: string;
-                        };
-                        /** @example Load files from filesystem */
-                        description?: string;
-                        documentation?: string | null;
-                        documentationUrl?: string | null;
-                        /** @example FileUp */
-                        icon?: string;
-                        logo?: string | null;
-                        isLatest?: boolean | null;
-                        deprecated?: boolean | null;
-                        example?: string | null;
-                        author?: {
-                            name?: string;
-                            /** @enum {string} */
-                            type?: "shipsecai" | "community";
-                            url?: string | null;
-                        } | null;
-                        runner?: {
-                            /**
-                             * @example inline
-                             * @enum {string}
-                             */
-                            kind?: "inline" | "docker" | "remote";
-                            image?: string | null;
-                            command?: string[] | null;
-                        };
-                        inputs?: {
-                            id?: string;
-                            label?: string;
-                            connectionType?: {
-                                /** @enum {string} */
-                                kind: "primitive" | "list" | "map" | "contract" | "any";
-                                name?: string | null;
-                                element?: Record<string, never> | null;
-                                credential?: boolean | null;
-                            } & {
-                                [key: string]: unknown;
-                            };
-                            /** @enum {string|null} */
-                            editor?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret" | null;
-                            required?: boolean;
-                            description?: string | null;
-                            /** @enum {string|null} */
-                            valuePriority?: "manual-first" | "connection-first" | null;
-                        }[];
-                        outputs?: {
-                            id?: string;
-                            label?: string;
-                            connectionType?: {
-                                /** @enum {string} */
-                                kind: "primitive" | "list" | "map" | "contract" | "any";
-                                name?: string | null;
-                                element?: Record<string, never> | null;
-                                credential?: boolean | null;
-                            } & {
-                                [key: string]: unknown;
-                            };
-                            description?: string | null;
-                        }[];
-                        parameters?: {
-                            id?: string;
-                            label?: string;
-                            /** @enum {string} */
-                            type?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret";
-                            required?: boolean;
-                            default?: unknown;
-                            placeholder?: string | null;
-                            description?: string | null;
-                            helpText?: string | null;
-                            options?: {
-                                label?: string;
-                                value?: unknown;
-                            }[] | null;
-                            min?: number | null;
-                            max?: number | null;
-                            rows?: number | null;
-                        }[];
-                        examples?: string[];
-                        toolProvider?: {
-                            /** @enum {string} */
-                            kind?: "component" | "mcp-server" | "mcp-group";
-                            name?: string;
-                            description?: string;
-                        } | null;
-                    }[];
+                    "application/json": components["schemas"]["ComponentListItemDto"][];
                 };
             };
         };
@@ -7704,74 +7925,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        id?: string;
-                        slug?: string;
-                        name?: string;
-                        version?: string;
-                        type?: string;
-                        category?: string;
-                        categoryConfig?: {
-                            label?: string;
-                            color?: string;
-                            description?: string;
-                            emoji?: string;
-                            icon?: string;
-                        };
-                        description?: string | null;
-                        documentation?: string | null;
-                        documentationUrl?: string | null;
-                        icon?: string | null;
-                        logo?: string | null;
-                        author?: {
-                            name?: string;
-                            type?: string;
-                            url?: string | null;
-                        } | null;
-                        runner?: Record<string, never>;
-                        inputs?: {
-                            id?: string;
-                            label?: string;
-                            connectionType?: {
-                                /** @enum {string} */
-                                kind: "primitive" | "list" | "map" | "contract" | "any";
-                                name?: string | null;
-                                element?: Record<string, never> | null;
-                                credential?: boolean | null;
-                            } & {
-                                [key: string]: unknown;
-                            };
-                            /** @enum {string|null} */
-                            editor?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret" | null;
-                            required?: boolean;
-                            description?: string | null;
-                            /** @enum {string|null} */
-                            valuePriority?: "manual-first" | "connection-first" | null;
-                        }[];
-                        outputs?: {
-                            id?: string;
-                            label?: string;
-                            connectionType?: {
-                                /** @enum {string} */
-                                kind: "primitive" | "list" | "map" | "contract" | "any";
-                                name?: string | null;
-                                element?: Record<string, never> | null;
-                                credential?: boolean | null;
-                            } & {
-                                [key: string]: unknown;
-                            };
-                            description?: string | null;
-                        }[];
-                        parameters?: unknown[];
-                        examples?: unknown[];
-                        deprecated?: boolean | null;
-                        example?: string | null;
-                        agentTool?: {
-                            enabled?: boolean;
-                            toolName?: string | null;
-                            toolDescription?: string | null;
-                        } | null;
-                    };
+                    "application/json": components["schemas"]["ComponentDetailDto"];
                 };
             };
         };
@@ -8660,12 +8814,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** @example delivered */
-                        status?: string;
-                        /** @example shipsec-run-123 */
-                        runId?: string;
-                    };
+                    "application/json": components["schemas"]["WebhookDeliveryInboundResponseDto"];
                 };
             };
             /** @description Invalid payload or parsing failed */
@@ -9711,9 +9860,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        success?: boolean;
-                    };
+                    "application/json": components["schemas"]["RegisterComponentResponseDto"];
                 };
             };
         };
@@ -9736,10 +9883,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        success?: boolean;
-                        toolCount?: number;
-                    };
+                    "application/json": components["schemas"]["RegisterMcpServerResponseDto"];
                 };
             };
         };
@@ -10575,25 +10719,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        domain: string;
-                        scopeInclude?: string[] | null;
-                        scopeExclude?: string[] | null;
-                        monitoringEnabled: boolean;
-                        frequency?: string | null;
-                        /** Format: date-time */
-                        lastScanAt?: string | null;
-                        /** Format: date-time */
-                        deletedAt?: string | null;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                        assetCount: number;
-                    }[];
+                    "application/json": components["schemas"]["AsmDomainWithStatsDto"][];
                 };
             };
         };
@@ -10617,27 +10743,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        domain: string;
-                        scopeInclude?: string[] | null;
-                        scopeExclude?: string[] | null;
-                        monitoringEnabled: boolean;
-                        frequency?: string | null;
-                        /** Format: date-time */
-                        lastScanAt?: string | null;
-                        /** Format: date-time */
-                        deletedAt?: string | null;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                        assetCount: number;
-                        scanTriggered?: boolean;
-                        runId?: string;
-                    };
+                    "application/json": components["schemas"]["AsmDomainCreateResponseDto"];
                 };
             };
         };
@@ -10659,24 +10765,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        domain: string;
-                        scopeInclude?: string[] | null;
-                        scopeExclude?: string[] | null;
-                        monitoringEnabled: boolean;
-                        frequency?: string | null;
-                        /** Format: date-time */
-                        lastScanAt?: string | null;
-                        /** Format: date-time */
-                        deletedAt?: string | null;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                    };
+                    "application/json": components["schemas"]["AsmDomainDto"];
                 };
             };
         };
@@ -10698,9 +10787,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        success: boolean;
-                    };
+                    "application/json": components["schemas"]["AsmDeleteResponseDto"];
                 };
             };
         };
@@ -10726,24 +10813,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        domain: string;
-                        scopeInclude?: string[] | null;
-                        scopeExclude?: string[] | null;
-                        monitoringEnabled: boolean;
-                        frequency?: string | null;
-                        /** Format: date-time */
-                        lastScanAt?: string | null;
-                        /** Format: date-time */
-                        deletedAt?: string | null;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                    };
+                    "application/json": components["schemas"]["AsmDomainDto"];
                 };
             };
         };
@@ -10769,10 +10839,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        runId: string;
-                        domain: string;
-                    };
+                    "application/json": components["schemas"]["AsmScanTriggerResponseDto"];
                 };
             };
         };
@@ -10800,39 +10867,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        assets: {
-                            /** Format: uuid */
-                            id: string;
-                            organizationId: string;
-                            /** Format: uuid */
-                            domainId: string;
-                            hostname: string;
-                            type: string;
-                            ipAddresses?: string[] | null;
-                            techStack?: string[] | null;
-                            ports?: {
-                                port: number;
-                                protocol: string;
-                                service: string;
-                            }[] | null;
-                            riskScore?: string | null;
-                            dnsRecords?: {
-                                [key: string]: unknown;
-                            } | null;
-                            tlsInfo?: {
-                                [key: string]: unknown;
-                            } | null;
-                            /** Format: date-time */
-                            firstSeen: string;
-                            /** Format: date-time */
-                            lastSeen: string;
-                            metadata?: {
-                                [key: string]: unknown;
-                            } | null;
-                        }[];
-                        total: number;
-                    };
+                    "application/json": components["schemas"]["AsmAssetListResponseDto"];
                 };
             };
         };
@@ -10854,36 +10889,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        /** Format: uuid */
-                        domainId: string;
-                        hostname: string;
-                        type: string;
-                        ipAddresses?: string[] | null;
-                        techStack?: string[] | null;
-                        ports?: {
-                            port: number;
-                            protocol: string;
-                            service: string;
-                        }[] | null;
-                        riskScore?: string | null;
-                        dnsRecords?: {
-                            [key: string]: unknown;
-                        } | null;
-                        tlsInfo?: {
-                            [key: string]: unknown;
-                        } | null;
-                        /** Format: date-time */
-                        firstSeen: string;
-                        /** Format: date-time */
-                        lastSeen: string;
-                        metadata?: {
-                            [key: string]: unknown;
-                        } | null;
-                    };
+                    "application/json": components["schemas"]["AsmAssetDto"];
                 };
             };
         };
@@ -10909,10 +10915,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        runId: string;
-                        domain: string;
-                    };
+                    "application/json": components["schemas"]["AsmScanTriggerResponseDto"];
                 };
             };
         };
@@ -10937,12 +10940,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        runs: {
-                            [key: string]: unknown;
-                        }[];
-                        total?: number;
-                    };
+                    "application/json": components["schemas"]["AsmScanListResponseDto"];
                 };
             };
         };
@@ -10962,10 +10960,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        domains: number;
-                        assets: number;
-                    };
+                    "application/json": components["schemas"]["AsmDashboardStatsDto"];
                 };
             };
         };
@@ -10973,17 +10968,17 @@ export interface operations {
     AssetDiscoveryController_listAssets: {
         parameters: {
             query?: {
-                sortOrder?: "asc" | "desc";
-                sortBy?: "name" | "lastSeenAt" | "firstDiscoveredAt";
-                limit?: number;
-                offset?: number;
-                page?: number;
-                search?: string;
-                integrationId?: string;
-                status?: "active" | "stale" | "removed";
-                region?: string;
-                assetType?: string;
                 provider?: string;
+                assetType?: string;
+                region?: string;
+                status?: "active" | "stale" | "removed";
+                integrationId?: string;
+                search?: string;
+                page?: number;
+                offset?: number;
+                limit?: number;
+                sortBy?: "name" | "lastSeenAt" | "firstDiscoveredAt";
+                sortOrder?: "asc" | "desc";
             };
             header?: never;
             path?: never;
@@ -10997,36 +10992,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        assets: {
-                            /** Format: uuid */
-                            id: string;
-                            organizationId: string;
-                            /** Format: uuid */
-                            integrationId?: string | null;
-                            provider: string;
-                            accountIdentifier?: string | null;
-                            assetType: string;
-                            externalId: string;
-                            name?: string | null;
-                            region?: string | null;
-                            status: string;
-                            metadata?: {
-                                [key: string]: unknown;
-                            } | null;
-                            /** Format: date-time */
-                            firstDiscoveredAt: string;
-                            /** Format: date-time */
-                            lastSeenAt: string;
-                            /** Format: date-time */
-                            createdAt: string;
-                            /** Format: date-time */
-                            updatedAt: string;
-                        }[];
-                        total: number;
-                        page: number;
-                        limit: number;
-                    };
+                    "application/json": components["schemas"]["CloudAssetListResponseDto"];
                 };
             };
         };
@@ -11046,21 +11012,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        totalAssets: number;
-                        byType: {
-                            assetType: string;
-                            count: number;
-                        }[];
-                        byRegion: {
-                            region: string;
-                            count: number;
-                        }[];
-                        byStatus: {
-                            status: string;
-                            count: number;
-                        }[];
-                    };
+                    "application/json": components["schemas"]["CloudAssetSummaryDto"];
                 };
             };
         };
@@ -11082,31 +11034,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        /** Format: uuid */
-                        integrationId?: string | null;
-                        provider: string;
-                        accountIdentifier?: string | null;
-                        assetType: string;
-                        externalId: string;
-                        name?: string | null;
-                        region?: string | null;
-                        status: string;
-                        metadata?: {
-                            [key: string]: unknown;
-                        } | null;
-                        /** Format: date-time */
-                        firstDiscoveredAt: string;
-                        /** Format: date-time */
-                        lastSeenAt: string;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                    };
+                    "application/json": components["schemas"]["CloudAssetDto"];
                 };
             };
         };
@@ -11130,9 +11058,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        workflowId: string;
-                    };
+                    "application/json": components["schemas"]["CloudSyncTriggerResponseDto"];
                 };
             };
         };
@@ -11140,10 +11066,10 @@ export interface operations {
     AssetDiscoveryController_listSyncRuns: {
         parameters: {
             query?: {
-                limit?: number;
-                offset?: number;
-                page?: number;
                 integrationId?: string;
+                page?: number;
+                offset?: number;
+                limit?: number;
             };
             header?: never;
             path?: never;
@@ -11157,37 +11083,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        syncRuns: {
-                            /** Format: uuid */
-                            id: string;
-                            organizationId: string;
-                            /** Format: uuid */
-                            integrationId: string;
-                            accountIdentifier?: string | null;
-                            temporalWorkflowId?: string | null;
-                            temporalRunId?: string | null;
-                            status: string;
-                            coveredRegions?: string[] | null;
-                            assetsDiscovered?: number | null;
-                            assetsCreated?: number | null;
-                            assetsUpdated?: number | null;
-                            assetsStale?: number | null;
-                            errors?: {
-                                message: string;
-                                timestamp: string;
-                            }[] | null;
-                            /** Format: date-time */
-                            startedAt: string;
-                            /** Format: date-time */
-                            completedAt?: string | null;
-                            /** Format: date-time */
-                            createdAt: string;
-                        }[];
-                        total: number;
-                        page: number;
-                        limit: number;
-                    };
+                    "application/json": components["schemas"]["CloudSyncRunListResponseDto"];
                 };
             };
         };
@@ -11209,32 +11105,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id: string;
-                        organizationId: string;
-                        /** Format: uuid */
-                        integrationId: string;
-                        accountIdentifier?: string | null;
-                        temporalWorkflowId?: string | null;
-                        temporalRunId?: string | null;
-                        status: string;
-                        coveredRegions?: string[] | null;
-                        assetsDiscovered?: number | null;
-                        assetsCreated?: number | null;
-                        assetsUpdated?: number | null;
-                        assetsStale?: number | null;
-                        errors?: {
-                            message: string;
-                            timestamp: string;
-                        }[] | null;
-                        /** Format: date-time */
-                        startedAt: string;
-                        /** Format: date-time */
-                        completedAt?: string | null;
-                        /** Format: date-time */
-                        createdAt: string;
-                    };
+                    "application/json": components["schemas"]["CloudSyncRunDto"];
                 };
             };
         };

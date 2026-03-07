@@ -59,6 +59,14 @@ export const GetWebhookUrlResponseSchema = z.object({
 export class RegeneratePathResponseDto extends createZodDto(RegeneratePathResponseSchema) {}
 export class GetWebhookUrlResponseDto extends createZodDto(GetWebhookUrlResponseSchema) {}
 
+export const WebhookDeliveryInboundResponseSchema = z.object({
+  status: z.string(),
+  runId: z.string(),
+});
+export class WebhookDeliveryInboundResponseDto extends createZodDto(
+  WebhookDeliveryInboundResponseSchema,
+) {}
+
 // Types
 export type CreateWebhookRequest = CreateWebhook;
 export type UpdateWebhookRequest = UpdateWebhook;

@@ -1,26 +1,12 @@
-import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
+import { api } from '@/services/api';
+import type { components } from '../../../packages/backend-client/src/api-client';
 
 // Types for MCP discovery workflow
-export interface DiscoveryInput {
-  transport: 'http' | 'stdio';
-  name: string;
-  endpoint?: string;
-  headers?: Record<string, string>;
-  command?: string;
-  args?: string[];
-  image?: string;
-}
+export type DiscoveryInput = components['schemas']['DiscoveryInputDto'];
+export type GroupDiscoveryInput = components['schemas']['GroupDiscoveryInputDto'];
+type DiscoveryToolDto = NonNullable<components['schemas']['DiscoveryStatusDto']['tools']>[number];
 
-export interface GroupDiscoveryInput {
-  image?: string;
-  servers: DiscoveryInput[];
-}
-
-export interface McpToolResponse {
-  name: string;
-  description?: string;
-  inputSchema?: Record<string, unknown>;
-}
+export type McpToolResponse = Pick<DiscoveryToolDto, 'name' | 'description' | 'inputSchema'>;
 
 export interface DiscoveryStatus {
   workflowId: string;
@@ -61,79 +47,23 @@ export const mcpDiscoveryApi = {
   async discover(
     input: DiscoveryInput,
   ): Promise<{ workflowId: string; cacheToken?: string; status: string }> {
-    const headers = await getApiAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/api/v1/mcp/discover`, {
-      method: 'POST',
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(input),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Failed to start discovery' }));
-      throw new Error(error.message || 'Failed to start MCP discovery');
-    }
-
-    return response.json();
+    return api.mcpDiscovery.discover(input);
   },
 
   /**
    * Get the status of a discovery workflow
    */
   async getStatus(workflowId: string): Promise<DiscoveryStatus> {
-    const headers = await getApiAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/api/v1/mcp/discover/${workflowId}`, {
-      headers,
-    });
-
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ message: 'Failed to get discovery status' }));
-      throw new Error(error.message || 'Failed to fetch discovery status');
-    }
-
-    return response.json();
+    return api.mcpDiscovery.getStatus(workflowId);
   },
 
   async discoverGroup(
     input: GroupDiscoveryInput,
   ): Promise<{ workflowId: string; cacheTokens: Record<string, string>; status: string }> {
-    const headers = await getApiAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/api/v1/mcp/discover-group`, {
-      method: 'POST',
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(input),
-    });
-
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ message: 'Failed to start group discovery' }));
-      throw new Error(error.message || 'Failed to start MCP group discovery');
-    }
-
-    return response.json();
+    return api.mcpDiscovery.discoverGroup(input);
   },
 
   async getGroupStatus(workflowId: string): Promise<GroupDiscoveryStatus> {
-    const headers = await getApiAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/api/v1/mcp/discover-group/${workflowId}`, {
-      headers,
-    });
-
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ message: 'Failed to get group discovery status' }));
-      throw new Error(error.message || 'Failed to fetch group discovery status');
-    }
-
-    return response.json();
+    return api.mcpDiscovery.getGroupStatus(workflowId);
   },
 };

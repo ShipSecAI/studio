@@ -40,7 +40,8 @@ export class SecretsController {
   @Get()
   @ApiOkResponse({ type: [SecretSummaryResponse] })
   async listSecrets(@CurrentAuth() auth: AuthContext | null): Promise<SecretSummaryResponse[]> {
-    return this.secretsService.listSecrets(auth);
+    const secrets = await this.secretsService.listSecrets(auth);
+    return secrets.map(SecretSummaryResponse.fromEntity);
   }
 
   @Get(':id')
@@ -49,7 +50,7 @@ export class SecretsController {
     @CurrentAuth() auth: AuthContext | null,
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<SecretSummaryResponse> {
-    return this.secretsService.getSecret(auth, id);
+    return SecretSummaryResponse.fromEntity(await this.secretsService.getSecret(auth, id));
   }
 
   @Get(':id/value')
@@ -88,7 +89,7 @@ export class SecretsController {
     @CurrentAuth() auth: AuthContext | null,
     @Body() body: CreateSecretDto,
   ): Promise<SecretSummaryResponse> {
-    return this.secretsService.createSecret(auth, body);
+    return SecretSummaryResponse.fromEntity(await this.secretsService.createSecret(auth, body));
   }
 
   @Put(':id/rotate')
@@ -98,7 +99,7 @@ export class SecretsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: RotateSecretDto,
   ): Promise<SecretSummaryResponse> {
-    return this.secretsService.rotateSecret(auth, id, body);
+    return SecretSummaryResponse.fromEntity(await this.secretsService.rotateSecret(auth, id, body));
   }
 
   @Patch(':id')
@@ -108,7 +109,7 @@ export class SecretsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: UpdateSecretDto,
   ): Promise<SecretSummaryResponse> {
-    return this.secretsService.updateSecret(auth, id, body);
+    return SecretSummaryResponse.fromEntity(await this.secretsService.updateSecret(auth, id, body));
   }
 
   @Delete(':id')

@@ -54,7 +54,11 @@ export const executionDataFlowsOptions = (runId: string) =>
 
 // --- On-demand, cacheable ---
 
-export const executionTerminalChunksOptions = (runId: string, nodeRef: string, stream: string) =>
+export const executionTerminalChunksOptions = (
+  runId: string,
+  nodeRef: string,
+  stream: 'stdout' | 'stderr' | 'pty',
+) =>
   queryOptions({
     queryKey: queryKeys.executions.terminalChunks(runId, nodeRef, stream),
     queryFn: () => api.executions.getTerminalChunks(runId, { nodeRef, stream }),

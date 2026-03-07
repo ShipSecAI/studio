@@ -15,6 +15,11 @@ import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow';
 import { api } from '@/services/api';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/lib/queryKeys';
+import {
+  normalizeResolvedInputs,
+  normalizeResolvedOutputs,
+  toResolvePortsRequest,
+} from '@/lib/resolvePorts';
 import { getComponentFromCache } from '@/hooks/queries/useComponentQueries';
 import type { SecretSummary } from '@/schemas/secret';
 interface WorkflowMetadataShape {
@@ -116,17 +121,22 @@ export function useWorkflowImportExport({
           try {
             const params = node.data.config?.params ?? {};
             const inputOverrides = node.data.config?.inputOverrides ?? {};
-            const result = await api.components.resolvePorts(componentId, {
-              ...params,
-              ...inputOverrides,
-            });
+            const result = await api.components.resolvePorts(
+              componentId,
+              toResolvePortsRequest({
+                ...params,
+                ...inputOverrides,
+              }),
+            );
             if (!result) return node;
             return {
               ...node,
               data: {
                 ...node.data,
-                ...(result.inputs ? { dynamicInputs: result.inputs } : {}),
-                ...(result.outputs ? { dynamicOutputs: result.outputs } : {}),
+                ...(result.inputs ? { dynamicInputs: normalizeResolvedInputs(result.inputs) } : {}),
+                ...(result.outputs
+                  ? { dynamicOutputs: normalizeResolvedOutputs(result.outputs) }
+                  : {}),
               },
             };
           } catch {

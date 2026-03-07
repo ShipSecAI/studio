@@ -11,6 +11,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 import { WebhooksService } from './webhooks.service';
 import { Public } from '../auth/public.decorator';
+import { WebhookDeliveryInboundResponseDto } from './dto/webhook.dto';
 
 @ApiTags('webhooks')
 @Controller('webhooks/inbound')
@@ -29,13 +30,7 @@ export class InboundWebhookController {
   @ApiResponse({
     status: 200,
     description: 'Webhook processed successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        status: { type: 'string', example: 'delivered' },
-        runId: { type: 'string', example: 'shipsec-run-123' },
-      },
-    },
+    type: WebhookDeliveryInboundResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Webhook not found or inactive' })
   @ApiResponse({ status: 400, description: 'Invalid payload or parsing failed' })

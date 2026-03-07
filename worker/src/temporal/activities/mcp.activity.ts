@@ -14,7 +14,7 @@ import {
   AreAllToolsReadyActivityInput,
   AreAllToolsReadyActivityOutput,
 } from '../types';
-import { getBackendOrigin } from '../../utils/backend-url';
+import { createInternalBackendClient } from '../../utils/internal-backend-client';
 
 async function callInternalApi(path: string, body: any) {
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
@@ -27,28 +27,25 @@ async function callInternalApi(path: string, body: any) {
     );
   }
 
-  const baseUrl = getBackendOrigin();
-  const url = `${baseUrl}/api/v1/internal/mcp/${path}`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Internal-Token': internalToken,
-    },
-    body: JSON.stringify(body),
-  });
+  const client = createInternalBackendClient();
+  const response =
+    path === 'register-component'
+      ? await client.registerInternalComponentTool(body)
+      : path === 'register-mcp-server'
+        ? await client.registerInternalMcpServer(body)
+        : path === 'cleanup'
+          ? await client.cleanupInternalMcpRun(body)
+          : path === 'tools-ready'
+            ? await client.areInternalMcpToolsReady(body)
+            : path === 'register-group-server'
+              ? await client.registerInternalGroupServer(body)
+              : null;
 
-  if (!response.ok) {
-    const raw = await response.text().catch(() => '<unable to read response body>');
-    console.error(`[MCP Activity] API call failed: ${raw}`);
-    throw new ServiceError(`Failed to call internal MCP registry (${path}): ${raw}`, {
-      statusCode: response.status,
-      details: { statusText: response.statusText },
-    });
+  if (!response) {
+    throw new ServiceError(`Unsupported internal MCP path: ${path}`);
   }
 
-  const result = await response.json();
-  return result;
+  return response.data;
 }
 
 export async function registerComponentToolActivity(
