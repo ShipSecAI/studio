@@ -16,11 +16,6 @@ import {
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { resolveVolumeSource } from '../../utils/isolated-volume';
-import {
-  createToolOutputVolume,
-  readToolOutputFile,
-  TOOL_OUTPUT_DIR,
-} from '../../utils/tool-output';
 
 /**
  * TruffleHog Secret Scanner Component
@@ -327,11 +322,11 @@ const definition = defineComponent({
   runner: {
     kind: 'docker',
     image: 'trufflesecurity/trufflehog:latest',
-    // Keep JSON findings off PTY by redirecting stdout to a mounted output volume.
+    // Shell wrapper pattern keeps PTY behavior stable and lets us merge stderr JSON into stdout.
     entrypoint: 'sh',
     network: 'none', // No network needed for filesystem scanning
     timeoutSeconds: 600,
-    command: ['-c', `trufflehog "$@" 1>${TOOL_OUTPUT_DIR}/trufflehog.ndjson`, '--'],
+    command: ['-c', 'trufflehog "$@" 2>&1', '--'],
     env: {
       HOME: '/tmp',
     },
@@ -368,164 +363,150 @@ const definition = defineComponent({
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);
     const parsedParams = parameterSchema.parse(params);
-    const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const outputVolume = await createToolOutputVolume(tenantId, context.runId, 'trufflehog-output');
 
-    try {
+    context.logger.info(`[TruffleHog Scanner] Starting scan on volume: ${parsedInputs.volumeName}`);
+
+    context.emitProgress({
+      message: 'Launching TruffleHog secret scan...',
+      level: 'info',
+      data: { volumeName: parsedInputs.volumeName },
+    });
+
+    // Build TruffleHog command arguments
+    // Volume mounted at /scan, repo is at /scan/repo
+    const args: string[] = [
+      'filesystem',
+      '/scan/repo',
+      '--json',
+      '--no-update', // Don't auto-update
+    ];
+
+    // Add verification filter
+    if (parsedParams.onlyVerified) {
+      args.push('--results=verified');
+    }
+
+    // Add detector filters
+    if (parsedParams.includeDetectors && parsedParams.includeDetectors.length > 0) {
+      args.push('--include-detectors', parsedParams.includeDetectors.join(','));
+    }
+    if (parsedParams.excludeDetectors && parsedParams.excludeDetectors.length > 0) {
+      args.push('--exclude-detectors', parsedParams.excludeDetectors.join(','));
+    }
+
+    // Add concurrency
+    args.push('--concurrency', parsedParams.concurrency.toString());
+
+    // Exclude .git/config — platform-injected clone tokens in this file are false positives
+    args.push('--exclude-paths', '/tmp/exclude-paths.txt');
+
+    // Scope scan to changed files only (if provided)
+    // TruffleHog expects --include-paths pointing to a file with newline-separated regexes.
+    // We write the file to /tmp inside the container via the shell command.
+    const hasChangedFiles = parsedInputs.changedFiles && parsedInputs.changedFiles.length > 0;
+    if (hasChangedFiles) {
+      args.push('--include-paths', '/tmp/include-paths.txt');
       context.logger.info(
-        `[TruffleHog Scanner] Starting scan on volume: ${parsedInputs.volumeName}`,
+        `[TruffleHog Scanner] Scoping to ${parsedInputs.changedFiles!.length} changed files`,
       );
+    }
 
-      context.emitProgress({
-        message: 'Launching TruffleHog secret scan...',
-        level: 'info',
-        data: { volumeName: parsedInputs.volumeName },
-      });
+    context.logger.info(`[TruffleHog Scanner] Command: trufflehog ${args.join(' ')}`);
 
-      // Volume mounted at /scan, repo is at /scan/repo
-      const args: string[] = [
-        'filesystem',
-        '/scan/repo',
-        '--json',
-        '--no-update',
-        '--no-color',
-        '--fail-on-scan-errors',
-      ];
-
-      // Add verification filter
-      if (parsedParams.onlyVerified) {
-        args.push('--results=verified');
-      }
-
-      // Add detector filters
-      if (parsedParams.includeDetectors && parsedParams.includeDetectors.length > 0) {
-        args.push('--include-detectors', parsedParams.includeDetectors.join(','));
-      }
-      if (parsedParams.excludeDetectors && parsedParams.excludeDetectors.length > 0) {
-        args.push('--exclude-detectors', parsedParams.excludeDetectors.join(','));
-      }
-
-      // Add concurrency
-      args.push('--concurrency', parsedParams.concurrency.toString());
-
-      // Exclude .git/config — platform-injected clone tokens in this file are false positives
-      args.push('--exclude-paths', '/tmp/exclude-paths.txt');
-
-      // Scope scan to changed files only (if provided)
-      // TruffleHog expects --include-paths pointing to a file with newline-separated regexes.
-      // We write the file to /tmp inside the container via the shell command.
-      const hasChangedFiles = parsedInputs.changedFiles && parsedInputs.changedFiles.length > 0;
-      if (hasChangedFiles) {
-        args.push('--include-paths', '/tmp/include-paths.txt');
-        context.logger.info(
-          `[TruffleHog Scanner] Scoping to ${parsedInputs.changedFiles!.length} changed files`,
-        );
-      }
-
-      context.logger.info(`[TruffleHog Scanner] Command: trufflehog ${args.join(' ')}`);
-
-      const baseRunner = definition.runner;
-      if (baseRunner.kind !== 'docker') {
-        throw new ContainerError('TruffleHog runner must be docker', {
-          details: { reason: 'runner_type_mismatch', expected: 'docker', actual: baseRunner.kind },
-        });
-      }
-
-      // Build shell command — always write exclude-paths file, optionally write include-paths
-      const writeExclude = `printf '%s\\n' '(^|/)\\.git/config$' > /tmp/exclude-paths.txt`;
-      let shellScript: string;
-      if (hasChangedFiles) {
-        const escapedPaths = parsedInputs.changedFiles!.map((f) => f.replace(/'/g, "'\\''"));
-        const writeLines = escapedPaths.map((f) => `echo '${f}'`).join(' && ');
-        shellScript = `${writeExclude} && (${writeLines}) > /tmp/include-paths.txt && trufflehog "$@" 1>${TOOL_OUTPUT_DIR}/trufflehog.ndjson`;
-      } else {
-        shellScript = `${writeExclude} && trufflehog "$@" 1>${TOOL_OUTPUT_DIR}/trufflehog.ndjson`;
-      }
-
-      // Configure runner with volume mount
-      const runnerConfig: DockerRunnerConfig = {
-        ...baseRunner,
-        command: ['-c', shellScript, '--', ...args],
-        volumes: [
-          {
-            source: resolveVolumeSource(parsedInputs.volumeName),
-            target: '/scan',
-            readOnly: true,
-          },
-          outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false),
-        ],
-        // Output managed by component, not /shipsec-output/result.json
-        expectOutputFile: false,
-      };
-
-      // Execute TruffleHog
-      await runComponentWithRunner(
-        runnerConfig,
-        async () => ({}) as Output,
-        { ...parsedInputs, ...parsedParams },
-        context,
-      );
-
-      const rawOutput = await readToolOutputFile(outputVolume, 'trufflehog.ndjson', 'TruffleHog');
-      const secrets = parseTruffleHogOutput(rawOutput);
-      const findings = convertToFindings(secrets);
-      const verifiedCount = secrets.filter((s) => s.Verified === true).length;
-
-      context.logger.info(
-        `[TruffleHog Scanner] Found ${findings.length} secrets (${verifiedCount} verified)`,
-      );
-
-      // Emit progress with results summary
-      if (verifiedCount > 0) {
-        context.emitProgress({
-          message: `⚠️ Found ${verifiedCount} verified secrets!`,
-          level: 'warn',
-          data: { findingCount: findings.length, verifiedCount },
-        });
-      } else if (findings.length > 0) {
-        context.emitProgress({
-          message: `Found ${findings.length} potential secrets`,
-          level: 'info',
-          data: { findingCount: findings.length },
-        });
-      } else {
-        context.emitProgress({
-          message: 'No secrets detected',
-          level: 'info',
-        });
-      }
-
-      // Build analytics-ready results
-      const results: AnalyticsResult[] = findings.map((finding) => ({
-        ...finding,
-        scanner: 'trufflehog',
-        title: `${finding.secret_type} secret`,
-        asset_key: finding.file,
-        finding_hash: generateFindingHash(
-          'trufflehog',
-          finding.type,
-          finding.file,
-          String(finding.line),
-          finding.secret_type,
-        ),
-      }));
-
-      const output: Output = {
-        findings,
-        results,
-        findingCount: findings.length,
-        verifiedCount,
-        rawOutput,
-      };
-
-      return outputSchema.parse(output);
-    } finally {
-      await outputVolume.cleanup().catch((error) => {
-        context.logger.warn(
-          `[TruffleHog Scanner] Failed to cleanup output volume: ${String(error)}`,
-        );
+    const baseRunner = definition.runner;
+    if (baseRunner.kind !== 'docker') {
+      throw new ContainerError('TruffleHog runner must be docker', {
+        details: { reason: 'runner_type_mismatch', expected: 'docker', actual: baseRunner.kind },
       });
     }
+
+    // Build shell command — always write exclude-paths file, optionally write include-paths
+    const writeExclude = `printf '%s\\n' '(^|/)\\.git/config$' > /tmp/exclude-paths.txt`;
+    let shellScript: string;
+    if (hasChangedFiles) {
+      // Escape single quotes in file paths for safe shell interpolation
+      const escapedPaths = parsedInputs.changedFiles!.map((f) => f.replace(/'/g, "'\\''"));
+      const writeLines = escapedPaths.map((f) => `echo '${f}'`).join(' && ');
+      shellScript = `${writeExclude} && (${writeLines}) > /tmp/include-paths.txt && trufflehog "$@" 2>&1`;
+    } else {
+      shellScript = `${writeExclude} && trufflehog "$@" 2>&1`;
+    }
+
+    // Configure runner with volume mount
+    const runnerConfig: DockerRunnerConfig = {
+      ...baseRunner,
+      command: ['-c', shellScript, '--', ...args],
+      volumes: [
+        {
+          source: resolveVolumeSource(parsedInputs.volumeName),
+          target: '/scan',
+          readOnly: true,
+        },
+      ],
+    };
+
+    // Execute TruffleHog
+    const rawResult = await runComponentWithRunner(
+      runnerConfig,
+      async () => ({}) as Output,
+      { ...parsedInputs, ...parsedParams },
+      context,
+    );
+
+    // Parse output
+    const rawOutput = typeof rawResult === 'string' ? rawResult : '';
+    const secrets = parseTruffleHogOutput(rawOutput);
+    const findings = convertToFindings(secrets);
+    const verifiedCount = secrets.filter((s) => s.Verified === true).length;
+
+    context.logger.info(
+      `[TruffleHog Scanner] Found ${findings.length} secrets (${verifiedCount} verified)`,
+    );
+
+    // Emit progress with results summary
+    if (verifiedCount > 0) {
+      context.emitProgress({
+        message: `⚠️ Found ${verifiedCount} verified secrets!`,
+        level: 'warn',
+        data: { findingCount: findings.length, verifiedCount },
+      });
+    } else if (findings.length > 0) {
+      context.emitProgress({
+        message: `Found ${findings.length} potential secrets`,
+        level: 'info',
+        data: { findingCount: findings.length },
+      });
+    } else {
+      context.emitProgress({
+        message: 'No secrets detected',
+        level: 'info',
+      });
+    }
+
+    // Build analytics-ready results
+    const results: AnalyticsResult[] = findings.map((finding) => ({
+      ...finding,
+      scanner: 'trufflehog',
+      title: `${finding.secret_type} secret`,
+      asset_key: finding.file,
+      finding_hash: generateFindingHash(
+        'trufflehog',
+        finding.type,
+        finding.file,
+        String(finding.line),
+        finding.secret_type,
+      ),
+    }));
+
+    const output: Output = {
+      findings,
+      results,
+      findingCount: findings.length,
+      verifiedCount,
+      rawOutput,
+    };
+
+    return outputSchema.parse(output);
   },
 });
 

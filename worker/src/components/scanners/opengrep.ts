@@ -16,11 +16,6 @@ import {
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { resolveVolumeSource } from '../../utils/isolated-volume';
-import {
-  createToolOutputVolume,
-  readToolOutputFile,
-  TOOL_OUTPUT_DIR,
-} from '../../utils/tool-output';
 
 /**
  * OpenGrep SAST Scanner Component
@@ -310,179 +305,180 @@ const definition = defineComponent({
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);
     const parsedParams = parameterSchema.parse(params);
-    const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const outputVolume = await createToolOutputVolume(tenantId, context.runId, 'opengrep-output');
 
-    try {
+    context.logger.info(
+      `[OpenGrep Scanner] Starting SAST scan on volume: ${parsedInputs.volumeName}`,
+    );
+
+    context.emitProgress({
+      message: 'Launching OpenGrep SAST scan...',
+      level: 'info',
+      data: { volumeName: parsedInputs.volumeName, ruleset: parsedParams.ruleset },
+    });
+
+    // Build OpenGrep command arguments
+    const args: string[] = [
+      'scan',
+      '--json',
+      '--no-git-ignore', // Don't use git ignore (volume may not have .git)
+      '--metrics=off',
+    ];
+
+    // Add ruleset configuration
+    // Note: --config auto requires metrics enabled.
+    // To avoid sending telemetry, we use explicit rulesets that provide equivalent coverage.
+    if (parsedParams.ruleset === 'auto') {
+      args.push('--config', 'p/default');
+      args.push('--config', 'p/security-audit');
+    } else {
+      args.push('--config', parsedParams.ruleset);
+    }
+
+    // Add severity filter
+    if (parsedParams.severityFilter && parsedParams.severityFilter.length > 0) {
+      for (const sev of parsedParams.severityFilter) {
+        args.push('--severity', sev);
+      }
+    }
+
+    // Add exclude paths
+    if (parsedParams.excludePaths && parsedParams.excludePaths.length > 0) {
+      for (const excludePath of parsedParams.excludePaths) {
+        args.push('--exclude', excludePath);
+      }
+    }
+
+    // Add timeout and jobs
+    args.push('--timeout', parsedParams.timeout.toString());
+    args.push('--jobs', parsedParams.jobs.toString());
+
+    // Scope scan to changed files only (if provided)
+    if (parsedInputs.changedFiles && parsedInputs.changedFiles.length > 0) {
+      for (const file of parsedInputs.changedFiles) {
+        args.push('--include', file);
+      }
       context.logger.info(
-        `[OpenGrep Scanner] Starting SAST scan on volume: ${parsedInputs.volumeName}`,
+        `[OpenGrep Scanner] Scoping to ${parsedInputs.changedFiles.length} changed files`,
       );
+    }
 
-      context.emitProgress({
-        message: 'Launching OpenGrep SAST scan...',
-        level: 'info',
-        data: { volumeName: parsedInputs.volumeName, ruleset: parsedParams.ruleset },
-      });
+    // Scan target: volume is mounted at /workspace, repo is at /repo inside the volume
+    args.push('/workspace/repo');
 
-      // Build OpenGrep command arguments
-      const args: string[] = [
-        'scan',
-        '--json',
-        '--json-output',
-        `${TOOL_OUTPUT_DIR}/opengrep.json`,
-        '--no-git-ignore',
-        '--metrics=off',
-      ];
+    context.logger.info(`[OpenGrep Scanner] Command: opengrep ${args.join(' ')}`);
 
-      // Add ruleset configuration
-      // Note: --config auto requires metrics enabled.
-      // To avoid sending telemetry, we use explicit rulesets that provide equivalent coverage.
-      if (parsedParams.ruleset === 'auto') {
-        args.push('--config', 'p/default');
-        args.push('--config', 'p/security-audit');
-      } else {
-        args.push('--config', parsedParams.ruleset);
-      }
-
-      // Add severity filter
-      if (parsedParams.severityFilter && parsedParams.severityFilter.length > 0) {
-        for (const sev of parsedParams.severityFilter) {
-          args.push('--severity', sev);
-        }
-      }
-
-      // Add exclude paths
-      if (parsedParams.excludePaths && parsedParams.excludePaths.length > 0) {
-        for (const excludePath of parsedParams.excludePaths) {
-          args.push('--exclude', excludePath);
-        }
-      }
-
-      // Add timeout and jobs
-      args.push('--timeout', parsedParams.timeout.toString());
-      args.push('--jobs', parsedParams.jobs.toString());
-
-      // Scope scan to changed files only (if provided)
-      if (parsedInputs.changedFiles && parsedInputs.changedFiles.length > 0) {
-        for (const file of parsedInputs.changedFiles) {
-          args.push('--include', file);
-        }
-        context.logger.info(
-          `[OpenGrep Scanner] Scoping to ${parsedInputs.changedFiles.length} changed files`,
-        );
-      }
-
-      // Scan target: volume is mounted at /workspace, repo is at /repo inside the volume
-      args.push('/workspace/repo');
-
-      context.logger.info(`[OpenGrep Scanner] Command: opengrep ${args.join(' ')}`);
-
-      const baseRunner = definition.runner;
-      if (baseRunner.kind !== 'docker') {
-        throw new ContainerError('OpenGrep runner must be docker', {
-          details: { reason: 'runner_type_mismatch', expected: 'docker', actual: baseRunner.kind },
-        });
-      }
-
-      // Use the volume name passed from clone-repo's output
-      const volumeName = parsedInputs.volumeName;
-
-      context.logger.info(`[OpenGrep Scanner] Mounting volume: ${volumeName}`);
-
-      // Configure runner with volume mount
-      // Mount the clone-repo volume at /workspace; repo files are at /workspace/repo
-      const runnerConfig: DockerRunnerConfig = {
-        ...baseRunner,
-        command: args,
-        timeoutSeconds: parsedParams.timeout + 60,
-        volumes: [
-          {
-            source: resolveVolumeSource(volumeName),
-            target: '/workspace',
-            readOnly: true,
-          },
-          outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false),
-        ],
-        // Output managed by component, not /shipsec-output/result.json
-        expectOutputFile: false,
-      };
-
-      // Execute OpenGrep
-      await runComponentWithRunner(
-        runnerConfig,
-        async () => ({}) as Output,
-        { ...parsedInputs, ...parsedParams },
-        context,
-      );
-
-      const rawOutput = await readToolOutputFile(outputVolume, 'opengrep.json', 'OpenGrep');
-      const opengrepOutput = parseOpenGrepOutput(rawOutput);
-
-      const findings = convertToFindings(opengrepOutput.results || []);
-
-      // Log any errors from OpenGrep
-      if (opengrepOutput.errors && opengrepOutput.errors.length > 0) {
-        for (const error of opengrepOutput.errors) {
-          context.logger.warn(`[OpenGrep Scanner] ${error.level}: ${error.message}`);
-        }
-      }
-
-      context.logger.info(`[OpenGrep Scanner] Found ${findings.length} security issues`);
-
-      // Count by severity
-      const severityCounts = findings.reduce(
-        (acc, f) => {
-          acc[f.severity] = (acc[f.severity] || 0) + 1;
-          return acc;
-        },
-        {} as Record<string, number>,
-      );
-
-      // Emit progress with results summary
-      if (findings.length > 0) {
-        const criticalHigh = (severityCounts.critical || 0) + (severityCounts.high || 0);
-        context.emitProgress({
-          message:
-            criticalHigh > 0
-              ? `⚠️ Found ${criticalHigh} critical/high severity issues`
-              : `Found ${findings.length} security issues`,
-          level: criticalHigh > 0 ? 'warn' : 'info',
-          data: { findingCount: findings.length, severityCounts },
-        });
-      } else {
-        context.emitProgress({
-          message: 'No security issues detected',
-          level: 'info',
-        });
-      }
-
-      // Build analytics-ready results
-      const results: AnalyticsResult[] = findings.map((finding) => ({
-        ...finding,
-        scanner: 'opengrep',
-        title: finding.rule_id,
-        asset_key: finding.file,
-        finding_hash: generateFindingHash(
-          'opengrep',
-          finding.rule_id,
-          finding.file,
-          String(finding.line),
-        ),
-      }));
-
-      const output: Output = {
-        findings,
-        results,
-        findingCount: findings.length,
-        rawOutput,
-      };
-
-      return outputSchema.parse(output);
-    } finally {
-      await outputVolume.cleanup().catch((error) => {
-        context.logger.warn(`[OpenGrep Scanner] Failed to cleanup output volume: ${String(error)}`);
+    const baseRunner = definition.runner;
+    if (baseRunner.kind !== 'docker') {
+      throw new ContainerError('OpenGrep runner must be docker', {
+        details: { reason: 'runner_type_mismatch', expected: 'docker', actual: baseRunner.kind },
       });
     }
+
+    // Use the volume name passed from clone-repo's output
+    const volumeName = parsedInputs.volumeName;
+
+    context.logger.info(`[OpenGrep Scanner] Mounting volume: ${volumeName}`);
+
+    // Configure runner with volume mount
+    // Mount the clone-repo volume at /workspace; repo files are at /workspace/repo
+    const runnerConfig: DockerRunnerConfig = {
+      ...baseRunner,
+      command: args,
+      timeoutSeconds: parsedParams.timeout + 60, // Add buffer for startup
+      volumes: [
+        {
+          source: resolveVolumeSource(volumeName),
+          target: '/workspace',
+          readOnly: true,
+        },
+      ],
+    };
+
+    // Execute OpenGrep
+    const rawResult = await runComponentWithRunner(
+      runnerConfig,
+      async () => ({}) as Output,
+      { ...parsedInputs, ...parsedParams },
+      context,
+    );
+
+    // Parse output — runner returns raw stdout string when output isn't valid JSON,
+    // or a parsed object when stdout was valid JSON (opengrep --json produces valid JSON)
+    let opengrepOutput: OpenGrepOutput;
+    let rawOutput: string;
+
+    if (typeof rawResult === 'string') {
+      rawOutput = rawResult;
+      opengrepOutput = parseOpenGrepOutput(rawOutput);
+    } else if (rawResult && typeof rawResult === 'object') {
+      // Runner already parsed the JSON — use it directly
+      opengrepOutput = rawResult as unknown as OpenGrepOutput;
+      rawOutput = JSON.stringify(rawResult);
+    } else {
+      rawOutput = '';
+      opengrepOutput = { results: [] };
+    }
+
+    const findings = convertToFindings(opengrepOutput.results || []);
+
+    // Log any errors from OpenGrep
+    if (opengrepOutput.errors && opengrepOutput.errors.length > 0) {
+      for (const error of opengrepOutput.errors) {
+        context.logger.warn(`[OpenGrep Scanner] ${error.level}: ${error.message}`);
+      }
+    }
+
+    context.logger.info(`[OpenGrep Scanner] Found ${findings.length} security issues`);
+
+    // Count by severity
+    const severityCounts = findings.reduce(
+      (acc, f) => {
+        acc[f.severity] = (acc[f.severity] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    // Emit progress with results summary
+    if (findings.length > 0) {
+      const criticalHigh = (severityCounts.critical || 0) + (severityCounts.high || 0);
+      context.emitProgress({
+        message:
+          criticalHigh > 0
+            ? `⚠️ Found ${criticalHigh} critical/high severity issues`
+            : `Found ${findings.length} security issues`,
+        level: criticalHigh > 0 ? 'warn' : 'info',
+        data: { findingCount: findings.length, severityCounts },
+      });
+    } else {
+      context.emitProgress({
+        message: 'No security issues detected',
+        level: 'info',
+      });
+    }
+
+    // Build analytics-ready results
+    const results: AnalyticsResult[] = findings.map((finding) => ({
+      ...finding,
+      scanner: 'opengrep',
+      title: finding.rule_id,
+      asset_key: finding.file,
+      finding_hash: generateFindingHash(
+        'opengrep',
+        finding.rule_id,
+        finding.file,
+        String(finding.line),
+      ),
+    }));
+
+    const output: Output = {
+      findings,
+      results,
+      findingCount: findings.length,
+      rawOutput,
+    };
+
+    return outputSchema.parse(output);
   },
 });
 

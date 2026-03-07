@@ -28,6 +28,27 @@ export interface IsolatedVolume {
 }
 
 /**
+ * Downstream components exchange raw volume identifiers via ports.
+ * In k8s mode, those identifiers need to be re-expanded into a runner source
+ * that the K8s runner can mount.
+ */
+export function resolveVolumeSource(volumeName: string): string {
+  if (volumeName.startsWith('gcsfuse:') || volumeName.startsWith('configmap:')) {
+    return volumeName;
+  }
+
+  if (process.env.EXECUTION_MODE !== 'k8s') {
+    return volumeName;
+  }
+
+  if (process.env.GCS_VOLUME_BUCKET) {
+    return `gcsfuse:${process.env.GCS_VOLUME_BUCKET}:${volumeName}`;
+  }
+
+  return `configmap:${volumeName}`;
+}
+
+/**
  * Manages isolated Docker volumes for multi-tenant SaaS environments.
  *
  * Features:

@@ -1,21 +1,6 @@
-import { beforeAll, afterEach, beforeEach, describe, expect, it, vi, mock } from 'bun:test';
+import { beforeAll, afterEach, describe, expect, it, vi } from 'bun:test';
 import * as sdk from '@shipsec/component-sdk';
 import { componentRegistry } from '../../index';
-
-let mockedToolOutput = '';
-
-mock.module('../../../utils/tool-output', () => ({
-  TOOL_OUTPUT_DIR: '/tool-output',
-  createToolOutputVolume: async () => ({
-    getVolumeConfig: (containerPath = '/tool-output', readOnly = false) => ({
-      source: 'mock-tool-output-volume',
-      target: containerPath,
-      readOnly,
-    }),
-    cleanup: async () => {},
-  }),
-  readToolOutputFile: async () => mockedToolOutput,
-}));
 
 describe('scanner.trufflehog component', () => {
   const originalEnv = { ...process.env };
@@ -28,10 +13,6 @@ describe('scanner.trufflehog component', () => {
     vi.restoreAllMocks();
     process.env.EXECUTION_MODE = originalEnv.EXECUTION_MODE;
     process.env.GCS_VOLUME_BUCKET = originalEnv.GCS_VOLUME_BUCKET;
-  });
-
-  beforeEach(() => {
-    mockedToolOutput = '';
   });
 
   it('should not pass --results flag when onlyVerified is false', async () => {
@@ -113,7 +94,7 @@ describe('scanner.trufflehog component', () => {
 
     expect(runnerConfig.entrypoint).toBe('sh');
     expect(command[0]).toBe('-c');
-    expect(command[1]).toContain('trufflehog "$@" 1>/tool-output/trufflehog.ndjson');
+    expect(command[1]).toContain('trufflehog "$@" 2>&1');
     expect(command).toContain('filesystem');
     expect(command).toContain('/scan/repo');
   });
@@ -145,8 +126,7 @@ describe('scanner.trufflehog component', () => {
       }),
     ].join('\n');
 
-    mockedToolOutput = rawOutput;
-    vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('');
+    vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(rawOutput);
 
     const output = (await component.execute(executePayload, context)) as {
       findingCount: number;
@@ -228,7 +208,7 @@ describe('scanner.trufflehog component', () => {
     const shellScript = command[1] as string;
     expect(shellScript).toContain("printf '%s\\n' '(^|/)\\.git/config$' > /tmp/exclude-paths.txt");
     expect(shellScript).toContain('/tmp/include-paths.txt');
-    expect(shellScript).toContain('trufflehog "$@" 1>/tool-output/trufflehog.ndjson');
+    expect(shellScript).toContain('trufflehog "$@" 2>&1');
   });
 
   it('should resolve raw k8s volume names to gcsfuse sources', async () => {
@@ -295,8 +275,7 @@ describe('scanner.trufflehog component', () => {
       }),
     ].join('\n');
 
-    mockedToolOutput = rawOutput;
-    vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('');
+    vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(rawOutput);
 
     const output = (await component.execute(executePayload, context)) as {
       findingCount: number;
