@@ -1,4 +1,5 @@
 import { ConfigurationError } from '@shipsec/component-sdk';
+import { createInternalBackendClient } from '../../utils/internal-backend-client';
 import { getBackendApiV1Url } from '../../utils/backend-url';
 
 export const DEFAULT_API_BASE_URL = getBackendApiV1Url({ preferDockerHost: true });
@@ -23,27 +24,13 @@ export async function getGatewaySessionToken(
     );
   }
 
-  const url = `${DEFAULT_API_BASE_URL}/internal/mcp/generate-token`;
   // If connectedToolNodeIds is empty or undefined, we might still want to generate a token
   // without specific allowedNodeIds if the API supports it, or handle it otherwise.
   // The original code passed `allowedNodeIds: connectedToolNodeIds`.
   const body = { runId, organizationId, allowedNodeIds: connectedToolNodeIds };
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Internal-Token': internalToken,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to generate gateway session token: ${errorText}`);
-  }
-
-  const payload = await response.json();
+  const client = createInternalBackendClient({ baseUrl: DEFAULT_API_BASE_URL });
+  const response = await client.generateMcpGatewayToken(body);
+  const payload = response.data;
   const token = isRecord(payload) && typeof payload.token === 'string' ? payload.token : null;
   if (!token) {
     throw new Error('Failed to generate gateway session token: invalid response shape');
@@ -125,16 +112,10 @@ export async function fetchOrgVirtualKey(
   if (!internalToken) return null;
 
   try {
-    const res = await fetch(`${baseUrl}/internal/billing/litellm-key`, {
-      headers: {
-        'x-internal-token': internalToken,
-        'x-organization-id': orgId,
-      },
-    });
-
-    if (!res.ok) return null;
-
-    const data = (await res.json()) as { virtualKey?: string | null };
+    const client = createInternalBackendClient({ baseUrl });
+    const res: { data?: { virtualKey?: string | null } } = await client.getLiteLLMVirtualKey(orgId);
+    const data = res.data;
+    if (!data) return null;
     if (!data.virtualKey) return null;
 
     virtualKeyCache.set(orgId, data.virtualKey);

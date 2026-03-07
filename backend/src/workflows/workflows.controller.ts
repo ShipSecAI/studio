@@ -66,6 +66,20 @@ import type { Request, Response } from 'express';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
 import { RequireWorkflowRole, WorkflowRoleGuard } from './workflow-role.guard';
+import {
+  TraceEnvelopeDto,
+  DataFlowEnvelopeDto,
+  RunConfigDto,
+  RunActivityResponseDto,
+  RunListResponseDto,
+  RunDetailDto,
+  ChildRunListResponseDto,
+  CommitResponseDto,
+  RunExecutionResponseDto,
+  NodeIOListResponseDto,
+  NodeIODetailDto,
+  LogsResponseDto,
+} from './dto/workflow-response.dto';
 import { RunArtifactsResponseDto } from '../storage/dto/artifact.dto';
 import { RunArtifactIdParamDto, RunArtifactIdParamSchema } from '../storage/dto/artifacts.dto';
 import type { WorkflowTerminalRecord } from '../database/schema';
@@ -73,173 +87,6 @@ import { NodeIOService } from '../node-io/node-io.service';
 import { TERMINAL_STATUSES } from '@shipsec/shared';
 
 const TERMINAL_COMPLETION_STATUSES = new Set(TERMINAL_STATUSES);
-
-const traceFailureSchema = {
-  type: 'object',
-  properties: {
-    at: { type: 'string', format: 'date-time' },
-    reason: {
-      type: 'object',
-      properties: {
-        message: { type: 'string' },
-        name: { type: 'string' },
-      },
-      additionalProperties: false,
-    },
-  },
-  additionalProperties: false,
-};
-
-const traceRetryPolicySchema = {
-  type: 'object',
-  properties: {
-    maxAttempts: { type: 'integer', minimum: 1 },
-    initialIntervalSeconds: { type: 'number', minimum: 0 },
-    maximumIntervalSeconds: { type: 'number', minimum: 0 },
-    backoffCoefficient: { type: 'number', minimum: 0 },
-    nonRetryableErrorTypes: {
-      type: 'array',
-      items: { type: 'string' },
-    },
-  },
-  additionalProperties: false,
-};
-
-const traceMetadataSchema = {
-  type: 'object',
-  properties: {
-    activityId: { type: 'string' },
-    attempt: { type: 'integer', minimum: 0 },
-    correlationId: { type: 'string' },
-    streamId: { type: 'string' },
-    joinStrategy: {
-      type: 'string',
-      enum: ['all', 'any', 'first'],
-    },
-    triggeredBy: { type: 'string' },
-    failure: { ...traceFailureSchema, nullable: true },
-    retryPolicy: { ...traceRetryPolicySchema, nullable: true },
-  },
-  additionalProperties: false,
-};
-
-const traceErrorSchema = {
-  type: 'object',
-  properties: {
-    message: { type: 'string' },
-    stack: { type: 'string' },
-    code: { type: 'string' },
-    type: { type: 'string' },
-    details: {
-      type: 'object',
-      additionalProperties: true,
-    },
-    fieldErrors: {
-      type: 'object',
-      additionalProperties: {
-        type: 'array',
-        items: { type: 'string' },
-      },
-    },
-  },
-  additionalProperties: false,
-};
-
-const traceEventSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    runId: { type: 'string' },
-    nodeId: { type: 'string' },
-    type: {
-      type: 'string',
-      enum: ['STARTED', 'PROGRESS', 'COMPLETED', 'FAILED'],
-    },
-    level: {
-      type: 'string',
-      enum: ['info', 'warn', 'error', 'debug'],
-    },
-    timestamp: { type: 'string', format: 'date-time' },
-    message: { type: 'string', nullable: true },
-    error: { ...traceErrorSchema, nullable: true },
-    outputSummary: {
-      type: 'object',
-      additionalProperties: true,
-      nullable: true,
-    },
-    data: {
-      type: 'object',
-      additionalProperties: true,
-      nullable: true,
-    },
-    metadata: { ...traceMetadataSchema, nullable: true },
-  },
-  additionalProperties: false,
-};
-
-const traceEnvelopeSchema = {
-  type: 'object',
-  properties: {
-    runId: { type: 'string' },
-    events: {
-      type: 'array',
-      items: traceEventSchema,
-    },
-    cursor: { type: 'string', nullable: true },
-  },
-  additionalProperties: false,
-};
-
-const dataFlowPacketSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    runId: { type: 'string' },
-    sourceNode: { type: 'string' },
-    targetNode: { type: 'string' },
-    inputKey: { type: 'string', nullable: true },
-    payload: {
-      type: 'object',
-      additionalProperties: true,
-      nullable: true,
-    },
-    timestamp: { type: 'integer' },
-    visualTime: { type: 'number' },
-    size: { type: 'number' },
-    type: {
-      type: 'string',
-      enum: ['file', 'json', 'text', 'binary'],
-    },
-  },
-  additionalProperties: false,
-};
-
-const dataFlowEnvelopeSchema = {
-  type: 'object',
-  properties: {
-    runId: { type: 'string' },
-    packets: {
-      type: 'array',
-      items: dataFlowPacketSchema,
-    },
-  },
-  additionalProperties: false,
-};
-
-const runConfigSchema = {
-  type: 'object',
-  properties: {
-    runId: { type: 'string' },
-    workflowId: { type: 'string' },
-    workflowVersionId: { type: 'string', nullable: true },
-    workflowVersion: { type: 'integer', nullable: true },
-    inputs: {
-      type: 'object',
-      additionalProperties: true,
-    },
-  },
-  additionalProperties: false,
-};
 
 @ApiTags('workflows')
 @Controller('workflows')
@@ -305,22 +152,7 @@ export class WorkflowsController {
   @Get('/runs/activity')
   @ApiOkResponse({
     description: 'Aggregated run counts per day',
-    schema: {
-      type: 'object',
-      properties: {
-        totalRuns: { type: 'number' },
-        activity: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              date: { type: 'string', format: 'date' },
-              count: { type: 'number' },
-            },
-          },
-        },
-      },
-    },
+    type: RunActivityResponseDto,
   })
   async getRunActivity(
     @CurrentAuth() auth: AuthContext | null,
@@ -332,66 +164,7 @@ export class WorkflowsController {
   @Get('/runs')
   @ApiOkResponse({
     description: 'List all workflow runs with metadata',
-    schema: {
-      type: 'object',
-      properties: {
-        runs: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string' },
-              workflowId: { type: 'string' },
-              organizationId: { type: 'string' },
-              status: {
-                type: 'string',
-                enum: [
-                  'RUNNING',
-                  'COMPLETED',
-                  'FAILED',
-                  'CANCELLED',
-                  'TERMINATED',
-                  'CONTINUED_AS_NEW',
-                  'TIMED_OUT',
-                  'UNKNOWN',
-                ],
-              },
-              startTime: { type: 'string', format: 'date-time' },
-              endTime: { type: 'string', format: 'date-time', nullable: true },
-              temporalRunId: { type: 'string' },
-              workflowVersionId: { type: 'string', nullable: true },
-              workflowVersion: { type: 'number', nullable: true },
-              workflowName: { type: 'string' },
-              eventCount: { type: 'number' },
-              nodeCount: { type: 'number' },
-              duration: { type: 'number' },
-              triggerType: {
-                type: 'string',
-                enum: ['manual', 'schedule', 'api'],
-              },
-              triggerSource: { type: 'string', nullable: true },
-              triggerLabel: { type: 'string', nullable: true },
-              inputPreview: {
-                type: 'object',
-                properties: {
-                  runtimeInputs: {
-                    type: 'object',
-                    additionalProperties: true,
-                  },
-                  nodeOverrides: {
-                    type: 'object',
-                    additionalProperties: {
-                      type: 'object',
-                      additionalProperties: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
+    type: RunListResponseDto,
   })
   async listRuns(
     @CurrentAuth() auth: AuthContext | null,
@@ -411,58 +184,7 @@ export class WorkflowsController {
   @Get('/runs/:runId')
   @ApiOkResponse({
     description: 'Metadata for a single workflow run',
-    schema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string' },
-        workflowId: { type: 'string' },
-        organizationId: { type: 'string' },
-        status: {
-          type: 'string',
-          enum: [
-            'RUNNING',
-            'COMPLETED',
-            'FAILED',
-            'CANCELLED',
-            'TERMINATED',
-            'CONTINUED_AS_NEW',
-            'TIMED_OUT',
-            'UNKNOWN',
-          ],
-        },
-        startTime: { type: 'string', format: 'date-time' },
-        endTime: { type: 'string', format: 'date-time', nullable: true },
-        temporalRunId: { type: 'string', nullable: true },
-        workflowVersionId: { type: 'string', nullable: true },
-        workflowVersion: { type: 'number', nullable: true },
-        workflowName: { type: 'string' },
-        eventCount: { type: 'number' },
-        nodeCount: { type: 'number' },
-        duration: { type: 'number' },
-        triggerType: {
-          type: 'string',
-          enum: ['manual', 'schedule', 'api'],
-        },
-        triggerSource: { type: 'string', nullable: true },
-        triggerLabel: { type: 'string', nullable: true },
-        inputPreview: {
-          type: 'object',
-          properties: {
-            runtimeInputs: {
-              type: 'object',
-              additionalProperties: true,
-            },
-            nodeOverrides: {
-              type: 'object',
-              additionalProperties: {
-                type: 'object',
-                additionalProperties: true,
-              },
-            },
-          },
-        },
-      },
-    },
+    type: RunDetailDto,
   })
   async getRun(@CurrentAuth() auth: AuthContext | null, @Param('runId') runId: string) {
     return this.workflowsService.getRun(runId, auth);
@@ -471,26 +193,7 @@ export class WorkflowsController {
   @Get('/runs/:runId/children')
   @ApiOkResponse({
     description: 'List direct child workflow runs spawned by a parent run',
-    schema: {
-      type: 'object',
-      properties: {
-        runs: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              runId: { type: 'string' },
-              workflowId: { type: 'string' },
-              workflowName: { type: 'string' },
-              parentNodeRef: { type: 'string', nullable: true },
-              status: { type: 'string' },
-              startedAt: { type: 'string', format: 'date-time' },
-              completedAt: { type: 'string', format: 'date-time', nullable: true },
-            },
-          },
-        },
-      },
-    },
+    type: ChildRunListResponseDto,
   })
   async listChildRuns(@CurrentAuth() auth: AuthContext | null, @Param('runId') runId: string) {
     return this.workflowsService.listChildRuns(runId, auth);
@@ -565,44 +268,7 @@ export class WorkflowsController {
   @RequireWorkflowRole('ADMIN')
   @ApiOkResponse({
     description: 'Compiled workflow definition',
-    schema: {
-      type: 'object',
-      properties: {
-        title: { type: 'string' },
-        description: { type: 'string', nullable: true },
-        entrypoint: {
-          type: 'object',
-          properties: {
-            ref: { type: 'string' },
-          },
-        },
-        actions: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              ref: { type: 'string' },
-              componentId: { type: 'string' },
-              params: {
-                type: 'object',
-                additionalProperties: true,
-              },
-              dependsOn: {
-                type: 'array',
-                items: { type: 'string' },
-              },
-            },
-          },
-        },
-        config: {
-          type: 'object',
-          properties: {
-            environment: { type: 'string' },
-            timeoutSeconds: { type: 'number' },
-          },
-        },
-      },
-    },
+    type: CommitResponseDto,
   })
   async commit(@Param('id') id: string, @CurrentAuth() auth: AuthContext | null) {
     try {
@@ -618,42 +284,7 @@ export class WorkflowsController {
   @Post(':id/run')
   @ApiCreatedResponse({
     description: 'Workflow execution result',
-    schema: {
-      type: 'object',
-      properties: {
-        runId: { type: 'string', description: 'Temporal workflow identifier' },
-        workflowId: { type: 'string', description: 'Workflow record id' },
-        temporalRunId: {
-          type: 'string',
-          description: 'Temporal first execution run id',
-        },
-        taskQueue: {
-          type: 'string',
-          description: 'Temporal task queue used for execution',
-        },
-        workflowVersionId: {
-          type: 'string',
-          description: 'Workflow version identifier used for execution',
-        },
-        workflowVersion: {
-          type: 'integer',
-          description: 'Workflow version number used for execution',
-        },
-        status: {
-          type: 'string',
-          enum: [
-            'RUNNING',
-            'COMPLETED',
-            'FAILED',
-            'CANCELLED',
-            'TERMINATED',
-            'CONTINUED_AS_NEW',
-            'TIMED_OUT',
-            'UNKNOWN',
-          ],
-        },
-      },
-    },
+    type: RunExecutionResponseDto,
   })
   async run(
     @CurrentAuth() auth: AuthContext | null,
@@ -737,7 +368,7 @@ export class WorkflowsController {
   @Get('/runs/:runId/config')
   @ApiOkResponse({
     description: 'Inputs and version metadata captured for a workflow run',
-    schema: runConfigSchema,
+    type: RunConfigDto,
   })
   async config(@Param('runId') runId: string, @CurrentAuth() auth: AuthContext | null) {
     return this.workflowsService.getRunConfig(runId, auth);
@@ -759,7 +390,7 @@ export class WorkflowsController {
   @Get('/runs/:runId/trace')
   @ApiOkResponse({
     description: 'Trace events for a workflow run',
-    schema: traceEnvelopeSchema,
+    type: TraceEnvelopeDto,
   })
   async trace(@Param('runId') runId: string, @CurrentAuth() auth: AuthContext | null) {
     const { events, cursor } = await this.traceService.list(runId, auth);
@@ -769,7 +400,7 @@ export class WorkflowsController {
   @Get('/runs/:runId/events')
   @ApiOkResponse({
     description: 'Full event timeline for a workflow run',
-    schema: traceEnvelopeSchema,
+    type: TraceEnvelopeDto,
   })
   async events(@Param('runId') runId: string, @CurrentAuth() auth: AuthContext | null) {
     const { events, cursor } = await this.traceService.list(runId, auth);
@@ -779,7 +410,7 @@ export class WorkflowsController {
   @Get('/runs/:runId/dataflows')
   @ApiOkResponse({
     description: 'Derived data flow packets for a workflow run',
-    schema: dataFlowEnvelopeSchema,
+    type: DataFlowEnvelopeDto,
   })
   async dataflows(@Param('runId') runId: string, @CurrentAuth() auth: AuthContext | null) {
     const { events } = await this.traceService.list(runId, auth);
@@ -822,33 +453,7 @@ export class WorkflowsController {
   @Get('/runs/:runId/node-io')
   @ApiOkResponse({
     description: 'Node inputs/outputs for a workflow run',
-    schema: {
-      type: 'object',
-      properties: {
-        runId: { type: 'string' },
-        nodes: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              nodeRef: { type: 'string' },
-              componentId: { type: 'string' },
-              status: { type: 'string', enum: ['running', 'completed', 'failed', 'skipped'] },
-              startedAt: { type: 'string', format: 'date-time', nullable: true },
-              completedAt: { type: 'string', format: 'date-time', nullable: true },
-              durationMs: { type: 'number', nullable: true },
-              inputs: { type: 'object', additionalProperties: true, nullable: true },
-              outputs: { type: 'object', additionalProperties: true, nullable: true },
-              inputsSize: { type: 'number' },
-              outputsSize: { type: 'number' },
-              inputsSpilled: { type: 'boolean' },
-              outputsSpilled: { type: 'boolean' },
-              errorMessage: { type: 'string', nullable: true },
-            },
-          },
-        },
-      },
-    },
+    type: NodeIOListResponseDto,
   })
   async getNodeIO(@Param('runId') runId: string, @CurrentAuth() auth: AuthContext | null) {
     await this.workflowsService.ensureRunAccess(runId, auth);
@@ -865,26 +470,7 @@ export class WorkflowsController {
   })
   @ApiOkResponse({
     description: 'Specific node input/output for a workflow run',
-    schema: {
-      type: 'object',
-      properties: {
-        nodeRef: { type: 'string' },
-        componentId: { type: 'string' },
-        status: { type: 'string', enum: ['running', 'completed', 'failed', 'skipped'] },
-        startedAt: { type: 'string', format: 'date-time', nullable: true },
-        completedAt: { type: 'string', format: 'date-time', nullable: true },
-        durationMs: { type: 'number', nullable: true },
-        inputs: { type: 'object', additionalProperties: true, nullable: true },
-        outputs: { type: 'object', additionalProperties: true, nullable: true },
-        inputsSize: { type: 'number' },
-        outputsSize: { type: 'number' },
-        inputsSpilled: { type: 'boolean' },
-        outputsSpilled: { type: 'boolean' },
-        inputsTruncated: { type: 'boolean' },
-        outputsTruncated: { type: 'boolean' },
-        errorMessage: { type: 'string', nullable: true },
-      },
-    },
+    type: NodeIODetailDto,
   })
   async getNodeIODetail(
     @Param('runId') runId: string,
@@ -1161,29 +747,7 @@ export class WorkflowsController {
   @Get('/runs/:runId/logs')
   @ApiOkResponse({
     description: 'Logs for a workflow run',
-    schema: {
-      type: 'object',
-      properties: {
-        runId: { type: 'string' },
-        logs: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string' },
-              runId: { type: 'string' },
-              nodeId: { type: 'string' },
-              level: { type: 'string', enum: ['debug', 'info', 'warn', 'error'] },
-              message: { type: 'string' },
-              timestamp: { type: 'string', format: 'date-time' },
-            },
-          },
-        },
-        totalCount: { type: 'number' },
-        hasMore: { type: 'boolean' },
-        nextCursor: { type: 'string', nullable: true },
-      },
-    },
+    type: LogsResponseDto,
   })
   async logs(
     @Param('runId') runId: string,

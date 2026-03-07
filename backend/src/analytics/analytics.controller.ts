@@ -26,6 +26,8 @@ import {
   AnalyticsQueryResponseDto,
   ProwlerChecksMetadataResponseDto,
   ProwlerChecksMetadataResponseSchema,
+  StorageUsageResponseDto,
+  PurgeDataResponseDto,
   type ProwlerChecksMetadataResponse,
 } from './dto/analytics-query.dto';
 import {
@@ -211,8 +213,8 @@ export class AnalyticsController {
       subscriptionTier: settings.subscriptionTier,
       analyticsRetentionDays: settings.analyticsRetentionDays,
       maxRetentionDays,
-      createdAt: settings.createdAt,
-      updatedAt: settings.updatedAt,
+      createdAt: settings.createdAt.toISOString(),
+      updatedAt: settings.updatedAt.toISOString(),
     };
   }
 
@@ -289,8 +291,8 @@ export class AnalyticsController {
       subscriptionTier: updated.subscriptionTier,
       analyticsRetentionDays: updated.analyticsRetentionDays,
       maxRetentionDays,
-      createdAt: updated.createdAt,
-      updatedAt: updated.updatedAt,
+      createdAt: updated.createdAt.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
     };
   }
 
@@ -329,15 +331,7 @@ export class AnalyticsController {
   @Get('storage-usage')
   @ApiOkResponse({
     description: 'Get OpenSearch storage usage for the authenticated organization',
-    schema: {
-      type: 'object',
-      properties: {
-        usedBytes: { type: 'number' },
-        documentCount: { type: 'number' },
-        indexCount: { type: 'number' },
-        opensearchEnabled: { type: 'boolean' },
-      },
-    },
+    type: StorageUsageResponseDto,
   })
   async getStorageUsage(@CurrentAuth() auth: AuthContext | null): Promise<{
     usedBytes: number;
@@ -358,12 +352,7 @@ export class AnalyticsController {
   @HttpCode(200)
   @ApiOkResponse({
     description: 'Purge all analytics data for the authenticated organization',
-    schema: {
-      type: 'object',
-      properties: {
-        deletedIndices: { type: 'number' },
-      },
-    },
+    type: PurgeDataResponseDto,
   })
   async purgeData(@CurrentAuth() auth: AuthContext | null): Promise<{ deletedIndices: number }> {
     if (!auth || !auth.isAuthenticated) {

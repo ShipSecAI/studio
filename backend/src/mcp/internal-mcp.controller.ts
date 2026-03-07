@@ -9,10 +9,12 @@ import {
   CleanupRunResponseDto,
   GenerateMcpTokenRequestDto,
   GenerateMcpTokenResponseDto,
+  RegisterComponentResponseDto,
   RegisterComponentToolInput,
   RegisterGroupServerRequestDto,
   RegisterGroupServerResponseDto,
   RegisterMcpServerInput,
+  RegisterMcpServerResponseDto,
   ToolsReadyRequestDto,
   ToolsReadyResponseDto,
 } from './dto/mcp.dto';
@@ -42,14 +44,7 @@ export class InternalMcpController {
   }
 
   @Post('register-component')
-  @ApiCreatedResponse({
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean' },
-      },
-    },
-  })
+  @ApiCreatedResponse({ type: RegisterComponentResponseDto })
   async registerComponent(@Body() body: RegisterComponentToolInput) {
     await this.toolRegistry.registerComponentTool(body);
     await this.mcpGatewayService.refreshServersForRun(body.runId);
@@ -61,15 +56,7 @@ export class InternalMcpController {
    * This is the only way to register MCP servers.
    */
   @Post('register-mcp-server')
-  @ApiCreatedResponse({
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean' },
-        toolCount: { type: 'number' },
-      },
-    },
-  })
+  @ApiCreatedResponse({ type: RegisterMcpServerResponseDto })
   async registerMcpServer(@Body() body: RegisterMcpServerInput) {
     await this.toolRegistry.registerMcpServer(body);
     await this.mcpGatewayService.refreshServersForRun(body.runId);

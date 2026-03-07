@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { z } from 'zod';
 
+import type { ExecutionStatus } from '@shipsec/shared';
 import { WorkflowDefinition } from '../../dsl/types';
 import { WorkflowGraphSchema } from '../dto/workflow-graph.dto';
 import { workflowsTable } from '../../database/schema/workflows';
@@ -20,7 +21,7 @@ export interface WorkflowSummaryRecord {
   isSystem: boolean;
   templateId: string | null;
   lastRun: Date | null;
-  latestRunStatus: string | null;
+  latestRunStatus: ExecutionStatus | null;
   runCount: number;
   nodeCount: number;
   createdAt: Date;
@@ -190,7 +191,7 @@ export class WorkflowRepository {
       isSystem: workflowsTable.isSystem,
       templateId: workflowsTable.templateId,
       lastRun: workflowsTable.lastRun,
-      latestRunStatus: sql<string | null>`(
+      latestRunStatus: sql<ExecutionStatus | null>`(
         SELECT wr.status FROM workflow_runs wr
         WHERE wr.workflow_id = ${workflowsTable.id}
         ORDER BY wr.created_at DESC

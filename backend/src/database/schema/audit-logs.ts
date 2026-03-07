@@ -15,7 +15,7 @@ export type AuditResourceType =
   | 'human_input';
 
 export type AuditJsonPrimitive = string | number | boolean | null;
-export type AuditJsonValue = AuditJsonPrimitive;
+export type AuditJsonValue = AuditJsonPrimitive | AuditJsonPrimitive[];
 export type AuditJsonObject = Record<string, AuditJsonValue>;
 
 export const auditLogsTable = pgTable(

@@ -1,6 +1,5 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { WorkflowRunStatusSchema } from '@shipsec/shared';
 
 // --- Trace schemas ---
 
@@ -137,18 +136,10 @@ export class RunActivityResponseDto extends createZodDto(RunActivityResponseSche
 
 const InputPreviewSchema = z.object({
   runtimeInputs: z.record(z.string(), z.unknown()).optional(),
-  nodeOverrides: z
-    .record(
-      z.string(),
-      z.object({
-        params: z.record(z.string(), z.unknown()).default({}),
-        inputOverrides: z.record(z.string(), z.unknown()).default({}),
-      }),
-    )
-    .optional(),
+  nodeOverrides: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
 });
 
-export const RunListItemSchema = z.object({
+const RunListItemSchema = z.object({
   id: z.string(),
   workflowId: z.string(),
   organizationId: z.string(),
@@ -227,9 +218,6 @@ export const RunExecutionResponseSchema = z.object({
   status: RunStatusEnum,
 });
 export class RunExecutionResponseDto extends createZodDto(RunExecutionResponseSchema) {}
-
-// --- Run status (used by GET /runs/:runId/status) ---
-export class WorkflowRunStatusDto extends createZodDto(WorkflowRunStatusSchema) {}
 
 // --- Node IO ---
 

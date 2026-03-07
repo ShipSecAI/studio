@@ -62,7 +62,7 @@ export interface WorkflowSummaryResponse {
   isSystem: boolean;
   templateId: string | null;
   lastRun: string | null;
-  latestRunStatus: string | null;
+  latestRunStatus: ExecutionStatus | null;
   runCount: number;
   nodeCount: number;
   createdAt: string;
