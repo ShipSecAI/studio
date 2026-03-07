@@ -38,9 +38,9 @@ export function TemplateDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-2xl p-0 max-h-[90vh] overflow-y-auto">
         {/* Preview area */}
-        <div className="aspect-video w-full bg-muted/50 flex items-center justify-center overflow-hidden border-b border-border relative shrink-0">
+        <div className="aspect-video w-full bg-muted/50 flex items-center justify-center overflow-hidden border-b border-border relative">
           {hasGraph ? (
             <WorkflowPreviewCanvas
               nodes={template.graph!.nodes!}
@@ -77,7 +77,7 @@ export function TemplateDetailDialog({
           )}
         </div>
 
-        <div className="px-6 pb-2 overflow-y-auto min-h-0">
+        <div className="px-6 pb-2">
           <DialogHeader>
             <div className="flex items-center gap-2">
               <DialogTitle className="text-xl">{template.name}</DialogTitle>
@@ -152,7 +152,7 @@ export function TemplateDetailDialog({
           </div>
         </div>
 
-        <DialogFooter className="px-6 pb-6 shrink-0">
+        <DialogFooter className="px-6 pb-6">
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
