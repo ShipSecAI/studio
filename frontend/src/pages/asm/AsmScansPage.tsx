@@ -24,20 +24,6 @@ import { useAsmScans } from '@/hooks/queries/useAsmQueries';
 
 const PAGE_SIZE = 25;
 
-/** Lightweight shape for ASM scan run records (backend returns untyped records) */
-interface AsmScanRun {
-  id?: string;
-  runId?: string;
-  status: string;
-  workflowName?: string;
-  triggerLabel?: string;
-  triggerSource?: string;
-  startTime?: string;
-  endTime?: string;
-  duration?: number;
-  [key: string]: unknown;
-}
-
 const STATUS_ICONS: Record<string, typeof CheckCircle2> = {
   COMPLETED: CheckCircle2,
   RUNNING: Loader2,
@@ -125,10 +111,8 @@ export function AsmScansPage() {
     status: statusFilter || undefined,
   });
 
-  const runs = (data?.runs ?? []) as AsmScanRun[];
-  const liveRuns = runs.filter(
-    (r) => r.status === 'RUNNING' || r.status === 'QUEUED' || r.status === 'AWAITING_INPUT',
-  );
+  const runs = data?.runs ?? [];
+  const liveRuns = runs.filter((r) => r.status === 'RUNNING');
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -175,9 +159,9 @@ export function AsmScansPage() {
           <div className="space-y-2">
             {liveRuns.map((run) => (
               <div
-                key={run.runId || run.id}
+                key={run.id}
                 className="flex items-center justify-between bg-background rounded-md px-3 py-2 cursor-pointer hover:bg-muted/50"
-                onClick={() => navigate(`/runs/${run.runId || run.id}`)}
+                onClick={() => navigate(`/runs/${run.id}`)}
               >
                 <div className="flex items-center gap-3">
                   <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
@@ -236,9 +220,9 @@ export function AsmScansPage() {
               <tbody>
                 {runs.map((run) => (
                   <tr
-                    key={run.runId || run.id}
+                    key={run.id}
                     className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
-                    onClick={() => navigate(`/runs/${run.runId || run.id}`)}
+                    onClick={() => navigate(`/runs/${run.id}`)}
                   >
                     <td className="px-4 py-3 text-muted-foreground">
                       {run.startTime ? formatTime(run.startTime) : '-'}

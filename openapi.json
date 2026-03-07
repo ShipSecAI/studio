@@ -18083,10 +18083,123 @@
             "type": "array",
             "items": {
               "type": "object",
-              "propertyNames": {
-                "type": "string"
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "workflowId": {
+                  "type": "string"
+                },
+                "organizationId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "RUNNING",
+                    "COMPLETED",
+                    "FAILED",
+                    "CANCELLED",
+                    "TERMINATED",
+                    "CONTINUED_AS_NEW",
+                    "TIMED_OUT",
+                    "UNKNOWN"
+                  ]
+                },
+                "startTime": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "endTime": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "nullable": true
+                },
+                "temporalRunId": {
+                  "type": "string"
+                },
+                "workflowVersionId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "workflowVersion": {
+                  "type": "number",
+                  "nullable": true
+                },
+                "workflowName": {
+                  "type": "string"
+                },
+                "eventCount": {
+                  "type": "number"
+                },
+                "nodeCount": {
+                  "type": "number"
+                },
+                "duration": {
+                  "type": "number"
+                },
+                "triggerType": {
+                  "type": "string",
+                  "enum": [
+                    "manual",
+                    "schedule",
+                    "api"
+                  ]
+                },
+                "triggerSource": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "triggerLabel": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "inputPreview": {
+                  "type": "object",
+                  "properties": {
+                    "runtimeInputs": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "nodeOverrides": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    }
+                  }
+                }
               },
-              "additionalProperties": {}
+              "required": [
+                "id",
+                "workflowId",
+                "organizationId",
+                "status",
+                "startTime",
+                "endTime",
+                "temporalRunId",
+                "workflowVersionId",
+                "workflowVersion",
+                "workflowName",
+                "eventCount",
+                "nodeCount",
+                "duration",
+                "triggerType",
+                "triggerSource",
+                "triggerLabel"
+              ]
             }
           },
           "total": {
