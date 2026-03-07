@@ -2952,7 +2952,91 @@
     "/api/v1/audit-logs": {
       "get": {
         "operationId": "AuditLogsController_list",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "resourceType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "workflow",
+                "secret",
+                "api_key",
+                "webhook",
+                "artifact",
+                "analytics",
+                "schedule",
+                "mcp_server",
+                "mcp_group",
+                "human_input"
+              ]
+            }
+          },
+          {
+            "name": "resourceId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "List audit log events for the authenticated organization",
@@ -12068,7 +12152,8 @@
             "description": "OpenSearch DSL query object",
             "example": {
               "match_all": {}
-            }
+            },
+            "additionalProperties": true
           },
           "size": {
             "type": "number",
@@ -12095,18 +12180,21 @@
                   "field": "component_id"
                 }
               }
-            }
+            },
+            "additionalProperties": true
           },
           "sort": {
-            "description": "Sort specification",
             "type": "array",
+            "description": "Sort specification",
             "items": {
-              "type": "string"
+              "type": "object",
+              "additionalProperties": true
             }
           },
           "collapse": {
             "type": "object",
-            "description": "Field collapsing specification for deduplication"
+            "description": "Field collapsing specification for deduplication",
+            "additionalProperties": true
           },
           "useLatest": {
             "type": "boolean",
@@ -12127,12 +12215,30 @@
             "type": "array",
             "description": "Search hits",
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "_id": {
+                  "type": "string"
+                },
+                "_source": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "_score": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "_id",
+                "_source"
+              ],
+              "additionalProperties": false
             }
           },
           "aggregations": {
             "type": "object",
-            "description": "Aggregation results"
+            "description": "Aggregation results",
+            "additionalProperties": true
           }
         },
         "required": [
@@ -12311,6 +12417,39 @@
           "message"
         ]
       },
+      "ListAuditLogsResponseDto__schema0": {
+        "anyOf": [
+          {
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "type": "number",
+            "nullable": true
+          },
+          {
+            "type": "boolean",
+            "nullable": true
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListAuditLogsResponseDto__schema0"
+            },
+            "nullable": true
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ListAuditLogsResponseDto__schema0"
+            },
+            "nullable": true
+          }
+        ]
+      },
       "ListAuditLogsResponseDto": {
         "type": "object",
         "properties": {
@@ -12376,7 +12515,9 @@
                   "propertyNames": {
                     "type": "string"
                   },
-                  "additionalProperties": {},
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/ListAuditLogsResponseDto__schema0"
+                  },
                   "nullable": true
                 },
                 "ip": {

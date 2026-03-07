@@ -1,7 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-import type { AuditJsonObject, AuditJsonPrimitive } from '../../database/schema/audit-logs';
+import type { AuditJsonObject, AuditJsonValue } from '../../database/schema/audit-logs';
 
 export const AuditActorTypeSchema = z.enum(['user', 'api-key', 'internal', 'unknown']);
 export const AuditResourceTypeSchema = z.enum([
@@ -17,16 +17,20 @@ export const AuditResourceTypeSchema = z.enum([
   'human_input',
 ]);
 
-const AuditJsonPrimitiveSchema: z.ZodType<AuditJsonPrimitive> = z.union([
-  z.string(),
-  z.number(),
-  z.boolean(),
-  z.null(),
-]);
+const AuditJsonValueSchema: z.ZodType<AuditJsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(AuditJsonValueSchema),
+    z.record(z.string(), AuditJsonValueSchema),
+  ]),
+);
 
 const AuditJsonObjectSchema: z.ZodType<AuditJsonObject> = z.record(
   z.string(),
-  AuditJsonPrimitiveSchema,
+  AuditJsonValueSchema,
 );
 
 export const AuditLogEntrySchema = z.object({
@@ -48,7 +52,7 @@ export const AuditLogEntrySchema = z.object({
 export class AuditLogEntryDto extends createZodDto(AuditLogEntrySchema) {}
 
 export const ListAuditLogsQuerySchema = z.object({
-  resourceType: z.string().optional(),
+  resourceType: AuditResourceTypeSchema.optional(),
   resourceId: z.string().optional(),
   action: z.string().optional(),
   actorId: z.string().optional(),
