@@ -191,9 +191,9 @@ export function useAsmScans(options?: {
   domainId?: string;
 }) {
   const filters = options ?? {};
-  return useQuery<{ runs: unknown[]; total?: number }>({
+  return useQuery({
     queryKey: queryKeys.asm.scans(filters),
-    queryFn: () => api.asm.listScans(options) as Promise<{ runs: unknown[]; total?: number }>,
+    queryFn: () => api.asm.listScans(options),
     staleTime: 30_000,
   });
 }

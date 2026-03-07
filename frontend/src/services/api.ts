@@ -1,13 +1,6 @@
 import { createShipSecClient } from '../../../packages/backend-client/src/api-client';
 import type { components, operations, paths } from '../../../packages/backend-client/src/client';
-import type {
-  RunArtifactsResponse,
-  WorkflowSchedule,
-  ScheduleStatus,
-  WebhookConfiguration,
-  WebhookDelivery,
-  TestWebhookScriptResponse,
-} from '@shipsec/shared';
+import type { RunArtifactsResponse, WorkflowSchedule, ScheduleStatus } from '@shipsec/shared';
 import { useAuthStore } from '@/store/authStore';
 import { getFreshClerkToken } from '@/utils/clerk-token';
 
@@ -28,6 +21,14 @@ export type OAuthStartResponse = components['schemas']['OAuthStartResponseDto'];
 
 export type IntegrationCatalogEntry =
   paths['/api/v1/integrations/catalog']['get']['responses'][200]['content']['application/json'][number];
+
+// Generated response types used to replace manual `as` casts
+type WebhookConfiguration = components['schemas']['WebhookConfigurationResponseDto'];
+type WebhookDelivery = components['schemas']['WebhookDeliveryResponseDto'];
+type TestWebhookScriptResponse = components['schemas']['TestWebhookScriptResponseDto'];
+type AwsSetupInfoResponse = components['schemas']['AwsSetupInfoResponseDto'];
+type ValidateAwsResponse = components['schemas']['ValidateAwsResponseDto'];
+type DiscoverOrgAccountsResponse = components['schemas']['DiscoverOrgAccountsResponseDto'];
 
 /**
  * API Client Configuration
@@ -131,11 +132,10 @@ async function fetchScheduleById(id: string): Promise<WorkflowSchedule> {
   if (response.error) {
     throw new Error('Failed to fetch schedule');
   }
-  const schedule = (response.data ?? null) as WorkflowSchedule | null;
-  if (!schedule) {
+  if (!response.data) {
     throw new Error('Schedule not found');
   }
-  return schedule;
+  return response.data as WorkflowSchedule;
 }
 
 /**
@@ -337,14 +337,14 @@ export const api = {
     listProviders: async (): Promise<IntegrationProvider[]> => {
       const response = await apiClient.listIntegrationProviders();
       if (response.error) throw new Error('Failed to load providers');
-      return (response.data ?? []) as IntegrationProvider[];
+      return response.data ?? [];
     },
 
     // D6: org-scoped connection listing (primary source of truth)
     listOrgConnections: async (provider?: string): Promise<IntegrationConnection[]> => {
       const response = await apiClient.listOrgIntegrationConnections(provider);
       if (response.error) throw new Error('Failed to load org connections');
-      return (response.data ?? []) as IntegrationConnection[];
+      return response.data ?? [];
     },
 
     // D5: Provider catalog (AWS + Slack definitions)
@@ -361,7 +361,7 @@ export const api = {
     ): Promise<OAuthStartResponse> => {
       const response = await apiClient.startIntegrationOAuth(providerId, payload);
       if (response.error || !response.data) throw new Error('Failed to start OAuth flow');
-      return response.data as OAuthStartResponse;
+      return response.data;
     },
 
     completeOAuth: async (
@@ -370,7 +370,7 @@ export const api = {
     ): Promise<IntegrationConnection> => {
       const response = await apiClient.completeIntegrationOAuth(providerId, payload);
       if (response.error || !response.data) throw new Error('Failed to complete OAuth exchange');
-      return response.data as IntegrationConnection;
+      return response.data;
     },
 
     // D16: userId removed, derived from auth context
@@ -378,7 +378,7 @@ export const api = {
       const response = await apiClient.refreshIntegrationConnection(id);
       if (response.error || !response.data)
         throw new Error('Failed to refresh integration connection');
-      return response.data as IntegrationConnection;
+      return response.data;
     },
 
     // D16: userId removed, derived from auth context
@@ -388,24 +388,12 @@ export const api = {
     },
 
     // AWS setup info (generates trust policy + external ID + setup token)
-    getAwsSetupInfo: async (): Promise<{
-      platformRoleArn: string;
-      externalId: string;
-      setupToken: string;
-      trustPolicyTemplate: string;
-      externalIdDisplay?: string;
-    }> => {
+    getAwsSetupInfo: async (): Promise<AwsSetupInfoResponse> => {
       const response = await apiClient.getAwsSetupInfo();
       if (response.error || !response.data) {
         throw new Error('Failed to load AWS setup info');
       }
-      return response.data as {
-        platformRoleArn: string;
-        externalId: string;
-        setupToken: string;
-        trustPolicyTemplate: string;
-        externalIdDisplay?: string;
-      };
+      return response.data;
     },
 
     // AWS connection management (IAM role only)
@@ -420,33 +408,26 @@ export const api = {
       if (response.error || !response.data) {
         throw new Error('Failed to create AWS connection');
       }
-      return response.data as IntegrationConnection;
+      return response.data;
     },
 
-    validateAwsConnection: async (id: string): Promise<{ valid: boolean; error?: string }> => {
+    validateAwsConnection: async (id: string): Promise<ValidateAwsResponse> => {
       const response = await apiClient.validateAwsIntegrationConnection(id);
       if (response.error || !response.data) {
         throw new Error('Failed to validate AWS connection');
       }
-      const result = response.data as { valid: boolean; error?: string };
-      if (!result.valid) {
-        throw new Error(result.error || 'AWS connection validation failed');
+      if (!response.data.valid) {
+        throw new Error(response.data.error || 'AWS connection validation failed');
       }
-      return result;
+      return response.data;
     },
 
-    discoverOrgAccounts: async (
-      id: string,
-    ): Promise<{
-      accounts: { id: string; name: string; status: string; email?: string }[];
-    }> => {
+    discoverOrgAccounts: async (id: string): Promise<DiscoverOrgAccountsResponse> => {
       const response = await apiClient.discoverAwsOrganizationAccounts(id);
       if (response.error || !response.data) {
         throw new Error('Failed to discover AWS organization accounts');
       }
-      return response.data as {
-        accounts: { id: string; name: string; status: string; email?: string }[];
-      };
+      return response.data;
     },
 
     // Slack connection management
@@ -458,7 +439,7 @@ export const api = {
       if (response.error || !response.data) {
         throw new Error('Failed to create Slack connection');
       }
-      return response.data as IntegrationConnection;
+      return response.data;
     },
 
     testSlackConnection: async (id: string): Promise<{ ok: boolean; error?: string }> => {
@@ -614,9 +595,7 @@ export const api = {
         cursor?: string;
       } = {},
     ): Promise<components['schemas']['ListAuditLogsResponseDto']> => {
-      const response = await apiClient.listAuditLogs(
-        query as Parameters<typeof apiClient.listAuditLogs>[0],
-      );
+      const response = await apiClient.listAuditLogs(query);
       if (response.error || !response.data) {
         throw new Error('Failed to fetch audit logs');
       }
@@ -869,20 +848,7 @@ export const api = {
       if (response.error) {
         throw new Error('Failed to fetch logs');
       }
-      return response.data as {
-        runId: string;
-        logs: {
-          id: string;
-          runId: string;
-          nodeId: string;
-          level: 'debug' | 'info' | 'warn' | 'error';
-          message: string;
-          timestamp: string;
-        }[];
-        totalCount: number;
-        hasMore: boolean;
-        nextCursor?: string;
-      };
+      return response.data;
     },
   },
 
@@ -968,22 +934,23 @@ export const api = {
     list: async (): Promise<WebhookConfiguration[]> => {
       const response = await apiClient.listWebhookConfigurations();
       if (response.error) throw new Error('Failed to fetch webhook configurations');
-      return (response.data || []) as WebhookConfiguration[];
+      return response.data || [];
     },
 
     get: async (id: string): Promise<WebhookConfiguration> => {
       const response = await apiClient.getWebhookConfiguration(id);
       if (response.error || !response.data)
         throw new Error('Failed to fetch webhook configuration');
-      return response.data as WebhookConfiguration;
+      return response.data;
     },
 
     create: async (
       payload: components['schemas']['CreateWebhookRequestDto'],
     ): Promise<WebhookConfiguration> => {
       const response = await apiClient.createWebhookConfiguration(payload);
-      if (response.error) throw new Error('Failed to create webhook configuration');
-      return response.data as WebhookConfiguration;
+      if (response.error || !response.data)
+        throw new Error('Failed to create webhook configuration');
+      return response.data;
     },
 
     update: async (
@@ -991,8 +958,9 @@ export const api = {
       payload: components['schemas']['UpdateWebhookRequestDto'],
     ): Promise<WebhookConfiguration> => {
       const response = await apiClient.updateWebhookConfiguration(id, payload);
-      if (response.error) throw new Error('Failed to update webhook configuration');
-      return response.data as WebhookConfiguration;
+      if (response.error || !response.data)
+        throw new Error('Failed to update webhook configuration');
+      return response.data;
     },
 
     delete: async (id: string) => {
@@ -1011,24 +979,22 @@ export const api = {
         testHeaders: payload.headers,
       };
       const response = await apiClient.testWebhookScript(request);
-      if (response.error) throw new Error('Failed to test webhook script');
-      return response.data as TestWebhookScriptResponse;
+      if (response.error || !response.data) throw new Error('Failed to test webhook script');
+      return response.data;
     },
 
     listDeliveries: async (id: string): Promise<WebhookDelivery[]> => {
       const response = await apiClient.listDeliveries(id);
       if (response.error) throw new Error('Failed to fetch webhook deliveries');
-      return (response.data || []) as WebhookDelivery[];
+      return response.data || [];
     },
 
-    regeneratePath: async (
-      id: string,
-    ): Promise<{ id: string; webhookPath: string; url: string }> => {
+    regeneratePath: async (id: string) => {
       const response = await apiClient.regenerateWebhookPath(id);
       if (response.error || !response.data) {
         throw new Error('Failed to regenerate webhook path');
       }
-      return response.data as { id: string; webhookPath: string; url: string };
+      return response.data;
     },
   },
 
@@ -1167,7 +1133,7 @@ export const api = {
     discover: async (input: components['schemas']['DiscoveryInputDto']) => {
       const response = await apiClient.discoverMcpTools(input);
       if (response.error || !response.data) throw new Error('Failed to start MCP discovery');
-      return response.data as { workflowId: string; cacheToken?: string; status: string };
+      return response.data;
     },
 
     getStatus: async (workflowId: string): Promise<components['schemas']['DiscoveryStatusDto']> => {
@@ -1179,11 +1145,7 @@ export const api = {
     discoverGroup: async (input: components['schemas']['GroupDiscoveryInputDto']) => {
       const response = await apiClient.discoverMcpGroupTools(input);
       if (response.error || !response.data) throw new Error('Failed to start MCP group discovery');
-      return response.data as {
-        workflowId: string;
-        cacheTokens: Record<string, string>;
-        status: string;
-      };
+      return response.data;
     },
 
     getGroupStatus: async (
@@ -1347,7 +1309,7 @@ export const api = {
       if (response.error || !response.data) {
         throw new Error('Failed to create workflow from template');
       }
-      return response.data as { id: string };
+      return response.data;
     },
   },
 
@@ -1470,12 +1432,7 @@ export const api = {
     batchRunSummaries: async (runIds: string[]) => {
       const response = await apiClient.getAnalyticsBatchRunSummaries({ runIds });
       if (response.error || !response.data) throw new Error('Batch run summaries failed');
-      return response.data as {
-        summaries: Record<
-          string,
-          { critical: number; high: number; medium: number; low: number; info: number }
-        >;
-      };
+      return response.data;
     },
   },
 

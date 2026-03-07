@@ -8,6 +8,12 @@ import {
   type ExecutionTriggerType,
   type ExecutionInputPreview,
 } from '@shipsec/shared';
+import type { components } from '../../../../packages/backend-client/src/client';
+
+/** Raw run shape returned by the backend (list or detail endpoints) */
+type ApiRunItem = components['schemas']['RunListResponseDto']['runs'][number];
+type ApiRunDetail = components['schemas']['RunDetailDto'];
+type RawRun = ApiRunItem | ApiRunDetail;
 
 export interface ExecutionRun {
   id: string;
@@ -42,12 +48,10 @@ export const TRIGGER_LABELS: Record<ExecutionTriggerType, string> = {
   webhook: 'Webhook trigger',
 };
 
-export const normalizeRun = (run: any): ExecutionRun => {
-  const startTime = typeof run.startTime === 'string' ? run.startTime : new Date().toISOString();
-  const rawEndTime = typeof run.endTime === 'string' ? run.endTime : undefined;
-  const status = (
-    typeof run.status === 'string' ? run.status.toUpperCase() : 'FAILED'
-  ) as ExecutionStatus;
+export const normalizeRun = (run: RawRun): ExecutionRun => {
+  const startTime = run.startTime;
+  const rawEndTime = run.endTime ?? undefined;
+  const status = run.status as ExecutionStatus;
   const isActiveStatus = !TERMINAL_STATUSES.includes(status);
 
   const derivedDuration =
@@ -57,33 +61,34 @@ export const normalizeRun = (run: any): ExecutionRun => {
         ? new Date(rawEndTime).getTime() - new Date(startTime).getTime()
         : Math.max(0, Date.now() - new Date(startTime).getTime());
 
-  const triggerType = (run.triggerType as ExecutionTriggerType) ?? 'manual';
-  const triggerLabelRaw = typeof run.triggerLabel === 'string' ? run.triggerLabel.trim() : '';
+  const triggerType: ExecutionTriggerType = run.triggerType ?? 'manual';
+  const triggerLabelRaw = run.triggerLabel?.trim() ?? '';
 
   return {
-    id: String(run.id ?? ''),
-    workflowId: String(run.workflowId ?? ''),
-    organizationId: typeof run.organizationId === 'string' ? run.organizationId : undefined,
-    workflowName: String(run.workflowName ?? 'Untitled workflow'),
+    id: run.id,
+    workflowId: run.workflowId,
+    organizationId: run.organizationId,
+    workflowName: run.workflowName,
     status,
     startTime,
     endTime: rawEndTime,
     duration: Number.isFinite(derivedDuration) ? derivedDuration : undefined,
-    nodeCount: typeof run.nodeCount === 'number' ? run.nodeCount : 0,
-    eventCount: typeof run.eventCount === 'number' ? run.eventCount : 0,
+    nodeCount: run.nodeCount,
+    eventCount: run.eventCount,
     createdAt: startTime,
     isLive: isActiveStatus,
-    workflowVersionId: typeof run.workflowVersionId === 'string' ? run.workflowVersionId : null,
-    workflowVersion: typeof run.workflowVersion === 'number' ? run.workflowVersion : null,
+    workflowVersionId: run.workflowVersionId,
+    workflowVersion: run.workflowVersion,
     triggerType,
-    triggerSource: typeof run.triggerSource === 'string' ? run.triggerSource : null,
+    triggerSource: run.triggerSource,
     triggerLabel: triggerLabelRaw.length > 0 ? triggerLabelRaw : TRIGGER_LABELS[triggerType],
     inputPreview: (run.inputPreview as ExecutionInputPreview) ?? {
       runtimeInputs: {},
       nodeOverrides: {},
     },
-    parentRunId: typeof run.parentRunId === 'string' ? run.parentRunId : null,
-    parentNodeRef: typeof run.parentNodeRef === 'string' ? run.parentNodeRef : null,
+    parentRunId: 'parentRunId' in run ? String((run as Record<string, unknown>).parentRunId) : null,
+    parentNodeRef:
+      'parentNodeRef' in run ? String((run as Record<string, unknown>).parentNodeRef) : null,
   };
 };
 

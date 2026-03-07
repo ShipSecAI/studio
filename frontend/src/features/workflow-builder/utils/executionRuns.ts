@@ -1,35 +1,38 @@
-import { TERMINAL_STATUSES } from '@shipsec/shared';
+import { TERMINAL_STATUSES, type ExecutionInputPreview } from '@shipsec/shared';
 import type { ExecutionStatus } from '@/schemas/execution';
 import type { ExecutionRun } from '@/hooks/queries/useRunQueries';
+import type { components } from '../../../../../packages/backend-client/src/client';
 
 /** @deprecated Use TERMINAL_STATUSES from @shipsec/shared instead */
 export const TERMINAL_RUN_STATUSES = TERMINAL_STATUSES;
 
-export const normalizeRunSummary = (run: any): ExecutionRun => {
-  const status = (
-    typeof run.status === 'string' ? run.status.toUpperCase() : 'FAILED'
-  ) as ExecutionStatus;
-  const startTime = typeof run.startTime === 'string' ? run.startTime : new Date().toISOString();
-  const endTime = typeof run.endTime === 'string' ? run.endTime : undefined;
+type ApiRunItem = components['schemas']['RunListResponseDto']['runs'][number];
+type ApiRunDetail = components['schemas']['RunDetailDto'];
+type RawRun = ApiRunItem | ApiRunDetail;
+
+export const normalizeRunSummary = (run: RawRun): ExecutionRun => {
+  const status = run.status as ExecutionStatus;
+  const startTime = run.startTime;
+  const endTime = run.endTime ?? undefined;
 
   return {
-    id: String(run.id ?? run.runId ?? ''),
-    workflowId: String(run.workflowId ?? ''),
-    workflowName: String(run.workflowName ?? 'Untitled workflow'),
+    id: run.id,
+    workflowId: run.workflowId,
+    workflowName: run.workflowName,
     status,
     startTime,
     endTime,
     duration: typeof run.duration === 'number' ? run.duration : undefined,
-    nodeCount: typeof run.nodeCount === 'number' ? run.nodeCount : 0,
-    eventCount: typeof run.eventCount === 'number' ? run.eventCount : 0,
+    nodeCount: run.nodeCount,
+    eventCount: run.eventCount,
     createdAt: startTime,
     isLive: !TERMINAL_RUN_STATUSES.includes(status),
-    workflowVersionId: typeof run.workflowVersionId === 'string' ? run.workflowVersionId : null,
-    workflowVersion: typeof run.workflowVersion === 'number' ? run.workflowVersion : null,
-    triggerType: (run.triggerType ?? 'manual') as ExecutionRun['triggerType'],
-    triggerSource: typeof run.triggerSource === 'string' ? run.triggerSource : null,
-    triggerLabel: typeof run.triggerLabel === 'string' ? run.triggerLabel : null,
-    inputPreview: run.inputPreview ?? {
+    workflowVersionId: run.workflowVersionId,
+    workflowVersion: run.workflowVersion,
+    triggerType: run.triggerType ?? 'manual',
+    triggerSource: run.triggerSource,
+    triggerLabel: run.triggerLabel,
+    inputPreview: (run.inputPreview as ExecutionInputPreview) ?? {
       runtimeInputs: {},
       nodeOverrides: {},
     },
