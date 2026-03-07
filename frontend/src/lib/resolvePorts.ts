@@ -106,7 +106,7 @@ export function normalizeResolvedInputs(
     id: input.id,
     label: input.label,
     connectionType: normalizeConnectionType(input.connectionType),
-    ...(input.required !== undefined ? { required: input.required } : {}),
+    required: input.required ?? false,
     ...(input.description ? { description: input.description } : {}),
     ...(normalizeEditor(input.editor) ? { editor: normalizeEditor(input.editor) } : {}),
     ...(normalizeValuePriority(input.valuePriority)

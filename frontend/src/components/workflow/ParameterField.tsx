@@ -116,8 +116,8 @@ export function ParameterField({
 
   // For branch selector: resolve repo ID from current repo value
   const selectedRepoFullName =
-    isGitHubCloneComponent && typeof parameters?.repository === 'string'
-      ? parameters.repository
+    isGitHubCloneComponent && typeof (parameters as any)?.repository === 'string'
+      ? (parameters as any).repository
       : undefined;
 
   const selectedGhRepo = useMemo(
@@ -185,7 +185,7 @@ export function ParameterField({
         const graph = workflow.graph;
         const entrypoint = graph.nodes.find((node) => node.type === 'core.workflow.entrypoint');
 
-        const runtimeInputsCandidate = entrypoint?.data?.config?.params?.runtimeInputs;
+        const runtimeInputsCandidate = (entrypoint?.data as any)?.config?.runtimeInputs;
 
         const runtimeInputs = Array.isArray(runtimeInputsCandidate) ? runtimeInputsCandidate : [];
 
@@ -204,7 +204,7 @@ export function ParameterField({
     if (!isWorkflowSelector) return;
     if (!selectedWorkflowId) return;
 
-    const existingRuntimeInputs = parameters?.childRuntimeInputs;
+    const existingRuntimeInputs = (parameters as any)?.childRuntimeInputs;
     const shouldSync = !Array.isArray(existingRuntimeInputs) || existingRuntimeInputs.length === 0;
 
     if (!shouldSync) return;

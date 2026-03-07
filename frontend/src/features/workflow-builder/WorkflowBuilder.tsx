@@ -4,6 +4,8 @@ import {
   ReactFlowProvider,
   type Node as ReactFlowNode,
   type Edge as ReactFlowEdge,
+  type NodeChange,
+  type EdgeChange,
   applyNodeChanges,
   applyEdgeChanges,
 } from 'reactflow';
@@ -206,7 +208,7 @@ function WorkflowBuilderContent() {
   }, [navigate, workflowId]);
 
   const onNodesChange = useCallback(
-    (changes: any[]) => {
+    (changes: NodeChange[]) => {
       if (changes.length === 0) {
         return;
       }
@@ -230,7 +232,7 @@ function WorkflowBuilderContent() {
 
       const filteredChanges = changes.filter((change) => {
         if (change.type === 'add' && 'item' in change) {
-          const node = (change as any).item as ReactFlowNode<FrontendNodeData>;
+          const node = change.item as ReactFlowNode<FrontendNodeData>;
           const currentNodes =
             mode === 'design' ? designNodesRef.current : executionNodesRef.current;
           if (isEntryPointNode(node) && currentNodes.some(isEntryPointNode)) {
@@ -252,10 +254,10 @@ function WorkflowBuilderContent() {
       // Capture snapshot for structural changes or drag end
       if (mode === 'design') {
         const hasStructuralChange = filteredChanges.some(
-          (c: any) => c.type === 'add' || c.type === 'remove',
+          (c) => c.type === 'add' || c.type === 'remove',
         );
         const positionDragEnded = filteredChanges.some(
-          (c: any) => c.type === 'position' && c.dragging === false,
+          (c) => c.type === 'position' && c.dragging === false,
         );
 
         if (hasStructuralChange || positionDragEnded) {
@@ -268,8 +270,8 @@ function WorkflowBuilderContent() {
           // This prevents the "deleted node but restored edges" artifact
           let nextEdges = currentEdges;
           const removedNodeIds = filteredChanges
-            .filter((c: any) => c.type === 'remove')
-            .map((c: any) => c.id);
+            .filter((c): c is NodeChange & { type: 'remove'; id: string } => c.type === 'remove')
+            .map((c) => c.id);
 
           if (removedNodeIds.length > 0) {
             nextEdges = currentEdges.filter(
@@ -293,14 +295,12 @@ function WorkflowBuilderContent() {
   );
 
   const onEdgesChange = useCallback(
-    (changes: any[]) => {
+    (changes: EdgeChange[]) => {
       // Capture snapshot for edge changes (add/remove)
       // Note: Edge removals due to node deletion are handled by onNodesChange,
       // so we only need to capture explicit edge changes here
       if (mode === 'design' && changes.length > 0) {
-        const hasStructuralChange = changes.some(
-          (c: any) => c.type === 'add' || c.type === 'remove',
-        );
+        const hasStructuralChange = changes.some((c) => c.type === 'add' || c.type === 'remove');
         if (hasStructuralChange) {
           const currentNodes = designNodesRef.current;
           const currentEdges = designEdgesRef.current;
