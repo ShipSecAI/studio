@@ -3412,6 +3412,21 @@ export interface components {
                 createdAt: string;
             }[];
         };
+        TerminalChunksResponseDto: {
+            runId: string;
+            cursor: string;
+            chunks: {
+                nodeRef: string;
+                stream: string;
+                chunkIndex: number;
+                payload: string;
+                /** Format: date-time */
+                recordedAt: string;
+                deltaMs: number;
+                origin?: string;
+                runnerKind?: string;
+            }[];
+        };
         TerminalArchiveRequestDto: {
             nodeRef: string;
             /**
@@ -3643,6 +3658,28 @@ export interface components {
              * @enum {string}
              */
             subscriptionTier?: "free" | "pro" | "team" | "enterprise";
+        };
+        BatchRunSummariesRequestDto: {
+            runIds: string[];
+        };
+        BatchRunSummariesResponseDto: {
+            summaries: {
+                [key: string]: {
+                    critical: number;
+                    high: number;
+                    medium: number;
+                    low: number;
+                    info: number;
+                };
+            };
+        };
+        EnsureTenantRequestDto: {
+            organizationId: string;
+        };
+        EnsureTenantResponseDto: {
+            success: boolean;
+            securityEnabled: boolean;
+            message: string;
         };
         ListAuditLogsResponseDto: {
             items: {
@@ -3986,6 +4023,9 @@ export interface components {
              */
             maxWorkflows: number;
         };
+        LiteLLMKeyResponseDto: {
+            virtualKey: string | null;
+        };
         OnboardingPreferencesDto: {
             /** @example true */
             appNavigationTourCompleted: boolean;
@@ -3997,6 +4037,34 @@ export interface components {
             appNavigationTourCompleted?: boolean;
             /** @example true */
             workflowBuilderTourCompleted?: boolean;
+        };
+        ResolvePortsRequestDto: {
+            [key: string]: (string | null) | (number | null) | (boolean | null) | (string[] | null) | (number[] | null) | (boolean[] | null);
+        };
+        ResolvePortsResponseDto: {
+            inputs: {
+                id: string;
+                label: string;
+                required?: boolean;
+                description?: string;
+                editor?: string;
+                valuePriority?: string;
+                connectionType: {
+                    kind: string;
+                    name?: string;
+                    credential?: boolean;
+                };
+            }[];
+            outputs: {
+                id: string;
+                label: string;
+                description?: string;
+                connectionType: {
+                    kind: string;
+                    name?: string;
+                    credential?: boolean;
+                };
+            }[];
         };
         SecretVersionResponse: {
             id: string;
@@ -4671,8 +4739,41 @@ export interface components {
                 updatedAt: string;
             };
         };
+        GenerateMcpTokenRequestDto: {
+            runId: string;
+            organizationId?: string | null;
+            agentId?: string;
+            allowedNodeIds?: string[];
+        };
+        GenerateMcpTokenResponseDto: {
+            token: string;
+        };
         RegisterComponentToolInput: Record<string, never>;
         RegisterMcpServerInput: Record<string, never>;
+        CleanupRunRequestDto: {
+            runId: string;
+        };
+        CleanupRunResponseDto: {
+            containerIds: string[];
+        };
+        ToolsReadyRequestDto: {
+            runId: string;
+            requiredNodeIds: string[];
+        };
+        ToolsReadyResponseDto: {
+            ready: boolean;
+        };
+        RegisterGroupServerRequestDto: {
+            runId: string;
+            nodeId: string;
+            groupSlug: string;
+            serverId: string;
+        };
+        RegisterGroupServerResponseDto: {
+            command: string;
+            args?: string[];
+            endpoint?: string;
+        };
         DiscoveryInputDto: {
             /**
              * @description Transport type for MCP server
@@ -4823,6 +4924,396 @@ export interface components {
             }[];
             error?: string;
             errorCode?: string;
+        };
+        GitHubStatusResponseDto: {
+            configured: boolean;
+            installUrl: string | null;
+        };
+        GitHubInstallationDto: {
+            /** Format: uuid */
+            id: string;
+            installationId: number;
+            /** @enum {string} */
+            accountType: "Organization" | "User";
+            accountLogin: string;
+            accountId: number;
+            accountAvatarUrl: string | null;
+            /** @enum {string|null} */
+            repositorySelection: "all" | "selected" | null;
+            isActive: boolean;
+            organizationId: string;
+            createdAt: string;
+            updatedAt: string;
+        };
+        GitHubRepoDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            installationId: string;
+            repoId: number;
+            fullName: string;
+            name: string;
+            owner: string;
+            isPrivate: boolean;
+            defaultBranch: string | null;
+            description: string | null;
+            language: string | null;
+            htmlUrl: string | null;
+            starsCount: number;
+            forksCount: number;
+            scansEnabled: boolean;
+            lastSyncedAt: string | null;
+            createdAt: string;
+            updatedAt: string;
+        };
+        GitHubBranchDto: {
+            name: string;
+            isDefault: boolean;
+        };
+        ToggleRepoScansDto: {
+            enabled: boolean;
+        };
+        CompleteInstallationDto: {
+            installationId: number;
+            /** @enum {string} */
+            setupAction?: "install" | "update" | "request";
+        };
+        InstallationTokenResponseDto: {
+            token: string;
+        };
+        QuickScanWorkflowDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string | null;
+            /** Format: uuid */
+            templateId: string;
+        };
+        GitHubTriggerScanDto: {
+            /** Format: uuid */
+            workflowId: string;
+            branch?: string;
+            ref?: string;
+            prNumber?: number;
+        };
+        TriggerScanResponseDto: {
+            /** Format: uuid */
+            scanId: string;
+            runId: string;
+        };
+        SyncRepositoriesResponseDto: {
+            synced: number;
+        };
+        TriggerRuleDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string | null;
+            repositoryPattern: string;
+            event: string;
+            actions: string[];
+            branches: string[];
+            /** Format: uuid */
+            workflowId: string;
+            postPrComment: boolean;
+            createCheckRun: boolean;
+            postPrReview: boolean;
+            failOn: string;
+            enabled: boolean;
+            priority: number;
+            organizationId: string;
+            createdBy: string | null;
+            createdAt: string;
+            updatedAt: string;
+        };
+        CreateTriggerRuleDto: {
+            name: string;
+            description?: string;
+            repositoryPattern: string;
+            /** @enum {string} */
+            event: "pull_request" | "push" | "release" | "repository_added";
+            /** @default [] */
+            actions: string[];
+            /** @default [] */
+            branches: string[];
+            /** Format: uuid */
+            workflowId: string;
+            /** @default true */
+            postPrComment: boolean;
+            /** @default true */
+            createCheckRun: boolean;
+            /** @default false */
+            postPrReview: boolean;
+            /**
+             * @default high
+             * @enum {string}
+             */
+            failOn: "critical" | "high" | "medium" | "low" | "info" | "none";
+            /** @default true */
+            enabled: boolean;
+            /** @default 100 */
+            priority: number;
+        };
+        UpdateTriggerRuleDto: {
+            name?: string;
+            description?: string;
+            repositoryPattern?: string;
+            /** @enum {string} */
+            event?: "pull_request" | "push" | "release" | "repository_added";
+            /** @default [] */
+            actions: string[];
+            /** @default [] */
+            branches: string[];
+            /** Format: uuid */
+            workflowId?: string;
+            /** @default true */
+            postPrComment: boolean;
+            /** @default true */
+            createCheckRun: boolean;
+            /** @default false */
+            postPrReview: boolean;
+            /**
+             * @default high
+             * @enum {string}
+             */
+            failOn: "critical" | "high" | "medium" | "low" | "info" | "none";
+            /** @default true */
+            enabled: boolean;
+            /** @default 100 */
+            priority: number;
+        };
+        GitHubScanResultDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            repositoryId: string;
+            workflowRunId: string;
+            /** @enum {string} */
+            sourceType: "pr" | "push" | "manual" | "schedule";
+            triggerType: string | null;
+            triggerSource: string | null;
+            triggerLabel: string | null;
+            scheduleId: string | null;
+            scheduleName: string | null;
+            prNumber: number | null;
+            branch: string | null;
+            commitSha: string | null;
+            /** @enum {string} */
+            status: "pending" | "running" | "success" | "failure" | "error";
+            summary: {
+                critical: number;
+                high: number;
+                medium: number;
+                low: number;
+                info: number;
+            };
+            findingsCount: number;
+            findings: {
+                id: string;
+                type: string;
+                /** @enum {string} */
+                severity: "critical" | "high" | "medium" | "low" | "info";
+                file: string;
+                line?: number;
+                endLine?: number;
+                message: string;
+                snippet?: string;
+                ruleId?: string;
+                category?: string;
+            }[];
+            checkRunId: number | null;
+            prCommentId: number | null;
+            prReviewId: number | null;
+            resultsUrl: string | null;
+            errorMessage: string | null;
+            /** Format: uuid */
+            triggerRuleId: string | null;
+            organizationId: string;
+            startedAt: string | null;
+            completedAt: string | null;
+            createdAt: string;
+            updatedAt: string;
+            workflowName: string | null;
+            workflowVersion: number | null;
+        };
+        WorkflowTemplateResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug?: string | null;
+            description: string | null;
+            /** @enum {string} */
+            category: "code-security" | "cloud-security" | "attack-surface" | "notification";
+            graph: {
+                id?: string;
+                name: string;
+                description?: string;
+                nodes: {
+                    id: string;
+                    type: string;
+                    position: {
+                        x: number;
+                        y: number;
+                    };
+                    data: {
+                        label: string;
+                        /**
+                         * @default {
+                         *       "params": {},
+                         *       "inputOverrides": {}
+                         *     }
+                         */
+                        config: {
+                            /** @default {} */
+                            params: {
+                                [key: string]: unknown;
+                            };
+                            /** @default {} */
+                            inputOverrides: {
+                                [key: string]: unknown;
+                            };
+                            /** @enum {string} */
+                            joinStrategy?: "all" | "any" | "first";
+                            streamId?: string;
+                            groupId?: string;
+                            maxConcurrency?: number;
+                            /** @enum {string} */
+                            mode?: "normal" | "tool";
+                            toolConfig?: {
+                                /** @default [] */
+                                boundInputIds: string[];
+                                /** @default [] */
+                                exposedInputIds: string[];
+                            };
+                            connectedToolNodeIds?: string[];
+                        };
+                        dynamicInputs?: {
+                            [key: string]: unknown;
+                        }[];
+                        dynamicOutputs?: {
+                            [key: string]: unknown;
+                        }[];
+                    };
+                }[];
+                edges: {
+                    id: string;
+                    source: string;
+                    target: string;
+                    sourceHandle?: string;
+                    targetHandle?: string;
+                    /** @enum {string} */
+                    type?: "default" | "smoothstep" | "step" | "straight" | "bezier";
+                }[];
+                /**
+                 * @default {
+                 *       "x": 0,
+                 *       "y": 0,
+                 *       "zoom": 1
+                 *     }
+                 */
+                viewport: {
+                    x: number;
+                    y: number;
+                    zoom: number;
+                };
+            };
+            icon: string | null;
+            screenshotUrl?: string | null;
+            isFeatured?: boolean;
+            runCount?: number;
+            isDefault: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateWorkflowTemplateRequestDto: {
+            name: string;
+            description?: string;
+            /** @enum {string} */
+            category: "code-security" | "cloud-security" | "attack-surface" | "notification";
+            graph: {
+                id?: string;
+                name: string;
+                description?: string;
+                nodes: {
+                    id: string;
+                    type: string;
+                    position: {
+                        x: number;
+                        y: number;
+                    };
+                    data: {
+                        label: string;
+                        /**
+                         * @default {
+                         *       "params": {},
+                         *       "inputOverrides": {}
+                         *     }
+                         */
+                        config: {
+                            /** @default {} */
+                            params: {
+                                [key: string]: unknown;
+                            };
+                            /** @default {} */
+                            inputOverrides: {
+                                [key: string]: unknown;
+                            };
+                            /** @enum {string} */
+                            joinStrategy?: "all" | "any" | "first";
+                            streamId?: string;
+                            groupId?: string;
+                            maxConcurrency?: number;
+                            /** @enum {string} */
+                            mode?: "normal" | "tool";
+                            toolConfig?: {
+                                /** @default [] */
+                                boundInputIds: string[];
+                                /** @default [] */
+                                exposedInputIds: string[];
+                            };
+                            connectedToolNodeIds?: string[];
+                        };
+                        dynamicInputs?: {
+                            [key: string]: unknown;
+                        }[];
+                        dynamicOutputs?: {
+                            [key: string]: unknown;
+                        }[];
+                    };
+                }[];
+                edges: {
+                    id: string;
+                    source: string;
+                    target: string;
+                    sourceHandle?: string;
+                    targetHandle?: string;
+                    /** @enum {string} */
+                    type?: "default" | "smoothstep" | "step" | "straight" | "bezier";
+                }[];
+                /**
+                 * @default {
+                 *       "x": 0,
+                 *       "y": 0,
+                 *       "zoom": 1
+                 *     }
+                 */
+                viewport: {
+                    x: number;
+                    y: number;
+                    zoom: number;
+                };
+            };
+            icon?: string;
+            isDefault?: boolean;
+        };
+        InstantiateWorkflowTemplateRequestDto: {
+            name?: string;
+        };
+        DeleteWorkflowTemplateResponseDto: {
+            /** @enum {boolean} */
+            success: true;
         };
         CreateDomainDto: {
             domain: string;
@@ -6254,7 +6745,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TerminalChunksResponseDto"];
+                };
             };
         };
     };
@@ -6627,14 +7120,20 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchRunSummariesRequestDto"];
+            };
+        };
         responses: {
             /** @description Get severity counts for multiple run IDs */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BatchRunSummariesResponseDto"];
+                };
             };
         };
     };
@@ -6712,7 +7211,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnsureTenantRequestDto"];
+            };
+        };
         responses: {
             /** @description Ensure tenant resources exist for organization */
             200: {
@@ -6720,11 +7223,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        success?: boolean;
-                        securityEnabled?: boolean;
-                        message?: string;
-                    };
+                    "application/json": components["schemas"]["EnsureTenantResponseDto"];
                 };
             };
         };
@@ -6936,7 +7435,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["LiteLLMKeyResponseDto"];
+                };
             };
         };
     };
@@ -7208,14 +7709,20 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolvePortsRequestDto"];
+            };
+        };
         responses: {
             /** @description Resolve dynamic ports based on parameters */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ResolvePortsResponseDto"];
+                };
             };
         };
     };
@@ -7500,8 +8007,8 @@ export interface operations {
     };
     IntegrationsController_listOrgConnections: {
         parameters: {
-            query: {
-                provider: string;
+            query?: {
+                provider?: string;
             };
             header?: never;
             path?: never;
@@ -8408,8 +8915,8 @@ export interface operations {
     };
     McpServersController_listServers: {
         parameters: {
-            query: {
-                groupId: string;
+            query?: {
+                groupId?: string;
             };
             header?: never;
             path?: never;
@@ -8452,8 +8959,8 @@ export interface operations {
     };
     McpServersController_listEnabledServers: {
         parameters: {
-            query: {
-                groupId: string;
+            query?: {
+                groupId?: string;
             };
             header?: never;
             path?: never;
@@ -9092,13 +9599,19 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateMcpTokenRequestDto"];
+            };
+        };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GenerateMcpTokenResponseDto"];
+                };
             };
         };
     };
@@ -9119,7 +9632,11 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                    };
+                };
             };
         };
     };
@@ -9140,7 +9657,12 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        toolCount?: number;
+                    };
+                };
             };
         };
     };
@@ -9151,13 +9673,19 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CleanupRunRequestDto"];
+            };
+        };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CleanupRunResponseDto"];
+                };
             };
         };
     };
@@ -9168,13 +9696,19 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToolsReadyRequestDto"];
+            };
+        };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ToolsReadyResponseDto"];
+                };
             };
         };
     };
@@ -9185,13 +9719,19 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterGroupServerRequestDto"];
+            };
+        };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RegisterGroupServerResponseDto"];
+                };
             };
         };
     };
@@ -9314,7 +9854,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GitHubStatusResponseDto"];
+                };
             };
         };
     };
@@ -9331,7 +9873,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GitHubInstallationDto"][];
+                };
             };
         };
     };
@@ -9348,7 +9892,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GitHubRepoDto"][];
+                };
             };
         };
     };
@@ -9367,7 +9913,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GitHubRepoDto"];
+                };
             };
         };
     };
@@ -9386,7 +9934,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GitHubBranchDto"][];
+                };
             };
         };
     };
@@ -9399,13 +9949,19 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToggleRepoScansDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GitHubRepoDto"];
+                };
             };
         };
     };
@@ -9416,13 +9972,19 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteInstallationDto"];
+            };
+        };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GitHubInstallationDto"];
+                };
             };
         };
     };
@@ -9437,11 +9999,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["InstallationTokenResponseDto"];
+                };
             };
         };
     };
@@ -9458,7 +10022,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["QuickScanWorkflowDto"][];
+                };
             };
         };
     };
@@ -9471,13 +10037,19 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitHubTriggerScanDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TriggerScanResponseDto"];
+                };
             };
         };
     };
@@ -9490,11 +10062,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SyncRepositoriesResponseDto"];
+                };
             };
         };
     };
@@ -9511,7 +10085,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TriggerRuleDto"][];
+                };
             };
         };
     };
@@ -9522,13 +10098,19 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTriggerRuleDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TriggerRuleDto"];
+                };
             };
         };
     };
@@ -9547,7 +10129,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TriggerRuleDto"];
+                };
             };
         };
     };
@@ -9579,26 +10163,32 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTriggerRuleDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TriggerRuleDto"];
+                };
             };
         };
     };
     GitHubAppController_listScanResults: {
         parameters: {
-            query: {
-                repositoryId: string;
-                status: string;
-                source: string;
-                scheduleId: string;
-                triggerRuleId: string;
-                limit: string;
-                offset: string;
+            query?: {
+                repositoryId?: string;
+                status?: string;
+                source?: "pr" | "push" | "manual" | "schedule";
+                scheduleId?: string;
+                triggerRuleId?: string;
+                limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -9610,7 +10200,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GitHubScanResultDto"][];
+                };
             };
         };
     };
@@ -9629,7 +10221,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GitHubScanResultDto"];
+                };
             };
         };
     };
@@ -9786,7 +10380,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateResponseDto"][];
+                };
             };
         };
     };
@@ -9797,13 +10393,19 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWorkflowTemplateRequestDto"];
+            };
+        };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateResponseDto"];
+                };
             };
         };
     };
@@ -9822,7 +10424,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateResponseDto"];
+                };
             };
         };
     };
@@ -9841,7 +10445,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DeleteWorkflowTemplateResponseDto"];
+                };
             };
         };
     };
@@ -9854,14 +10460,20 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstantiateWorkflowTemplateRequestDto"];
+            };
+        };
         responses: {
             /** @description Creates a new workflow from the template */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WorkflowResponseDto"];
+                };
             };
         };
     };

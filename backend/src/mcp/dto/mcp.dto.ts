@@ -119,14 +119,3 @@ export class RegisterComponentToolInput {
   parameters?: Record<string, unknown>;
   providerKind?: 'component' | 'mcp-server' | 'mcp-group';
 }
-
-export const RegisterComponentResponseSchema = z.object({
-  success: z.boolean(),
-});
-export class RegisterComponentResponseDto extends createZodDto(RegisterComponentResponseSchema) {}
-
-export const RegisterMcpServerResponseSchema = z.object({
-  success: z.boolean(),
-  toolCount: z.number(),
-});
-export class RegisterMcpServerResponseDto extends createZodDto(RegisterMcpServerResponseSchema) {}
