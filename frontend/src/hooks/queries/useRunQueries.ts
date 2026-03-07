@@ -51,7 +51,7 @@ export const TRIGGER_LABELS: Record<ExecutionTriggerType, string> = {
 export const normalizeRun = (run: RawRun): ExecutionRun => {
   const startTime = run.startTime;
   const rawEndTime = run.endTime ?? undefined;
-  const status: ExecutionStatus = run.status;
+  const status = run.status as ExecutionStatus;
   const isActiveStatus = !TERMINAL_STATUSES.includes(status);
 
   const derivedDuration =
@@ -82,9 +82,9 @@ export const normalizeRun = (run: RawRun): ExecutionRun => {
     triggerType,
     triggerSource: run.triggerSource,
     triggerLabel: triggerLabelRaw.length > 0 ? triggerLabelRaw : TRIGGER_LABELS[triggerType],
-    inputPreview: {
-      runtimeInputs: run.inputPreview?.runtimeInputs ?? {},
-      nodeOverrides: run.inputPreview?.nodeOverrides ?? {},
+    inputPreview: (run.inputPreview as ExecutionInputPreview) ?? {
+      runtimeInputs: {},
+      nodeOverrides: {},
     },
     parentRunId: 'parentRunId' in run ? String((run as Record<string, unknown>).parentRunId) : null,
     parentNodeRef:

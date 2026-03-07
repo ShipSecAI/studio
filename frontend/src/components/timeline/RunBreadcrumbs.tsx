@@ -31,12 +31,13 @@ export function RunBreadcrumbs({ currentRun, className, variant = 'inline' }: Ru
 
   const parentRun = useMemo<RunInfo | null>(() => {
     if (!parentRunData) return null;
+    const data = parentRunData as Record<string, unknown>;
     return {
       id: parentRunData.id,
       workflowId: parentRunData.workflowId,
       workflowName: parentRunData.workflowName || 'Parent Workflow',
-      parentRunId: null,
-      parentNodeRef: null,
+      parentRunId: typeof data.parentRunId === 'string' ? data.parentRunId : null,
+      parentNodeRef: typeof data.parentNodeRef === 'string' ? data.parentNodeRef : null,
     };
   }, [parentRunData]);
 

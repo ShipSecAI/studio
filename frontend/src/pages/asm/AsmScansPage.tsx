@@ -24,6 +24,20 @@ import { useAsmScans } from '@/hooks/queries/useAsmQueries';
 
 const PAGE_SIZE = 25;
 
+/** Lightweight shape for ASM scan run records (backend returns untyped records) */
+interface AsmScanRun {
+  id?: string;
+  runId?: string;
+  status: string;
+  workflowName?: string;
+  triggerLabel?: string;
+  triggerSource?: string;
+  startTime?: string;
+  endTime?: string;
+  duration?: number;
+  [key: string]: unknown;
+}
+
 const STATUS_ICONS: Record<string, typeof CheckCircle2> = {
   COMPLETED: CheckCircle2,
   RUNNING: Loader2,
@@ -111,7 +125,7 @@ export function AsmScansPage() {
     status: statusFilter || undefined,
   });
 
-  const runs = (data?.runs ?? []) as any[];
+  const runs = (data?.runs ?? []) as AsmScanRun[];
   const liveRuns = runs.filter(
     (r) => r.status === 'RUNNING' || r.status === 'QUEUED' || r.status === 'AWAITING_INPUT',
   );
