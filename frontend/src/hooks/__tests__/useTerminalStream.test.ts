@@ -7,6 +7,7 @@ const buildChunk = (index: number) => ({
   chunkIndex: index,
   payload: Buffer.from(`chunk-${index}`).toString('base64'),
   recordedAt: new Date().toISOString(),
+  deltaMs: 0,
 });
 
 describe('mergeTerminalChunks', () => {

@@ -1,8 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ArtifactMetadata } from '@shipsec/shared';
-import { api, type ArtifactListFilters } from '@/services/api';
+import type { operations } from '../../../../packages/backend-client/src/client';
+import { api } from '@/services/api';
 import { queryKeys } from '@/lib/queryKeys';
 import { terminalStaleTime } from '@/hooks/queries/useRunQueries';
+
+type ArtifactListFilters = operations['ArtifactsController_listArtifacts']['parameters']['query'];
 
 export function useRunArtifacts(runId: string | undefined) {
   return useQuery({

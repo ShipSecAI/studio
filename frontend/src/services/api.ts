@@ -1,7 +1,6 @@
 import { createShipSecClient } from '../../../packages/backend-client/src/api-client';
 import type { components, operations } from '../../../packages/backend-client/src/client';
 import type {
-  ArtifactDestination,
   RunArtifactsResponse,
   WorkflowSchedule,
   ScheduleStatus,
@@ -25,36 +24,6 @@ export interface ProwlerCheckMetadata {
   nativeIaC: string | null;
   terraform: string | null;
   other: string | null;
-}
-
-export interface AnalyticsQueryResponse {
-  total: number;
-  hits: {
-    _id: string;
-    _source: JsonObject;
-    _score?: number;
-  }[];
-  aggregations?: Record<string, JsonObject>;
-}
-
-export interface TerminalChunkResponse {
-  runId: string;
-  cursor?: string;
-  chunks: {
-    nodeRef: string;
-    stream: string;
-    chunkIndex: number;
-    payload: string;
-    recordedAt: string;
-    deltaMs?: number;
-    origin?: string;
-    runnerKind?: string;
-  }[];
-}
-
-export interface OnboardingPreferences {
-  appNavigationTourCompleted: boolean;
-  workflowBuilderTourCompleted: boolean;
 }
 
 export interface WorkflowSummary {
@@ -110,13 +79,6 @@ export interface IntegrationCatalogEntry {
       steps: string[];
     }[];
   };
-}
-export interface ArtifactListFilters {
-  workflowId?: string;
-  componentId?: string;
-  destination?: ArtifactDestination;
-  search?: string;
-  limit?: number;
 }
 
 /**
@@ -234,22 +196,22 @@ async function fetchScheduleById(id: string): Promise<WorkflowSchedule> {
  */
 export const api = {
   onboarding: {
-    getPreferences: async (): Promise<OnboardingPreferences> => {
+    getPreferences: async (): Promise<components['schemas']['OnboardingPreferencesDto']> => {
       const response = await apiClient.getOnboardingPreferences();
       if (response.error || !response.data) {
         throw new Error('Failed to fetch onboarding preferences');
       }
-      return response.data as OnboardingPreferences;
+      return response.data;
     },
 
     updatePreferences: async (
-      updates: Partial<OnboardingPreferences>,
-    ): Promise<OnboardingPreferences> => {
+      updates: components['schemas']['UpdateOnboardingPreferencesDto'],
+    ): Promise<components['schemas']['OnboardingPreferencesDto']> => {
       const response = await apiClient.updateOnboardingPreferences(updates);
       if (response.error || !response.data) {
         throw new Error('Failed to update onboarding preferences');
       }
-      return response.data as OnboardingPreferences;
+      return response.data;
     },
   },
   workflows: {
@@ -770,14 +732,14 @@ export const api = {
 
     getTerminalChunks: async (
       executionId: string,
-      params?: {
-        nodeRef?: string;
-        stream?: 'stdout' | 'stderr' | 'pty';
-        cursor?: string;
+      params?: Omit<
+        NonNullable<operations['WorkflowsController_terminalChunks']['parameters']['query']>,
+        'startTime' | 'endTime'
+      > & {
         startTime?: Date;
         endTime?: Date;
       },
-    ): Promise<TerminalChunkResponse> => {
+    ): Promise<components['schemas']['TerminalChunksResponseDto']> => {
       const response = await apiClient.getWorkflowRunTerminal(executionId, {
         nodeRef: params?.nodeRef,
         stream: params?.stream,
@@ -788,7 +750,7 @@ export const api = {
       if (response.error || !response.data) {
         throw new Error('Failed to fetch terminal chunks');
       }
-      return response.data as TerminalChunkResponse;
+      return response.data;
     },
 
     getArtifacts: async (executionId: string): Promise<RunArtifactsResponse> => {
@@ -989,7 +951,9 @@ export const api = {
   },
 
   artifacts: {
-    list: async (filters?: ArtifactListFilters) => {
+    list: async (
+      filters?: operations['ArtifactsController_listArtifacts']['parameters']['query'],
+    ) => {
       const response = await apiClient.listArtifacts(filters);
       if (response.error) throw new Error('Failed to fetch artifacts');
       return response.data || { artifacts: [] };
@@ -1532,7 +1496,7 @@ export const api = {
     }) => {
       const queryAnalytics = apiClient.queryAnalytics as (
         payload: typeof body,
-      ) => Promise<{ data?: AnalyticsQueryResponse; error?: object }>;
+      ) => Promise<{ data?: components['schemas']['AnalyticsQueryResponseDto']; error?: object }>;
       const response = await queryAnalytics(body);
       if (response.error || !response.data) throw new Error('Analytics query failed');
       return response.data;
