@@ -41,7 +41,7 @@ export function TemplateDetailDialog({
       <DialogContent className="max-w-2xl p-0 overflow-hidden max-h-[90vh]">
         <div className="overflow-y-auto max-h-[90vh]">
           {/* Preview area */}
-          <div className="aspect-video w-full bg-muted/50 flex items-center justify-center overflow-hidden border-b border-border relative">
+          <div className="h-[40vh] w-full bg-muted/50 flex items-center justify-center overflow-hidden border-b border-border relative">
             {hasGraph ? (
               <WorkflowPreviewCanvas
                 nodes={template.graph!.nodes!}
