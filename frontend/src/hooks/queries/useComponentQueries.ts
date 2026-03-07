@@ -2,21 +2,81 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { queryKeys } from '@/lib/queryKeys';
 import { queryClient } from '@/lib/queryClient';
-import type { ComponentMetadata } from '@/schemas/component';
+import { ComponentMetadata } from '@/schemas/component';
+import type { components } from '../../../../packages/backend-client/src/client';
+
+type ComponentListItem = components['schemas']['ComponentListItemDto'];
 
 interface ComponentIndex {
   byId: Record<string, ComponentMetadata>;
   slugIndex: Record<string, string>;
 }
 
-function buildIndexes(components: ComponentMetadata[]): ComponentIndex {
+function buildIndexes(components: ComponentListItem[]): ComponentIndex {
   const byId: Record<string, ComponentMetadata> = {};
   const slugIndex: Record<string, string> = {};
 
   components.forEach((component) => {
     if (!component?.id || !component?.slug || !component?.name) return;
-    byId[component.id] = component;
-    slugIndex[component.slug] = component.id;
+
+    const nullToUndef = <T>(v: T | null | undefined): T | undefined => v ?? undefined;
+
+    const metadata: ComponentMetadata = {
+      id: component.id,
+      slug: component.slug,
+      name: component.name,
+      version: component.version || '1.0.0',
+      type: component.type || 'process',
+      category: component.category || 'transform',
+      categoryConfig: component.categoryConfig || {
+        label: component.category || 'Other',
+        color: '#666',
+        description: '',
+        emoji: '\u{1F4E6}',
+        icon: 'Box',
+      },
+      description: component.description || '',
+      documentation: component.documentation || null,
+      documentationUrl: component.documentationUrl || null,
+      icon: component.icon || null,
+      logo: component.logo || null,
+      author: component.author
+        ? { ...component.author, url: nullToUndef(component.author.url) }
+        : null,
+      isLatest: component.isLatest ?? true,
+      deprecated: component.deprecated ?? false,
+      example: component.example || null,
+      runner: component.runner || { kind: 'inline' },
+      inputs:
+        component.inputs?.map((i) => ({
+          ...i,
+          editor: nullToUndef(i.editor),
+          description: nullToUndef(i.description),
+          valuePriority: nullToUndef(i.valuePriority),
+        })) || [],
+      outputs:
+        component.outputs?.map((o) => ({
+          ...o,
+          description: nullToUndef(o.description),
+        })) || [],
+      parameters:
+        component.parameters?.map((p) => ({
+          ...p,
+          options: nullToUndef(p.options),
+          placeholder: nullToUndef(p.placeholder),
+          description: nullToUndef(p.description),
+          helpText: nullToUndef(p.helpText),
+          min: nullToUndef(p.min),
+          max: nullToUndef(p.max),
+          rows: nullToUndef(p.rows),
+        })) || [],
+      examples: component.examples || [],
+      toolProvider: component.toolProvider || null,
+      toolSchema: component.toolSchema ?? null,
+    };
+
+    byId[metadata.id] = metadata;
+    slugIndex[metadata.slug] = metadata.id;
   });
 
   return { byId, slugIndex };

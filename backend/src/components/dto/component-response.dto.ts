@@ -1,5 +1,8 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { COMPONENT_CATEGORIES } from '@shipsec/shared';
+
+const ComponentTypeEnum = z.enum(['trigger', 'input', 'scan', 'process', 'output']);
 
 const CategoryConfigSchema = z.object({
   label: z.string(),
@@ -59,10 +62,16 @@ const ComponentParameterSchema = z.object({
     'textarea',
     'number',
     'boolean',
+    'toggle',
     'select',
     'multi-select',
+    'file',
     'json',
     'secret',
+    'artifact',
+    'variable-list',
+    'form-fields',
+    'selection-options',
   ]),
   required: z.boolean(),
   default: z.unknown().nullable().optional(),
@@ -102,8 +111,8 @@ export const ComponentListItemSchema = z.object({
   slug: z.string(),
   name: z.string(),
   version: z.string(),
-  type: z.string(),
-  category: z.string(),
+  type: ComponentTypeEnum,
+  category: z.enum(COMPONENT_CATEGORIES),
   categoryConfig: CategoryConfigSchema,
   description: z.string(),
   documentation: z.string().nullable(),

@@ -4283,8 +4283,10 @@ export interface components {
             slug: string;
             name: string;
             version: string;
-            type: string;
-            category: string;
+            /** @enum {string} */
+            type: "trigger" | "input" | "scan" | "process" | "output";
+            /** @enum {string} */
+            category: "input" | "transform" | "ai" | "mcp" | "security" | "scanners" | "it_ops" | "notification" | "manual_action" | "output" | "process" | "cloud" | "core";
             categoryConfig: {
                 label: string;
                 color: string;
@@ -4353,7 +4355,7 @@ export interface components {
                 id: string;
                 label: string;
                 /** @enum {string} */
-                type: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret";
+                type: "text" | "textarea" | "number" | "boolean" | "toggle" | "select" | "multi-select" | "file" | "json" | "secret" | "artifact" | "variable-list" | "form-fields" | "selection-options";
                 required: boolean;
                 default?: unknown;
                 placeholder?: string | null;
@@ -4385,8 +4387,10 @@ export interface components {
             slug: string;
             name: string;
             version: string;
-            type: string;
-            category: string;
+            /** @enum {string} */
+            type: "trigger" | "input" | "scan" | "process" | "output";
+            /** @enum {string} */
+            category: "input" | "transform" | "ai" | "mcp" | "security" | "scanners" | "it_ops" | "notification" | "manual_action" | "output" | "process" | "cloud" | "core";
             categoryConfig: {
                 label: string;
                 color: string;
@@ -4455,7 +4459,7 @@ export interface components {
                 id: string;
                 label: string;
                 /** @enum {string} */
-                type: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret";
+                type: "text" | "textarea" | "number" | "boolean" | "toggle" | "select" | "multi-select" | "file" | "json" | "secret" | "artifact" | "variable-list" | "form-fields" | "selection-options";
                 required: boolean;
                 default?: unknown;
                 placeholder?: string | null;
