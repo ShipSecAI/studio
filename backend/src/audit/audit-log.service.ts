@@ -2,7 +2,11 @@ import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 
 import type { AuthContext } from '../auth/types';
 import { DEFAULT_ORGANIZATION_ID } from '../auth/constants';
-import type { AuditActorType, AuditResourceType } from '../database/schema/audit-logs';
+import type {
+  AuditActorType,
+  AuditJsonObject,
+  AuditResourceType,
+} from '../database/schema/audit-logs';
 import { AuditLogRepository } from './audit-log.repository';
 
 export interface AuditRequestMeta {
@@ -15,7 +19,7 @@ export interface AuditEventInput {
   resourceType: AuditResourceType;
   resourceId?: string | null;
   resourceName?: string | null;
-  metadata?: Record<string, unknown> | null;
+  metadata?: AuditJsonObject | null;
 }
 
 export interface ListAuditLogsInput {

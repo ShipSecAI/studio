@@ -1,4 +1,5 @@
-import { createShipSecClient, type components } from '@shipsec/backend-client';
+import { createShipSecClient } from '../../../packages/backend-client/src/api-client';
+import type { components, operations } from '../../../packages/backend-client/src/client';
 import type {
   ArtifactDestination,
   RunArtifactsResponse,
@@ -10,27 +11,11 @@ import type {
 } from '@shipsec/shared';
 import { useAuthStore } from '@/store/authStore';
 import { getFreshClerkToken } from '@/utils/clerk-token';
-// Direct type imports from backend client
-type WorkflowResponseDto = components['schemas']['WorkflowResponseDto'];
-type CreateWorkflowRequestDto = components['schemas']['CreateWorkflowRequestDto'];
-type UpdateWorkflowRequestDto = components['schemas']['UpdateWorkflowRequestDto'];
-type SecretSummaryResponse = components['schemas']['SecretSummaryResponse'];
-type SecretValueResponse = components['schemas']['SecretValueResponse'];
-type CreateSecretDto = components['schemas']['CreateSecretDto'];
-type RotateSecretDto = components['schemas']['RotateSecretDto'];
-type UpdateSecretDto = components['schemas']['UpdateSecretDto'];
-type IntegrationProviderResponse = components['schemas']['IntegrationProviderResponse'];
-type IntegrationConnectionResponse = components['schemas']['IntegrationConnectionResponse'];
-type ProviderConfigurationResponse = components['schemas']['ProviderConfigurationResponse'];
-type OAuthStartResponseDto = components['schemas']['OAuthStartResponseDto'];
-type UpsertProviderConfigRequest = components['schemas']['UpsertProviderConfigDto'];
-type WorkflowVersionResponse = components['schemas']['WorkflowVersionResponseDto'];
-type CreateScheduleRequestDto = components['schemas']['CreateScheduleRequestDto'];
-type UpdateScheduleRequestDto = components['schemas']['UpdateScheduleRequestDto'];
-type ApiKeyResponseDto = components['schemas']['ApiKeyResponseDto'];
-type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto'];
-type CreateApiKeyDto = components['schemas']['CreateApiKeyDto'];
-type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto'];
+
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+type JsonObject = Record<string, JsonValue>;
+
 // TODO: regenerate OpenAPI types to pull from schema
 export interface ProwlerCheckMetadata {
   checkTitle: string | null;
@@ -42,23 +27,14 @@ export interface ProwlerCheckMetadata {
   other: string | null;
 }
 
-export interface ListAuditLogsResponseDto {
-  items: {
-    id: string;
-    organizationId: string | null;
-    actorId: string | null;
-    actorType: 'user' | 'api-key' | 'internal' | 'unknown';
-    actorDisplay: string | null;
-    action: string;
-    resourceType: string;
-    resourceId: string | null;
-    resourceName: string | null;
-    metadata: Record<string, unknown> | null;
-    ip: string | null;
-    userAgent: string | null;
-    createdAt: string;
+export interface AnalyticsQueryResponse {
+  total: number;
+  hits: {
+    _id: string;
+    _source: JsonObject;
+    _score?: number;
   }[];
-  nextCursor: string | null;
+  aggregations?: Record<string, JsonObject>;
 }
 
 export interface TerminalChunkResponse {
@@ -98,10 +74,11 @@ export interface WorkflowSummary {
   updatedAt: string;
 }
 
-export type IntegrationProvider = IntegrationProviderResponse;
-export type IntegrationConnection = IntegrationConnectionResponse;
-export type IntegrationProviderConfiguration = ProviderConfigurationResponse;
-export type OAuthStartResponse = OAuthStartResponseDto;
+export type IntegrationProvider = components['schemas']['IntegrationProviderResponse'];
+export type IntegrationConnection = components['schemas']['IntegrationConnectionResponse'];
+export type IntegrationProviderConfiguration =
+  components['schemas']['ProviderConfigurationResponse'];
+export type OAuthStartResponse = components['schemas']['OAuthStartResponseDto'];
 
 // Catalog types (from backend integration-catalog.ts)
 export interface IntegrationCatalogEntry {
@@ -258,55 +235,47 @@ async function fetchScheduleById(id: string): Promise<WorkflowSchedule> {
 export const api = {
   onboarding: {
     getPreferences: async (): Promise<OnboardingPreferences> => {
-      const response = await fetch(`${API_V1_URL}/onboarding/preferences`, {
-        method: 'GET',
-        headers: await getAuthHeaders(),
-      });
-      if (!response.ok) {
+      const response = await apiClient.getOnboardingPreferences();
+      if (response.error || !response.data) {
         throw new Error('Failed to fetch onboarding preferences');
       }
-      return (await response.json()) as OnboardingPreferences;
+      return response.data as OnboardingPreferences;
     },
 
     updatePreferences: async (
       updates: Partial<OnboardingPreferences>,
     ): Promise<OnboardingPreferences> => {
-      const response = await fetch(`${API_V1_URL}/onboarding/preferences`, {
-        method: 'PATCH',
-        headers: {
-          ...(await getAuthHeaders()),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updates),
-      });
-      if (!response.ok) {
+      const response = await apiClient.updateOnboardingPreferences(updates);
+      if (response.error || !response.data) {
         throw new Error('Failed to update onboarding preferences');
       }
-      return (await response.json()) as OnboardingPreferences;
+      return response.data as OnboardingPreferences;
     },
   },
   workflows: {
-    list: async (): Promise<WorkflowResponseDto[]> => {
+    list: async (): Promise<components['schemas']['WorkflowResponseDto'][]> => {
       const response = await apiClient.listWorkflows();
       if (response.error) throw new Error('Failed to fetch workflows');
       return response.data || [];
     },
 
     listSummary: async (): Promise<WorkflowSummary[]> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/workflows/summary`, { headers });
-      if (!response.ok) throw new Error('Failed to fetch workflow summaries');
-      return response.json();
+      const response = await apiClient.listWorkflowSummaries();
+      if (response.error) throw new Error('Failed to fetch workflow summaries');
+      return (response.data ?? []) as WorkflowSummary[];
     },
 
-    get: async (id: string): Promise<WorkflowResponseDto> => {
+    get: async (id: string): Promise<components['schemas']['WorkflowResponseDto']> => {
       const response = await apiClient.getWorkflow(id);
       if (response.error) throw new Error('Failed to fetch workflow');
       if (!response.data) throw new Error('Workflow not found');
       return response.data;
     },
 
-    getVersion: async (workflowId: string, versionId: string): Promise<WorkflowVersionResponse> => {
+    getVersion: async (
+      workflowId: string,
+      versionId: string,
+    ): Promise<components['schemas']['WorkflowVersionResponseDto']> => {
       const response = await apiClient.getWorkflowVersion(workflowId, versionId);
       if (response.error || !response.data) {
         throw new Error('Failed to fetch workflow version');
@@ -322,29 +291,21 @@ export const api = {
       return response.data;
     },
 
-    create: async (workflow: CreateWorkflowRequestDto): Promise<WorkflowResponseDto> => {
-      const response = (await apiClient.createWorkflow(workflow)) as any;
-      if (response.error) {
-        const errorMessage =
-          response.error?.message ||
-          (typeof response.error === 'string' ? response.error : 'Failed to create workflow');
-        throw new Error(errorMessage);
-      }
+    create: async (
+      workflow: components['schemas']['CreateWorkflowRequestDto'],
+    ): Promise<components['schemas']['WorkflowResponseDto']> => {
+      const response = await apiClient.createWorkflow(workflow);
+      if (response.error) throw new Error('Failed to create workflow');
       if (!response.data) throw new Error('Workflow creation failed');
       return response.data;
     },
 
     update: async (
       id: string,
-      workflow: UpdateWorkflowRequestDto,
-    ): Promise<WorkflowResponseDto> => {
-      const response = (await apiClient.updateWorkflow(id, workflow)) as any;
-      if (response.error) {
-        const errorMessage =
-          response.error?.message ||
-          (typeof response.error === 'string' ? response.error : 'Failed to update workflow');
-        throw new Error(errorMessage);
-      }
+      workflow: components['schemas']['UpdateWorkflowRequestDto'],
+    ): Promise<components['schemas']['WorkflowResponseDto']> => {
+      const response = await apiClient.updateWorkflow(id, workflow);
+      if (response.error) throw new Error('Failed to update workflow');
       if (!response.data) throw new Error('Workflow update failed');
       return response.data;
     },
@@ -357,7 +318,7 @@ export const api = {
         icon?: string | null;
         iconColor?: string | null;
       },
-    ): Promise<WorkflowResponseDto> => {
+    ): Promise<components['schemas']['WorkflowResponseDto']> => {
       const response = await apiClient.updateWorkflowMetadata(id, metadata);
       if (response.error) throw new Error('Failed to update workflow metadata');
       if (!response.data) throw new Error('Workflow update failed');
@@ -370,20 +331,17 @@ export const api = {
     },
 
     commit: async (id: string) => {
-      const response: any = await apiClient.commitWorkflow(id);
-      if (response.error) {
-        const message = response.error?.message || 'Failed to commit workflow';
-        throw new Error(message);
-      }
+      const response = await apiClient.commitWorkflow(id);
+      if (response.error) throw new Error('Failed to commit workflow');
       return response.data;
     },
 
-    run: async (id: string, body?: { inputs?: Record<string, unknown> }) => {
-      const response: any = await apiClient.runWorkflow(id, body);
-      if (response.error) {
-        const message = response.error?.message || 'Failed to run workflow';
-        throw new Error(message);
-      }
+    run: async (
+      id: string,
+      body?: { inputs?: NonNullable<components['schemas']['RunWorkflowRequestDto']['inputs']> },
+    ) => {
+      const response = await apiClient.runWorkflow(id, body);
+      if (response.error) throw new Error('Failed to run workflow');
       return response.data;
     },
   },
@@ -401,46 +359,48 @@ export const api = {
       return response.data;
     },
 
-    resolvePorts: async (id: string, params: Record<string, unknown>) => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/components/${id}/resolve-ports`, {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(params),
-      });
-
-      if (!response.ok) {
+    resolvePorts: async (
+      id: string,
+      params: components['schemas']['ResolvePortsRequestDto'],
+    ): Promise<components['schemas']['ResolvePortsResponseDto']> => {
+      const response = await apiClient.resolveComponentPorts(id, params);
+      if (response.error || !response.data) {
         throw new Error('Failed to resolve ports');
       }
-      return await response.json();
+      return response.data;
     },
   },
 
   secrets: {
-    list: async (): Promise<SecretSummaryResponse[]> => {
+    list: async (): Promise<components['schemas']['SecretSummaryResponse'][]> => {
       const response = await apiClient.listSecrets();
       if (response.error) throw new Error('Failed to fetch secrets');
       return response.data || [];
     },
 
-    create: async (input: CreateSecretDto): Promise<SecretSummaryResponse> => {
+    create: async (
+      input: components['schemas']['CreateSecretDto'],
+    ): Promise<components['schemas']['SecretSummaryResponse']> => {
       const response = await apiClient.createSecret(input);
       if (response.error) throw new Error('Failed to create secret');
       if (!response.data) throw new Error('Secret creation failed');
       return response.data;
     },
 
-    update: async (id: string, input: UpdateSecretDto): Promise<SecretSummaryResponse> => {
+    update: async (
+      id: string,
+      input: components['schemas']['UpdateSecretDto'],
+    ): Promise<components['schemas']['SecretSummaryResponse']> => {
       const response = await apiClient.updateSecret(id, input);
       if (response.error) throw new Error('Failed to update secret');
       if (!response.data) throw new Error('Secret update failed');
       return response.data;
     },
 
-    rotate: async (id: string, input: RotateSecretDto): Promise<SecretSummaryResponse> => {
+    rotate: async (
+      id: string,
+      input: components['schemas']['RotateSecretDto'],
+    ): Promise<components['schemas']['SecretSummaryResponse']> => {
       const response = await apiClient.rotateSecret(id, input);
       if (response.error) throw new Error('Failed to rotate secret');
       if (!response.data) throw new Error('Secret rotation failed');
@@ -452,7 +412,10 @@ export const api = {
       if (response.error) throw new Error('Failed to delete secret');
     },
 
-    getValue: async (id: string, version?: number): Promise<SecretValueResponse> => {
+    getValue: async (
+      id: string,
+      version?: number,
+    ): Promise<components['schemas']['SecretValueResponse']> => {
       const response = await apiClient.getSecretValue(id, version);
       if (response.error) throw new Error('Failed to fetch secret value');
       if (!response.data) throw new Error('Secret value not found');
@@ -469,19 +432,16 @@ export const api = {
 
     // D6: org-scoped connection listing (primary source of truth)
     listOrgConnections: async (provider?: string): Promise<IntegrationConnection[]> => {
-      const headers = await getAuthHeaders();
-      const params = provider ? `?provider=${encodeURIComponent(provider)}` : '';
-      const res = await fetch(`${API_V1_URL}/integrations/org/connections${params}`, { headers });
-      if (!res.ok) throw new Error('Failed to load org connections');
-      return res.json();
+      const response = await apiClient.listOrgIntegrationConnections(provider);
+      if (response.error) throw new Error('Failed to load org connections');
+      return (response.data ?? []) as IntegrationConnection[];
     },
 
     // D5: Provider catalog (AWS + Slack definitions)
     getCatalog: async (): Promise<IntegrationCatalogEntry[]> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${API_V1_URL}/integrations/catalog`, { headers });
-      if (!res.ok) throw new Error('Failed to load integration catalog');
-      return res.json();
+      const response = await apiClient.getIntegrationCatalog();
+      if (response.error) throw new Error('Failed to load integration catalog');
+      return (response.data ?? []) as IntegrationCatalogEntry[];
     },
 
     // D16: userId removed from OAuth payloads
@@ -489,58 +449,32 @@ export const api = {
       providerId: string,
       payload: { redirectUri: string; scopes?: string[] },
     ): Promise<OAuthStartResponse> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(
-        `${API_V1_URL}/integrations/${encodeURIComponent(providerId)}/start`,
-        {
-          method: 'POST',
-          headers: { ...headers, 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        },
-      );
-      if (!res.ok) throw new Error('Failed to start OAuth flow');
-      return res.json();
+      const response = await apiClient.startIntegrationOAuth(providerId, payload);
+      if (response.error || !response.data) throw new Error('Failed to start OAuth flow');
+      return response.data as OAuthStartResponse;
     },
 
     completeOAuth: async (
       providerId: string,
       payload: { redirectUri: string; state: string; code: string; scopes?: string[] },
     ): Promise<IntegrationConnection> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(
-        `${API_V1_URL}/integrations/${encodeURIComponent(providerId)}/exchange`,
-        {
-          method: 'POST',
-          headers: { ...headers, 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        },
-      );
-      if (!res.ok) throw new Error('Failed to complete OAuth exchange');
-      return res.json();
+      const response = await apiClient.completeIntegrationOAuth(providerId, payload);
+      if (response.error || !response.data) throw new Error('Failed to complete OAuth exchange');
+      return response.data as IntegrationConnection;
     },
 
     // D16: userId removed, derived from auth context
     refreshConnection: async (id: string): Promise<IntegrationConnection> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(
-        `${API_V1_URL}/integrations/connections/${encodeURIComponent(id)}/refresh`,
-        {
-          method: 'POST',
-          headers: { ...headers, 'Content-Type': 'application/json' },
-        },
-      );
-      if (!res.ok) throw new Error('Failed to refresh integration connection');
-      return res.json();
+      const response = await apiClient.refreshIntegrationConnection(id);
+      if (response.error || !response.data)
+        throw new Error('Failed to refresh integration connection');
+      return response.data as IntegrationConnection;
     },
 
     // D16: userId removed, derived from auth context
     disconnect: async (id: string): Promise<void> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${API_V1_URL}/integrations/connections/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-        headers,
-      });
-      if (!res.ok) throw new Error('Failed to disconnect integration');
+      const response = await apiClient.disconnectIntegrationConnection(id);
+      if (response.error) throw new Error('Failed to disconnect integration');
     },
 
     // AWS setup info (generates trust policy + external ID + setup token)
@@ -551,13 +485,17 @@ export const api = {
       trustPolicyTemplate: string;
       externalIdDisplay?: string;
     }> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${API_V1_URL}/integrations/aws/setup-info`, { headers });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || 'Failed to load AWS setup info');
+      const response = await apiClient.getAwsSetupInfo();
+      if (response.error || !response.data) {
+        throw new Error('Failed to load AWS setup info');
       }
-      return res.json();
+      return response.data as {
+        platformRoleArn: string;
+        externalId: string;
+        setupToken: string;
+        trustPolicyTemplate: string;
+        externalIdDisplay?: string;
+      };
     },
 
     // AWS connection management (IAM role only)
@@ -568,33 +506,19 @@ export const api = {
       externalId: string;
       setupToken: string;
     }): Promise<IntegrationConnection> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${API_V1_URL}/integrations/aws/connections`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Failed to create AWS connection');
+      const response = await apiClient.createAwsIntegrationConnection(payload);
+      if (response.error || !response.data) {
+        throw new Error('Failed to create AWS connection');
       }
-      return res.json();
+      return response.data as IntegrationConnection;
     },
 
     validateAwsConnection: async (id: string): Promise<{ valid: boolean; error?: string }> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(
-        `${API_V1_URL}/integrations/aws/connections/${encodeURIComponent(id)}/validate`,
-        {
-          method: 'POST',
-          headers: { ...headers, 'Content-Type': 'application/json' },
-        },
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Failed to validate AWS connection');
+      const response = await apiClient.validateAwsIntegrationConnection(id);
+      if (response.error || !response.data) {
+        throw new Error('Failed to validate AWS connection');
       }
-      const result = await res.json();
+      const result = response.data as { valid: boolean; error?: string };
       if (!result.valid) {
         throw new Error(result.error || 'AWS connection validation failed');
       }
@@ -606,16 +530,13 @@ export const api = {
     ): Promise<{
       accounts: { id: string; name: string; status: string; email?: string }[];
     }> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(
-        `${API_V1_URL}/integrations/aws/connections/${encodeURIComponent(id)}/discover-org`,
-        {
-          method: 'POST',
-          headers: { ...headers, 'Content-Type': 'application/json' },
-        },
-      );
-      if (!res.ok) throw new Error('Failed to discover AWS organization accounts');
-      return res.json();
+      const response = await apiClient.discoverAwsOrganizationAccounts(id);
+      if (response.error || !response.data) {
+        throw new Error('Failed to discover AWS organization accounts');
+      }
+      return response.data as {
+        accounts: { id: string; name: string; status: string; email?: string }[];
+      };
     },
 
     // Slack connection management
@@ -623,30 +544,17 @@ export const api = {
       displayName: string;
       webhookUrl: string;
     }): Promise<IntegrationConnection> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${API_V1_URL}/integrations/slack/connections`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Failed to create Slack connection');
+      const response = await apiClient.createSlackWebhookIntegrationConnection(payload);
+      if (response.error || !response.data) {
+        throw new Error('Failed to create Slack connection');
       }
-      return res.json();
+      return response.data as IntegrationConnection;
     },
 
     testSlackConnection: async (id: string): Promise<{ ok: boolean; error?: string }> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(
-        `${API_V1_URL}/integrations/slack/connections/${encodeURIComponent(id)}/test`,
-        {
-          method: 'POST',
-          headers: { ...headers, 'Content-Type': 'application/json' },
-        },
-      );
-      if (!res.ok) throw new Error('Failed to test Slack connection');
-      return res.json();
+      const response = await apiClient.testSlackIntegrationConnection(id);
+      if (response.error || !response.data) throw new Error('Failed to test Slack connection');
+      return response.data as { ok: boolean; error?: string };
     },
 
     getProviderConfig: async (providerId: string): Promise<IntegrationProviderConfiguration> => {
@@ -659,7 +567,7 @@ export const api = {
 
     upsertProviderConfig: async (
       providerId: string,
-      payload: UpsertProviderConfigRequest,
+      payload: components['schemas']['UpsertProviderConfigDto'],
     ): Promise<IntegrationProviderConfiguration> => {
       const response = await apiClient.upsertIntegrationProviderConfiguration(providerId, payload);
       if (response.error || !response.data) {
@@ -689,7 +597,9 @@ export const api = {
       return fetchScheduleById(id);
     },
 
-    create: async (payload: CreateScheduleRequestDto): Promise<WorkflowSchedule> => {
+    create: async (
+      payload: components['schemas']['CreateScheduleRequestDto'],
+    ): Promise<WorkflowSchedule> => {
       const response = await apiClient.createSchedule(payload);
       if (response.error) throw new Error('Failed to create schedule');
       const schedule = (response.data ?? null) as WorkflowSchedule | null;
@@ -699,7 +609,10 @@ export const api = {
       return schedule;
     },
 
-    update: async (id: string, payload: UpdateScheduleRequestDto): Promise<WorkflowSchedule> => {
+    update: async (
+      id: string,
+      payload: components['schemas']['UpdateScheduleRequestDto'],
+    ): Promise<WorkflowSchedule> => {
       const response = await apiClient.updateSchedule(id, payload);
       if (response.error) throw new Error('Failed to update schedule');
       const schedule = (response.data ?? null) as WorkflowSchedule | null;
@@ -733,34 +646,39 @@ export const api = {
   },
 
   apiKeys: {
-    list: async (): Promise<ApiKeyResponseDto[]> => {
+    list: async (): Promise<components['schemas']['ApiKeyResponseDto'][]> => {
       const response = await apiClient.listApiKeys();
       if (response.error) throw new Error('Failed to fetch API keys');
       return response.data || [];
     },
 
-    get: async (id: string): Promise<ApiKeyResponseDto> => {
+    get: async (id: string): Promise<components['schemas']['ApiKeyResponseDto']> => {
       const response = await apiClient.getApiKey(id);
       if (response.error) throw new Error('Failed to fetch API key');
       if (!response.data) throw new Error('API key not found');
       return response.data;
     },
 
-    create: async (input: CreateApiKeyDto): Promise<CreateApiKeyResponseDto> => {
+    create: async (
+      input: components['schemas']['CreateApiKeyDto'],
+    ): Promise<components['schemas']['CreateApiKeyResponseDto']> => {
       const response = await apiClient.createApiKey(input);
       if (response.error) throw new Error('Failed to create API key');
       if (!response.data) throw new Error('API key creation failed');
       return response.data;
     },
 
-    update: async (id: string, input: UpdateApiKeyDto): Promise<ApiKeyResponseDto> => {
+    update: async (
+      id: string,
+      input: components['schemas']['UpdateApiKeyDto'],
+    ): Promise<components['schemas']['ApiKeyResponseDto']> => {
       const response = await apiClient.updateApiKey(id, input);
       if (response.error) throw new Error('Failed to update API key');
       if (!response.data) throw new Error('API key update failed');
       return response.data;
     },
 
-    revoke: async (id: string): Promise<ApiKeyResponseDto> => {
+    revoke: async (id: string): Promise<components['schemas']['ApiKeyResponseDto']> => {
       const response = await apiClient.revokeApiKey(id);
       if (response.error) throw new Error('Failed to revoke API key');
       if (!response.data) throw new Error('API key revocation failed');
@@ -774,43 +692,24 @@ export const api = {
   },
 
   auditLogs: {
-    list: async (query: {
-      resourceType?: string;
-      resourceId?: string;
-      action?: string;
-      actorId?: string;
-      from?: string;
-      to?: string;
-      limit?: number;
-      cursor?: string;
-    }): Promise<ListAuditLogsResponseDto> => {
-      const headers = await getAuthHeaders();
-      const path = `${API_V1_URL}/audit-logs`;
-      const url = new URL(path, window.location.origin);
-
-      if (query.resourceType) url.searchParams.set('resourceType', query.resourceType);
-      if (query.resourceId) url.searchParams.set('resourceId', query.resourceId);
-      if (query.action) url.searchParams.set('action', query.action);
-      if (query.actorId) url.searchParams.set('actorId', query.actorId);
-      if (query.from) url.searchParams.set('from', query.from);
-      if (query.to) url.searchParams.set('to', query.to);
-      if (query.cursor) url.searchParams.set('cursor', query.cursor);
-      if (query.limit) url.searchParams.set('limit', String(query.limit));
-
-      const res = await fetch(url.toString(), { headers });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Failed to fetch audit logs: ${res.status} ${text}`);
+    list: async (
+      query: operations['AuditLogsController_list']['parameters']['query'] = {},
+    ): Promise<components['schemas']['ListAuditLogsResponseDto']> => {
+      const response = await apiClient.listAuditLogs(query);
+      if (response.error || !response.data) {
+        throw new Error('Failed to fetch audit logs');
       }
-      return (await res.json()) as ListAuditLogsResponseDto;
+      return response.data;
     },
   },
 
   executions: {
-    start: async (
+    start: async <
+      TInputs extends NonNullable<components['schemas']['RunWorkflowRequestDto']['inputs']>,
+    >(
       workflowId: string,
       options?: {
-        inputs?: Record<string, unknown>;
+        inputs?: TInputs;
         versionId?: string;
         version?: number;
       },
@@ -823,13 +722,10 @@ export const api = {
           }
         : undefined;
       const response = await apiClient.runWorkflow(workflowId, payload);
-      if ((response as any).error) {
-        const error = (response as any).error;
-        const errorMessage =
-          error?.message || (typeof error === 'string' ? error : 'Failed to start execution');
-        throw new Error(errorMessage);
+      if (response.error || !response.data?.runId) {
+        throw new Error('Failed to start execution');
       }
-      return { executionId: (response.data as any)?.runId || '' };
+      return { executionId: response.data.runId };
     },
 
     getStatus: async (executionId: string) => {
@@ -876,47 +772,42 @@ export const api = {
       executionId: string,
       params?: {
         nodeRef?: string;
-        stream?: string;
+        stream?: 'stdout' | 'stderr' | 'pty';
         cursor?: string;
         startTime?: Date;
         endTime?: Date;
       },
     ): Promise<TerminalChunkResponse> => {
-      const headers = await getAuthHeaders();
-      const path = `${API_V1_URL}/workflows/runs/${executionId}/terminal`;
-      const url = new URL(path, window.location.origin);
-      if (params?.nodeRef) url.searchParams.set('nodeRef', params.nodeRef);
-      if (params?.stream) url.searchParams.set('stream', params.stream);
-      if (params?.cursor) url.searchParams.set('cursor', params.cursor);
-      if (params?.startTime) url.searchParams.set('startTime', params.startTime.toISOString());
-      if (params?.endTime) url.searchParams.set('endTime', params.endTime.toISOString());
-      const response = await fetch(url.toString(), { headers });
-      if (!response.ok) {
+      const response = await apiClient.getWorkflowRunTerminal(executionId, {
+        nodeRef: params?.nodeRef,
+        stream: params?.stream,
+        cursor: params?.cursor,
+        startTime: params?.startTime?.toISOString(),
+        endTime: params?.endTime?.toISOString(),
+      });
+      if (response.error || !response.data) {
         throw new Error('Failed to fetch terminal chunks');
       }
-      return (await response.json()) as TerminalChunkResponse;
+      return response.data as TerminalChunkResponse;
     },
 
     getArtifacts: async (executionId: string): Promise<RunArtifactsResponse> => {
-      const response = (await apiClient.getWorkflowRunArtifacts(executionId)) as any;
+      const response = await apiClient.getWorkflowRunArtifacts(executionId);
       if (response.error || !response.data) {
         throw new Error('Failed to fetch run artifacts');
       }
-      return response.data;
+      return {
+        runId: response.data.runId,
+        artifacts: response.data.artifacts.map((artifact) => ({
+          ...artifact,
+          workflowVersionId: artifact.workflowVersionId ?? null,
+          metadata: artifact.metadata ?? undefined,
+        })),
+      };
     },
 
     downloadArtifact: async (executionId: string, artifactId: string): Promise<Blob> => {
-      // Use direct fetch instead of typed client due to OpenAPI spec mismatch
-      // (path uses {artifactId} but parameter is named 'id')
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/api/v1/workflows/runs/${executionId}/artifacts/${artifactId}/download`,
-        { headers },
-      );
-      if (!response.ok) {
-        throw new Error('Failed to download artifact');
-      }
-      return await response.blob();
+      return apiClient.downloadWorkflowRunArtifact(executionId, artifactId);
     },
 
     stream: async (
@@ -1082,16 +973,8 @@ export const api = {
     },
 
     upload: async (file: File) => {
-      const response = (await apiClient.uploadFile(file)) as any;
-      if (response.error) {
-        const errorMessage =
-          response.error instanceof Error
-            ? response.error.message
-            : typeof response.error === 'string'
-              ? response.error
-              : 'Failed to upload file';
-        throw new Error(errorMessage);
-      }
+      const response = await apiClient.uploadFile(file);
+      if (response.error) throw new Error('Failed to upload file');
       return response.data;
     },
 
@@ -1107,33 +990,18 @@ export const api = {
 
   artifacts: {
     list: async (filters?: ArtifactListFilters) => {
-      const response = (await apiClient.listArtifacts(filters)) as any;
-      if (response.error) {
-        throw new Error('Failed to fetch artifacts');
-      }
+      const response = await apiClient.listArtifacts(filters);
+      if (response.error) throw new Error('Failed to fetch artifacts');
       return response.data || { artifacts: [] };
     },
 
     download: async (id: string): Promise<Blob> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/artifacts/${id}/download`, {
-        headers,
-      });
-      if (!response.ok) {
-        throw new Error('Failed to download artifact');
-      }
-      return await response.blob();
+      return apiClient.downloadArtifact(id);
     },
 
     delete: async (id: string): Promise<void> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/api/v1/artifacts/${id}`, {
-        method: 'DELETE',
-        headers,
-      });
-      if (!response.ok) {
-        throw new Error('Failed to delete artifact');
-      }
+      const response = await apiClient.deleteArtifact(id);
+      if (response.error) throw new Error('Failed to delete artifact');
     },
   },
 
@@ -1159,7 +1027,7 @@ export const api = {
 
     resolve: async (
       id: string,
-      payload: { status: 'resolved' | 'rejected'; responseData?: any; comment?: string },
+      payload: { status: 'resolved' | 'rejected'; responseData?: JsonObject; comment?: string },
     ) => {
       const response = await apiClient.resolveHumanInput(id, {
         responseData: {
@@ -1187,17 +1055,19 @@ export const api = {
       return response.data as WebhookConfiguration;
     },
 
-    create: async (payload: Partial<WebhookConfiguration>): Promise<WebhookConfiguration> => {
-      const response = await apiClient.createWebhookConfiguration(payload as any);
+    create: async (
+      payload: components['schemas']['CreateWebhookRequestDto'],
+    ): Promise<WebhookConfiguration> => {
+      const response = await apiClient.createWebhookConfiguration(payload);
       if (response.error) throw new Error('Failed to create webhook configuration');
       return response.data as WebhookConfiguration;
     },
 
     update: async (
       id: string,
-      payload: Partial<WebhookConfiguration>,
+      payload: components['schemas']['UpdateWebhookRequestDto'],
     ): Promise<WebhookConfiguration> => {
-      const response = await apiClient.updateWebhookConfiguration(id, payload as any);
+      const response = await apiClient.updateWebhookConfiguration(id, payload);
       if (response.error) throw new Error('Failed to update webhook configuration');
       return response.data as WebhookConfiguration;
     },
@@ -1209,14 +1079,15 @@ export const api = {
 
     testScript: async (payload: {
       script: string;
-      payload: any;
+      payload: JsonObject;
       headers: Record<string, string>;
     }): Promise<TestWebhookScriptResponse> => {
-      const response = await apiClient.testWebhookScript({
+      const request: components['schemas']['TestWebhookScriptRequestDto'] = {
         parsingScript: payload.script,
         testPayload: payload.payload,
         testHeaders: payload.headers,
-      });
+      };
+      const response = await apiClient.testWebhookScript(request);
       if (response.error) throw new Error('Failed to test webhook script');
       return response.data as TestWebhookScriptResponse;
     },
@@ -1225,6 +1096,16 @@ export const api = {
       const response = await apiClient.listDeliveries(id);
       if (response.error) throw new Error('Failed to fetch webhook deliveries');
       return (response.data || []) as WebhookDelivery[];
+    },
+
+    regeneratePath: async (
+      id: string,
+    ): Promise<{ id: string; webhookPath: string; url: string }> => {
+      const response = await apiClient.regenerateWebhookPath(id);
+      if (response.error || !response.data) {
+        throw new Error('Failed to regenerate webhook path');
+      }
+      return response.data as { id: string; webhookPath: string; url: string };
     },
   },
 
@@ -1359,70 +1240,333 @@ export const api = {
     },
   },
 
+  mcpDiscovery: {
+    discover: async (input: components['schemas']['DiscoveryInputDto']) => {
+      const response = await apiClient.discoverMcpTools(input);
+      if (response.error || !response.data) throw new Error('Failed to start MCP discovery');
+      return response.data as { workflowId: string; cacheToken?: string; status: string };
+    },
+
+    getStatus: async (workflowId: string): Promise<components['schemas']['DiscoveryStatusDto']> => {
+      const response = await apiClient.getMcpDiscoveryStatus(workflowId);
+      if (response.error || !response.data) throw new Error('Failed to fetch discovery status');
+      return response.data;
+    },
+
+    discoverGroup: async (input: components['schemas']['GroupDiscoveryInputDto']) => {
+      const response = await apiClient.discoverMcpGroupTools(input);
+      if (response.error || !response.data) throw new Error('Failed to start MCP group discovery');
+      return response.data as {
+        workflowId: string;
+        cacheTokens: Record<string, string>;
+        status: string;
+      };
+    },
+
+    getGroupStatus: async (
+      workflowId: string,
+    ): Promise<components['schemas']['GroupDiscoveryStatusDto']> => {
+      const response = await apiClient.getMcpGroupDiscoveryStatus(workflowId);
+      if (response.error || !response.data) {
+        throw new Error('Failed to fetch group discovery status');
+      }
+      return response.data;
+    },
+  },
+
+  mcpGroups: {
+    list: async (options?: {
+      enabled?: boolean;
+      includeServers?: boolean;
+    }): Promise<components['schemas']['McpGroupResponseDto'][]> => {
+      const response = await apiClient.listMcpGroups(options);
+      if (response.error) throw new Error('Failed to fetch MCP groups');
+      return response.data ?? [];
+    },
+
+    listTemplates: async (): Promise<components['schemas']['GroupTemplateDto'][]> => {
+      const response = await apiClient.listMcpGroupTemplates();
+      if (response.error) throw new Error('Failed to fetch group templates');
+      return response.data ?? [];
+    },
+
+    get: async (id: string): Promise<components['schemas']['McpGroupResponseDto']> => {
+      const response = await apiClient.getMcpGroup(id);
+      if (response.error || !response.data) throw new Error('Failed to fetch MCP group');
+      return response.data;
+    },
+
+    getServers: async (id: string) => {
+      const response = await apiClient.listMcpGroupServers(id);
+      if (response.error) throw new Error('Failed to fetch group servers');
+      return response.data ?? [];
+    },
+
+    syncTemplates: async () => {
+      const response = await apiClient.syncMcpGroupTemplates();
+      if (response.error || !response.data) throw new Error('Failed to sync group templates');
+      return response.data;
+    },
+
+    importTemplate: async (slug: string, serverCacheTokens?: Record<string, string>) => {
+      const body: components['schemas']['ImportTemplateRequestDto'] = serverCacheTokens
+        ? { serverCacheTokens }
+        : {};
+      const response = await apiClient.importMcpGroupTemplate(slug, body);
+      if (response.error || !response.data) throw new Error('Failed to import group template');
+      return response.data;
+    },
+
+    delete: async (id: string) => {
+      const response = await apiClient.deleteMcpGroup(id);
+      if (response.error) throw new Error('Failed to delete group');
+    },
+  },
+
+  mcpServers: {
+    list: async (groupId?: string) => {
+      const response = await apiClient.listMcpServers(groupId);
+      if (response.error) throw new Error('Failed to fetch MCP servers');
+      return response.data ?? [];
+    },
+
+    listTools: async () => {
+      const response = await apiClient.listMcpTools();
+      if (response.error) throw new Error('Failed to fetch MCP tools');
+      return response.data ?? [];
+    },
+
+    create: async (input: components['schemas']['CreateMcpServerDto']) => {
+      const response = await apiClient.createMcpServer(input);
+      if (response.error || !response.data) throw new Error('Failed to create MCP server');
+      return response.data;
+    },
+
+    update: async (id: string, input: components['schemas']['UpdateMcpServerDto']) => {
+      const response = await apiClient.updateMcpServer(id, input);
+      if (response.error || !response.data) throw new Error('Failed to update MCP server');
+      return response.data;
+    },
+
+    delete: async (id: string) => {
+      const response = await apiClient.deleteMcpServer(id);
+      if (response.error) throw new Error('Failed to delete MCP server');
+    },
+
+    toggle: async (id: string) => {
+      const response = await apiClient.toggleMcpServer(id);
+      if (response.error || !response.data) throw new Error('Failed to update MCP server');
+      return response.data;
+    },
+
+    test: async (id: string) => {
+      const response = await apiClient.testMcpServerConnection(id);
+      if (response.error || !response.data) throw new Error('Failed to test MCP connection');
+      return response.data;
+    },
+
+    listServerTools: async (id: string) => {
+      const response = await apiClient.listMcpServerTools(id);
+      if (response.error) throw new Error('Failed to fetch server tools');
+      return response.data ?? [];
+    },
+
+    toggleTool: async (serverId: string, toolId: string) => {
+      const response = await apiClient.toggleMcpServerTool(serverId, toolId);
+      if (response.error || !response.data) throw new Error('Failed to toggle MCP tool');
+      return response.data;
+    },
+  },
+
+  chat: {
+    listSessions: async () => {
+      const response = await apiClient.listChatSessions();
+      if (response.error || !response.data) throw new Error('Failed to fetch chat sessions');
+      return response.data;
+    },
+
+    createSession: async (body?: { title?: string }) => {
+      const response = await apiClient.createChatSession(body ?? {});
+      if (response.error || !response.data) throw new Error('Failed to create chat session');
+      return response.data;
+    },
+
+    updateSession: async (id: string, body: { title: string }) => {
+      const response = await apiClient.updateChatSession(id, body);
+      if (response.error || !response.data) throw new Error('Failed to update chat session');
+      return response.data;
+    },
+
+    deleteSession: async (id: string) => {
+      const response = await apiClient.deleteChatSession(id);
+      if (response.error) throw new Error('Failed to delete chat session');
+      return response.data;
+    },
+  },
+
+  agents: {
+    listParts: async (agentRunId: string, cursor?: string) => {
+      const response = await apiClient.getAgentParts(agentRunId, cursor);
+      if (response.error || !response.data) throw new Error('Failed to fetch agent trace parts');
+      return response.data;
+    },
+  },
+
+  workflowTemplates: {
+    list: async () => {
+      const response = await apiClient.listWorkflowTemplates();
+      if (response.error || !response.data) throw new Error('Failed to fetch workflow templates');
+      return response.data;
+    },
+
+    instantiate: async (id: string) => {
+      const response = await apiClient.instantiateWorkflowTemplate(id, {});
+      if (response.error || !response.data) {
+        throw new Error('Failed to create workflow from template');
+      }
+      return response.data as { id: string };
+    },
+  },
+
+  github: {
+    getStatus: async () => {
+      const response = await apiClient.getGitHubStatus();
+      if (response.error || !response.data) throw new Error('Failed to fetch GitHub status');
+      return response.data;
+    },
+
+    listInstallations: async () => {
+      const response = await apiClient.listGitHubInstallations();
+      if (response.error || !response.data) throw new Error('Failed to fetch installations');
+      return response.data;
+    },
+
+    listRepositories: async () => {
+      const response = await apiClient.listGitHubRepositories();
+      if (response.error || !response.data) throw new Error('Failed to fetch repositories');
+      return response.data;
+    },
+
+    listBranches: async (id: string) => {
+      const response = await apiClient.listGitHubBranches(id);
+      if (response.error || !response.data) throw new Error('Failed to fetch branches');
+      return response.data;
+    },
+
+    listTriggerRules: async () => {
+      const response = await apiClient.listGitHubTriggerRules();
+      if (response.error || !response.data) throw new Error('Failed to fetch trigger rules');
+      return response.data;
+    },
+
+    listScans: async (
+      query?: operations['GitHubAppController_listScanResults']['parameters']['query'],
+    ) => {
+      const response = await apiClient.listGitHubScans(query);
+      if (response.error || !response.data) throw new Error('Failed to fetch scan results');
+      return response.data;
+    },
+
+    getScan: async (id: string) => {
+      const response = await apiClient.getGitHubScan(id);
+      if (response.error || !response.data) throw new Error('Failed to fetch scan result');
+      return response.data;
+    },
+
+    setupInstallation: async (installationId: number) => {
+      const response = await apiClient.setupGitHubInstallation({ installationId });
+      if (response.error || !response.data) throw new Error('Failed to setup installation');
+      return response.data;
+    },
+
+    toggleRepoScans: async (id: string, enabled: boolean) => {
+      const response = await apiClient.toggleGitHubRepositoryScans(id, { enabled });
+      if (response.error || !response.data) throw new Error('Failed to update repository');
+      return response.data;
+    },
+
+    syncRepositories: async () => {
+      const response = await apiClient.syncGitHubRepositories();
+      if (response.error || !response.data) throw new Error('Failed to sync repositories');
+      return response.data;
+    },
+
+    createTriggerRule: async (input: components['schemas']['CreateTriggerRuleDto']) => {
+      const response = await apiClient.createGitHubTriggerRule(input);
+      if (response.error || !response.data) throw new Error('Failed to create trigger rule');
+      return response.data;
+    },
+
+    updateTriggerRule: async (id: string, input: components['schemas']['UpdateTriggerRuleDto']) => {
+      const response = await apiClient.updateGitHubTriggerRule(id, input);
+      if (response.error || !response.data) throw new Error('Failed to update trigger rule');
+      return response.data;
+    },
+
+    deleteTriggerRule: async (id: string) => {
+      const response = await apiClient.deleteGitHubTriggerRule(id);
+      if (response.error) throw new Error('Failed to delete trigger rule');
+    },
+
+    triggerScan: async (repoId: string, body: { workflowId: string; branch?: string }) => {
+      const response = await apiClient.triggerGitHubScan(repoId, body);
+      if (response.error || !response.data) throw new Error('Failed to trigger scan');
+      return response.data;
+    },
+  },
+
   analytics: {
-    query: async (body: {
-      query?: Record<string, any>;
+    query: async <
+      TQuery extends object,
+      TAggs extends object,
+      TSort extends object,
+      TCollapse extends object,
+    >(body: {
+      query?: TQuery;
       size?: number;
       from?: number;
-      aggs?: Record<string, any>;
-      sort?: Record<string, any>[];
-      collapse?: Record<string, any>;
+      aggs?: TAggs;
+      sort?: TSort[];
+      collapse?: TCollapse;
       useLatest?: boolean;
     }) => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/analytics/query`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) throw new Error(`Analytics query failed: ${response.status}`);
-      return response.json() as Promise<{
-        total: number;
-        hits: { _id: string; _source: Record<string, any>; _score?: number }[];
-        aggregations?: Record<string, any>;
-      }>;
+      const queryAnalytics = apiClient.queryAnalytics as (
+        payload: typeof body,
+      ) => Promise<{ data?: AnalyticsQueryResponse; error?: object }>;
+      const response = await queryAnalytics(body);
+      if (response.error || !response.data) throw new Error('Analytics query failed');
+      return response.data;
     },
 
     prowlerChecksMetadata: async (): Promise<Record<string, ProwlerCheckMetadata>> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/analytics/prowler-checks-metadata`, {
-        method: 'GET',
-        headers,
-      });
-      if (!response.ok) throw new Error(`Prowler checks metadata failed: ${response.status}`);
-      return response.json();
+      const response = await apiClient.getAnalyticsProwlerChecksMetadata();
+      if (response.error || !response.data) throw new Error('Prowler checks metadata failed');
+      return response.data as Record<string, ProwlerCheckMetadata>;
     },
 
     batchRunSummaries: async (runIds: string[]) => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/analytics/batch-run-summaries`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runIds }),
-      });
-      if (!response.ok) throw new Error(`Batch run summaries failed: ${response.status}`);
-      return response.json() as Promise<{
+      const response = await apiClient.getAnalyticsBatchRunSummaries({ runIds });
+      if (response.error || !response.data) throw new Error('Batch run summaries failed');
+      return response.data as {
         summaries: Record<
           string,
           { critical: number; high: number; medium: number; low: number; info: number }
         >;
-      }>;
+      };
     },
   },
 
   billing: {
     getUsage: async () => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${API_BASE_URL}/api/v1/billing/usage`, { headers });
-      if (!res.ok) throw new Error('Failed to fetch billing usage');
-      return res.json();
+      const response = await apiClient.getBillingUsage();
+      if (response.error || !response.data) throw new Error('Failed to fetch billing usage');
+      return response.data;
     },
 
     getPlans: async () => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${API_BASE_URL}/api/v1/billing/plans`, { headers });
-      if (!res.ok) throw new Error('Failed to fetch subscription plans');
-      return res.json();
+      const response = await apiClient.listSubscriptionPlans();
+      if (response.error || !response.data) throw new Error('Failed to fetch subscription plans');
+      return response.data;
     },
   },
 };

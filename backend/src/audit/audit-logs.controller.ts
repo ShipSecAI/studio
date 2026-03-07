@@ -6,8 +6,9 @@ import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
 import { AuditLogService } from './audit-log.service';
 import {
+  ListAuditLogsQueryDto,
+  type ListAuditLogsQuery,
   ListAuditLogsQuerySchema,
-  type ListAuditLogsQueryDto,
   ListAuditLogsResponseDto,
 } from './dto/audit-logs.dto';
 
@@ -25,18 +26,29 @@ export class AuditLogsController {
     @CurrentAuth() auth: AuthContext | null,
     @Query(new ZodValidationPipe(ListAuditLogsQuerySchema)) query: ListAuditLogsQueryDto,
   ): Promise<ListAuditLogsResponseDto> {
-    const from = query.from ? new Date(query.from) : undefined;
-    const to = query.to ? new Date(query.to) : undefined;
-
-    const result = await this.auditLogService.list(auth, {
+    const normalizedQuery: ListAuditLogsQuery = {
       resourceType: query.resourceType,
       resourceId: query.resourceId,
       action: query.action,
       actorId: query.actorId,
-      from,
-      to,
+      from: query.from,
+      to: query.to,
       limit: query.limit,
       cursor: query.cursor,
+    };
+
+    const from = normalizedQuery.from ? new Date(normalizedQuery.from) : undefined;
+    const to = normalizedQuery.to ? new Date(normalizedQuery.to) : undefined;
+
+    const result = await this.auditLogService.list(auth, {
+      resourceType: normalizedQuery.resourceType,
+      resourceId: normalizedQuery.resourceId,
+      action: normalizedQuery.action,
+      actorId: normalizedQuery.actorId,
+      from,
+      to,
+      limit: normalizedQuery.limit,
+      cursor: normalizedQuery.cursor,
     });
 
     return {
@@ -50,7 +62,7 @@ export class AuditLogsController {
         resourceType: item.resourceType,
         resourceId: item.resourceId ?? null,
         resourceName: item.resourceName ?? null,
-        metadata: (item.metadata as any) ?? null,
+        metadata: item.metadata ?? null,
         ip: item.ip ?? null,
         userAgent: item.userAgent ?? null,
         createdAt: item.createdAt.toISOString(),

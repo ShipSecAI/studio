@@ -1,17 +1,13 @@
 import { skipToken, useInfiniteQuery } from '@tanstack/react-query';
+import type { operations } from '../../../../packages/backend-client/src/client';
 
 import { queryKeys } from '@/lib/queryKeys';
 import { api } from '@/services/api';
 
-export interface AuditLogFilters {
-  resourceType?: string;
-  resourceId?: string;
-  action?: string;
-  actorId?: string;
-  from?: string;
-  to?: string;
-  limit?: number;
-}
+export type AuditLogFilters = Omit<
+  NonNullable<operations['AuditLogsController_list']['parameters']['query']>,
+  'cursor'
+>;
 
 export type AuditLogListResponse = Awaited<ReturnType<typeof api.auditLogs.list>>;
 export type AuditLogEntry = AuditLogListResponse['items'][number];

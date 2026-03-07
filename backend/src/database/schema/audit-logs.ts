@@ -14,6 +14,12 @@ export type AuditResourceType =
   | 'mcp_group'
   | 'human_input';
 
+export type AuditJsonPrimitive = string | number | boolean | null;
+export type AuditJsonValue = AuditJsonPrimitive | AuditJsonValue[] | AuditJsonObject;
+export interface AuditJsonObject {
+  [key: string]: AuditJsonValue;
+}
+
 export const auditLogsTable = pgTable(
   'audit_logs',
   {
@@ -26,7 +32,7 @@ export const auditLogsTable = pgTable(
     resourceType: varchar('resource_type', { length: 32 }).$type<AuditResourceType>().notNull(),
     resourceId: varchar('resource_id', { length: 191 }),
     resourceName: varchar('resource_name', { length: 191 }),
-    metadata: jsonb('metadata').$type<Record<string, unknown> | null>().default(null),
+    metadata: jsonb('metadata').$type<AuditJsonObject | null>().default(null),
     ip: varchar('ip', { length: 64 }),
     userAgent: text('user_agent'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

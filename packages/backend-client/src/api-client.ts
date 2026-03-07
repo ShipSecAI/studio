@@ -62,6 +62,7 @@ type CreateGitHubTriggerRulePayload = components['schemas']['CreateTriggerRuleDt
 type UpdateGitHubTriggerRulePayload = components['schemas']['UpdateTriggerRuleDto'];
 type TriggerGitHubScanPayload = components['schemas']['GitHubTriggerScanDto'];
 type ListGitHubScansQuery = operations['GitHubAppController_listScanResults']['parameters']['query'];
+type ListAuditLogsQuery = operations['AuditLogsController_list']['parameters']['query'];
 type AppendChatInternalEventPayload = components['schemas']['AppendInternalEventDto'];
 type CompleteChatRunPayload = components['schemas']['CompleteRunRequestDto'];
 
@@ -487,6 +488,25 @@ export class ShipSecApiClient {
           limit: options?.limit,
         },
       },
+    });
+  }
+
+  async downloadArtifact(id: string): Promise<Blob> {
+    const response = await this.client.GET('/api/v1/artifacts/{id}/download', {
+      params: { path: { id } },
+      parseAs: 'blob',
+    });
+
+    if (response.error) {
+      throw new Error('Failed to download artifact');
+    }
+
+    return response.data;
+  }
+
+  async deleteArtifact(id: string) {
+    return this.client.DELETE('/api/v1/artifacts/{id}', {
+      params: { path: { id } },
     });
   }
 
@@ -973,7 +993,7 @@ export class ShipSecApiClient {
 
   // ===== Audit =====
 
-  async listAuditLogs(options?: operations['AuditLogsController_list']['parameters']['query']) {
+  async listAuditLogs(options?: ListAuditLogsQuery) {
     return this.client.GET('/api/v1/audit-logs', {
       params: {
         query: options,

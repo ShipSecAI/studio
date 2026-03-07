@@ -3567,7 +3567,9 @@ export interface components {
              *       "match_all": {}
              *     }
              */
-            query?: Record<string, never>;
+            query?: {
+                [key: string]: unknown;
+            };
             /**
              * @description Number of results to return
              * @default 10
@@ -3590,11 +3592,17 @@ export interface components {
              *       }
              *     }
              */
-            aggs?: Record<string, never>;
+            aggs?: {
+                [key: string]: unknown;
+            };
             /** @description Sort specification */
-            sort?: string[];
+            sort?: {
+                [key: string]: unknown;
+            }[];
             /** @description Field collapsing specification for deduplication */
-            collapse?: Record<string, never>;
+            collapse?: {
+                [key: string]: unknown;
+            };
             /**
              * @description Query the deduplicated latest-state index instead of the event log
              * @default false
@@ -3608,9 +3616,17 @@ export interface components {
              */
             total: number;
             /** @description Search hits */
-            hits: Record<string, never>[];
+            hits: {
+                _id: string;
+                _source: {
+                    [key: string]: unknown;
+                };
+                _score?: number;
+            }[];
             /** @description Aggregation results */
-            aggregations?: Record<string, never>;
+            aggregations?: {
+                [key: string]: unknown;
+            };
         };
         AnalyticsSettingsResponseDto: {
             /**
@@ -7230,7 +7246,16 @@ export interface operations {
     };
     AuditLogsController_list: {
         parameters: {
-            query?: never;
+            query?: {
+                cursor?: string;
+                limit?: number;
+                to?: string;
+                from?: string;
+                actorId?: string;
+                action?: string;
+                resourceId?: string;
+                resourceType?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

@@ -1,6 +1,8 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
+import type { AuditJsonObject, AuditJsonValue } from '../../database/schema/audit-logs';
+
 export const AuditActorTypeSchema = z.enum(['user', 'api-key', 'internal', 'unknown']);
 export const AuditResourceTypeSchema = z.enum([
   'workflow',
@@ -15,6 +17,22 @@ export const AuditResourceTypeSchema = z.enum([
   'human_input',
 ]);
 
+const AuditJsonValueSchema: z.ZodType<AuditJsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(AuditJsonValueSchema),
+    z.record(z.string(), AuditJsonValueSchema),
+  ]),
+);
+
+const AuditJsonObjectSchema: z.ZodType<AuditJsonObject> = z.record(
+  z.string(),
+  AuditJsonValueSchema,
+);
+
 export const AuditLogEntrySchema = z.object({
   id: z.string().uuid(),
   organizationId: z.string().nullable(),
@@ -25,8 +43,7 @@ export const AuditLogEntrySchema = z.object({
   resourceType: AuditResourceTypeSchema,
   resourceId: z.string().nullable(),
   resourceName: z.string().nullable(),
-  // Note: provide explicit key schema to keep zod->json-schema conversion stable.
-  metadata: z.record(z.string(), z.unknown()).nullable(),
+  metadata: AuditJsonObjectSchema.nullable(),
   ip: z.string().nullable(),
   userAgent: z.string().nullable(),
   createdAt: z.string().datetime(),
@@ -35,22 +52,18 @@ export const AuditLogEntrySchema = z.object({
 export class AuditLogEntryDto extends createZodDto(AuditLogEntrySchema) {}
 
 export const ListAuditLogsQuerySchema = z.object({
-  resourceType: z.string().optional(),
+  resourceType: AuditResourceTypeSchema.optional(),
   resourceId: z.string().optional(),
   action: z.string().optional(),
   actorId: z.string().optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
-  limit: z
-    .string()
-    .regex(/^\d+$/)
-    .default('50')
-    .transform(Number)
-    .refine((n) => n >= 1 && n <= 200, 'limit must be between 1 and 200'),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
   cursor: z.string().optional(),
 });
 
 export class ListAuditLogsQueryDto extends createZodDto(ListAuditLogsQuerySchema) {}
+export type ListAuditLogsQuery = z.infer<typeof ListAuditLogsQuerySchema>;
 
 export const ListAuditLogsResponseSchema = z.object({
   items: AuditLogEntrySchema.array(),
