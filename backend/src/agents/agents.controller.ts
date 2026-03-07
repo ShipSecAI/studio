@@ -15,9 +15,10 @@ import type { Response, Request } from 'express';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { createUIMessageStream, pipeUIMessageStreamToResponse, type UIMessageChunk } from 'ai';
 import { AgentStreamQuerySchema } from './dto/agent-stream-query.dto';
-import type { AgentStreamQueryDto } from './dto/agent-stream-query.dto';
+import { AgentStreamQueryDto } from './dto/agent-stream-query.dto';
 import { AgentChatRequestSchema } from './dto/agent-chat-request.dto';
-import type { AgentChatRequestDto } from './dto/agent-chat-request.dto';
+import { AgentChatRequestDto } from './dto/agent-chat-request.dto';
+import { AgentPartsResponseDto } from './dto/agent-trace.dto';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { AgentTraceService } from '../agent-trace/agent-trace.service';
 import type { AgentTracePartEntry } from '../agent-trace/agent-trace.service';
@@ -35,7 +36,7 @@ export class AgentsController {
   ) {}
 
   @Get('/:agentRunId/parts')
-  @ApiOkResponse({ description: 'Returns stored agent trace parts' })
+  @ApiOkResponse({ type: AgentPartsResponseDto, description: 'Returns stored agent trace parts' })
   async parts(
     @Param('agentRunId') agentRunId: string,
     @Query(new ZodValidationPipe(AgentStreamQuerySchema)) query: AgentStreamQueryDto,

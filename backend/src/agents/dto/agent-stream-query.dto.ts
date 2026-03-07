@@ -1,7 +1,8 @@
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 export const AgentStreamQuerySchema = z.object({
   cursor: z.string().optional(),
 });
 
-export type AgentStreamQueryDto = z.infer<typeof AgentStreamQuerySchema>;
+export class AgentStreamQueryDto extends createZodDto(AgentStreamQuerySchema) {}

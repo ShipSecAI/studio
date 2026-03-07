@@ -2750,6 +2750,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/asset-discovery/internal/sync-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssetDiscoveryController_createSyncRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/internal/assets/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssetDiscoveryController_reconcileAssets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/internal/sync-runs/{id}/scopes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssetDiscoveryController_persistSyncRunScopes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/internal/assets/mark-stale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssetDiscoveryController_markStaleAssets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-discovery/internal/sync-runs/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssetDiscoveryController_updateSyncRunStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/chat/sessions": {
         parameters: {
             query?: never;
@@ -2930,6 +3010,23 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AgentPartsResponseDto: {
+            agentRunId: string;
+            workflowRunId: string;
+            nodeRef: string;
+            cursor: number;
+            parts: {
+                sequence: number;
+                /** Format: date-time */
+                timestamp: string;
+                chunk: {
+                    [key: string]: unknown;
+                };
+            }[];
+        };
+        AgentChatRequestDto: {
+            cursor?: number;
+        };
         CreateWorkflowRequestDto: {
             id?: string;
             name: string;
@@ -3381,6 +3478,31 @@ export interface components {
             idempotencyKey?: string;
             parentRunId?: string;
             parentNodeRef?: string;
+        };
+        PrepareRunResponseDto: {
+            /** Format: uuid */
+            runId: string;
+            /** Format: uuid */
+            workflowId: string;
+            /** Format: uuid */
+            workflowVersionId: string;
+            workflowVersion: number;
+            organizationId: string | null;
+            definition: {
+                [key: string]: unknown;
+            };
+            inputs: {
+                [key: string]: unknown;
+            };
+            trigger: {
+                /** @enum {string} */
+                type: "manual" | "schedule" | "api" | "webhook";
+                sourceId?: string | null;
+                label?: string | null;
+            };
+            inputPreview?: {
+                [key: string]: unknown;
+            };
         };
         ArtifactListResponseDto: {
             artifacts: {
@@ -4721,6 +4843,297 @@ export interface components {
             /** Format: uuid */
             integrationId: string;
         };
+        CreateSyncRunRequestDto: {
+            /** Format: uuid */
+            integrationId: string;
+            accountIdentifier: string;
+            regions: string[];
+            temporalWorkflowId?: string;
+            temporalRunId?: string;
+        };
+        CreateSyncRunResponseDto: {
+            /** Format: uuid */
+            id: string;
+            organizationId: string;
+            /** Format: uuid */
+            integrationId: string;
+            accountIdentifier: string | null;
+            temporalWorkflowId: string | null;
+            temporalRunId: string | null;
+            status: string;
+            coveredRegions: string[] | null;
+            assetsDiscovered: number | null;
+            assetsCreated: number | null;
+            assetsUpdated: number | null;
+            assetsStale: number | null;
+            errors: {
+                message: string;
+                /** Format: date-time */
+                timestamp: string;
+            }[] | null;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            completedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ReconcileAssetsRequestDto: {
+            /** Format: uuid */
+            integrationId: string;
+            accountIdentifier: string;
+            /** Format: uuid */
+            syncRunId: string;
+            assets: {
+                assetType: string;
+                externalId: string;
+                name: string;
+                region?: string;
+                metadata: {
+                    [key: string]: unknown;
+                };
+            }[];
+        };
+        ReconcileAssetsResponseDto: {
+            created: {
+                /** Format: uuid */
+                id: string;
+                assetType: string;
+                externalId: string;
+                name: string | null;
+                provider: string;
+                region: string | null;
+                accountIdentifier: string | null;
+            }[];
+            updated: {
+                /** Format: uuid */
+                id: string;
+                assetType: string;
+                externalId: string;
+                name: string | null;
+                provider: string;
+                region: string | null;
+                accountIdentifier: string | null;
+                changedFields: string[];
+            }[];
+            unchangedCount: number;
+        };
+        PersistSyncRunScopesRequestDto: {
+            scopes: {
+                assetType: string;
+                region: string;
+            }[];
+        };
+        PersistSyncRunScopesResponseDto: {
+            /** @enum {boolean} */
+            success: true;
+        };
+        MarkStaleAssetsRequestDto: {
+            /** Format: uuid */
+            integrationId: string;
+            accountIdentifier: string;
+            /** Format: uuid */
+            syncRunId: string;
+            /** Format: date-time */
+            syncStartTime: string;
+        };
+        MarkStaleAssetsResponseDto: {
+            newlyStale: {
+                /** Format: uuid */
+                id: string;
+                assetType: string;
+                externalId: string;
+                name: string | null;
+                provider: string;
+                region: string | null;
+                accountIdentifier: string | null;
+            }[];
+            newlyRemoved: {
+                /** Format: uuid */
+                id: string;
+                assetType: string;
+                externalId: string;
+                name: string | null;
+                provider: string;
+                region: string | null;
+                accountIdentifier: string | null;
+            }[];
+        };
+        UpdateSyncRunStatusRequestDto: {
+            status: string;
+            assetsDiscovered?: number;
+            assetsCreated?: number;
+            assetsUpdated?: number;
+            assetsStale?: number;
+            coveredRegions?: string[];
+            errors?: {
+                message: string;
+                /** Format: date-time */
+                timestamp: string;
+            }[];
+        };
+        UpdateSyncRunStatusResponseDto: {
+            /** Format: uuid */
+            id: string;
+            organizationId: string;
+            /** Format: uuid */
+            integrationId: string;
+            accountIdentifier: string | null;
+            temporalWorkflowId: string | null;
+            temporalRunId: string | null;
+            status: string;
+            coveredRegions: string[] | null;
+            assetsDiscovered: number | null;
+            assetsCreated: number | null;
+            assetsUpdated: number | null;
+            assetsStale: number | null;
+            errors: {
+                message: string;
+                /** Format: date-time */
+                timestamp: string;
+            }[] | null;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            completedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CreateSessionDto: {
+            title?: string;
+        };
+        ChatSessionResponseDto: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            status: string;
+            /** @enum {string} */
+            processingStatus: "idle" | "processing" | "stopping";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        UpdateSessionDto: {
+            title: string;
+        };
+        DeleteSessionResponseDto: {
+            /** @enum {boolean} */
+            success: true;
+        };
+        SubmitOperationDto: {
+            /** @enum {string} */
+            op: "UserTurn" | "Interrupt" | "SteerNow";
+            text?: string;
+            clientSubmissionId: string;
+            clientTurnHint?: string;
+        };
+        SubmitOperationResponseDto: {
+            submissionId: string;
+            /** @enum {string} */
+            op?: "UserTurn" | "Interrupt" | "SteerNow";
+            /** @enum {string} */
+            operation: "UserTurn" | "Interrupt" | "SteerNow";
+            /** Format: uuid */
+            turnId?: string | null;
+            /** Format: uuid */
+            interruptedTurnId?: string | null;
+            generationId?: number;
+            acceptedAtSeq: number;
+        };
+        ThreadHistoryResponseDto: {
+            messages: {
+                id: string;
+                /** @enum {string} */
+                role: "system" | "user" | "assistant" | "tool";
+                parts: {
+                    [key: string]: unknown;
+                }[];
+                /** Format: date-time */
+                createdAt?: string;
+            }[];
+            interruptionBoundaries: {
+                /** Format: uuid */
+                turnId: string;
+                beforeMessageIndex: number;
+            }[];
+            activeTurn: {
+                /** Format: uuid */
+                turnId: string;
+                status: string;
+                generationId: number | null;
+            } | null;
+            generationId: number;
+            activeGeneration: number;
+            pendingCount: number;
+            queue: {
+                /** Format: uuid */
+                turnId: string;
+                queuePosition: number;
+                status: string;
+                preview?: string | null;
+                /** Format: date-time */
+                queuedAt?: string | null;
+                /** Format: date-time */
+                startedAt?: string | null;
+                /** Format: date-time */
+                completedAt?: string | null;
+            }[];
+            queuedTurns: {
+                /** Format: uuid */
+                turnId: string;
+                queuePosition: number;
+                status: string;
+                preview?: string | null;
+                /** Format: date-time */
+                queuedAt?: string | null;
+                /** Format: date-time */
+                startedAt?: string | null;
+                /** Format: date-time */
+                completedAt?: string | null;
+            }[];
+            queueOrder: string[];
+            /** @enum {string} */
+            processingStatus: "idle" | "processing" | "stopping";
+            afterSeq: number;
+            lastSeq: number;
+        };
+        ChatEventsResponseDto: {
+            events: {
+                seq: number;
+                /** Format: uuid */
+                turnId: string;
+                /** Format: uuid */
+                runId: string | null;
+                generationId: string | null;
+                eventId: string;
+                chunk: {
+                    [key: string]: unknown;
+                };
+            }[];
+        };
+        AppendInternalEventDto: {
+            /** Format: uuid */
+            turnId: string;
+            /** Format: uuid */
+            runId?: string;
+            generationId?: string | number;
+            eventId: string;
+            chunk: {
+                [key: string]: unknown;
+            };
+        };
+        AppendInternalEventResponseDto: {
+            seq: number;
+        };
+        CompleteRunRequestDto: {
+            /** Format: uuid */
+            runId?: string;
+        };
+        RunCompletionResponseDto: {
+            /** @enum {boolean} */
+            success: true;
+        };
     };
     responses: never;
     parameters: never;
@@ -4802,7 +5215,9 @@ export interface operations {
     };
     AgentsController_parts: {
         parameters: {
-            query?: never;
+            query?: {
+                cursor?: string;
+            };
             header?: never;
             path: {
                 agentRunId: string;
@@ -4816,7 +5231,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AgentPartsResponseDto"];
+                };
             };
         };
     };
@@ -4829,7 +5246,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentChatRequestDto"];
+            };
+        };
         responses: {
             /** @description AI SDK-compatible SSE for agent run */
             200: {
@@ -5921,7 +6342,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PrepareRunResponseDto"];
+                };
             };
         };
     };
@@ -10126,6 +10549,131 @@ export interface operations {
             };
         };
     };
+    AssetDiscoveryController_createSyncRun: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-organization-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSyncRunRequestDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateSyncRunResponseDto"];
+                };
+            };
+        };
+    };
+    AssetDiscoveryController_reconcileAssets: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-organization-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReconcileAssetsRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconcileAssetsResponseDto"];
+                };
+            };
+        };
+    };
+    AssetDiscoveryController_persistSyncRunScopes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersistSyncRunScopesRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersistSyncRunScopesResponseDto"];
+                };
+            };
+        };
+    };
+    AssetDiscoveryController_markStaleAssets: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-organization-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkStaleAssetsRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkStaleAssetsResponseDto"];
+                };
+            };
+        };
+    };
+    AssetDiscoveryController_updateSyncRunStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSyncRunStatusRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateSyncRunStatusResponseDto"];
+                };
+            };
+        };
+    };
     ChatController_listSessions: {
         parameters: {
             query?: never;
@@ -10139,7 +10687,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ChatSessionResponseDto"][];
+                };
             };
         };
     };
@@ -10150,13 +10700,19 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSessionDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ChatSessionResponseDto"];
+                };
             };
         };
     };
@@ -10175,7 +10731,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ChatSessionResponseDto"];
+                };
             };
         };
     };
@@ -10194,7 +10752,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DeleteSessionResponseDto"];
+                };
             };
         };
     };
@@ -10207,13 +10767,19 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSessionDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ChatSessionResponseDto"];
+                };
             };
         };
     };
@@ -10226,13 +10792,19 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitOperationDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SubmitOperationResponseDto"];
+                };
             };
         };
     };
@@ -10251,7 +10823,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ThreadHistoryResponseDto"];
+                };
             };
         };
     };
@@ -10293,7 +10867,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ChatEventsResponseDto"];
+                };
             };
         };
     };
@@ -10306,13 +10882,19 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppendInternalEventDto"];
+            };
+        };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AppendInternalEventResponseDto"];
+                };
             };
         };
     };
@@ -10325,13 +10907,19 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteRunRequestDto"];
+            };
+        };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RunCompletionResponseDto"];
+                };
             };
         };
     };

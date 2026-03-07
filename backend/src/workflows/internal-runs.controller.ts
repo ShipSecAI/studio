@@ -1,17 +1,24 @@
 import { Body, Controller, Post } from '@nestjs/common';
+import { ApiCreatedResponse, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from 'nestjs-zod';
 import type { ExecutionTriggerMetadata } from '@shipsec/shared';
 
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
-import { PrepareRunRequestDto, PrepareRunRequestSchema } from './dto/workflow-graph.dto';
+import {
+  PrepareRunRequestDto,
+  PrepareRunRequestSchema,
+  PrepareRunResponseDto,
+} from './dto/workflow-graph.dto';
 import { WorkflowsService } from './workflows.service';
 
+@ApiTags('internal-runs')
 @Controller('internal/runs')
 export class InternalRunsController {
   constructor(private readonly workflowsService: WorkflowsService) {}
 
   @Post()
+  @ApiCreatedResponse({ type: PrepareRunResponseDto })
   async prepareRun(
     @CurrentAuth() auth: AuthContext | null,
     @Body(new ZodValidationPipe(PrepareRunRequestSchema))

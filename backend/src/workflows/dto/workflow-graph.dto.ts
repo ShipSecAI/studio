@@ -152,6 +152,20 @@ export const PrepareRunRequestSchema = BaseRunWorkflowRequestSchema.extend({
 
 export class PrepareRunRequestDto extends createZodDto(PrepareRunRequestSchema) {}
 
+export const PrepareRunResponseSchema = z.object({
+  runId: z.string().uuid(),
+  workflowId: z.string().uuid(),
+  workflowVersionId: z.string().uuid(),
+  workflowVersion: z.number().int().positive(),
+  organizationId: z.string().nullable(),
+  definition: z.record(z.string(), z.unknown()),
+  inputs: z.record(z.string(), z.unknown()),
+  trigger: ExecutionTriggerMetadataSchema,
+  inputPreview: z.record(z.string(), z.unknown()).optional(),
+});
+
+export class PrepareRunResponseDto extends createZodDto(PrepareRunResponseSchema) {}
+
 export const ListRunsQuerySchema = z.object({
   workflowId: z.string().trim().min(1).optional(),
   workflowIds: z

@@ -1,5 +1,5 @@
 import createClient, { type Middleware } from 'openapi-fetch';
-import type { paths, components } from './client';
+import type { paths, components, operations } from './client';
 
 export interface ClientConfig {
   baseUrl?: string;
@@ -28,6 +28,15 @@ type UpdateApiKeyPayload = components['schemas']['UpdateApiKeyDto'];
 type CreateAsmDomainPayload = components['schemas']['CreateDomainDto'];
 type UpdateAsmDomainPayload = components['schemas']['UpdateDomainDto'];
 type TriggerCloudSyncPayload = components['schemas']['TriggerSyncDto'];
+type CreateSyncRunPayload = components['schemas']['CreateSyncRunRequestDto'];
+type ReconcileAssetsPayload = components['schemas']['ReconcileAssetsRequestDto'];
+type PersistSyncRunScopesPayload = components['schemas']['PersistSyncRunScopesRequestDto'];
+type MarkStaleAssetsPayload = components['schemas']['MarkStaleAssetsRequestDto'];
+type UpdateSyncRunStatusPayload = components['schemas']['UpdateSyncRunStatusRequestDto'];
+type UpdateOnboardingPreferencesPayload = components['schemas']['UpdateOnboardingPreferencesDto'];
+type AnalyticsQueryPayload = components['schemas']['AnalyticsQueryRequestDto'];
+type DiscoveryInputPayload = components['schemas']['DiscoveryInputDto'];
+type GroupDiscoveryInputPayload = components['schemas']['GroupDiscoveryInputDto'];
 
 /**
  * ShipSec API Client
@@ -81,10 +90,26 @@ export class ShipSecApiClient {
     return this.client.GET('/api/v1/health');
   }
 
+  // ===== Onboarding =====
+
+  async getOnboardingPreferences() {
+    return this.client.GET('/api/v1/onboarding/preferences');
+  }
+
+  async updateOnboardingPreferences(body: UpdateOnboardingPreferencesPayload) {
+    return this.client.PATCH('/api/v1/onboarding/preferences', {
+      body,
+    });
+  }
+
   // ===== Workflows =====
   
   async listWorkflows() {
     return this.client.GET('/api/v1/workflows');
+  }
+
+  async listWorkflowSummaries() {
+    return this.client.GET('/api/v1/workflows/summary');
   }
 
   async getWorkflow(id: string) {
@@ -587,6 +612,68 @@ export class ShipSecApiClient {
     });
   }
 
+  async listOrgIntegrationConnections(provider?: string) {
+    return this.client.GET('/api/v1/integrations/org/connections', {
+      params: {
+        query: (provider ? { provider } : {}) as any,
+      },
+    });
+  }
+
+  async getIntegrationCatalog() {
+    return this.client.GET('/api/v1/integrations/catalog');
+  }
+
+  async getIntegrationConnectionToken(id: string, organizationId: string) {
+    return this.client.POST('/api/v1/integrations/connections/{id}/token', {
+      params: { path: { id }, header: { 'x-organization-id': organizationId } },
+    });
+  }
+
+  async getIntegrationConnectionCredentials(id: string, organizationId: string) {
+    return this.client.POST('/api/v1/integrations/connections/{id}/credentials', {
+      params: { path: { id }, header: { 'x-organization-id': organizationId } },
+    });
+  }
+
+  async getAwsSetupInfo() {
+    return this.client.GET('/api/v1/integrations/aws/setup-info');
+  }
+
+  async createAwsIntegrationConnection(
+    body: components['schemas']['CreateAwsConnectionDto'],
+  ) {
+    return this.client.POST('/api/v1/integrations/aws/connections', {
+      body,
+    });
+  }
+
+  async validateAwsIntegrationConnection(id: string) {
+    return this.client.POST('/api/v1/integrations/aws/connections/{id}/validate', {
+      params: { path: { id } },
+    });
+  }
+
+  async discoverAwsOrganizationAccounts(id: string) {
+    return this.client.POST('/api/v1/integrations/aws/connections/{id}/discover-org', {
+      params: { path: { id } },
+    });
+  }
+
+  async createSlackWebhookIntegrationConnection(
+    body: components['schemas']['CreateSlackWebhookConnectionDto'],
+  ) {
+    return this.client.POST('/api/v1/integrations/slack/connections', {
+      body,
+    });
+  }
+
+  async testSlackIntegrationConnection(id: string) {
+    return this.client.POST('/api/v1/integrations/slack/connections/{id}/test', {
+      params: { path: { id } },
+    });
+  }
+
   // ===== ASM =====
 
   async listAsmDomains(options?: { limit?: number; offset?: number }) {
@@ -717,6 +804,272 @@ export class ShipSecApiClient {
     });
   }
 
+  async createCloudSyncRun(organizationId: string, body: CreateSyncRunPayload) {
+    return this.client.POST('/api/v1/asset-discovery/internal/sync-runs', {
+      params: { header: { 'x-organization-id': organizationId } },
+      body,
+    });
+  }
+
+  async reconcileCloudAssets(organizationId: string, body: ReconcileAssetsPayload) {
+    return this.client.POST('/api/v1/asset-discovery/internal/assets/reconcile', {
+      params: { header: { 'x-organization-id': organizationId } },
+      body,
+    });
+  }
+
+  async persistCloudSyncRunScopes(id: string, body: PersistSyncRunScopesPayload) {
+    return this.client.POST('/api/v1/asset-discovery/internal/sync-runs/{id}/scopes', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  async markCloudAssetsStale(organizationId: string, body: MarkStaleAssetsPayload) {
+    return this.client.POST('/api/v1/asset-discovery/internal/assets/mark-stale', {
+      params: { header: { 'x-organization-id': organizationId } },
+      body,
+    });
+  }
+
+  async updateCloudSyncRunStatus(id: string, body: UpdateSyncRunStatusPayload) {
+    return this.client.POST('/api/v1/asset-discovery/internal/sync-runs/{id}/status', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  // ===== Analytics =====
+
+  async queryAnalytics(body: AnalyticsQueryPayload) {
+    return this.client.POST('/api/v1/analytics/query', {
+      body,
+    });
+  }
+
+  async getAnalyticsProwlerChecksMetadata() {
+    return this.client.GET('/api/v1/analytics/prowler-checks-metadata');
+  }
+
+  // ===== Audit =====
+
+  async listAuditLogs(options?: operations['AuditLogsController_list']['parameters']['query']) {
+    return this.client.GET('/api/v1/audit-logs', {
+      params: {
+        query: options,
+      },
+    });
+  }
+
+  // ===== Billing =====
+
+  async getBillingUsage() {
+    return this.client.GET('/api/v1/billing/usage');
+  }
+
+  async listSubscriptionPlans() {
+    return this.client.GET('/api/v1/billing/plans');
+  }
+
+  // ===== MCP Discovery =====
+
+  async discoverMcpTools(body: DiscoveryInputPayload) {
+    return this.client.POST('/api/v1/mcp/discover', {
+      body,
+    });
+  }
+
+  async getMcpDiscoveryStatus(workflowId: string) {
+    return this.client.GET('/api/v1/mcp/discover/{workflowId}', {
+      params: { path: { workflowId } },
+    });
+  }
+
+  async discoverMcpGroupTools(body: GroupDiscoveryInputPayload) {
+    return this.client.POST('/api/v1/mcp/discover-group', {
+      body,
+    });
+  }
+
+  async getMcpGroupDiscoveryStatus(workflowId: string) {
+    return this.client.GET('/api/v1/mcp/discover-group/{workflowId}', {
+      params: { path: { workflowId } },
+    });
+  }
+
+  // ===== MCP Servers =====
+
+  async listMcpServers(groupId?: string) {
+    return this.client.GET('/api/v1/mcp-servers', {
+      params: {
+        query: (groupId ? { groupId } : {}) as any,
+      },
+    });
+  }
+
+  async listEnabledMcpServers(groupId?: string) {
+    return this.client.GET('/api/v1/mcp-servers/enabled', {
+      params: {
+        query: (groupId ? { groupId } : {}) as any,
+      },
+    });
+  }
+
+  async listMcpTools() {
+    return this.client.GET('/api/v1/mcp-servers/tools');
+  }
+
+  async listMcpServerHealth() {
+    return this.client.GET('/api/v1/mcp-servers/health');
+  }
+
+  async getMcpServer(id: string) {
+    return this.client.GET('/api/v1/mcp-servers/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async createMcpServer(body: components['schemas']['CreateMcpServerDto']) {
+    return this.client.POST('/api/v1/mcp-servers', {
+      body,
+    });
+  }
+
+  async updateMcpServer(id: string, body: components['schemas']['UpdateMcpServerDto']) {
+    return this.client.PATCH('/api/v1/mcp-servers/{id}', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  async deleteMcpServer(id: string) {
+    return this.client.DELETE('/api/v1/mcp-servers/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async listMcpServerTools(id: string) {
+    return this.client.GET('/api/v1/mcp-servers/{id}/tools', {
+      params: { path: { id } },
+    });
+  }
+
+  async toggleMcpServer(id: string) {
+    return this.client.POST('/api/v1/mcp-servers/{id}/toggle', {
+      params: { path: { id } },
+    });
+  }
+
+  async testMcpServerConnection(id: string) {
+    return this.client.POST('/api/v1/mcp-servers/{id}/test', {
+      params: { path: { id } },
+    });
+  }
+
+  async toggleMcpServerTool(serverId: string, toolId: string) {
+    return this.client.POST('/api/v1/mcp-servers/{serverId}/tools/{toolId}/toggle', {
+      params: { path: { serverId, toolId } },
+    });
+  }
+
+  async resolveMcpServer(id: string) {
+    return this.client.GET('/api/v1/mcp-servers/{id}/resolve', {
+      params: { path: { id } },
+    });
+  }
+
+  // ===== MCP Groups =====
+
+  async listMcpGroups(options?: { enabled?: boolean; includeServers?: boolean }) {
+    return this.client.GET('/api/v1/mcp-groups', {
+      params: {
+        query: {
+          enabled: options?.enabled,
+          includeServers: options?.includeServers,
+        },
+      },
+    });
+  }
+
+  async listMcpGroupTemplates() {
+    return this.client.GET('/api/v1/mcp-groups/templates');
+  }
+
+  async getMcpGroupBySlug(slug: string) {
+    return this.client.GET('/api/v1/mcp-groups/slug/{slug}', {
+      params: { path: { slug } },
+    });
+  }
+
+  async getMcpGroup(id: string) {
+    return this.client.GET('/api/v1/mcp-groups/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async createMcpGroup(body: components['schemas']['CreateMcpGroupDto']) {
+    return this.client.POST('/api/v1/mcp-groups', {
+      body,
+    });
+  }
+
+  async updateMcpGroup(id: string, body: components['schemas']['UpdateMcpGroupDto']) {
+    return this.client.PATCH('/api/v1/mcp-groups/{id}', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  async deleteMcpGroup(id: string) {
+    return this.client.DELETE('/api/v1/mcp-groups/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async listMcpGroupServers(id: string) {
+    return this.client.GET('/api/v1/mcp-groups/{id}/servers', {
+      params: { path: { id } },
+    });
+  }
+
+  async addMcpServerToGroup(id: string, body: components['schemas']['AddServerToGroupDto']) {
+    return this.client.POST('/api/v1/mcp-groups/{id}/servers', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  async updateMcpServerInGroup(
+    id: string,
+    serverId: string,
+    body: components['schemas']['UpdateServerInGroupDto'],
+  ) {
+    return this.client.PATCH('/api/v1/mcp-groups/{id}/servers/{serverId}', {
+      params: { path: { id, serverId } },
+      body,
+    });
+  }
+
+  async removeMcpServerFromGroup(id: string, serverId: string) {
+    return this.client.DELETE('/api/v1/mcp-groups/{id}/servers/{serverId}', {
+      params: { path: { id, serverId } },
+    });
+  }
+
+  async syncMcpGroupTemplates() {
+    return this.client.POST('/api/v1/mcp-groups/sync-templates');
+  }
+
+  async importMcpGroupTemplate(
+    slug: string,
+    body?: components['schemas']['ImportTemplateRequestDto'],
+  ) {
+    return this.client.POST('/api/v1/mcp-groups/templates/{slug}/import', {
+      params: { path: { slug } },
+      body: body ?? {},
+    });
+  }
+
   // ===== Human Inputs =====
 
   async listHumanInputs(options?: {
@@ -796,6 +1149,12 @@ export class ShipSecApiClient {
 
   async listDeliveries(id: string) {
     return this.client.GET('/api/v1/webhooks/configurations/{id}/deliveries', {
+      params: { path: { id } },
+    });
+  }
+
+  async regenerateWebhookPath(id: string) {
+    return this.client.POST('/api/v1/webhooks/configurations/{id}/regenerate-path', {
       params: { path: { id } },
     });
   }

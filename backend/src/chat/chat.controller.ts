@@ -10,6 +10,7 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
+import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { ZodValidationPipe } from 'nestjs-zod';
@@ -19,15 +20,24 @@ import type { AuthContext } from '../auth/types';
 import { ChatService } from './chat.service';
 import {
   AppendInternalEventSchema,
+  AppendInternalEventResponseDto,
   CreateSessionSchema,
+  ChatEventsResponseDto,
+  ChatSessionResponseDto,
+  DeleteSessionResponseDto,
+  RunCompletionResponseDto,
   SubmitOperationSchema,
+  SubmitOperationResponseDto,
+  ThreadHistoryResponseDto,
   UpdateSessionSchema,
-  type AppendInternalEventDto,
-  type CreateSessionDto,
-  type SubmitOperationDto,
-  type UpdateSessionDto,
+  CompleteRunRequestDto,
+  AppendInternalEventDto,
+  CreateSessionDto,
+  SubmitOperationDto,
+  UpdateSessionDto,
 } from './dto/chat-session.dto';
 
+@ApiTags('chat')
 @Controller('chat/sessions')
 export class ChatController {
   private static readonly MAX_ACTIVE_STREAMS_PER_SESSION = 12;
@@ -37,6 +47,7 @@ export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
   @Post()
+  @ApiCreatedResponse({ type: ChatSessionResponseDto })
   async createSession(
     @Body(new ZodValidationPipe(CreateSessionSchema)) body: CreateSessionDto,
     @CurrentAuth() auth: AuthContext,
@@ -45,16 +56,19 @@ export class ChatController {
   }
 
   @Get()
+  @ApiOkResponse({ type: [ChatSessionResponseDto] })
   async listSessions(@CurrentAuth() auth: AuthContext) {
     return this.chatService.listSessions(auth);
   }
 
   @Get(':id')
+  @ApiOkResponse({ type: ChatSessionResponseDto })
   async getSession(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
     return this.chatService.getSession(id, auth);
   }
 
   @Patch(':id')
+  @ApiOkResponse({ type: ChatSessionResponseDto })
   async updateSession(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateSessionSchema)) body: UpdateSessionDto,
@@ -64,6 +78,7 @@ export class ChatController {
   }
 
   @Delete(':id')
+  @ApiOkResponse({ type: DeleteSessionResponseDto })
   async deleteSession(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
     await this.chatService.deleteSession(id, auth);
     return { success: true };
@@ -71,6 +86,7 @@ export class ChatController {
 
   @Post(':id/submissions')
   @Throttle({ default: { limit: 600, ttl: 60000 } })
+  @ApiCreatedResponse({ type: SubmitOperationResponseDto })
   async submitOperation(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(SubmitOperationSchema)) body: SubmitOperationDto,
@@ -80,6 +96,7 @@ export class ChatController {
   }
 
   @Get(':id/thread-history')
+  @ApiOkResponse({ type: ThreadHistoryResponseDto })
   async getThreadHistory(@Param('id') id: string, @CurrentAuth() auth: AuthContext) {
     return this.chatService.getThreadHistory(id, auth);
   }
@@ -118,6 +135,7 @@ export class ChatController {
 
   @Get(':id/events')
   @Throttle({ default: { limit: 10000, ttl: 60000 } })
+  @ApiOkResponse({ type: ChatEventsResponseDto })
   async listEvents(
     @Param('id') id: string,
     @Query('afterSeq') afterSeqRaw: string | undefined,
@@ -130,6 +148,7 @@ export class ChatController {
 
   @Post(':id/internal/events')
   @SkipThrottle()
+  @ApiOkResponse({ type: AppendInternalEventResponseDto })
   async appendInternalEvent(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(AppendInternalEventSchema)) body: AppendInternalEventDto,
@@ -141,7 +160,8 @@ export class ChatController {
 
   @Post(':id/internal/run-completion')
   @SkipThrottle()
-  async appendRunCompletion(@Param('id') id: string, @Body() body: { runId?: string }) {
+  @ApiOkResponse({ type: RunCompletionResponseDto })
+  async appendRunCompletion(@Param('id') id: string, @Body() body: CompleteRunRequestDto) {
     await this.chatService.completeRun(id, body?.runId);
     return { success: true };
   }

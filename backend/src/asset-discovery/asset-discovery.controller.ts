@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiAcceptedResponse,
-  ApiExcludeEndpoint,
+  ApiCreatedResponse,
   ApiOkResponse,
   ApiQuery,
   ApiTags,
@@ -23,7 +23,19 @@ import { InternalOnly } from '../common/guards/internal-only.guard';
 import type { AuthContext } from '../auth/types';
 import { ListAssetsDto } from './dto/list-assets.dto';
 import { ListSyncRunsDto } from './dto/list-sync-runs.dto';
-import { TriggerSyncDto } from './dto/sync-assets.dto';
+import {
+  CreateSyncRunRequestDto,
+  CreateSyncRunResponseDto,
+  MarkStaleAssetsRequestDto,
+  MarkStaleAssetsResponseDto,
+  PersistSyncRunScopesRequestDto,
+  PersistSyncRunScopesResponseDto,
+  ReconcileAssetsRequestDto,
+  ReconcileAssetsResponseDto,
+  TriggerSyncDto,
+  UpdateSyncRunStatusRequestDto,
+  UpdateSyncRunStatusResponseDto,
+} from './dto/sync-assets.dto';
 
 const cloudAssetSchema = {
   type: 'object',
@@ -241,18 +253,11 @@ export class AssetDiscoveryController {
 
   @Post('internal/sync-runs')
   @InternalOnly()
-  @ApiExcludeEndpoint()
   @HttpCode(HttpStatus.CREATED)
+  @ApiCreatedResponse({ type: CreateSyncRunResponseDto })
   async createSyncRun(
     @Headers('x-organization-id') orgId: string,
-    @Body()
-    body: {
-      integrationId: string;
-      accountIdentifier: string;
-      regions: string[];
-      temporalWorkflowId?: string;
-      temporalRunId?: string;
-    },
+    @Body() body: CreateSyncRunRequestDto,
   ) {
     return this.service.createSyncRun(
       orgId,
@@ -266,23 +271,11 @@ export class AssetDiscoveryController {
 
   @Post('internal/assets/reconcile')
   @InternalOnly()
-  @ApiExcludeEndpoint()
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: ReconcileAssetsResponseDto })
   async reconcileAssets(
     @Headers('x-organization-id') orgId: string,
-    @Body()
-    body: {
-      integrationId: string;
-      accountIdentifier: string;
-      syncRunId: string;
-      assets: {
-        assetType: string;
-        externalId: string;
-        name: string;
-        region?: string;
-        metadata: Record<string, unknown>;
-      }[];
-    },
+    @Body() body: ReconcileAssetsRequestDto,
   ) {
     return this.service.reconcileAssets(
       orgId,
@@ -295,31 +288,23 @@ export class AssetDiscoveryController {
 
   @Post('internal/sync-runs/:id/scopes')
   @InternalOnly()
-  @ApiExcludeEndpoint()
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: PersistSyncRunScopesResponseDto })
   async persistSyncRunScopes(
     @Param('id') syncRunId: string,
-    @Body()
-    body: {
-      scopes: { assetType: string; region: string }[];
-    },
+    @Body() body: PersistSyncRunScopesRequestDto,
   ) {
-    return this.service.persistSyncRunScopes(syncRunId, body.scopes);
+    await this.service.persistSyncRunScopes(syncRunId, body.scopes);
+    return { success: true as const };
   }
 
   @Post('internal/assets/mark-stale')
   @InternalOnly()
-  @ApiExcludeEndpoint()
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: MarkStaleAssetsResponseDto })
   async markStaleAssets(
     @Headers('x-organization-id') orgId: string,
-    @Body()
-    body: {
-      integrationId: string;
-      accountIdentifier: string;
-      syncRunId: string;
-      syncStartTime: string;
-    },
+    @Body() body: MarkStaleAssetsRequestDto,
   ) {
     return this.service.markStaleAssets(
       orgId,
@@ -332,20 +317,11 @@ export class AssetDiscoveryController {
 
   @Post('internal/sync-runs/:id/status')
   @InternalOnly()
-  @ApiExcludeEndpoint()
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: UpdateSyncRunStatusResponseDto })
   async updateSyncRunStatus(
     @Param('id') syncRunId: string,
-    @Body()
-    body: {
-      status: string;
-      assetsDiscovered?: number;
-      assetsCreated?: number;
-      assetsUpdated?: number;
-      assetsStale?: number;
-      coveredRegions?: string[];
-      errors?: { message: string; timestamp: string }[];
-    },
+    @Body() body: UpdateSyncRunStatusRequestDto,
   ) {
     return this.service.updateSyncRunStatus(syncRunId, body.status, body);
   }
