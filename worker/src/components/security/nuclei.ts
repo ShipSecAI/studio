@@ -237,6 +237,13 @@ const outputSchema = outputs({
   ),
 });
 
+// Runner output schema
+const nucleiRunnerOutputSchema = z.object({
+  stdout: z.string().optional().default(''),
+  stderr: z.string().optional().default(''),
+  exitCode: z.number().optional().default(0),
+});
+
 const dockerTimeoutSeconds = (() => {
   const raw = process.env.NUCLEI_TIMEOUT_SECONDS;
   const parsed = raw ? Number.parseInt(raw, 10) : NaN;
@@ -492,15 +499,13 @@ const definition = defineComponent({
 
       // ===== Build runner config =====
       const baseRunner = definition.runner as DockerRunnerConfig;
-      const runnerConfig = {
+      const runnerConfig: DockerRunnerConfig = {
         kind: 'docker',
         image: baseRunner.image,
         entrypoint: baseRunner.entrypoint,
         network: baseRunner.network,
         timeoutSeconds: baseRunner.timeoutSeconds,
         env: baseRunner.env,
-        stdinJson: false,
-        expectOutputFile: false,
         // ✅ Preserve shell wrapper + append TypeScript-built args
         command: [...(baseRunner.command ?? []), ...args],
         volumes: [
@@ -508,34 +513,49 @@ const definition = defineComponent({
           // ✅ Templates are pre-installed in ghcr.io/shipsecai/nuclei:latest
           // No need for persistent volume since templates are baked into the image
         ],
-      } as DockerRunnerConfig;
+      };
 
       // ===== Execute nuclei =====
-      let executionError: Error | null = null;
-      try {
-        await runComponentWithRunner(
-          runnerConfig,
-          async () => undefined,
-          { ...parsedInputs, ...parsedParams },
-          context,
-        );
-      } catch (error) {
-        executionError = error instanceof Error ? error : new Error(String(error));
+      const rawRunnerResult = await runComponentWithRunner(
+        runnerConfig,
+        async () => ({}) as Output,
+        { ...parsedInputs, ...parsedParams },
+        context,
+      );
+
+      // ===== TypeScript: Parse output =====
+      const parsedRunnerResult = nucleiRunnerOutputSchema.safeParse(rawRunnerResult);
+
+      let stdout = '';
+      let stderr = '';
+      let exitCode = 0;
+
+      if (parsedRunnerResult.success) {
+        stdout = parsedRunnerResult.data.stdout ?? '';
+        stderr = parsedRunnerResult.data.stderr ?? '';
+        exitCode = parsedRunnerResult.data.exitCode ?? 0;
+
+        // Nuclei exits with 0 even when findings exist
+        if (exitCode !== 0 && !stderr.includes('No results found')) {
+          throw new ServiceError(
+            stderr ? `Nuclei scan failed: ${stderr}` : `Nuclei exited with code ${exitCode}`,
+            { details: { exitCode, stderr: stderr?.slice(0, 500) } },
+          );
+        }
+      } else if (typeof rawRunnerResult === 'string') {
+        stdout = rawRunnerResult;
       }
 
       const rawOutput =
         (await volume.readFiles(['nuclei-output.jsonl']))['nuclei-output.jsonl'] ?? '';
-      if (executionError && rawOutput.trim().length === 0) {
-        throw new ServiceError(`Nuclei scan failed: ${executionError.message}`, {
-          cause: executionError,
-        });
-      }
       const findings = parseNucleiOutput(rawOutput, context);
-      const stats = {
-        templatesLoaded: 0,
-        requestsSent: 0,
-        duration: 0,
-      };
+
+      if (stderr && !stderr.includes('No results found')) {
+        context.logger.info(`[Nuclei] stderr: ${stderr}`);
+      }
+
+      // Extract stats (TypeScript)
+      const stats = extractStats(stderr, stdout);
 
       context.logger.info(
         `[Nuclei] Scan complete: ${findings.length} finding(s) from ${parsedInputs.targets.length} target(s)`,
@@ -792,6 +812,34 @@ function parseNucleiOutput(raw: string, context: any): Finding[] {
   );
 
   return findings;
+}
+
+function extractStats(
+  stderr: string,
+  _output: string,
+): { templatesLoaded: number; requestsSent: number; duration: number } {
+  const stats = {
+    templatesLoaded: 0,
+    requestsSent: 0,
+    duration: 0,
+  };
+
+  const templatesMatch = stderr.match(/(\d+)\s+templates/i);
+  if (templatesMatch) {
+    stats.templatesLoaded = parseInt(templatesMatch[1], 10);
+  }
+
+  const requestsMatch = stderr.match(/(\d+)\s+requests/i);
+  if (requestsMatch) {
+    stats.requestsSent = parseInt(requestsMatch[1], 10);
+  }
+
+  const durationMatch = stderr.match(/(\d+(?:\.\d+)?)\s*s/);
+  if (durationMatch) {
+    stats.duration = parseFloat(durationMatch[1]);
+  }
+
+  return stats;
 }
 
 componentRegistry.register(definition);

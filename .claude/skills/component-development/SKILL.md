@@ -78,7 +78,6 @@ export default defineComponent({
    - Use a shell wrapper when the tool needs PTY-compatible terminal behavior or shell setup
    - MUST use `IsolatedContainerVolume` for file I/O
    - Prefer parsing native output files over parsing PTY/stdout for JSON-producing tools
-   - For tool-native outputs, set `expectOutputFile: false` and read the mounted output file directly
    - Reference: `worker/src/components/security/dnsx.ts`
 
 ### Quick Component Checklist
@@ -153,11 +152,9 @@ try {
   const config = {
     ...runner,
     command: ['-c', `tool \"$@\" 1>${TOOL_OUTPUT_DIR}/report.json`, '--', '--json'],
-    stdinJson: false,
-    expectOutputFile: false,
     volumes: [outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false)],
   };
-  await runComponentWithRunner(config, async () => undefined as void, inputs, context);
+  await runComponentWithRunner(config, async () => ({}), inputs, context);
   const rawOutput = await readToolOutputFile(outputVolume, 'report.json', 'Tool');
 } finally {
   await outputVolume.cleanup();

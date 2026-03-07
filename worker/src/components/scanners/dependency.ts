@@ -16,6 +16,11 @@ import {
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { resolveVolumeSource } from '../../utils/isolated-volume';
+import {
+  createToolOutputVolume,
+  readToolOutputFile,
+  TOOL_OUTPUT_DIR,
+} from '../../utils/tool-output';
 
 /**
  * Dependency Scanner Component (using safedep/vet)
@@ -142,7 +147,7 @@ interface VetVulnerability {
 }
 
 interface VetOutput {
-  packages?: number;
+  packages?: number | VetPackage[];
   vulnerabilities?: VetVulnerability[];
   summary?: {
     total: number;
@@ -150,6 +155,14 @@ interface VetOutput {
     high: number;
     medium: number;
     low: number;
+  };
+}
+
+interface VetPackage {
+  package?: {
+    ecosystem?: string;
+    name?: string;
+    version?: string;
   };
 }
 
@@ -211,6 +224,16 @@ function parseVetOutput(rawOutput: string): VetOutput {
   }
 }
 
+function getPackageCount(vetOutput: VetOutput): number {
+  if (typeof vetOutput.packages === 'number') {
+    return vetOutput.packages;
+  }
+  if (Array.isArray(vetOutput.packages)) {
+    return vetOutput.packages.length;
+  }
+  return 0;
+}
+
 // Retry policy for vet
 const dependencyRetryPolicy: ComponentRetryPolicy = {
   maxAttempts: 2,
@@ -269,131 +292,142 @@ const definition = defineComponent({
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);
     const parsedParams = parameterSchema.parse(params);
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const outputVolume = await createToolOutputVolume(tenantId, context.runId, 'dependency-output');
 
-    context.logger.info(`[Dependency Scanner] Starting scan on volume: ${parsedInputs.volumeName}`);
-
-    context.emitProgress({
-      message: 'Launching dependency vulnerability scan...',
-      level: 'info',
-      data: { volumeName: parsedInputs.volumeName },
-    });
-
-    // Build vet command arguments
-    const args: string[] = [
-      'scan',
-      '--json',
-      '-D', // Scan directory
-      '/scan',
-    ];
-
-    // Add severity threshold
-    if (parsedParams.severityThreshold) {
-      args.push('--filter-severity', parsedParams.severityThreshold);
-    }
-
-    // Add fail on vuln flag
-    if (parsedParams.failOnVuln) {
-      args.push('--fail-on-vuln');
-    }
-
-    context.logger.info(`[Dependency Scanner] Command: vet ${args.join(' ')}`);
-
-    const baseRunner = definition.runner;
-    if (baseRunner.kind !== 'docker') {
-      throw new ContainerError('Dependency scanner runner must be docker', {
-        details: { reason: 'runner_type_mismatch', expected: 'docker', actual: baseRunner.kind },
-      });
-    }
-
-    // Configure runner with volume mount
-    const runnerConfig: DockerRunnerConfig = {
-      ...baseRunner,
-      command: args,
-      volumes: [
-        {
-          source: resolveVolumeSource(parsedInputs.volumeName),
-          target: '/scan',
-          readOnly: true,
-        },
-      ],
-    };
-
-    // Execute vet
-    let rawResult: unknown;
     try {
-      rawResult = await runComponentWithRunner(
-        runnerConfig,
-        async () => ({}) as Output,
-        { ...parsedInputs, ...parsedParams },
-        context,
+      context.logger.info(
+        `[Dependency Scanner] Starting scan on volume: ${parsedInputs.volumeName}`,
       );
-    } catch (error) {
-      // vet may exit with non-zero if vulnerabilities are found and failOnVuln is set
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      context.logger.warn(`[Dependency Scanner] vet exited with error: ${errorMessage}`);
-      // Continue processing to extract any output
-      rawResult = '';
-    }
 
-    // Parse output
-    const rawOutput = typeof rawResult === 'string' ? rawResult : '';
-    const vetOutput = parseVetOutput(rawOutput);
-    const findings = convertToFindings(vetOutput.vulnerabilities || []);
-
-    context.logger.info(
-      `[Dependency Scanner] Found ${findings.length} vulnerable dependencies in ${vetOutput.packages || 0} packages`,
-    );
-
-    // Count by severity
-    const severityCounts = findings.reduce(
-      (acc, f) => {
-        acc[f.severity] = (acc[f.severity] || 0) + 1;
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
-
-    // Emit progress with results summary
-    if (findings.length > 0) {
-      const criticalHigh = (severityCounts.critical || 0) + (severityCounts.high || 0);
       context.emitProgress({
-        message:
-          criticalHigh > 0
-            ? `⚠️ Found ${criticalHigh} critical/high severity vulnerabilities`
-            : `Found ${findings.length} vulnerable dependencies`,
-        level: criticalHigh > 0 ? 'warn' : 'info',
-        data: { findingCount: findings.length, severityCounts },
-      });
-    } else {
-      context.emitProgress({
-        message: 'No vulnerable dependencies detected',
+        message: 'Launching dependency vulnerability scan...',
         level: 'info',
+        data: { volumeName: parsedInputs.volumeName },
+      });
+
+      const args: string[] = [
+        'scan',
+        '-D',
+        '/scan',
+        '--report-json',
+        `${TOOL_OUTPUT_DIR}/vet-report.json`,
+        '--report-console',
+        '--report-summary',
+        '--no-banner',
+      ];
+
+      // Add severity threshold
+      if (parsedParams.severityThreshold) {
+        args.push('--filter-severity', parsedParams.severityThreshold);
+      }
+
+      // Add fail on vuln flag
+      if (parsedParams.failOnVuln) {
+        args.push('--fail-on-vuln');
+      }
+
+      context.logger.info(`[Dependency Scanner] Command: vet ${args.join(' ')}`);
+
+      const baseRunner = definition.runner;
+      if (baseRunner.kind !== 'docker') {
+        throw new ContainerError('Dependency scanner runner must be docker', {
+          details: { reason: 'runner_type_mismatch', expected: 'docker', actual: baseRunner.kind },
+        });
+      }
+
+      // Configure runner with volume mount
+      const runnerConfig: DockerRunnerConfig = {
+        ...baseRunner,
+        command: args,
+        volumes: [
+          {
+            source: resolveVolumeSource(parsedInputs.volumeName),
+            target: '/scan',
+            readOnly: true,
+          },
+          outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false),
+        ],
+      };
+
+      // Execute vet
+      try {
+        await runComponentWithRunner(
+          runnerConfig,
+          async () => ({}) as Output,
+          { ...parsedInputs, ...parsedParams },
+          context,
+        );
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        context.logger.warn(`[Dependency Scanner] vet exited with error: ${errorMessage}`);
+      }
+
+      const rawOutput = await readToolOutputFile(outputVolume, 'vet-report.json', 'vet');
+      const vetOutput = parseVetOutput(rawOutput);
+      const findings = convertToFindings(vetOutput.vulnerabilities || []);
+
+      context.logger.info(
+        `[Dependency Scanner] Found ${findings.length} vulnerable dependencies in ${getPackageCount(vetOutput)} packages`,
+      );
+
+      // Count by severity
+      const severityCounts = findings.reduce(
+        (acc, f) => {
+          acc[f.severity] = (acc[f.severity] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+
+      // Emit progress with results summary
+      if (findings.length > 0) {
+        const criticalHigh = (severityCounts.critical || 0) + (severityCounts.high || 0);
+        context.emitProgress({
+          message:
+            criticalHigh > 0
+              ? `⚠️ Found ${criticalHigh} critical/high severity vulnerabilities`
+              : `Found ${findings.length} vulnerable dependencies`,
+          level: criticalHigh > 0 ? 'warn' : 'info',
+          data: { findingCount: findings.length, severityCounts },
+        });
+      } else {
+        context.emitProgress({
+          message: 'No vulnerable dependencies detected',
+          level: 'info',
+        });
+      }
+
+      // Build analytics-ready results
+      const results: AnalyticsResult[] = findings.map((finding) => ({
+        ...finding,
+        scanner: 'dependency',
+        title: `${finding.vulnerability_id} in ${finding.package}`,
+        asset_key: `${finding.package}@${finding.version}`,
+        finding_hash: generateFindingHash(
+          'dependency',
+          finding.package,
+          finding.version,
+          finding.vulnerability_id,
+        ),
+      }));
+
+      const output: Output = {
+        findings,
+        results,
+        findingCount: findings.length,
+        packageCount: getPackageCount(vetOutput),
+        rawOutput,
+      };
+
+      return outputSchema.parse(output);
+    } finally {
+      await outputVolume.cleanup().catch((error) => {
+        context.logger.warn(
+          `[Dependency Scanner] Failed to cleanup output volume: ${String(error)}`,
+        );
       });
     }
-
-    // Build analytics-ready results
-    const results: AnalyticsResult[] = findings.map((finding) => ({
-      ...finding,
-      scanner: 'dependency',
-      title: `${finding.vulnerability_id} in ${finding.package}`,
-      asset_key: `${finding.package}@${finding.version}`,
-      finding_hash: generateFindingHash(
-        'dependency',
-        finding.package,
-        finding.version,
-        finding.vulnerability_id,
-      ),
-    }));
-
-    const output: Output = {
-      findings,
-      results,
-      findingCount: findings.length,
-      packageCount: vetOutput.packages || 0,
-      rawOutput,
-    };
-
-    return outputSchema.parse(output);
   },
 });
 

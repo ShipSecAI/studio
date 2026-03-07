@@ -132,35 +132,23 @@ const definition = defineComponent({
 
   async execute({ inputs }, context) {
     const args = ['-json', '-target', inputs.target];
-    const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const outputVolume = await createToolOutputVolume(tenantId, context.runId, 'tool-output');
     
-    try {
-      const runnerConfig: DockerRunnerConfig = {
-        ...this.runner,
-        command: [
-          '-c',
-          `tool \"$@\" 1>${TOOL_OUTPUT_DIR}/report.json`,
-          '--',
-          ...args,
-        ],
-        stdinJson: false,
-        expectOutputFile: false,
-        volumes: [outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false)],
-      };
+    const runnerConfig: DockerRunnerConfig = {
+      ...this.runner,
+      command: [...(this.runner.command ?? []), ...args],
+    };
 
-      await runComponentWithRunner(
-        runnerConfig,
-        async () => undefined as void,
-        inputs,
-        context,
-      );
-
-      const rawOutput = await readToolOutputFile(outputVolume, 'report.json', 'Tool Scanner');
-      return { results: JSON.parse(rawOutput) };
-    } finally {
-      await outputVolume.cleanup();
-    }
+    const rawOutput = await runComponentWithRunner(
+      runnerConfig,
+      async (stdout) => {
+         // Logic to parse tool stdout
+         return JSON.parse(stdout);
+      },
+      inputs,
+      context
+    );
+    
+    return { results: rawOutput };
   }
 });
 
@@ -175,7 +163,6 @@ For Docker and K8s-executed CLI tools, treat live terminal output and parsed res
 - Do not rely on PTY `stdout` as the source of truth for structured findings.
 - Prefer native tool output files when the CLI supports them.
 - If a tool only emits structured results on `stdout`, redirect `stdout` into a mounted output file and parse that file after execution.
-- For tool-native outputs, set `expectOutputFile: false` on the runner config so the component does not rely on `/shipsec-output/result.json`.
 
 This avoids control-sequence corruption in K8s PTY streams while preserving the live terminal UX.
 
@@ -200,8 +187,6 @@ async execute({ inputs }, context) {
         '--json',
         '/scan',
       ],
-      stdinJson: false,
-      expectOutputFile: false,
       volumes: [
         outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false),
       ],
@@ -209,7 +194,7 @@ async execute({ inputs }, context) {
 
     await runComponentWithRunner(
       runnerConfig,
-      async () => undefined as void,
+      async () => ({}) as { results: unknown[] },
       inputs,
       context,
     );
@@ -268,7 +253,6 @@ Use this rule:
 
 - `stderr` / PTY stream: for humans watching the run
 - output file in a mounted volume: for TypeScript parsers
-- `/shipsec-output/result.json`: only for generic runner-style components, not scanner findings
 
 ### Writable Volumes For Non-Root Images
 

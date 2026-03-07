@@ -24,6 +24,11 @@ interface BuildJobResult {
   hasGcsFuse: boolean;
 }
 
+const DEFAULT_GCSFUSE_WRITABLE_UID = process.env.K8S_GCSFUSE_WRITABLE_UID || '65532';
+const DEFAULT_GCSFUSE_WRITABLE_GID = process.env.K8S_GCSFUSE_WRITABLE_GID || '65532';
+const DEFAULT_GCSFUSE_WRITABLE_FILE_MODE = process.env.K8S_GCSFUSE_WRITABLE_FILE_MODE || '0666';
+const DEFAULT_GCSFUSE_WRITABLE_DIR_MODE = process.env.K8S_GCSFUSE_WRITABLE_DIR_MODE || '0777';
+
 // Lazy-init shared K8s clients
 let _kc: k8s.KubeConfig | null = null;
 let _batchApi: k8s.BatchV1Api | null = null;
@@ -115,6 +120,21 @@ function generateJobName(context: ExecutionContext, image: string): string {
   const runShort = sanitizeName(context.runId).slice(0, 8);
   const rand = Math.random().toString(36).slice(2, 8);
   return `ss-${imgShort}-${runShort}-${rand}`;
+}
+
+export function buildGcsFuseMountOptions(onlyDir: string, readOnly: boolean): string {
+  const options = ['implicit-dirs', `only-dir=${onlyDir}`];
+
+  if (!readOnly) {
+    options.push(
+      `uid=${DEFAULT_GCSFUSE_WRITABLE_UID}`,
+      `gid=${DEFAULT_GCSFUSE_WRITABLE_GID}`,
+      `file-mode=${DEFAULT_GCSFUSE_WRITABLE_FILE_MODE}`,
+      `dir-mode=${DEFAULT_GCSFUSE_WRITABLE_DIR_MODE}`,
+    );
+  }
+
+  return options.join(',');
 }
 
 /**
@@ -305,7 +325,7 @@ function buildJobSpec(
             readOnly: vol.readOnly ?? false,
             volumeAttributes: {
               bucketName,
-              mountOptions: `implicit-dirs,only-dir=${onlyDir}`,
+              mountOptions: buildGcsFuseMountOptions(onlyDir, vol.readOnly ?? false),
             },
           },
         });

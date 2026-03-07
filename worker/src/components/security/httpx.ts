@@ -3,7 +3,6 @@ import {
   componentRegistry,
   ComponentRetryPolicy,
   runComponentWithRunner,
-  ServiceError,
   defineComponent,
   inputs,
   outputs,
@@ -201,13 +200,6 @@ const outputSchema = outputs({
   }),
 });
 
-const httpxRunnerOutputSchema = z.object({
-  results: z.array(z.unknown()).optional().default([]),
-  raw: z.string().optional().default(''),
-  stderr: z.string().optional().default(''),
-  exitCode: z.number().optional().default(0),
-});
-
 const dockerTimeoutSeconds = (() => {
   const raw = process.env.HTTPX_TIMEOUT_SECONDS;
   const parsed = raw ? Number.parseInt(raw, 10) : NaN;
@@ -344,6 +336,8 @@ const definition = defineComponent({
         '/inputs/targets.txt',
         '-stream',
         '-ip',
+        '-o',
+        '/inputs/httpx-output.jsonl',
       ];
 
       if (runnerParams.ports) {
@@ -375,52 +369,12 @@ const definition = defineComponent({
         ...definition.runner,
         entrypoint: 'httpx',
         command: httpxArgs,
-        volumes: [volume.getVolumeConfig('/inputs', true)],
+        volumes: [volume.getVolumeConfig('/inputs', false)],
       };
 
-      const rawRunnerResult = await runComponentWithRunner(
-        runnerConfig,
-        async () => ({}) as Output,
-        runnerParams,
-        context,
-      );
-
-      let runnerOutput = '';
-
-      // First, check if it's already a valid Output (from docker runner normalization)
-      if (rawRunnerResult && typeof rawRunnerResult === 'object') {
-        const parsedOutput = outputSchema.safeParse(rawRunnerResult);
-        if (parsedOutput.success) {
-          return parsedOutput.data;
-        }
-
-        // Check if it's a runner output format (with exitCode)
-        const parsedRunnerResult = httpxRunnerOutputSchema.safeParse(rawRunnerResult);
-        if (parsedRunnerResult.success) {
-          const exitCode = parsedRunnerResult.data.exitCode ?? 0;
-          const stderr = parsedRunnerResult.data.stderr ?? '';
-
-          // Check exit code and throw if non-zero
-          if (exitCode !== 0) {
-            const errorMessage = stderr
-              ? `httpx exited with code ${exitCode}: ${stderr}`
-              : `httpx exited with code ${exitCode}`;
-            throw new ServiceError(errorMessage, {
-              details: { exitCode, stderr, tool: 'httpx' },
-            });
-          }
-
-          runnerOutput = parsedRunnerResult.data.raw ?? '';
-        } else {
-          // Extract raw output from object
-          runnerOutput =
-            'rawOutput' in rawRunnerResult
-              ? String((rawRunnerResult as Record<string, unknown>).rawOutput ?? '')
-              : JSON.stringify(rawRunnerResult);
-        }
-      } else if (typeof rawRunnerResult === 'string') {
-        runnerOutput = rawRunnerResult;
-      }
+      await runComponentWithRunner(runnerConfig, async () => ({}) as Output, runnerParams, context);
+      const runnerOutput =
+        (await volume.readFiles(['httpx-output.jsonl']))['httpx-output.jsonl'] ?? '';
 
       const findings = parseHttpxOutput(runnerOutput);
 

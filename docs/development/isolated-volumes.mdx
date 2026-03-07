@@ -183,10 +183,6 @@ try {
 
 For scanners that emit JSON or JSONL, prefer writing their structured result into a writable isolated volume and parse the file afterward.
 
-- Use the mounted file as the source of truth for findings.
-- Keep PTY/stdout for operator-visible logs only.
-- When using `runComponentWithRunner`, set `expectOutputFile: false` for these tool-native output flows.
-
 ```typescript
 const outputVolume = createIsolatedVolume(tenantId, `${runId}-tool-output`);
 

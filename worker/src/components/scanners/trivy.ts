@@ -16,6 +16,11 @@ import {
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { resolveVolumeSource } from '../../utils/isolated-volume';
+import {
+  createToolOutputVolume,
+  readToolOutputFile,
+  TOOL_OUTPUT_DIR,
+} from '../../utils/tool-output';
 
 /**
  * Trivy Scanner Component
@@ -417,188 +422,205 @@ const definition = defineComponent({
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);
     const parsedParams = parameterSchema.parse(params);
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const outputVolume = await createToolOutputVolume(tenantId, context.runId, 'trivy-output');
 
-    // Resolve imageRef: input port takes priority over parameter
-    const imageRef = parsedInputs.imageRef ?? parsedParams.imageRef;
+    try {
+      // Resolve imageRef: input port takes priority over parameter
+      const imageRef = parsedInputs.imageRef ?? parsedParams.imageRef;
 
-    // Validate based on scan type
-    if (parsedParams.scanType === 'image') {
-      if (!imageRef) {
-        throw new ContainerError('Image reference is required for image scan type', {
-          details: { scanType: parsedParams.scanType },
-        });
+      // Validate based on scan type
+      if (parsedParams.scanType === 'image') {
+        if (!imageRef) {
+          throw new ContainerError('Image reference is required for image scan type', {
+            details: { scanType: parsedParams.scanType },
+          });
+        }
+      } else {
+        // filesystem or config scan requires volumeName
+        if (!parsedInputs.volumeName) {
+          throw new ContainerError('Volume name is required for filesystem/config scan type', {
+            details: { scanType: parsedParams.scanType },
+          });
+        }
       }
-    } else {
-      // filesystem or config scan requires volumeName
-      if (!parsedInputs.volumeName) {
-        throw new ContainerError('Volume name is required for filesystem/config scan type', {
-          details: { scanType: parsedParams.scanType },
-        });
-      }
-    }
 
-    const scanTarget = parsedParams.scanType === 'image' ? imageRef : parsedInputs.volumeName;
-    context.logger.info(`[Trivy Scanner] Starting ${parsedParams.scanType} scan on: ${scanTarget}`);
+      const scanTarget = parsedParams.scanType === 'image' ? imageRef : parsedInputs.volumeName;
+      context.logger.info(
+        `[Trivy Scanner] Starting ${parsedParams.scanType} scan on: ${scanTarget}`,
+      );
 
-    context.emitProgress({
-      message: `Launching Trivy ${parsedParams.scanType} scan...`,
-      level: 'info',
-      data: { scanTarget, scanType: parsedParams.scanType },
-    });
-
-    // Build Trivy command arguments
-    const args: string[] = [
-      parsedParams.scanType === 'image' ? 'image' : parsedParams.scanType,
-      '--format',
-      'json',
-      '--quiet',
-    ];
-
-    // Add severity filter
-    if (parsedParams.severityFilter && parsedParams.severityFilter.length > 0) {
-      args.push('--severity', parsedParams.severityFilter.join(','));
-    }
-
-    // Add scanners configuration
-    if (parsedParams.scanners && parsedParams.scanners.length > 0) {
-      args.push('--scanners', parsedParams.scanners.join(','));
-    }
-
-    // Add ignore unfixed flag
-    if (parsedParams.ignoreUnfixed) {
-      args.push('--ignore-unfixed');
-    }
-
-    // Add timeout
-    args.push('--timeout', `${parsedParams.timeout}s`);
-
-    // Add target based on scan type
-    if (parsedParams.scanType === 'image') {
-      args.push(imageRef!);
-    } else {
-      args.push('/scan');
-    }
-
-    context.logger.info(`[Trivy Scanner] Command: trivy ${args.join(' ')}`);
-
-    const baseRunner = definition.runner;
-    if (baseRunner.kind !== 'docker') {
-      throw new ContainerError('Trivy runner must be docker', {
-        details: { reason: 'runner_type_mismatch', expected: 'docker', actual: baseRunner.kind },
-      });
-    }
-
-    // Build env vars with optional registry credentials
-    const env: Record<string, string> = { HOME: '/tmp', TRIVY_NO_PROGRESS: 'true' };
-    const username = parsedInputs.registryUsername ?? parsedParams.registryUsername;
-    const password = parsedInputs.registryPassword ?? parsedParams.registryPassword;
-    const accessKey = parsedInputs.awsAccessKeyId ?? parsedParams.awsAccessKeyId;
-    const secretKey = parsedInputs.awsSecretAccessKey ?? parsedParams.awsSecretAccessKey;
-    const region = parsedInputs.awsRegion ?? parsedParams.awsRegion;
-
-    if (username) env.TRIVY_USERNAME = username;
-    if (password) env.TRIVY_PASSWORD = password;
-    if (accessKey) env.AWS_ACCESS_KEY_ID = accessKey;
-    if (secretKey) env.AWS_SECRET_ACCESS_KEY = secretKey;
-    if (region) env.AWS_REGION = region;
-
-    // Configure runner with volume mount
-    const volumes: { source: string; target: string; readOnly: boolean }[] = [];
-
-    // Only mount volume for filesystem/config scans
-    if (parsedParams.scanType !== 'image' && parsedInputs.volumeName) {
-      volumes.push({
-        source: resolveVolumeSource(parsedInputs.volumeName),
-        target: '/scan',
-        readOnly: true,
-      });
-    }
-
-    // For image scans, mount docker socket for local images
-    if (parsedParams.scanType === 'image') {
-      volumes.push({
-        source: '/var/run/docker.sock',
-        target: '/var/run/docker.sock',
-        readOnly: true,
-      });
-    }
-
-    const runnerConfig: DockerRunnerConfig = {
-      ...baseRunner,
-      command: args,
-      env,
-      timeoutSeconds: parsedParams.timeout + 60, // Add buffer for startup
-      volumes: volumes.length > 0 ? volumes : undefined,
-    };
-
-    // Execute Trivy
-    const rawResult = await runComponentWithRunner(
-      runnerConfig,
-      async () => ({}) as Output,
-      { ...parsedInputs, ...parsedParams },
-      context,
-    );
-
-    // Parse output
-    const rawOutput = typeof rawResult === 'string' ? rawResult : '';
-    const trivyOutput = parseTrivyOutput(rawOutput);
-    const findings = convertToFindings(trivyOutput.Results || []);
-
-    context.logger.info(`[Trivy Scanner] Found ${findings.length} issues`);
-
-    // Count by severity
-    const severityCounts = findings.reduce(
-      (acc, f) => {
-        acc[f.severity] = (acc[f.severity] || 0) + 1;
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
-
-    // Count by type
-    const typeCounts = findings.reduce(
-      (acc, f) => {
-        acc[f.type] = (acc[f.type] || 0) + 1;
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
-
-    // Emit progress with results summary
-    if (findings.length > 0) {
-      const criticalHigh = (severityCounts.critical || 0) + (severityCounts.high || 0);
       context.emitProgress({
-        message:
-          criticalHigh > 0
-            ? `⚠️ Found ${criticalHigh} critical/high severity issues`
-            : `Found ${findings.length} security issues`,
-        level: criticalHigh > 0 ? 'warn' : 'info',
-        data: { findingCount: findings.length, severityCounts, typeCounts },
-      });
-    } else {
-      context.emitProgress({
-        message: 'No security issues detected',
+        message: `Launching Trivy ${parsedParams.scanType} scan...`,
         level: 'info',
+        data: { scanTarget, scanType: parsedParams.scanType },
+      });
+
+      // Build Trivy command arguments
+      const args: string[] = [
+        parsedParams.scanType === 'image' ? 'image' : parsedParams.scanType,
+        '--format',
+        'json',
+        '--quiet',
+        '-o',
+        `${TOOL_OUTPUT_DIR}/trivy-report.json`,
+      ];
+
+      // Add severity filter
+      if (parsedParams.severityFilter && parsedParams.severityFilter.length > 0) {
+        args.push('--severity', parsedParams.severityFilter.join(','));
+      }
+
+      // Add scanners configuration
+      if (parsedParams.scanners && parsedParams.scanners.length > 0) {
+        args.push('--scanners', parsedParams.scanners.join(','));
+      }
+
+      // Add ignore unfixed flag
+      if (parsedParams.ignoreUnfixed) {
+        args.push('--ignore-unfixed');
+      }
+
+      // Add timeout
+      args.push('--timeout', `${parsedParams.timeout}s`);
+
+      // Add target based on scan type
+      if (parsedParams.scanType === 'image') {
+        args.push(imageRef!);
+      } else {
+        args.push('/scan');
+      }
+
+      context.logger.info(`[Trivy Scanner] Command: trivy ${args.join(' ')}`);
+
+      const baseRunner = definition.runner;
+      if (baseRunner.kind !== 'docker') {
+        throw new ContainerError('Trivy runner must be docker', {
+          details: { reason: 'runner_type_mismatch', expected: 'docker', actual: baseRunner.kind },
+        });
+      }
+
+      // Build env vars with optional registry credentials
+      const env: Record<string, string> = { HOME: '/tmp', TRIVY_NO_PROGRESS: 'true' };
+      const username = parsedInputs.registryUsername ?? parsedParams.registryUsername;
+      const password = parsedInputs.registryPassword ?? parsedParams.registryPassword;
+      const accessKey = parsedInputs.awsAccessKeyId ?? parsedParams.awsAccessKeyId;
+      const secretKey = parsedInputs.awsSecretAccessKey ?? parsedParams.awsSecretAccessKey;
+      const region = parsedInputs.awsRegion ?? parsedParams.awsRegion;
+
+      if (username) env.TRIVY_USERNAME = username;
+      if (password) env.TRIVY_PASSWORD = password;
+      if (accessKey) env.AWS_ACCESS_KEY_ID = accessKey;
+      if (secretKey) env.AWS_SECRET_ACCESS_KEY = secretKey;
+      if (region) env.AWS_REGION = region;
+
+      // Configure runner with volume mount
+      const volumes: { source: string; target: string; readOnly: boolean }[] = [
+        outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false),
+      ];
+
+      // Only mount volume for filesystem/config scans
+      if (parsedParams.scanType !== 'image' && parsedInputs.volumeName) {
+        volumes.push({
+          source: resolveVolumeSource(parsedInputs.volumeName),
+          target: '/scan',
+          readOnly: true,
+        });
+      }
+
+      // For image scans, mount docker socket for local images
+      if (parsedParams.scanType === 'image') {
+        volumes.push({
+          source: '/var/run/docker.sock',
+          target: '/var/run/docker.sock',
+          readOnly: true,
+        });
+      }
+
+      const runnerConfig: DockerRunnerConfig = {
+        ...baseRunner,
+        command: args,
+        env,
+        timeoutSeconds: parsedParams.timeout + 60, // Add buffer for startup
+        volumes: volumes.length > 0 ? volumes : undefined,
+      };
+
+      // Execute Trivy
+      await runComponentWithRunner(
+        runnerConfig,
+        async () => ({}) as Output,
+        { ...parsedInputs, ...parsedParams },
+        context,
+      );
+
+      const rawOutput = await readToolOutputFile(outputVolume, 'trivy-report.json', 'Trivy');
+      const trivyOutput = parseTrivyOutput(rawOutput);
+      const findings = convertToFindings(trivyOutput.Results || []);
+
+      context.logger.info(`[Trivy Scanner] Found ${findings.length} issues`);
+
+      // Count by severity
+      const severityCounts = findings.reduce(
+        (acc, f) => {
+          acc[f.severity] = (acc[f.severity] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+
+      // Count by type
+      const typeCounts = findings.reduce(
+        (acc, f) => {
+          acc[f.type] = (acc[f.type] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+
+      // Emit progress with results summary
+      if (findings.length > 0) {
+        const criticalHigh = (severityCounts.critical || 0) + (severityCounts.high || 0);
+        context.emitProgress({
+          message:
+            criticalHigh > 0
+              ? `⚠️ Found ${criticalHigh} critical/high severity issues`
+              : `Found ${findings.length} security issues`,
+          level: criticalHigh > 0 ? 'warn' : 'info',
+          data: { findingCount: findings.length, severityCounts, typeCounts },
+        });
+      } else {
+        context.emitProgress({
+          message: 'No security issues detected',
+          level: 'info',
+        });
+      }
+
+      // Build analytics-ready results (follows core.analytics.result.v1 contract)
+      const scannerName = parsedParams.scanType === 'image' ? 'trivy-container' : 'trivy';
+      const results: AnalyticsResult[] = findings.map((finding) => ({
+        ...finding,
+        scanner: scannerName,
+        asset_key: finding.target,
+        finding_hash: generateFindingHash(
+          finding.vulnerability_id,
+          finding.target,
+          finding.severity,
+        ),
+      }));
+
+      const output: Output = {
+        findings,
+        results,
+        findingCount: findings.length,
+        rawOutput,
+      };
+
+      return outputSchema.parse(output);
+    } finally {
+      await outputVolume.cleanup().catch((error) => {
+        context.logger.warn(`[Trivy Scanner] Failed to cleanup output volume: ${String(error)}`);
       });
     }
-
-    // Build analytics-ready results (follows core.analytics.result.v1 contract)
-    const scannerName = parsedParams.scanType === 'image' ? 'trivy-container' : 'trivy';
-    const results: AnalyticsResult[] = findings.map((finding) => ({
-      ...finding,
-      scanner: scannerName,
-      asset_key: finding.target,
-      finding_hash: generateFindingHash(finding.vulnerability_id, finding.target, finding.severity),
-    }));
-
-    const output: Output = {
-      findings,
-      results,
-      findingCount: findings.length,
-      rawOutput,
-    };
-
-    return outputSchema.parse(output);
   },
 });
 
