@@ -12437,6 +12437,22 @@
                 "description": {
                   "type": "string",
                   "nullable": true
+                },
+                "isBranching": {
+                  "type": "boolean",
+                  "nullable": true
+                },
+                "branchColor": {
+                  "type": "string",
+                  "enum": [
+                    "green",
+                    "red",
+                    "amber",
+                    "blue",
+                    "purple",
+                    "slate"
+                  ],
+                  "nullable": true
                 }
               },
               "required": [
@@ -12482,6 +12498,10 @@
                 "default": {
                   "nullable": true
                 },
+                "exposeToTool": {
+                  "type": "boolean",
+                  "nullable": true
+                },
                 "placeholder": {
                   "type": "string",
                   "nullable": true
@@ -12521,6 +12541,14 @@
                 },
                 "rows": {
                   "type": "number",
+                  "nullable": true
+                },
+                "visibleWhen": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
                   "nullable": true
                 }
               },
@@ -12895,6 +12923,22 @@
                 "description": {
                   "type": "string",
                   "nullable": true
+                },
+                "isBranching": {
+                  "type": "boolean",
+                  "nullable": true
+                },
+                "branchColor": {
+                  "type": "string",
+                  "enum": [
+                    "green",
+                    "red",
+                    "amber",
+                    "blue",
+                    "purple",
+                    "slate"
+                  ],
+                  "nullable": true
                 }
               },
               "required": [
@@ -12940,6 +12984,10 @@
                 "default": {
                   "nullable": true
                 },
+                "exposeToTool": {
+                  "type": "boolean",
+                  "nullable": true
+                },
                 "placeholder": {
                   "type": "string",
                   "nullable": true
@@ -12979,6 +13027,14 @@
                 },
                 "rows": {
                   "type": "number",
+                  "nullable": true
+                },
+                "visibleWhen": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
                   "nullable": true
                 }
               },

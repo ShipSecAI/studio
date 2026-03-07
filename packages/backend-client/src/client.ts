@@ -4350,6 +4350,9 @@ export interface components {
                     [key: string]: unknown;
                 };
                 description?: string | null;
+                isBranching?: boolean | null;
+                /** @enum {string|null} */
+                branchColor?: "green" | "red" | "amber" | "blue" | "purple" | "slate" | null;
             }[];
             parameters: {
                 id: string;
@@ -4358,6 +4361,7 @@ export interface components {
                 type: "text" | "textarea" | "number" | "boolean" | "toggle" | "select" | "multi-select" | "file" | "json" | "secret" | "artifact" | "variable-list" | "form-fields" | "selection-options";
                 required: boolean;
                 default?: unknown;
+                exposeToTool?: boolean | null;
                 placeholder?: string | null;
                 description?: string | null;
                 helpText?: string | null;
@@ -4368,6 +4372,9 @@ export interface components {
                 min?: number | null;
                 max?: number | null;
                 rows?: number | null;
+                visibleWhen?: {
+                    [key: string]: unknown;
+                } | null;
             }[];
             examples: string[];
             toolProvider: {
@@ -4454,6 +4461,9 @@ export interface components {
                     [key: string]: unknown;
                 };
                 description?: string | null;
+                isBranching?: boolean | null;
+                /** @enum {string|null} */
+                branchColor?: "green" | "red" | "amber" | "blue" | "purple" | "slate" | null;
             }[];
             parameters: {
                 id: string;
@@ -4462,6 +4472,7 @@ export interface components {
                 type: "text" | "textarea" | "number" | "boolean" | "toggle" | "select" | "multi-select" | "file" | "json" | "secret" | "artifact" | "variable-list" | "form-fields" | "selection-options";
                 required: boolean;
                 default?: unknown;
+                exposeToTool?: boolean | null;
                 placeholder?: string | null;
                 description?: string | null;
                 helpText?: string | null;
@@ -4472,6 +4483,9 @@ export interface components {
                 min?: number | null;
                 max?: number | null;
                 rows?: number | null;
+                visibleWhen?: {
+                    [key: string]: unknown;
+                } | null;
             }[];
             examples: string[];
             toolProvider: {

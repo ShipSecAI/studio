@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { SetStateAction } from 'react';
-import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow';
+import type {
+  Node as ReactFlowNode,
+  Edge as ReactFlowEdge,
+  NodeChange,
+  EdgeChange,
+} from 'reactflow';
 import { Canvas } from '@/components/workflow/Canvas';
 import {
   WorkflowSchedulesSummaryBar,
@@ -45,8 +50,8 @@ interface WorkflowDesignerPaneProps {
   edges: ReactFlowEdge[];
   setNodes: SetNodesFn;
   setEdges: SetEdgesFn;
-  onNodesChange: (changes: any[]) => void;
-  onEdgesChange: (changes: any[]) => void;
+  onNodesChange: (changes: NodeChange[]) => void;
+  onEdgesChange: (changes: EdgeChange[]) => void;
   showSummary?: boolean;
   onNavigateToSchedules: () => void;
   onCaptureSnapshot?: (nodes?: ReactFlowNode<FrontendNodeData>[], edges?: ReactFlowEdge[]) => void;

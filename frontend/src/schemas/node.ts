@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { InputPort } from './component';
+import type { InputPort, OutputPort } from './component';
 
 export const NodeTypeEnum = z.enum(['trigger', 'input', 'scan', 'process', 'output']);
 
@@ -89,7 +89,7 @@ export interface FrontendNodeData extends NodeData {
   componentVersion?: string;
   inputs?: Record<string, InputMapping>;
   dynamicInputs?: InputPort[];
-  dynamicOutputs?: InputPort[];
+  dynamicOutputs?: OutputPort[];
   status?: NodeStatus;
   executionTime?: number;
   error?: string;

@@ -1,5 +1,21 @@
 import { z } from 'zod';
-import { COMPONENT_CATEGORIES } from '@shipsec/shared';
+import { type ComponentListItem, ComponentListItemSchema } from '@shipsec/shared';
+
+/**
+ * ComponentMetadata is the canonical component type, defined in @shipsec/shared.
+ * Re-exported here for convenience since many frontend files import from this module.
+ */
+export type ComponentMetadata = ComponentListItem;
+export const ComponentMetadataSchema = ComponentListItemSchema;
+
+/** Derive port and parameter types from the canonical component schema */
+export type InputPort = ComponentMetadata['inputs'][number];
+export type OutputPort = ComponentMetadata['outputs'][number];
+export type Parameter = ComponentMetadata['parameters'][number];
+export type ComponentAuthor = NonNullable<ComponentMetadata['author']>;
+export type ComponentCategoryConfig = ComponentMetadata['categoryConfig'];
+
+// --- Frontend-specific schemas (used by workflow builder for validation/construction) ---
 
 export const ComponentRunnerSchema = z
   .object({
@@ -8,7 +24,6 @@ export const ComponentRunnerSchema = z
   .passthrough();
 
 const PrimitivePortTypes = ['any', 'text', 'secret', 'number', 'boolean', 'file', 'json'] as const;
-
 export const PrimitivePortTypeEnum = z.enum(PrimitivePortTypes);
 
 const PortEditorTypes = [
@@ -55,162 +70,3 @@ export const ConnectionTypeSchema: z.ZodType<any> = z.lazy(() =>
 );
 
 export type ConnectionType = z.infer<typeof ConnectionTypeSchema>;
-
-/**
- * Defines input ports for a component
- */
-const DEFAULT_TEXT_CONNECTION = {
-  kind: 'primitive',
-  name: 'text',
-} as const;
-
-export const InputPortSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  connectionType: ConnectionTypeSchema.optional().default(DEFAULT_TEXT_CONNECTION),
-  editor: PortEditorTypeEnum.optional(),
-  required: z.boolean().optional(),
-  description: z.string().optional(),
-  valuePriority: z.enum(['manual-first', 'connection-first']).optional(),
-});
-
-export type InputPort = z.infer<typeof InputPortSchema>;
-
-/**
- * Defines output ports for a component
- */
-export const OutputPortSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  connectionType: ConnectionTypeSchema.optional().default(DEFAULT_TEXT_CONNECTION),
-  description: z.string().optional(),
-  isBranching: z.boolean().optional(), // True if this port controls conditional execution
-  branchColor: z.enum(['green', 'red', 'amber', 'blue', 'purple', 'slate']).optional(), // Custom color for branching ports
-});
-
-export type OutputPort = z.infer<typeof OutputPortSchema>;
-
-/**
- * Defines configurable parameters for a component
- */
-export const ParameterSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  type: z.enum([
-    'text',
-    'textarea',
-    'number',
-    'boolean',
-    'toggle',
-    'select',
-    'multi-select',
-    'file',
-    'json',
-    'secret',
-    'artifact',
-    'variable-list',
-    'form-fields',
-    'selection-options',
-  ]),
-  required: z.boolean().optional(),
-  default: z.any().optional(),
-  exposeToTool: z.boolean().optional(),
-  options: z
-    .array(
-      z.object({
-        label: z.string(),
-        value: z.any(),
-      }),
-    )
-    .optional(),
-  min: z.number().optional(),
-  max: z.number().optional(),
-  rows: z.number().optional(),
-  placeholder: z.string().optional(),
-  description: z.string().optional(),
-  helpText: z.string().optional(),
-  /** Conditional visibility: parameter is shown only when all conditions are met */
-  visibleWhen: z.record(z.string(), z.any()).optional(),
-});
-
-export type Parameter = z.infer<typeof ParameterSchema>;
-
-/**
- * Component author information
- */
-export const ComponentAuthorSchema = z.object({
-  name: z.string(),
-  type: z.enum(['shipsecai', 'community']),
-  url: z.string().url().optional(),
-});
-
-export type ComponentAuthor = z.infer<typeof ComponentAuthorSchema>;
-
-/**
- * Component category configuration
- */
-export const ComponentCategoryConfigSchema = z
-  .object({
-    label: z.string(),
-    color: z.string(),
-    description: z.string(),
-    emoji: z.string(),
-    icon: z.string().optional(),
-  })
-  .partial()
-  .default({
-    label: 'Uncategorized',
-    color: 'text-muted-foreground',
-    description: '',
-    emoji: '🧩',
-    icon: 'Box',
-  });
-
-export type ComponentCategoryConfig = z.infer<typeof ComponentCategoryConfigSchema>;
-
-/**
- * Complete component metadata definition
- */
-export const ComponentMetadataSchema = z.object({
-  id: z.string().min(1),
-  slug: z.string().min(1),
-  name: z.string().min(1),
-  version: z.string().default('1.0.0'),
-  type: z.enum(['trigger', 'input', 'scan', 'process', 'output']),
-  category: z.enum(COMPONENT_CATEGORIES),
-  categoryConfig: ComponentCategoryConfigSchema.optional().default({
-    label: 'Uncategorized',
-    color: 'text-muted-foreground',
-    description: '',
-    emoji: '🧩',
-    icon: 'Box',
-  }),
-  description: z.string().optional().default(''),
-  documentation: z.string().optional().nullable(),
-  documentationUrl: z.string().url().optional().nullable(),
-  icon: z.string().optional().nullable(),
-  logo: z.string().optional().nullable(),
-  author: ComponentAuthorSchema.optional().nullable(),
-  isLatest: z.boolean().optional().default(true),
-  deprecated: z.boolean().optional().default(false),
-  example: z.string().optional().nullable(),
-  runner: ComponentRunnerSchema.optional().default({ kind: 'inline' as const }),
-  inputs: z.array(InputPortSchema).default([]),
-  outputs: z.array(OutputPortSchema).default([]),
-  parameters: z.array(ParameterSchema).default([]),
-  examples: z.array(z.string()).optional().default([]),
-  toolSchema: z.any().optional().nullable(),
-  /**
-   * Configuration for exposing this component as an agent-callable tool.
-   */
-  toolProvider: z
-    .object({
-      kind: z.enum(['component', 'mcp-server', 'mcp-group']),
-      name: z.string(),
-      description: z.string(),
-    })
-    .optional()
-    .nullable(),
-});
-
-export type ComponentMetadata = z.infer<typeof ComponentMetadataSchema>;

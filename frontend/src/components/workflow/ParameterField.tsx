@@ -567,7 +567,7 @@ export function ParameterField({
         <Input
           id={parameter.id}
           type="text"
-          placeholder={parameter.placeholder}
+          placeholder={parameter.placeholder ?? undefined}
           value={currentValue || ''}
           onChange={(e) => onChange(e.target.value)}
           className="text-sm"
@@ -612,7 +612,7 @@ export function ParameterField({
         <textarea
           ref={textareaRef}
           id={parameter.id}
-          placeholder={parameter.placeholder}
+          placeholder={parameter.placeholder ?? undefined}
           defaultValue={currentValue || ''}
           onBlur={handleBlur}
           rows={Math.min(parameter.rows || 3, 4)}
@@ -626,7 +626,7 @@ export function ParameterField({
         <Input
           id={parameter.id}
           type="number"
-          placeholder={parameter.placeholder}
+          placeholder={parameter.placeholder ?? undefined}
           value={currentValue ?? ''}
           onChange={(e) => {
             const inputValue = e.target.value;
@@ -636,8 +636,8 @@ export function ParameterField({
             }
             onChange(Number(inputValue));
           }}
-          min={parameter.min}
-          max={parameter.max}
+          min={parameter.min ?? undefined}
+          max={parameter.max ?? undefined}
           className="text-sm"
         />
       );
@@ -691,7 +691,7 @@ export function ParameterField({
             const isSelected = selectedValues.includes(option.value);
             return (
               <div
-                key={option.value}
+                key={String(option.value)}
                 className="flex items-center gap-2 hover:bg-muted/50 p-2 rounded transition-colors"
               >
                 <Checkbox
