@@ -167,7 +167,21 @@ async function runComponentInDocker<I, O>(
   params: I,
   context: ExecutionContext,
 ): Promise<O> {
-  const { image, command, entrypoint, env = {}, network = 'none', platform, containerName, volumes, timeoutSeconds = 300, detached } = runner;
+  const expectOutputFile =
+    (runner as DockerRunnerConfig & { expectOutputFile?: boolean }).expectOutputFile ?? true;
+
+  const {
+    image,
+    command,
+    entrypoint,
+    env = {},
+    network = 'none',
+    platform,
+    containerName,
+    volumes,
+    timeoutSeconds = 300,
+    detached,
+  } = runner;
 
   context.logger.info(`[Docker] Running ${image} with command: ${formatArgs(command)}`);
   context.emitProgress(`Starting Docker container: ${image}`);
@@ -265,8 +279,14 @@ async function runComponentInDocker<I, O>(
     }
 
 
-    // Read output from file (with stdout fallback for legacy components)
-    return await readOutputFromFile<O>(hostOutputPath, capturedStdout, context);
+    if (!expectOutputFile) {
+      context.logger.info('[Docker] Skipping structured runner output file read');
+      return undefined as O;
+    }
+
+    // Read output from file. Docker components are required to write structured
+    // results to the mounted output path instead of relying on stdout parsing.
+    return await readOutputFromFile<O>(hostOutputPath, context);
   } finally {
     // Cleanup temp directory
     await rm(outputDir, { recursive: true, force: true }).catch((err) => {
@@ -277,18 +297,14 @@ async function runComponentInDocker<I, O>(
 
 /**
  * Read component output from the mounted output file.
- * If file doesn't exist, falls back to stdout parsing for backwards compatibility.
- * 
+ *
  * @param filePath Path to the output file
- * @param stdout Captured stdout as fallback for legacy components
  * @param context Execution context for logging
  */
 async function readOutputFromFile<O>(
   filePath: string,
-  stdout: string,
   context: ExecutionContext
 ): Promise<O> {
-  // First, try to read from the output file (preferred method)
   try {
     await access(filePath, constants.R_OK);
     const content = await readFile(filePath, 'utf8');
@@ -296,37 +312,22 @@ async function readOutputFromFile<O>(
     context.logger.info(`[Docker] Read output from file (${content.length} bytes)`);
     return output as O;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      if (error instanceof SyntaxError) {
-        context.logger.error(`[Docker] Failed to parse output JSON: ${error.message}`);
-        throw new ValidationError(`Failed to parse container output as JSON: ${error.message}`, {
-          cause: error,
-        });
-      }
-      throw error;
+    if (error instanceof SyntaxError) {
+      context.logger.error(`[Docker] Failed to parse output JSON: ${error.message}`);
+      throw new ValidationError(`Failed to parse container output as JSON: ${error.message}`, {
+        cause: error,
+      });
     }
-    // File not found - fall through to stdout fallback
-  }
-
-  // Fallback: Use stdout (for backwards compatibility with legacy components)
-  // This allows components that just write to stdout to continue working.
-  if (stdout.trim().length > 0) {
-    context.logger.info(`[Docker] No output file found, using stdout fallback (${stdout.length} bytes)`);
-
-    // Try to parse stdout as JSON
-    try {
-      const output = JSON.parse(stdout.trim());
-      return output as O;
-    } catch {
-      // Not JSON - return raw string as output
-      // This handles components like subfinder that output plain text
-      return stdout.trim() as unknown as O;
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new ContainerError(
+        `Docker component completed without writing required output file: ${filePath}`,
+        {
+          details: { filePath },
+        },
+      );
     }
+    throw error;
   }
-
-  // No output file and no stdout - return empty object
-  context.logger.warn('[Docker] No output file or stdout, returning empty result');
-  return {} as O;
 }
 
 /**

@@ -17,8 +17,14 @@ import {
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
+import {
+  TOOL_OUTPUT_DIR,
+  createToolOutputVolume,
+  readToolOutputFile,
+} from '../../utils/tool-output';
 
 const DEFAULT_RESOLVERS = ['1.1.1.1', '8.8.8.8'] as const;
+const OUTPUT_FILE_NAME = 'shuffledns-output.txt';
 
 // Input schema for Shuffledns + MassDNS component
 const inputSchema = inputs({
@@ -289,6 +295,7 @@ const definition = defineComponent({
     // Write lists to an isolated volume and mount into the container
     const tenantId = (context as any).tenantId ?? 'default-tenant';
     const volume = createIsolatedVolume(tenantId, context.runId);
+    const outputVolume = await createToolOutputVolume(tenantId, context.runId, 'shuffledns-output');
     const WORDS = 'words.txt';
     const SEEDS = 'seeds.txt';
     const RESOLVERS = 'resolvers.txt';
@@ -335,6 +342,7 @@ const definition = defineComponent({
     if (wroteTrusted) {
       flags.push('-tr', `/input/${TRUSTED}`);
     }
+    flags.push('-o', `${TOOL_OUTPUT_DIR}/${OUTPUT_FILE_NAME}`);
 
     const baseRunner = definition.runner;
     if (baseRunner.kind !== 'docker') {
@@ -352,98 +360,60 @@ const definition = defineComponent({
       // Run the binary directly; pass flags as the command args
       entrypoint: 'shuffledns',
       command: flags,
-      volumes: [volume.getVolumeConfig('/input', true)],
+      volumes: [
+        volume.getVolumeConfig('/input', true),
+        outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false),
+      ],
     };
 
-    let resultUnknown: unknown;
+    let rawOutput = '';
     try {
       const runnerPayload = { ...params, ...inputs };
-      resultUnknown = (await runComponentWithRunner(
+      await runComponentWithRunner(
         runnerConfig,
         async () => ({}) as Output,
         runnerPayload,
         context,
-      )) as unknown;
+      );
+      rawOutput = await readToolOutputFile(outputVolume, OUTPUT_FILE_NAME, 'Shuffledns');
+    } catch (error) {
+      if (error instanceof ContainerError) {
+        try {
+          rawOutput = await readToolOutputFile(outputVolume, OUTPUT_FILE_NAME, 'Shuffledns');
+        } catch {
+          throw error;
+        }
+      } else {
+        throw error;
+      }
     } finally {
       await volume.cleanup();
+      await outputVolume.cleanup();
       context.logger.info('[ShufflednsMassdns] Cleaned up isolated volume');
     }
 
-    // Shuffledns with -silent prints hostnames (plain text). Normalise string output.
-    if (typeof resultUnknown === 'string') {
-      const rawOutput = resultUnknown;
-      const subdomains = rawOutput
-        .split(/\r?\n/g)
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
+    const subdomains = rawOutput
+      .split(/\r?\n/g)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
 
-      const deduped = Array.from(new Set(subdomains));
+    const deduped = Array.from(new Set(subdomains));
 
-      // Build analytics-ready results with scanner metadata
-      const analyticsResults: AnalyticsResult[] = deduped.map((subdomain) => ({
-        scanner: 'shuffledns',
-        finding_hash: generateFindingHash('subdomain-discovery', subdomain, domains.join(',')),
-        severity: 'info' as const,
-        asset_key: subdomain,
-        subdomain,
-        parent_domains: domains,
-      }));
+    const analyticsResults: AnalyticsResult[] = deduped.map((subdomain) => ({
+      scanner: 'shuffledns',
+      finding_hash: generateFindingHash('subdomain-discovery', subdomain, domains.join(',')),
+      severity: 'info' as const,
+      asset_key: subdomain,
+      subdomain,
+      parent_domains: domains,
+    }));
 
-      return outputSchema.parse({
-        subdomains: deduped,
-        results: analyticsResults,
-        rawOutput,
-        domainCount: domains.length,
-        subdomainCount: deduped.length,
-      });
-    }
-
-    // If container returned an object (e.g., JSON), try to validate/normalise
-    if (resultUnknown && typeof resultUnknown === 'object') {
-      const parsed = outputSchema.safeParse(resultUnknown);
-      if (parsed.success) {
-        return parsed.data;
-      }
-
-      const maybeRaw =
-        'rawOutput' in (resultUnknown as any) ? String((resultUnknown as any).rawOutput ?? '') : '';
-      const subdomainsValue = Array.isArray((resultUnknown as any).subdomains)
-        ? ((resultUnknown as any).subdomains as unknown[])
-            .map((v) => (typeof v === 'string' ? v.trim() : String(v)))
-            .filter((v) => v.length > 0)
-        : maybeRaw
-            .split(/\r?\n/g)
-            .map((line) => line.trim())
-            .filter((line) => line.length > 0);
-
-      const deduped = Array.from(new Set(subdomainsValue));
-
-      // Build analytics-ready results
-      const analyticsResults: AnalyticsResult[] = deduped.map((subdomain) => ({
-        scanner: 'shuffledns',
-        finding_hash: generateFindingHash('subdomain-discovery', subdomain, domains.join(',')),
-        severity: 'info' as const,
-        asset_key: subdomain,
-        subdomain,
-        parent_domains: domains,
-      }));
-
-      return outputSchema.parse({
-        subdomains: deduped,
-        results: analyticsResults,
-        rawOutput: maybeRaw || subdomainsValue.join('\n'),
-        domainCount: domains.length,
-        subdomainCount: deduped.length,
-      });
-    }
-
-    // Fallback – empty
     return outputSchema.parse({
-      subdomains: [],
-      results: [],
-      rawOutput: '',
+      subdomains: deduped,
+      results: analyticsResults,
+      rawOutput,
       domainCount: domains.length,
-      subdomainCount: 0,
+      subdomainCount: deduped.length,
     });
   },
 });

@@ -1,14 +1,26 @@
-import { describe, it, expect, beforeAll, afterEach, vi } from 'bun:test';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'bun:test';
 import * as sdk from '@shipsec/component-sdk';
 import { componentRegistry } from '../../index';
 import type { TruffleHogInput, TruffleHogOutput } from '../trufflehog';
+import * as toolOutput from '../../../utils/tool-output';
+
+let mockToolOutput = '';
 
 describe('trufflehog component', () => {
   beforeAll(async () => {
     await import('../../index');
   });
 
+  beforeEach(() => {
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
+    vi.spyOn(toolOutput, 'readToolOutputFile').mockImplementation(async () => mockToolOutput);
+  });
+
   afterEach(() => {
+    mockToolOutput = '';
     vi.restoreAllMocks();
   });
 
@@ -29,7 +41,7 @@ describe('trufflehog component', () => {
 
     expect(component.runner.kind).toBe('docker');
     if (component.runner.kind === 'docker') {
-      expect(component.runner.image).toBe('ghcr.io/shipsecai/trufflehog:latest');
+      expect(component.runner.image).toBe('trufflesecurity/trufflehog:latest');
     }
   });
 
@@ -111,6 +123,12 @@ describe('trufflehog component', () => {
       ],
     };
 
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
+    vi.spyOn(toolOutput, 'readToolOutputFile').mockImplementation(async () => mockToolOutput);
+    mockToolOutput = JSON.stringify(mockOutput);
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(JSON.stringify(mockOutput));
 
     const result = await component.execute(executePayload, context);
@@ -153,6 +171,12 @@ describe('trufflehog component', () => {
       results: [],
     };
 
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
+    vi.spyOn(toolOutput, 'readToolOutputFile').mockImplementation(async () => mockToolOutput);
+    mockToolOutput = JSON.stringify(mockOutput);
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(JSON.stringify(mockOutput));
 
     const result = await component.execute(executePayload, context);
@@ -273,6 +297,12 @@ describe('trufflehog component', () => {
       ],
     };
 
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
+    vi.spyOn(toolOutput, 'readToolOutputFile').mockImplementation(async () => mockToolOutput);
+    mockToolOutput = JSON.stringify(mockOutput);
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(JSON.stringify(mockOutput));
 
     const result = await component.execute(executePayload, context);
@@ -304,6 +334,16 @@ describe('trufflehog component', () => {
       },
     };
 
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
+    vi.spyOn(toolOutput, 'readToolOutputFile').mockImplementation(async () => mockToolOutput);
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
+    vi.spyOn(toolOutput, 'readToolOutputFile').mockImplementation(async () => mockToolOutput);
     const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
       JSON.stringify({
         secrets: [],
@@ -342,6 +382,11 @@ describe('trufflehog component', () => {
       },
     };
 
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
+    vi.spyOn(toolOutput, 'readToolOutputFile').mockImplementation(async () => mockToolOutput);
     const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
       JSON.stringify({
         secrets: [],
@@ -380,6 +425,11 @@ describe('trufflehog component', () => {
       },
     };
 
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
+    vi.spyOn(toolOutput, 'readToolOutputFile').mockImplementation(async () => mockToolOutput);
     const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
       JSON.stringify({
         secrets: [],
@@ -418,6 +468,11 @@ describe('trufflehog component', () => {
       },
     };
 
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
+    vi.spyOn(toolOutput, 'readToolOutputFile').mockImplementation(async () => mockToolOutput);
     const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
       JSON.stringify({
         secrets: [],
@@ -456,6 +511,11 @@ describe('trufflehog component', () => {
       },
     };
 
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
+    vi.spyOn(toolOutput, 'readToolOutputFile').mockImplementation(async () => mockToolOutput);
     const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
       JSON.stringify({
         secrets: [],
@@ -531,6 +591,12 @@ describe('trufflehog component', () => {
       },
     };
 
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
+    vi.spyOn(toolOutput, 'readToolOutputFile').mockImplementation(async () => mockToolOutput);
+    mockToolOutput = 'invalid json output';
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('invalid json output');
 
     const result = await component.execute(executePayload, context);
@@ -609,6 +675,10 @@ describe('trufflehog component', () => {
       },
     };
 
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
     const error = { message: 'Container exited with code 183' };
     vi.spyOn(sdk, 'runComponentWithRunner').mockRejectedValue(error as any);
 
@@ -637,6 +707,10 @@ describe('trufflehog component', () => {
       },
     };
 
+    vi.spyOn(toolOutput, 'createToolOutputVolume').mockResolvedValue({
+      getVolumeConfig: () => ({ source: 'mock-output', target: '/tool-output', readOnly: false }),
+      cleanup: async () => {},
+    } as any);
     const error = { message: 'Container exited with code 1: auth failed' };
     vi.spyOn(sdk, 'runComponentWithRunner').mockRejectedValue(error as any);
 

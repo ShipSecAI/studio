@@ -16,6 +16,11 @@ import {
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
+import {
+  TOOL_OUTPUT_DIR,
+  createToolOutputVolume,
+  readToolOutputFile,
+} from '../../utils/tool-output';
 
 const SUBFINDER_IMAGE = 'ghcr.io/shipsecai/subfinder:latest';
 const SUBFINDER_TIMEOUT_SECONDS = 1800; // 30 minutes
@@ -23,6 +28,7 @@ const INPUT_MOUNT_NAME = 'inputs';
 const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;
 const DOMAIN_FILE_NAME = 'domains.txt';
 const PROVIDER_CONFIG_FILE_NAME = 'provider-config.yaml';
+const OUTPUT_FILE_NAME = 'subfinder-output.txt';
 
 const domainValueSchema = z.preprocess(
   (val) => (typeof val === 'string' ? [val] : val),
@@ -394,6 +400,7 @@ const definition = defineComponent({
     }
 
     let rawOutput: string;
+    let outputVolume: Awaited<ReturnType<typeof createToolOutputVolume>> | undefined;
     try {
       // Prepare input files for the volume
       const inputFiles: Record<string, string> = {
@@ -409,6 +416,7 @@ const definition = defineComponent({
       // Initialize the volume with input files
       const volumeName = await volume.initialize(inputFiles);
       context.logger.info(`[Subfinder] Created isolated volume: ${volumeName}`);
+      outputVolume = await createToolOutputVolume(tenantId, context.runId, 'subfinder-output');
 
       // Build Subfinder arguments in TypeScript
       const subfinderArgs = buildSubfinderArgs({
@@ -424,6 +432,7 @@ const definition = defineComponent({
         recursive: recursive ?? false,
         customFlags: customFlagArgs,
       });
+      subfinderArgs.push('-o', `${TOOL_OUTPUT_DIR}/${OUTPUT_FILE_NAME}`);
 
       const runnerConfig: DockerRunnerConfig = {
         kind: 'docker',
@@ -435,44 +444,33 @@ const definition = defineComponent({
         // The K8s runner detects the "$@" pattern and strips the shell for distroless images
         entrypoint: baseRunner.entrypoint,
         command: [...(baseRunner.command ?? []), ...subfinderArgs],
-        volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
+        volumes: [
+          volume.getVolumeConfig(CONTAINER_INPUT_DIR, true),
+          outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false),
+        ],
       };
 
       try {
-        const result = await runComponentWithRunner(
+        await runComponentWithRunner(
           runnerConfig,
           async () => ({}) as Output,
           { domains, providerConfig },
           context,
         );
-
-        // Get raw output (either string or from object)
-        if (typeof result === 'string') {
-          rawOutput = result;
-        } else if (result && typeof result === 'object' && 'rawOutput' in result) {
-          rawOutput = String((result as any).rawOutput ?? '');
-        } else {
-          rawOutput = '';
-        }
+        rawOutput = await readToolOutputFile(outputVolume, OUTPUT_FILE_NAME, 'Subfinder');
       } catch (error) {
-        // Subfinder can exit non-zero when some sources fail or rate-limit,
-        // even though it still printed valid findings. Preserve partial results
-        // instead of failing the entire workflow.
         if (error instanceof ContainerError) {
-          const details = (error as any).details as Record<string, unknown> | undefined;
-          const capturedStdout = details?.stdout;
-          if (typeof capturedStdout === 'string' && capturedStdout.trim().length > 0) {
+          try {
+            rawOutput = await readToolOutputFile(outputVolume, OUTPUT_FILE_NAME, 'Subfinder');
             context.logger.warn(
               `[Subfinder] Container exited non-zero but produced output. Preserving partial results.`,
             );
             context.emitProgress({
               message: 'Subfinder exited with errors but found some results',
               level: 'warn',
-              data: { exitCode: details?.exitCode },
+              data: { exitCode: (error as any).details?.exitCode },
             });
-            rawOutput = capturedStdout;
-          } else {
-            // No output captured - re-throw the original error
+          } catch {
             throw error;
           }
         } else {
@@ -482,6 +480,7 @@ const definition = defineComponent({
     } finally {
       // Always cleanup the volume
       await volume.cleanup();
+      await outputVolume?.cleanup();
       context.logger.info('[Subfinder] Cleaned up isolated volume');
     }
 

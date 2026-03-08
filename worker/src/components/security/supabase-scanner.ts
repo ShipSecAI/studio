@@ -295,16 +295,18 @@ const definition = defineComponent({
     // Build runner with isolated volume mounts
     // Distroless image uses ENTRYPOINT directly, config path passed as command arg
     const baseRunner = definition.runner as DockerRunnerConfig;
-    const runner: DockerRunnerConfig = {
+    const runner = {
       kind: 'docker',
       image: baseRunner.image,
       network: baseRunner.network,
       timeoutSeconds: baseRunner.timeoutSeconds,
       env: { ...(baseRunner.env ?? {}) },
+      stdinJson: false,
+      expectOutputFile: false,
       // Pass config path as command argument to image's ENTRYPOINT
       command: [containerConfigPath],
       volumes: [],
-    };
+    } as DockerRunnerConfig;
 
     let report: unknown = {};
     let score: number | null = null;
@@ -319,21 +321,7 @@ const definition = defineComponent({
       runner.volumes = [volume.getVolumeConfig(mountPath, false)];
 
       try {
-        const result = await runComponentWithRunner(
-          runner,
-          async () => ({}),
-          runnerPayload,
-          context,
-        );
-        if (typeof result === 'string') {
-          stdoutCombined = result;
-        } else if (result && typeof result === 'object') {
-          try {
-            stdoutCombined = JSON.stringify(result);
-          } catch {
-            stdoutCombined = '[object]';
-          }
-        }
+        await runComponentWithRunner(runner, async () => undefined, runnerPayload, context);
       } catch (err) {
         const msg = (err as Error)?.message ?? 'Unknown error';
         context.logger.error(`[SupabaseScanner] Scanner failed: ${msg}`);

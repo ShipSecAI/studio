@@ -17,6 +17,11 @@ import {
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
+import {
+  TOOL_OUTPUT_DIR,
+  createToolOutputVolume,
+  readToolOutputFile,
+} from '../../utils/tool-output';
 
 const scanTypeSchema = z.enum(['git', 'github', 'gitlab', 's3', 'gcs', 'filesystem', 'docker']);
 
@@ -312,10 +317,10 @@ const definition = defineComponent({
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/shipsecai/trufflehog:latest',
-    entrypoint: 'trufflehog',
+    image: 'trufflesecurity/trufflehog:latest',
+    entrypoint: 'sh',
     network: 'bridge',
-    command: [], // Will be built dynamically in execute
+    command: ['-c', `trufflehog "$@" 1>${TOOL_OUTPUT_DIR}/trufflehog.ndjson`, '--'],
     timeoutSeconds: 300,
     env: {
       HOME: '/tmp',
@@ -392,6 +397,8 @@ const definition = defineComponent({
 
     // Handle filesystem scanning with isolated volumes
     let volume: ReturnType<typeof createIsolatedVolume> | undefined;
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const outputVolume = await createToolOutputVolume(tenantId, context.runId, 'trufflehog-output');
     let effectiveInput = runnerPayload;
 
     const baseRunner = definition.runner;
@@ -413,7 +420,6 @@ const definition = defineComponent({
           });
         }
 
-        const tenantId = (context as any).tenantId ?? 'default-tenant';
         volume = createIsolatedVolume(tenantId, context.runId);
 
         // Initialize volume with files
@@ -429,53 +435,46 @@ const definition = defineComponent({
 
       // Build TruffleHog command arguments in TypeScript
       const commandArgs = buildTruffleHogCommand(effectiveInput);
+      if (!commandArgs.includes('--json')) {
+        commandArgs.push('--json');
+      }
+      if (!commandArgs.includes('--no-color')) {
+        commandArgs.push('--no-color');
+      }
+      if (!commandArgs.includes('--fail-on-scan-errors')) {
+        commandArgs.push('--fail-on-scan-errors');
+      }
 
       context.logger.info(`[TruffleHog] Command: trufflehog ${commandArgs.join(' ')}`);
 
       // Configure runner with command args and optional volume
-      const runnerConfig: DockerRunnerConfig = {
+      const runnerConfig = {
         ...baseRunner,
-        command: commandArgs,
-        volumes: volume ? [volume.getVolumeConfig('/scan', true)] : undefined,
-      };
+        command: [
+          '-c',
+          `trufflehog "$@" 1>${TOOL_OUTPUT_DIR}/trufflehog.ndjson`,
+          '--',
+          ...commandArgs,
+        ],
+        stdinJson: false,
+        expectOutputFile: false,
+        volumes: [
+          ...(volume ? [volume.getVolumeConfig('/scan', true)] : []),
+          outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false),
+        ],
+      } as DockerRunnerConfig;
 
       // Execute TruffleHog
-      // Note: TruffleHog exits with code 183 when secrets are found and --fail is used
-      // This is not an error, so we need to handle it specially
-      let rawResult: unknown;
       try {
-        rawResult = await runComponentWithRunner(
-          runnerConfig,
-          async () => ({}) as Output,
-          effectiveInput,
-          context,
-        );
+        await runComponentWithRunner(runnerConfig, async () => undefined, effectiveInput, context);
       } catch (error) {
-        // Check if this is a TruffleHog exit code 183 (secrets found with --fail)
         const errorMessage = error instanceof Error ? error.message : String(error);
-
-        // If it's exit code 183, this means secrets were found (not an error)
-        // We should still parse and return the output
-        if (
-          errorMessage.includes('exit code 183') ||
-          errorMessage.includes('exited with code 183')
-        ) {
-          context.logger.info('[TruffleHog] Exit code 183: secrets found (--fail flag)');
-
-          // Try to extract output from error if available
-          // For now, we'll re-throw to surface the failure as requested
-          // The caller can handle exit code 183 as needed
-          throw error;
-        }
-
-        // For any other error, propagate it
         context.logger.error(`[TruffleHog] Scan failed: ${errorMessage}`);
         throw error;
       }
 
-      // Parse the raw output
-      const output =
-        typeof rawResult === 'string' ? parseRawOutput(rawResult) : (rawResult as Output);
+      const rawOutput = await readToolOutputFile(outputVolume, 'trufflehog.ndjson', 'TruffleHog');
+      const output = parseRawOutput(rawOutput);
 
       // Log and emit progress
       context.logger.info(
@@ -510,17 +509,33 @@ const definition = defineComponent({
           secret.SourceMetadata?.Data?.Git?.file ??
           secret.SourceMetadata?.Data?.Filesystem?.file ??
           '';
+        const detectorValue =
+          typeof secret.DetectorType === 'string'
+            ? secret.DetectorType
+            : typeof secret.DetectorName === 'string'
+              ? secret.DetectorName
+              : JSON.stringify(secret.DetectorType ?? secret.DetectorName ?? '');
+        const redactedValue =
+          typeof secret.Redacted === 'string'
+            ? secret.Redacted
+            : typeof secret.RawV2 === 'string'
+              ? secret.RawV2
+              : typeof secret.Raw === 'string'
+                ? secret.Raw
+                : JSON.stringify(secret.Redacted ?? secret.RawV2 ?? secret.Raw ?? '');
         return {
           ...secret,
           scanner: 'trufflehog',
           severity: 'high' as const, // Secrets are always high severity
           asset_key: runnerPayload.scanTarget,
-          finding_hash: generateFindingHash(secret.DetectorType, secret.Redacted, filePath),
+          finding_hash: generateFindingHash(detectorValue, redactedValue, filePath),
         };
       });
 
       return { ...output, results };
     } finally {
+      await outputVolume.cleanup();
+      context.logger.info('[TruffleHog] Cleaned up output volume');
       // Always cleanup volume if it was created
       if (volume) {
         await volume.cleanup();
