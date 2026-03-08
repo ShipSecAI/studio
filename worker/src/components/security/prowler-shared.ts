@@ -132,15 +132,6 @@ export const prowlerFindingSchema = z
 
 export type ProwlerFinding = z.infer<typeof prowlerFindingSchema>;
 
-export const runnerPayloadSchema = z.object({
-  returncode: z.number().int(),
-  stdout: z.string(),
-  stderr: z.string(),
-  command: z.array(z.string()),
-  artifacts: z.array(z.string()).default([]),
-  parse_error: z.string().optional(),
-});
-
 export const normalisedFindingSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),

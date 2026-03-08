@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
-import { buildGcsFuseMountOptions, wrapCommandForOutput } from '../k8s-runner';
+import { buildGcsFuseMountOptions, resolveK8sCommand } from '../k8s-runner';
 
-describe('wrapCommandForOutput', () => {
+describe('resolveK8sCommand', () => {
   it('passes through exact dynamic entrypoint wrappers for distroless images', () => {
     const runner: DockerRunnerConfig = {
       kind: 'docker',
@@ -13,7 +13,7 @@ describe('wrapCommandForOutput', () => {
       timeoutSeconds: 60,
     };
 
-    expect(wrapCommandForOutput(runner)).toEqual({
+    expect(resolveK8sCommand(runner)).toEqual({
       command: [],
       args: ['-d', 'example.com'],
     });
@@ -40,7 +40,7 @@ describe('wrapCommandForOutput', () => {
       timeoutSeconds: 600,
     };
 
-    const wrapped = wrapCommandForOutput(runner);
+    const wrapped = resolveK8sCommand(runner);
 
     expect(wrapped.command).toEqual(['sh']);
     expect(wrapped.args[0]).toBe('-c');

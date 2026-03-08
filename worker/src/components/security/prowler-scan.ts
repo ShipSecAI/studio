@@ -4,7 +4,6 @@ import {
   ComponentRetryPolicy,
   ConfigurationError,
   runComponentWithRunner,
-  ServiceError,
   ValidationError,
   defineComponent,
   inputs,
@@ -20,6 +19,7 @@ import {
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 import { awsCredentialSchema } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
+import { createToolOutputVolume, readToolOutputFile } from '../../utils/tool-output';
 import { discoverOrgAccounts } from '../core/aws-org-discovery';
 import { assumeRole } from '../core/aws-assume-role';
 import {
@@ -28,13 +28,11 @@ import {
   defaultSelectedFlagIds,
   recommendedFlagIdSchema,
   recommendedFlagMap,
-  runnerPayloadSchema,
   normalisedFindingSchema,
   normaliseFindings,
   mapToAnalyticsSeverity,
   buildScanId,
   buildMemberRoleArn,
-  listVolumeFiles,
   setVolumeOwnership,
   shouldSetVolumeOwnershipForExecutionMode,
   splitArgs,
@@ -51,6 +49,7 @@ const PROWLER_IMAGE = 'ghcr.io/shipsecai/prowler:latest';
 const SINGLE_ACCOUNT_TIMEOUT_SECONDS = 900;
 const _ORG_SCAN_TIMEOUT_SECONDS = 7200;
 const FLUSH_THRESHOLD = 5000;
+const PROWLER_ASFF_OUTPUT_FILE = 'shipsec.asff.json';
 
 // ---------------------------------------------------------------------------
 // Inputs
@@ -456,6 +455,13 @@ function computeSeverityCounts(findings: NormalisedFinding[]) {
   return { severityCounts, failed, passed, unknown };
 }
 
+async function readProwlerAsffOutput(
+  volume: Awaited<ReturnType<typeof createToolOutputVolume>>,
+): Promise<string[]> {
+  const asffOutput = await readToolOutputFile(volume, PROWLER_ASFF_OUTPUT_FILE, 'Prowler');
+  return asffOutput.trim().length > 0 ? [asffOutput] : [];
+}
+
 // ---------------------------------------------------------------------------
 // Single-account scan (existing behavior)
 // ---------------------------------------------------------------------------
@@ -507,7 +513,7 @@ async function executeSingleAccountScan(
   );
   context.logger.info(`[ProwlerScan] Command: ${cmd.join(' ')}`);
 
-  const dockerRunner: DockerRunnerConfig = {
+  const dockerRunner = {
     kind: 'docker',
     image: PROWLER_IMAGE,
     platform: 'linux/amd64',
@@ -517,125 +523,74 @@ async function executeSingleAccountScan(
       HOME: '/home/prowler',
       ...awsEnv,
     },
-    command: cmd,
+    entrypoint: 'poetry',
+    command: ['run', 'prowler', ...cmd],
+    stdinJson: false,
+    expectOutputFile: false,
     volumes: [],
-  };
+  } as DockerRunnerConfig;
 
   let rawSegments: string[] = [];
-  let commandForOutput: string[] = cmd;
-  let stderrCombined = '';
-  const outputVolume = createIsolatedVolume(tenantId, `${context.runId}-prowler-out`);
+  const commandForOutput: string[] = cmd;
+  const stderrCombined = '';
+  let outputVolume: Awaited<ReturnType<typeof createToolOutputVolume>> | null = null;
   let outputVolumeInitialized = false;
   let awsVolumeInitialized = false;
 
   try {
-    try {
-      if (awsCredsVolume && parsedInputs.credentials) {
-        const credsLines = [
-          '[default]',
-          `aws_access_key_id = ${parsedInputs.credentials.accessKeyId ?? ''}`,
-          `aws_secret_access_key = ${parsedInputs.credentials.secretAccessKey ?? ''}`,
-        ];
-        if (parsedInputs.credentials.sessionToken) {
-          credsLines.push(`aws_session_token = ${parsedInputs.credentials.sessionToken}`);
-        }
-
-        const cfgRegion = regions[0] ?? 'us-east-1';
-        const cfgLines = ['[default]', `region = ${cfgRegion}`, 'output = json'];
-
-        await awsCredsVolume.initialize({
-          credentials: credsLines.join('\n'),
-          config: cfgLines.join('\n'),
-        });
-        awsVolumeInitialized = true;
-        context.logger.info(
-          `[ProwlerScan] Created isolated AWS creds volume: ${awsCredsVolume.getVolumeName()}`,
-        );
-
-        dockerRunner.volumes = [
-          ...(dockerRunner.volumes ?? []),
-          awsCredsVolume.getVolumeConfig('/home/prowler/.aws', true),
-        ];
+    if (awsCredsVolume && parsedInputs.credentials) {
+      const credsLines = [
+        '[default]',
+        `aws_access_key_id = ${parsedInputs.credentials.accessKeyId ?? ''}`,
+        `aws_secret_access_key = ${parsedInputs.credentials.secretAccessKey ?? ''}`,
+      ];
+      if (parsedInputs.credentials.sessionToken) {
+        credsLines.push(`aws_session_token = ${parsedInputs.credentials.sessionToken}`);
       }
 
-      await outputVolume.initialize({});
-      outputVolumeInitialized = true;
-      if (shouldSetVolumeOwnershipForExecutionMode()) {
-        await setVolumeOwnership(outputVolume, 1000, 1000);
-      } else {
-        context.logger.info(
-          '[ProwlerScan] Skipping Docker-only output volume ownership preparation in k8s mode.',
-        );
-      }
+      const cfgRegion = regions[0] ?? 'us-east-1';
+      const cfgLines = ['[default]', `region = ${cfgRegion}`, 'output = json'];
+
+      await awsCredsVolume.initialize({
+        credentials: credsLines.join('\n'),
+        config: cfgLines.join('\n'),
+      });
+      awsVolumeInitialized = true;
       context.logger.info(
-        `[ProwlerScan] Created isolated output volume: ${outputVolume.getVolumeName()}`,
+        `[ProwlerScan] Created isolated AWS creds volume: ${awsCredsVolume.getVolumeName()}`,
       );
+
       dockerRunner.volumes = [
         ...(dockerRunner.volumes ?? []),
-        outputVolume.getVolumeConfig('/output', false),
+        awsCredsVolume.getVolumeConfig('/home/prowler/.aws', true),
       ];
+    }
 
-      const raw = await runComponentWithRunner<Record<string, unknown>, unknown>(
-        dockerRunner,
-        async () => ({}) as unknown,
-        {},
-        context,
+    outputVolume = await createToolOutputVolume(tenantId, context.runId, 'prowler-out');
+    outputVolumeInitialized = true;
+    if (shouldSetVolumeOwnershipForExecutionMode()) {
+      await setVolumeOwnership(outputVolume, 1000, 1000);
+    } else {
+      context.logger.info(
+        '[ProwlerScan] Skipping Docker-only output volume ownership preparation in k8s mode.',
       );
-
-      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        const parsed = runnerPayloadSchema.safeParse(raw);
-        if (parsed.success) {
-          const result = parsed.data;
-          if (result.parse_error) {
-            throw new ValidationError(`Failed to parse custom CLI flags: ${result.parse_error}`, {
-              fieldErrors: { customFlags: ['Invalid CLI flag syntax'] },
-            });
-          }
-          if (result.returncode !== 0) {
-            const msg = result.stderr.trim();
-            throw new ServiceError(
-              msg.length > 0 ? msg : `prowler exited with status ${result.returncode}`,
-              {
-                details: { returncode: result.returncode },
-              },
-            );
-          }
-          rawSegments = result.artifacts.length > 0 ? result.artifacts : [result.stdout];
-          commandForOutput = result.command;
-          stderrCombined = result.stderr;
-        }
-      }
-    } catch (err) {
-      const msg = (err as Error)?.message ?? '';
-      const isFindingsExit = /exit code\s*3/.test(msg);
-      if (isFindingsExit) {
-        context.logger.info(
-          '[ProwlerScan] Prowler exited with code 3 (findings present); continuing to parse output.',
-        );
-        stderrCombined = msg;
-      } else {
-        throw err;
-      }
     }
+    context.logger.info(
+      `[ProwlerScan] Created isolated output volume: ${outputVolume.getVolumeName()}`,
+    );
+    dockerRunner.volumes = [
+      ...(dockerRunner.volumes ?? []),
+      outputVolume.getVolumeConfig('/output', false),
+    ];
 
-    if (rawSegments.length === 0) {
-      try {
-        const entries = await listVolumeFiles(outputVolume);
-        const jsonFiles = entries.filter((f) => f.toLowerCase().endsWith('.json'));
-        const contents: string[] = [];
-        for (const file of jsonFiles) {
-          try {
-            const fileMap = await outputVolume.readFiles([file]);
-            contents.push(fileMap[file]);
-          } catch {
-            // Skip files that can't be read
-          }
-        }
-        rawSegments = contents;
-      } catch {
-        // Fall through to check if rawSegments is empty
-      }
-    }
+    await runComponentWithRunner<Record<string, unknown>, undefined>(
+      dockerRunner,
+      async () => undefined,
+      {},
+      context,
+    );
+
+    rawSegments = await readProwlerAsffOutput(outputVolume);
 
     const { findings, errors } =
       rawSegments.length > 0
@@ -643,9 +598,7 @@ async function executeSingleAccountScan(
         : { findings: [] as NormalisedFinding[], errors: [] as string[] };
 
     if (rawSegments.length === 0) {
-      context.logger.info(
-        '[ProwlerScan] Prowler produced no ASFF output \u2014 likely 0 findings for the selected severity/region.',
-      );
+      context.logger.warn('[ProwlerScan] Prowler completed without producing shipsec.asff.json');
     }
 
     const { severityCounts, failed, passed, unknown } = computeSeverityCounts(findings);
@@ -677,7 +630,7 @@ async function executeSingleAccountScan(
     return outputSchema.parse(output);
   } finally {
     if (outputVolumeInitialized) {
-      await outputVolume.cleanup();
+      await outputVolume?.cleanup();
       context.logger.info('[ProwlerScan] Cleaned up output volume');
     }
     if (awsVolumeInitialized && awsCredsVolume) {
@@ -717,7 +670,7 @@ async function scanSingleOrgAccount(
   context: any,
 ): Promise<AccountScanResult> {
   let awsVolume: ReturnType<typeof createIsolatedVolume> | undefined;
-  let outVolume: ReturnType<typeof createIsolatedVolume> | undefined;
+  let outVolume: Awaited<ReturnType<typeof createToolOutputVolume>> | undefined;
   const tenantId = (context as any).tenantId ?? 'default-tenant';
 
   try {
@@ -740,7 +693,7 @@ async function scanSingleOrgAccount(
     );
 
     awsVolume = createIsolatedVolume(tenantId, `${context.runId}-prowler-aws-${account.id}`);
-    outVolume = createIsolatedVolume(tenantId, `${context.runId}-prowler-out-${account.id}`);
+    outVolume = await createToolOutputVolume(tenantId, context.runId, `prowler-out-${account.id}`);
 
     // Initialize AWS creds volume
     const credsLines = [
@@ -759,7 +712,6 @@ async function scanSingleOrgAccount(
       config: cfgLines.join('\n'),
     });
 
-    await outVolume.initialize({});
     if (shouldSetVolumeOwnershipForExecutionMode()) {
       await setVolumeOwnership(outVolume, 1000, 1000);
     } else {
@@ -768,7 +720,7 @@ async function scanSingleOrgAccount(
       );
     }
 
-    const dockerRunner: DockerRunnerConfig = {
+    const dockerRunner = {
       kind: 'docker',
       image: PROWLER_IMAGE,
       platform: 'linux/amd64',
@@ -778,65 +730,26 @@ async function scanSingleOrgAccount(
         HOME: '/home/prowler',
         ...awsEnv,
       },
-      command: cmd,
+      entrypoint: 'poetry',
+      command: ['run', 'prowler', ...cmd],
+      stdinJson: false,
+      expectOutputFile: false,
       volumes: [
         awsVolume.getVolumeConfig('/home/prowler/.aws', true),
         outVolume.getVolumeConfig('/output', false),
       ],
-    };
+    } as DockerRunnerConfig;
 
     let rawSegments: string[] = [];
-    let _stderrForAccount = '';
 
-    try {
-      const raw = await runComponentWithRunner<Record<string, unknown>, unknown>(
-        dockerRunner,
-        async () => ({}) as unknown,
-        {},
-        context,
-      );
+    await runComponentWithRunner<Record<string, unknown>, undefined>(
+      dockerRunner,
+      async () => undefined,
+      {},
+      context,
+    );
 
-      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        const parsed = runnerPayloadSchema.safeParse(raw);
-        if (parsed.success) {
-          const result = parsed.data;
-          if (result.returncode !== 0 && !/exit code\s*3/.test(result.stderr)) {
-            const msg = result.stderr.trim();
-            throw new ServiceError(
-              msg.length > 0 ? msg : `prowler exited with status ${result.returncode}`,
-              { details: { returncode: result.returncode } },
-            );
-          }
-          rawSegments = result.artifacts.length > 0 ? result.artifacts : [result.stdout];
-          _stderrForAccount = result.stderr;
-        }
-      }
-    } catch (err) {
-      const msg = (err as Error)?.message ?? '';
-      if (/exit code\s*3/.test(msg)) {
-        _stderrForAccount = msg;
-      } else {
-        throw err;
-      }
-    }
-
-    // Read ASFF files from volume if needed
-    if (rawSegments.length === 0) {
-      try {
-        const entries = await listVolumeFiles(outVolume);
-        const jsonFiles = entries.filter((f) => f.toLowerCase().endsWith('.json'));
-        for (const file of jsonFiles) {
-          try {
-            const fileMap = await outVolume.readFiles([file]);
-            rawSegments.push(fileMap[file]);
-          } catch {
-            // Skip
-          }
-        }
-      } catch {
-        // Fall through
-      }
-    }
+    rawSegments = await readProwlerAsffOutput(outVolume);
 
     const { findings, errors: parseErrors } =
       rawSegments.length > 0

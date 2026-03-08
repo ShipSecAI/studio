@@ -444,7 +444,6 @@ const definition = defineComponent({
         // The K8s runner detects the "$@" pattern and strips the shell for distroless images
         entrypoint: baseRunner.entrypoint,
         command: [...(baseRunner.command ?? []), ...subfinderArgs],
-        expectOutputFile: false, // Output is read from tool output volume, not /shipsec-output/result.json
         volumes: [
           volume.getVolumeConfig(CONTAINER_INPUT_DIR, true),
           outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false),
