@@ -485,6 +485,17 @@ export async function setVolumeOwnership(
 }
 
 /**
+ * Prowler's output-volume ownership preparation is only needed for Docker
+ * named volumes. K8s volumes are provisioned by the runner and should not
+ * assume a local Docker daemon exists.
+ */
+export function shouldSetVolumeOwnershipForExecutionMode(
+  executionMode = process.env.EXECUTION_MODE,
+): boolean {
+  return executionMode !== 'k8s';
+}
+
+/**
  * Split custom CLI flags honoring simple quotes.
  */
 export function splitArgs(input: string): string[] {

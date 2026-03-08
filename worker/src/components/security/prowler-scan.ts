@@ -36,6 +36,7 @@ import {
   buildMemberRoleArn,
   listVolumeFiles,
   setVolumeOwnership,
+  shouldSetVolumeOwnershipForExecutionMode,
   splitArgs,
   type NormalisedSeverity,
   type NormalisedFinding,
@@ -559,7 +560,13 @@ async function executeSingleAccountScan(
 
       await outputVolume.initialize({});
       outputVolumeInitialized = true;
-      await setVolumeOwnership(outputVolume, 1000, 1000);
+      if (shouldSetVolumeOwnershipForExecutionMode()) {
+        await setVolumeOwnership(outputVolume, 1000, 1000);
+      } else {
+        context.logger.info(
+          '[ProwlerScan] Skipping Docker-only output volume ownership preparation in k8s mode.',
+        );
+      }
       context.logger.info(
         `[ProwlerScan] Created isolated output volume: ${outputVolume.getVolumeName()}`,
       );
@@ -753,7 +760,13 @@ async function scanSingleOrgAccount(
     });
 
     await outVolume.initialize({});
-    await setVolumeOwnership(outVolume, 1000, 1000);
+    if (shouldSetVolumeOwnershipForExecutionMode()) {
+      await setVolumeOwnership(outVolume, 1000, 1000);
+    } else {
+      context.logger.info(
+        `[ProwlerScan:Org] Skipping Docker-only output volume ownership preparation for account ${account.id} in k8s mode.`,
+      );
+    }
 
     const dockerRunner: DockerRunnerConfig = {
       kind: 'docker',
