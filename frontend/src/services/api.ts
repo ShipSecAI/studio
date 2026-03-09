@@ -1403,10 +1403,10 @@ export const api = {
 
   analytics: {
     query: async <
-      TQuery extends object,
-      TAggs extends object,
-      TSort extends object,
-      TCollapse extends object,
+      TQuery extends Record<string, JsonValue>,
+      TAggs extends Record<string, JsonValue>,
+      TSort extends Record<string, JsonValue>,
+      TCollapse extends Record<string, JsonValue>,
     >(body: {
       query?: TQuery;
       size?: number;
