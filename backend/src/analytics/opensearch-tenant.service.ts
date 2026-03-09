@@ -1,8 +1,19 @@
+import { existsSync, readFileSync } from 'node:fs';
+
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 1000;
+
+interface BunTlsOptions {
+  ca?: string;
+  rejectUnauthorized?: boolean;
+}
+
+interface BunRequestInit extends RequestInit {
+  tls?: BunTlsOptions;
+}
 
 /** Shared field mappings used by both event-log and latest-state indices. */
 const FINDING_FIELD_MAPPINGS = {
@@ -63,6 +74,8 @@ export class OpenSearchTenantService {
   private readonly dashboardsUrl: string;
   private readonly adminUsername: string;
   private readonly adminPassword: string;
+  private readonly opensearchCa?: string;
+  private readonly rejectUnauthorized: boolean;
 
   constructor(private readonly configService: ConfigService) {
     this.securityEnabled = this.configService.get<string>('OPENSEARCH_SECURITY_ENABLED') === 'true';
@@ -73,10 +86,22 @@ export class OpenSearchTenantService {
       'http://opensearch-dashboards:5601';
     this.adminUsername = this.configService.get<string>('OPENSEARCH_ADMIN_USERNAME') || 'admin';
     this.adminPassword = this.configService.get<string>('OPENSEARCH_ADMIN_PASSWORD') || '';
+    const opensearchCaCertPath = this.configService.get<string>('OPENSEARCH_CA_CERT_PATH') || '';
+    this.opensearchCa =
+      opensearchCaCertPath && existsSync(opensearchCaCertPath)
+        ? readFileSync(opensearchCaCertPath, 'utf8')
+        : undefined;
+    this.rejectUnauthorized =
+      this.configService.get<string>('OPENSEARCH_SSL_REJECT_UNAUTHORIZED') !== 'false';
 
     this.logger.log(
       `OpenSearch tenant service initialized (security: ${this.securityEnabled}, url: ${this.opensearchUrl})`,
     );
+    if (opensearchCaCertPath && !this.opensearchCa) {
+      this.logger.warn(
+        `OpenSearch CA certificate not found at ${opensearchCaCertPath}; continuing without custom CA`,
+      );
+    }
   }
 
   /**
@@ -105,9 +130,20 @@ export class OpenSearchTenantService {
     options: RequestInit,
     label: string,
   ): Promise<Response> {
+    const requestOptions: BunRequestInit = {
+      ...options,
+      tls:
+        url.startsWith('https://') || this.opensearchCa
+          ? {
+              ca: this.opensearchCa,
+              rejectUnauthorized: this.rejectUnauthorized,
+            }
+          : undefined,
+    };
+
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        return await fetch(url, options);
+        return await fetch(url, requestOptions);
       } catch (error: any) {
         if (attempt === MAX_RETRIES) {
           throw error;
