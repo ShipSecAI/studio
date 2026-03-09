@@ -1416,10 +1416,7 @@ export const api = {
       collapse?: TCollapse;
       useLatest?: boolean;
     }) => {
-      const queryAnalytics = apiClient.queryAnalytics as (
-        payload: typeof body,
-      ) => Promise<{ data?: components['schemas']['AnalyticsQueryResponseDto']; error?: object }>;
-      const response = await queryAnalytics(body);
+      const response = await apiClient.queryAnalytics(body);
       if (response.error || !response.data) throw new Error('Analytics query failed');
       return response.data;
     },
