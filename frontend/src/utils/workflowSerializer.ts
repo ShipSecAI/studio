@@ -20,7 +20,7 @@ import type { FrontendNodeData } from '@/schemas/node';
 const ENTRY_POINT_COMPONENT_IDS = ['core.workflow.entrypoint', 'entry-point'] as const;
 
 function isEntryPointComponent(componentId: string): boolean {
-  return ENTRY_POINT_COMPONENT_IDS.includes(componentId as any);
+  return (ENTRY_POINT_COMPONENT_IDS as readonly string[]).includes(componentId);
 }
 
 export function serializeNodes(reactFlowNodes: ReactFlowNode<FrontendNodeData>[]): BackendNode[] {
@@ -56,10 +56,10 @@ export function serializeNodes(reactFlowNodes: ReactFlowNode<FrontendNodeData>[]
     }
 
     // Include UI metadata
-    const ui = (node.data as any).ui;
+    const ui = node.data.ui;
 
     // Build the new config structure
-    const config: Record<string, unknown> = {
+    const config: BackendNode['data']['config'] & { __ui?: FrontendNodeData['ui'] } = {
       ...existingConfig,
       params,
       inputOverrides,
@@ -74,7 +74,7 @@ export function serializeNodes(reactFlowNodes: ReactFlowNode<FrontendNodeData>[]
       position: node.position,
       data: {
         label: node.data.label || '',
-        config: config as any, // Cast to satisfy BackendNode config type
+        config,
       },
     };
   });
@@ -180,25 +180,25 @@ export function deserializeNodes(workflow: {
 
   return nodes.map((node) => {
     // Extract config from backend node data
-    const backendConfig = node.data.config || {};
-    const { __ui, params, inputOverrides, ...restOfConfig } = backendConfig as {
-      __ui?: any;
-      params?: Record<string, unknown>;
-      inputOverrides?: Record<string, unknown>;
-      [key: string]: any;
+    // BackendNode config + optional __ui extension we store on serialize
+    type StoredConfig = BackendNode['data']['config'] & {
+      __ui?: FrontendNodeData['ui'];
     };
+    const defaultConfig: StoredConfig = { params: {}, inputOverrides: {} };
+    const backendConfig: StoredConfig = node.data.config || defaultConfig;
+    const { __ui, ...configWithoutUi } = backendConfig;
+    const { params, inputOverrides, ...restOfConfig } = configWithoutUi;
 
     // Ensure config has the required structure
     const config: NodeConfig = {
       params: params || {},
       inputOverrides: inputOverrides || {},
       ...restOfConfig,
-    } as NodeConfig;
+    };
 
     // Extract dynamic ports from backend node data (if present)
-    const backendNodeData = node.data as any;
-    const dynamicInputs = backendNodeData.dynamicInputs;
-    const dynamicOutputs = backendNodeData.dynamicOutputs;
+    const dynamicInputs = node.data.dynamicInputs;
+    const dynamicOutputs = node.data.dynamicOutputs;
 
     return {
       id: node.id,

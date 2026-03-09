@@ -197,7 +197,15 @@ export function CodeScanScheduleDialog({
       onScheduled?.();
       onClose();
     } catch (err) {
-      const status = (err as any)?.response?.status;
+      const status =
+        err !== null &&
+        typeof err === 'object' &&
+        'response' in err &&
+        err.response !== null &&
+        typeof err.response === 'object' &&
+        'status' in err.response
+          ? (err.response as { status: unknown }).status
+          : undefined;
       toast({
         title: status === 409 ? 'Schedule already exists' : 'Failed to create schedule',
         description:

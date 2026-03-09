@@ -4,6 +4,7 @@ import { Terminal as TerminalIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TERMINAL_DIMENSIONS } from './constants';
 import type { TerminalButtonProps } from './types';
+import type { FrontendNodeData } from '@/schemas/node';
 
 /**
  * Terminal button with portal-based panel rendering.
@@ -29,20 +30,22 @@ export function TerminalButton({
   const { WIDTH: TERMINAL_WIDTH, HEIGHT: TERMINAL_HEIGHT, GAP: TERMINAL_GAP } = TERMINAL_DIMENSIONS;
 
   // Get parent node width from node data (simpler, more reliable)
-  const getParentNodeWidth = (parentNode: Node): number => {
-    const uiSize = (parentNode.data as any)?.ui?.size as { width?: number } | undefined;
+  const getParentNodeWidth = (parentNode: Node<FrontendNodeData>): number => {
+    const uiSize = parentNode.data?.ui?.size;
     if (uiSize?.width) {
       return uiSize.width;
     }
-    if ((parentNode as any).width) {
-      return (parentNode as any).width;
+    if (parentNode.width) {
+      return parentNode.width;
     }
-    const isEntryPoint = (parentNode.data as any)?.componentSlug === 'entry-point';
+    const isEntryPoint = parentNode.data?.componentSlug === 'entry-point';
     return isEntryPoint ? 205 : 320;
   };
 
   // Calculate terminal position: render above parent, align right edges
-  const calculateTerminalPosition = (parentNode: Node): { x: number; y: number } => {
+  const calculateTerminalPosition = (
+    parentNode: Node<FrontendNodeData>,
+  ): { x: number; y: number } => {
     const parentWidth = getParentNodeWidth(parentNode);
     return {
       x: parentNode.position.x + parentWidth - TERMINAL_WIDTH,

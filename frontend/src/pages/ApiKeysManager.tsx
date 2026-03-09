@@ -120,7 +120,7 @@ export function ApiKeysManager() {
       permissions: {
         ...prev.permissions,
         [category]: {
-          ...(prev.permissions[category] as any),
+          ...prev.permissions[category],
           [action]: checked,
         },
       },

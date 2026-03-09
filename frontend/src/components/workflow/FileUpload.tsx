@@ -30,7 +30,7 @@ export function FileUpload({ onFileUploaded }: FileUploadProps) {
 
     try {
       const result = await api.files.upload(selectedFile);
-      const fileId = (result as any).id;
+      const fileId = result.id;
 
       setUploadedFileId(fileId);
       onFileUploaded?.(fileId, selectedFile.name);

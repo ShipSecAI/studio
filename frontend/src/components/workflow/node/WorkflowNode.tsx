@@ -122,7 +122,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const activeApiKey = lastCreatedKey;
 
   const [textSize, setTextSize] = useState<{ width: number; height: number }>(() => {
-    const uiSize = (data as any)?.ui?.size as { width?: number; height?: number } | undefined;
+    const uiSize = (data as FrontendNodeData)?.ui?.size;
     return {
       width: uiSize?.width ?? DEFAULT_TEXT_WIDTH,
       height: uiSize?.height ?? DEFAULT_TEXT_HEIGHT,
@@ -161,12 +161,10 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const componentCategory = component?.category ?? 'input';
   const isToolModeOnly = component?.id ? TOOL_MODE_ONLY_COMPONENTS.has(component.id) : false;
   const showMcpBadge = componentCategory === 'mcp' || isToolModeOnly;
-  const isToolMode = Boolean(
-    (nodeData.config as any)?.isToolMode || (nodeData.config as any)?.mode === 'tool',
-  );
+  const isToolMode = Boolean(nodeData.config?.isToolMode || nodeData.config?.mode === 'tool');
 
   // Workflow ID resolution
-  const workflowIdFromNode = (nodeData as any)?.workflowId as string | undefined;
+  const workflowIdFromNode = nodeData.workflowId;
   const params = useParams<{ id?: string }>();
   const workflowIdFromRoute = params?.id && params.id !== 'new' ? params.id : undefined;
   const workflowId = workflowIdFromStore || workflowIdFromNode || workflowIdFromRoute;
@@ -179,7 +177,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     setNodes((nds) =>
       nds.map((n) => {
         if (n.id !== id) return n;
-        const currentConfig = (n.data as any).config || {};
+        const nd = n.data as FrontendNodeData;
+        const currentConfig = nd.config || {};
         return {
           ...n,
           data: {
@@ -217,7 +216,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   // Text size sync effect
   useEffect(() => {
     if (!isTextBlock) return;
-    const uiSize = (nodeData as any)?.ui?.size as { width?: number; height?: number } | undefined;
+    const uiSize = nodeData.ui?.size;
     if (!uiSize) return;
     setTextSize((current) => {
       const nextWidth = uiSize.width ?? current.width;
@@ -246,20 +245,20 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     const clampedHeight = clampHeight(height);
     setTextSize({ width: clampedWidth, height: clampedHeight });
     setNodes((nodes) =>
-      nodes.map((node) =>
-        node.id === id
-          ? {
-              ...node,
-              data: {
-                ...(node.data as any),
-                ui: {
-                  ...(node.data as any).ui,
-                  size: { width: clampedWidth, height: clampedHeight },
-                },
-              },
-            }
-          : node,
-      ),
+      nodes.map((node) => {
+        if (node.id !== id) return node;
+        const nd = node.data as FrontendNodeData;
+        return {
+          ...node,
+          data: {
+            ...nd,
+            ui: {
+              ...nd.ui,
+              size: { width: clampedWidth, height: clampedHeight },
+            },
+          },
+        };
+      }),
     );
     updateNodeInternals(id);
     markDirty();
@@ -403,7 +402,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     setNodes((nds) =>
       nds.map((n) => {
         if (n.id !== id) return n;
-        const currentConfig = (n.data as any).config || {};
+        const nd = n.data as FrontendNodeData;
+        const currentConfig = nd.config || {};
         return {
           ...n,
           data: {
@@ -811,10 +811,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 setNodes((nds) =>
                   nds.map((n) => {
                     if (n.id !== id) return n;
-                    const currentConfig = (n.data as any).config || {
-                      params: {},
-                      inputOverrides: {},
-                    };
+                    const nd = n.data as FrontendNodeData;
+                    const currentConfig = nd.config || { params: {}, inputOverrides: {} };
                     return {
                       ...n,
                       data: {
@@ -994,7 +992,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                       const sourceLabels = sourceNodes
                         .map((sourceNode) => {
                           if (!sourceNode) return null;
-                          return (sourceNode.data as any)?.label || sourceNode.id;
+                          return (sourceNode.data as FrontendNodeData).label || sourceNode.id;
                         })
                         .filter(Boolean) as string[];
                       if (sourceLabels.length > 0) {
@@ -1008,10 +1006,12 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                       } else if (!isToolsPort) {
                         const sourceNode = getNodes().find((n) => n.id === connection.source);
                         if (sourceNode) {
-                          const sourceComponent = getComponent(
-                            (sourceNode.data as any).componentId ??
-                              (sourceNode.data as any).componentSlug,
-                          );
+                          const sourceNodeData = sourceNode.data as FrontendNodeData;
+                          const sourceComponentRef =
+                            sourceNodeData.componentId ?? sourceNodeData.componentSlug;
+                          const sourceComponent = sourceComponentRef
+                            ? getComponent(sourceComponentRef)
+                            : null;
                           if (sourceComponent) {
                             const sourceOutput = sourceComponent.outputs.find(
                               (o) => o.id === connection.sourceHandle,

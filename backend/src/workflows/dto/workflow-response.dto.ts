@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { WorkflowRunStatusSchema } from '@shipsec/shared';
 
 // --- Trace schemas ---
 
@@ -226,6 +227,9 @@ export const RunExecutionResponseSchema = z.object({
   status: RunStatusEnum,
 });
 export class RunExecutionResponseDto extends createZodDto(RunExecutionResponseSchema) {}
+
+// --- Run status (used by GET /runs/:runId/status) ---
+export class WorkflowRunStatusDto extends createZodDto(WorkflowRunStatusSchema) {}
 
 // --- Node IO ---
 

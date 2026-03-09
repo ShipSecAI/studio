@@ -98,7 +98,7 @@ const createNodesChangeHandler =
 
     const filteredChanges = changes.filter((change) => {
       if (change.type === 'add' && 'item' in change) {
-        const node = (change as any).item as ReactFlowNode<FrontendNodeData>;
+        const node = change.item as ReactFlowNode<FrontendNodeData>;
         if (isEntryPointNode(node) && currentNodes.some(isEntryPointNode)) {
           toast({
             variant: 'destructive',

@@ -15,8 +15,8 @@ interface NodeIO {
   startedAt: string | null;
   completedAt: string | null;
   durationMs: number | null;
-  inputs: any | null;
-  outputs: any | null;
+  inputs: Record<string, unknown> | null;
+  outputs: Record<string, unknown> | null;
   inputsSize: number;
   outputsSize: number;
   inputsSpilled: boolean;
@@ -51,21 +51,23 @@ export function NodeIOInspector() {
 
   const nodeIOList = useMemo(() => {
     if (!rawNodeIOData) return [];
-    const nodes = (rawNodeIOData.nodes || []) as any[];
-    return nodes.map((n: any) => ({
-      ...n,
-      nodeRef: n.nodeRef || 'unknown',
-      componentId: n.componentId || 'unknown',
-      status: n.status || 'running',
-      startedAt: n.startedAt || null,
-      completedAt: n.completedAt || null,
-      durationMs: n.durationMs ?? null,
-      inputs: n.inputs || null,
-      outputs: n.outputs || null,
-      inputsTruncated: !!n.inputsTruncated,
-      outputsTruncated: !!n.outputsTruncated,
-      errorMessage: n.errorMessage || null,
-    })) as NodeIO[];
+    const nodes = rawNodeIOData.nodes || [];
+    return nodes.map(
+      (n): NodeIO => ({
+        ...n,
+        nodeRef: n.nodeRef || 'unknown',
+        componentId: n.componentId || 'unknown',
+        status: n.status || 'running',
+        startedAt: n.startedAt || null,
+        completedAt: n.completedAt || null,
+        durationMs: n.durationMs ?? null,
+        inputs: n.inputs || null,
+        outputs: n.outputs || null,
+        inputsTruncated: false,
+        outputsTruncated: false,
+        errorMessage: n.errorMessage || null,
+      }),
+    );
   }, [rawNodeIOData]);
 
   useEffect(() => {

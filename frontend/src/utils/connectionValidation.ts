@@ -64,11 +64,11 @@ export function validateConnection(
 
   // Get port metadata (with support for dynamic outputs/inputs)
   // 1. DYNAMIC OUTPUTS from source
-  let sourceOutputs = (sourceNode.data as any).dynamicOutputs || sourceComponent.outputs || [];
+  let sourceOutputs = sourceNode.data.dynamicOutputs || sourceComponent.outputs || [];
 
   // Special case: Tool Mode virtual port
-  const sourceConfig = sourceNode.data.config as any;
-  if (sourceConfig?.isToolMode || sourceConfig?.mode === 'tool') {
+  const sourceConfig = sourceNode.data.config;
+  if (sourceConfig?.['isToolMode'] || sourceConfig?.['mode'] === 'tool') {
     sourceOutputs = [
       ...sourceOutputs,
       {
@@ -81,10 +81,7 @@ export function validateConnection(
   }
 
   // Special case: Entry Point legacy support if dynamicOutputs is missing
-  if (
-    sourceComponent.id === 'core.workflow.entrypoint' &&
-    !(sourceNode.data as any).dynamicOutputs
-  ) {
+  if (sourceComponent.id === 'core.workflow.entrypoint' && !sourceNode.data.dynamicOutputs) {
     const sourceNodeData = sourceNode.data;
     const runtimeInputsParam = sourceNodeData.config?.params?.runtimeInputs;
 
@@ -117,7 +114,7 @@ export function validateConnection(
   }
 
   // 2. DYNAMIC INPUTS from target
-  const targetInputs = (targetNode.data as any).dynamicInputs || targetComponent.inputs || [];
+  const targetInputs = targetNode.data.dynamicInputs || targetComponent.inputs || [];
 
   const sourcePort = sourceOutputs.find((p: any) => p.id === sourceHandle);
   const targetPort = targetInputs.find((p: any) => p.id === targetHandle);
@@ -207,8 +204,8 @@ export function getNodeValidationWarnings(
   // Check for required inputs that are not connected
   const manualParameters = (node.data.config?.params ?? {}) as Record<string, unknown>;
   const inputOverrides = (node.data.config?.inputOverrides ?? {}) as Record<string, unknown>;
-  const config = node.data.config as any;
-  const isToolMode = Boolean(config?.isToolMode || config?.mode === 'tool');
+  const config = node.data.config;
+  const isToolMode = Boolean(config?.['isToolMode'] || config?.['mode'] === 'tool');
 
   component.inputs.forEach((input) => {
     // In Tool Mode, skip validation for non-credential inputs

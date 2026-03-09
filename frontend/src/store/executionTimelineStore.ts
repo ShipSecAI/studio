@@ -932,15 +932,15 @@ export const initializeTimelineStore = () => {
         const timelineStore = useExecutionTimelineStore.getState();
 
         // Check if workflow has completed or failed
-        const isTerminalStatus = runStatus && TERMINAL_STATUSES.includes(runStatus.status as any);
+        const isTerminalStatus = runStatus && TERMINAL_STATUSES.includes(runStatus.status);
         const isTerminalLifecycle = status === 'completed' || status === 'failed';
 
         // Check if status changed from non-terminal to terminal (workflow just completed)
         const statusJustChanged =
           prevRunStatus &&
           runStatus &&
-          !TERMINAL_STATUSES.includes(prevRunStatus.status as any) &&
-          TERMINAL_STATUSES.includes(runStatus.status as any);
+          !TERMINAL_STATUSES.includes(prevRunStatus.status) &&
+          TERMINAL_STATUSES.includes(runStatus.status);
 
         // Update prevRunStatus for next comparison
         prevRunStatus = runStatus;

@@ -79,6 +79,7 @@ import {
   NodeIOListResponseDto,
   NodeIODetailDto,
   LogsResponseDto,
+  WorkflowRunStatusDto,
 } from './dto/workflow-response.dto';
 import { RunArtifactsResponseDto } from '../storage/dto/artifact.dto';
 import { RunArtifactIdParamDto, RunArtifactIdParamSchema } from '../storage/dto/artifacts.dto';
@@ -337,6 +338,7 @@ export class WorkflowsController {
   @Get('/runs/:runId/status')
   @ApiOkResponse({
     description: 'Current Temporal execution status',
+    type: WorkflowRunStatusDto,
   })
   async status(
     @Param('runId') runId: string,

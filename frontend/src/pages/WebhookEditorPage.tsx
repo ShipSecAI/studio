@@ -203,7 +203,7 @@ export function WebhookEditorPage() {
       };
 
       if (isNew) {
-        const created = (await api.webhooks.create(payload)) as any;
+        const created = await api.webhooks.create(payload);
         toast({ title: 'Webhook created' });
         setInitialForm(payload);
         navigate(`/webhooks/${created.id}`, { replace: true });

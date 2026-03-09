@@ -674,7 +674,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Current Temporal execution status"
+            "description": "Current Temporal execution status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunStatusDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -9433,6 +9440,105 @@
           "workflowVersionId",
           "workflowVersion",
           "status"
+        ]
+      },
+      "WorkflowRunStatusDto": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "workflowId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED",
+              "TERMINATED",
+              "CONTINUED_AS_NEW",
+              "TIMED_OUT",
+              "UNKNOWN",
+              "AWAITING_INPUT",
+              "STALE"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "taskQueue": {
+            "type": "string"
+          },
+          "historyLength": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "progress": {
+            "type": "object",
+            "properties": {
+              "completedActions": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "totalActions": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "completedActions",
+              "totalActions"
+            ]
+          },
+          "failure": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "temporalCode": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "reason"
+            ]
+          }
+        },
+        "required": [
+          "runId",
+          "workflowId",
+          "status",
+          "startedAt",
+          "updatedAt",
+          "taskQueue",
+          "historyLength"
         ]
       },
       "RunConfigDto": {

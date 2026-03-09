@@ -354,7 +354,7 @@ function handleExecutionError(
   if (error instanceof Error) {
     console.error('Message:', error.message);
     if (error.stack) console.error('Stack:', error.stack);
-    if ((error as any).cause) console.error('Cause:', (error as any).cause);
+    if ('cause' in error) console.error('Cause:', error.cause);
   }
   console.groupEnd();
 
@@ -364,17 +364,20 @@ function handleExecutionError(
   if (error instanceof Error) {
     errorMessage = error.message;
     stackTrace = error.stack;
-    const errorObj = error as any;
-    if (errorObj.response?.data?.message) {
-      errorMessage = errorObj.response.data.message;
-      stackTrace = errorObj.response.data.stack || stackTrace;
+    if ('response' in error) {
+      const resp = (error as Error & { response?: { data?: { message?: string; stack?: string } } })
+        .response;
+      if (resp?.data?.message) {
+        errorMessage = resp.data.message;
+        stackTrace = resp.data.stack ?? stackTrace;
+      }
     }
   } else if (typeof error === 'string') {
     errorMessage = error;
   } else if (error && typeof error === 'object' && 'message' in error) {
-    errorMessage = String((error as any).message);
+    errorMessage = String((error as { message: unknown }).message);
     if ('stack' in error) {
-      stackTrace = String((error as any).stack);
+      stackTrace = String((error as { message: unknown; stack: unknown }).stack);
     }
   }
 

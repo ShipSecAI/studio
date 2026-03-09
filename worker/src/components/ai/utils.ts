@@ -1,10 +1,10 @@
 import { ConfigurationError } from '@shipsec/component-sdk';
 import { createInternalBackendClient } from '../../utils/internal-backend-client';
-import { getBackendApiV1Url } from '../../utils/backend-url';
+import { getBackendOrigin } from '../../utils/backend-url';
 
-export const DEFAULT_API_BASE_URL = getBackendApiV1Url({ preferDockerHost: true });
+export const DEFAULT_API_BASE_URL = getBackendOrigin({ preferDockerHost: true });
 
-export const DEFAULT_GATEWAY_URL = `${DEFAULT_API_BASE_URL}/mcp/gateway`;
+export const DEFAULT_GATEWAY_URL = `${DEFAULT_API_BASE_URL}/api/v1/mcp/gateway`;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -54,13 +54,11 @@ export function getLiteLLMApiKey(): string {
   return process.env.LITELLM_API_KEY?.trim() ?? '';
 }
 
-function normalizeBackendApiBaseUrl(url: string): string {
-  return (
-    url
-      .trim()
-      .replace(/\/+$/, '')
-      .replace(/\/api\/v1$/i, '') + '/api/v1'
-  );
+function normalizeBackendOrigin(url: string): string {
+  return url
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/api\/v1$/i, '');
 }
 
 export function normalizeLiteLLMModel(provider: string, model: string): string {
@@ -100,7 +98,7 @@ export async function fetchOrgVirtualKey(
   const cached = virtualKeyCache.get(orgId);
   if (cached) return cached;
 
-  const baseUrl = normalizeBackendApiBaseUrl(
+  const baseUrl = normalizeBackendOrigin(
     backendUrl ??
       process.env.STUDIO_API_BASE_URL ??
       process.env.SHIPSEC_API_BASE_URL ??

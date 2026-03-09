@@ -169,14 +169,13 @@ export function useDesignWorkflowPersistence({
       const allIssues: string[] = [];
 
       designNodes.forEach((node) => {
-        const nodeData = node.data as any;
-        const componentRef = nodeData.componentId ?? nodeData.componentSlug;
+        const componentRef = node.data.componentId ?? node.data.componentSlug;
         const component = getComponentFromCache(componentRef);
 
         if (!component) return;
 
-        const warnings = getNodeValidationWarnings(node as any, designEdges, component, secrets);
-        warnings.forEach((w) => allIssues.push(`${nodeData.label || node.id}: ${w}`));
+        const warnings = getNodeValidationWarnings(node, designEdges, component, secrets);
+        warnings.forEach((w) => allIssues.push(`${node.data.label || node.id}: ${w}`));
       });
 
       if (allIssues.length > 0) {

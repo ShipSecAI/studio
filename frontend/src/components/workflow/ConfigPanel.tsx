@@ -314,7 +314,7 @@ export function ConfigPanel({
     if (idFromSlug && componentIndex.byId[idFromSlug]) return componentIndex.byId[idFromSlug];
     return null;
   };
-  const { getEdges, getNodes } = useReactFlow();
+  const { getEdges, getNodes } = useReactFlow<FrontendNodeData>();
   const fallbackWorkflowId = useWorkflowStore((state) => state.metadata.id);
   const workflowId = workflowIdProp ?? fallbackWorkflowId;
   const navigate = useNavigate();
@@ -417,9 +417,7 @@ export function ConfigPanel({
 
   const nodeData: FrontendNodeData = selectedNode.data;
   const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug;
-  const isToolMode = Boolean(
-    (nodeData.config as any)?.isToolMode || (nodeData.config as any)?.mode === 'tool',
-  );
+  const isToolMode = Boolean(nodeData.config?.isToolMode || nodeData.config?.mode === 'tool');
   const component = componentRef ? getComponent(componentRef) : null;
 
   if (!component) {
@@ -989,7 +987,7 @@ export function ConfigPanel({
                       ? toolEdges
                           .map((edge) => {
                             const sourceNode = getNodes().find((n) => n.id === edge.source);
-                            return (sourceNode?.data as any)?.label || edge.source;
+                            return sourceNode?.data?.label || edge.source;
                           })
                           .filter(Boolean)
                       : connection

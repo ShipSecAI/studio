@@ -160,7 +160,7 @@ export function SchedulesPage() {
   const initialWorkflowId = searchParams.get('workflowId') || null;
   const [filters, setFilters] = useState<{
     search: string;
-    status: string;
+    status: 'all' | 'active' | 'paused' | 'error';
     workflowId: string | null;
   }>({ search: '', status: 'all', workflowId: initialWorkflowId });
 
@@ -170,7 +170,7 @@ export function SchedulesPage() {
     error: schedulesError,
   } = useSchedules({
     workflowId: filters.workflowId,
-    status: filters.status as any,
+    status: filters.status,
   });
   const error = schedulesError?.message ?? null;
 

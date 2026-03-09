@@ -131,9 +131,9 @@ export function AgentTracePanel({ runId }: AgentTracePanelProps) {
         payload &&
         typeof payload === 'object' &&
         'agentRunId' in payload &&
-        typeof (payload as any).agentRunId === 'string'
+        typeof (payload as AgentNodeOutput).agentRunId === 'string'
       ) {
-        entries.set(nodeId, (payload as any).agentRunId as string);
+        entries.set(nodeId, (payload as AgentNodeOutput).agentRunId as string);
       }
     });
 
@@ -923,7 +923,7 @@ function deriveAgentSteps(parts: AgentTraceChunk[]): AgentDerivedStep[] {
   };
 
   parts.forEach((entry) => {
-    const chunk = entry.chunk as any;
+    const chunk = entry.chunk as Record<string, unknown>;
     if (chunk?.type === 'tool-input-available') {
       createSnapshotStep({
         toolCallId: ensureString(chunk.toolCallId),

@@ -39,6 +39,14 @@ export const NodeConfigSchema = z
     streamId: z.string().optional(),
     groupId: z.string().optional(),
     maxConcurrency: z.number().int().positive().optional(),
+    mode: z.enum(['normal', 'tool']).optional(),
+    isToolMode: z.boolean().optional(),
+    toolConfig: z
+      .object({
+        boundInputIds: z.array(z.string()),
+        exposedInputIds: z.array(z.string()),
+      })
+      .optional(),
   })
   .passthrough(); // Allow additional fields like dynamic ports
 
@@ -93,4 +101,6 @@ export interface FrontendNodeData extends NodeData {
   status?: NodeStatus;
   executionTime?: number;
   error?: string;
+  workflowId?: string;
+  ui?: { size?: { width?: number; height?: number } };
 }

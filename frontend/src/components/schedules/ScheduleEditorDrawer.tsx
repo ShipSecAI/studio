@@ -198,10 +198,8 @@ export function ScheduleEditorDrawer({
 
   const runtimeInputs = useMemo<RuntimeInputDefinition[]>(() => {
     if (!workflowDetail) return [];
-    const entryNode = workflowDetail.graph.nodes.find(
-      (node: any) => node.type === ENTRY_COMPONENT_ID,
-    );
-    return normalizeRuntimeInputs((entryNode?.data as any)?.config?.runtimeInputs);
+    const entryNode = workflowDetail.graph.nodes.find((node) => node.type === ENTRY_COMPONENT_ID);
+    return normalizeRuntimeInputs(entryNode?.data?.config?.params?.runtimeInputs);
   }, [workflowDetail]);
 
   const [runtimeValues, setRuntimeValues] = useState<Record<string, unknown>>({});
@@ -399,18 +397,20 @@ export function ScheduleEditorDrawer({
   };
 
   const parseNodeOverrides = () => {
-    return Object.entries(nodeOverridesDraft).reduce<Record<string, Record<string, unknown>>>(
-      (acc, [nodeId, value]) => {
-        const trimmed = value.trim();
-        if (!trimmed) {
-          return acc;
-        }
-        const parsed = JSON.parse(trimmed);
-        acc[nodeId] = parsed as Record<string, unknown>;
+    return Object.entries(nodeOverridesDraft).reduce<
+      Record<string, { params: Record<string, unknown>; inputOverrides: Record<string, unknown> }>
+    >((acc, [nodeId, value]) => {
+      const trimmed = value.trim();
+      if (!trimmed) {
         return acc;
-      },
-      {},
-    );
+      }
+      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      acc[nodeId] = {
+        params: (parsed.params as Record<string, unknown>) ?? {},
+        inputOverrides: (parsed.inputOverrides as Record<string, unknown>) ?? {},
+      };
+      return acc;
+    }, {});
   };
 
   const validateRequiredInputs = () => {
@@ -468,7 +468,7 @@ export function ScheduleEditorDrawer({
       catchupWindowSeconds: Number(form.catchupWindowSeconds) || 0,
       inputPayload: {
         runtimeInputs: normalizeRuntimeValues(),
-        nodeOverrides: parseNodeOverrides() as any,
+        nodeOverrides: parseNodeOverrides(),
       },
     };
     setSubmitting(true);

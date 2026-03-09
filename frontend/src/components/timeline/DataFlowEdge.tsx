@@ -99,8 +99,8 @@ export const DataFlowEdge = memo(
       const isFinished = sourceNodeState.status === 'success' || sourceNodeState.status === 'error';
       if (!isFinished) return false;
 
-      const data = sourceNodeState.lastEvent?.data as any;
-      const activatedPorts = data?.activatedPorts as string[] | undefined;
+      const data = sourceNodeState.lastEvent?.data;
+      const activatedPorts = data?.activatedPorts;
 
       // If we have activatedPorts info (from backend NODE_COMPLETED trace)
       if (activatedPorts && sourceHandle) {

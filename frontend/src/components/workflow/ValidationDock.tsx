@@ -5,7 +5,7 @@ import { useSecrets } from '@/hooks/queries/useSecretQueries';
 import { useComponents } from '@/hooks/queries/useComponentQueries';
 import { getNodeValidationWarnings } from '@/utils/connectionValidation';
 import type { Node, Edge } from 'reactflow';
-import type { NodeData, FrontendNodeData } from '@/schemas/node';
+import type { FrontendNodeData } from '@/schemas/node';
 
 interface ValidationIssue {
   nodeId: string;
@@ -14,7 +14,7 @@ interface ValidationIssue {
 }
 
 interface ValidationDockProps {
-  nodes: Node<NodeData>[];
+  nodes: Node<FrontendNodeData>[];
   edges: Edge[];
   mode: string;
   onNodeClick: (nodeId: string) => void;
@@ -64,20 +64,16 @@ export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDo
     const issues: ValidationIssue[] = [];
 
     nodes.forEach((node) => {
-      const nodeData = node.data as any;
+      const nodeData = node.data;
       const componentRef = nodeData.componentId ?? nodeData.componentSlug;
+      if (!componentRef) return;
       const component = getComponent(componentRef);
 
       if (!component) return;
 
       // Get validation warnings using the existing utility
       // FrontendNodeData extends NodeData, so this cast is safe
-      const warnings = getNodeValidationWarnings(
-        node as Node<FrontendNodeData>,
-        edges,
-        component,
-        secrets,
-      );
+      const warnings = getNodeValidationWarnings(node, edges, component, secrets);
 
       warnings.forEach((warning: string) => {
         issues.push({
