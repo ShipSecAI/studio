@@ -419,21 +419,14 @@ export class AnalyticsController {
       throw new BadRequestException('organizationId cannot be empty');
     }
 
-    // Check if security mode is enabled
-    if (!this.openSearchTenantService.isSecurityEnabled()) {
-      return {
-        success: true,
-        securityEnabled: false,
-        message: 'Security mode disabled, tenant provisioning skipped',
-      };
-    }
-
-    // Provision tenant resources
+    // Always ensure index templates and seed indices exist. When security mode is
+    // disabled, ensureTenantExists still provisions mappings but skips security-plugin
+    // resources (tenant/role/role-mapping/index-pattern).
     const success = await this.openSearchTenantService.ensureTenantExists(orgId);
 
     return {
       success,
-      securityEnabled: true,
+      securityEnabled: this.openSearchTenantService.isSecurityEnabled(),
       message: success
         ? `Tenant provisioned for ${orgId}`
         : `Failed to provision tenant for ${orgId}`,

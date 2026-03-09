@@ -1,7 +1,9 @@
 import 'reflect-metadata';
 
 import { NestFactory } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
 import cookieParser from 'cookie-parser';
 
@@ -11,10 +13,15 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   await enforceVersionCheck();
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['log', 'error', 'warn'],
     rawBody: true,
   });
+  const configService = app.get(ConfigService);
+  const requestBodyLimit = configService.get<string>('REQUEST_BODY_LIMIT', { infer: true });
+
+  app.useBodyParser('json', { limit: requestBodyLimit });
+  app.useBodyParser('urlencoded', { extended: true, limit: requestBodyLimit });
 
   // Enable cookie parsing for session auth
   app.use(cookieParser());

@@ -29,6 +29,7 @@ export const backendEnvSchema = z
     // --- With defaults ---
     PORT: z.coerce.number().optional().default(3211),
     HOST: z.string().optional().default('0.0.0.0'),
+    REQUEST_BODY_LIMIT: z.string().optional().default('1mb'),
     SKIP_INGEST_SERVICES: stringToBoolean(false),
     ENABLE_INGEST_SERVICES: stringToBoolean(true),
 
@@ -63,6 +64,11 @@ export const backendEnvSchema = z
     OPENSEARCH_USERNAME: z.string().optional(),
     OPENSEARCH_PASSWORD: z.string().optional(),
     OPENSEARCH_DASHBOARDS_URL: z.string().optional().default(''),
+    OPENSEARCH_SECURITY_ENABLED: stringToBoolean(false),
+    OPENSEARCH_ADMIN_USERNAME: z.string().optional().default('admin'),
+    OPENSEARCH_ADMIN_PASSWORD: z.string().optional().default(''),
+    OPENSEARCH_CA_CERT_PATH: z.string().optional().default(''),
+    OPENSEARCH_SSL_REJECT_UNAUTHORIZED: stringToBoolean(true),
 
     // --- Loki ---
     LOKI_URL: z.string().optional(),
