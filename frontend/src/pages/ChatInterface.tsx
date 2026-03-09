@@ -149,7 +149,7 @@ const ToolPartRenderer = memo(function ToolPartRenderer({ part, idx }: { part: a
 
   const parsedWorkflowRun =
     (part.state === 'output-available' || part.state === 'output-error') && 'output' in part
-      ? parseWorkflowRunOutput((part as any).output)
+      ? parseWorkflowRunOutput((part as { output: unknown }).output)
       : null;
   const shouldRenderWorkflowRunCard =
     parsedWorkflowRun !== null &&

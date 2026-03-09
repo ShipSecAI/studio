@@ -3522,6 +3522,31 @@ export interface components {
             /** @enum {string} */
             status: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
         };
+        WorkflowRunStatusDto: {
+            runId: string;
+            workflowId: string;
+            /** @enum {string} */
+            status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN" | "AWAITING_INPUT" | "STALE";
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            completedAt?: string;
+            taskQueue: string;
+            historyLength: number;
+            progress?: {
+                completedActions: number;
+                totalActions: number;
+            };
+            failure?: {
+                reason: string;
+                temporalCode?: string;
+                details?: {
+                    [key: string]: unknown;
+                };
+            };
+        };
         RunConfigDto: {
             runId: string;
             workflowId: string;
@@ -6927,7 +6952,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WorkflowRunStatusDto"];
+                };
             };
         };
     };

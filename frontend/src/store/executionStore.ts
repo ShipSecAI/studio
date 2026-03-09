@@ -244,10 +244,10 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       try {
         const statusPayload = await queryClient.fetchQuery(executionStatusOptions(runId));
         if (statusPayload) {
-          const status = (statusPayload as any)?.status as ExecutionStatus | undefined;
+          const status = statusPayload?.status;
           const lifecycle = mapStatusToLifecycle(status);
           set({
-            runStatus: statusPayload as ExecutionStatusResponse,
+            runStatus: statusPayload,
             status: lifecycle,
           });
         } else {
@@ -333,16 +333,18 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         throw new Error('Failed to fetch execution data');
       }
 
-      // Filter events to ensure they match ExecutionLog type (required fields)
-      const rawEvents = (traceEnvelope.events || []) as any[];
+      // Filter events to ensure they match ExecutionLog type (required fields).
+      // The generated client uses a narrower type enum than shared TraceEventPayload,
+      // so we validate at runtime and narrow via the type predicate.
+      const rawEvents: unknown[] = traceEnvelope.events || [];
       const validEvents = rawEvents.filter(
         (e): e is ExecutionLog =>
           typeof e === 'object' &&
           e !== null &&
-          typeof e.id === 'string' &&
-          typeof e.runId === 'string' &&
-          typeof e.nodeId === 'string' &&
-          typeof e.timestamp === 'string',
+          typeof (e as Record<string, unknown>).id === 'string' &&
+          typeof (e as Record<string, unknown>).runId === 'string' &&
+          typeof (e as Record<string, unknown>).nodeId === 'string' &&
+          typeof (e as Record<string, unknown>).timestamp === 'string',
       );
 
       set((state) => {
@@ -351,11 +353,11 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
 
         const mergedEvents = mergeEvents(state.events, validEvents);
         const nodeStates = deriveNodeStates(mergedEvents);
-        const status = (statusPayload as any)?.status as ExecutionStatus | undefined;
+        const status = statusPayload?.status;
         const lifecycle = mapStatusToLifecycle(status);
 
         return {
-          runStatus: statusPayload as ExecutionStatusResponse,
+          runStatus: statusPayload,
           status: lifecycle,
           events: mergedEvents,
           nodeStates,
@@ -363,7 +365,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         };
       });
 
-      const status = (statusPayload as any)?.status as ExecutionStatus | undefined;
+      const status = statusPayload?.status;
       if (status && TERMINAL_STATUSES.includes(status)) {
         get().stopPolling();
         const currentWorkflowId = get().workflowId;
@@ -535,7 +537,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
               id: string;
               runId: string;
               nodeId: string;
-              level: string;
+              level: 'info' | 'warn' | 'error' | 'debug';
               message: string;
               timestamp: string;
             }[];
@@ -553,7 +555,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
               runId: log.runId,
               nodeId: log.nodeId,
               type: 'PROGRESS' as const,
-              level: log.level as any,
+              level: log.level,
               timestamp: log.timestamp,
               message: log.message,
             }));

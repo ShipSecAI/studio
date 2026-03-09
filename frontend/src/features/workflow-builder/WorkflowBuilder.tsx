@@ -47,6 +47,7 @@ import {
   serializeEdges,
 } from '@/utils/workflowSerializer';
 import type { FrontendNodeData } from '@/schemas/node';
+import type { components } from '@shipsec/backend-client';
 import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
@@ -595,11 +596,11 @@ function WorkflowBuilderContent() {
           id: workflow.id,
           name: workflow.name,
           description: workflow.description ?? '',
-          icon: (workflow as any).icon ?? null,
-          iconColor: (workflow as any).iconColor ?? null,
+          icon: workflow.icon ?? null,
+          iconColor: workflow.iconColor ?? null,
           currentVersionId: workflow.currentVersionId ?? null,
           currentVersion: workflow.currentVersion ?? null,
-          isSystem: (workflow as Record<string, unknown>).isSystem === true,
+          isSystem: workflow.isSystem === true,
         });
 
         const hasRunContext = Boolean(routeRunId || selectedRunId);
@@ -664,14 +665,14 @@ function WorkflowBuilderContent() {
         // Skip runs fetch entirely in design mode to avoid the slow /workflows/runs call
         // Runs will be fetched on-demand when the user switches to execution mode
         try {
-          const cachedRunsPage = queryClient.getQueryData<{ runs: any[]; hasMore: boolean }>(
-            queryKeys.runs.byWorkflow(workflow.id),
-          );
+          const cachedRunsPage = queryClient.getQueryData<
+            components['schemas']['RunListResponseDto']
+          >(queryKeys.runs.byWorkflow(workflow.id));
           const runs = openedInExecutionMode
             ? (cachedRunsPage?.runs ??
               (await fetchRuns({ workflowId: workflow.id }).then(
                 () =>
-                  queryClient.getQueryData<{ runs: any[]; hasMore: boolean }>(
+                  queryClient.getQueryData<components['schemas']['RunListResponseDto']>(
                     queryKeys.runs.byWorkflow(workflow.id),
                   )?.runs ?? [],
               )))
@@ -760,8 +761,8 @@ function WorkflowBuilderContent() {
 
   const resolveRuntimeInputDefinitions = useCallback(() => {
     const triggerNode = nodes.find((node) => {
-      const nodeData = node.data as any;
-      const componentRef = nodeData.componentId ?? nodeData.componentSlug;
+      const componentRef = node.data.componentId ?? node.data.componentSlug;
+      if (!componentRef) return false;
       const component = getComponent(componentRef);
       return component?.id === 'core.workflow.entrypoint';
     });
@@ -770,8 +771,7 @@ function WorkflowBuilderContent() {
       return [];
     }
 
-    const nodeData = triggerNode.data as any;
-    const runtimeInputsParam = nodeData.config?.params?.runtimeInputs;
+    const runtimeInputsParam = triggerNode.data.config?.params?.runtimeInputs;
 
     if (!runtimeInputsParam) {
       return [];
@@ -784,7 +784,7 @@ function WorkflowBuilderContent() {
           : runtimeInputsParam;
 
       if (Array.isArray(parsedInputs) && parsedInputs.length > 0) {
-        return parsedInputs.map((input: any) => ({
+        return parsedInputs.map((input: Record<string, unknown>) => ({
           ...input,
           type: input.type === 'string' ? 'text' : input.type,
         }));
@@ -799,8 +799,8 @@ function WorkflowBuilderContent() {
   // Resolve default values from Entry Point's runtimeInputs parameter (defaultValue field)
   const resolveRuntimeInputDefaults = useCallback((): Record<string, unknown> => {
     const triggerNode = nodes.find((node) => {
-      const nodeData = node.data as any;
-      const componentRef = nodeData.componentId ?? nodeData.componentSlug;
+      const componentRef = node.data.componentId ?? node.data.componentSlug;
+      if (!componentRef) return false;
       const component = getComponent(componentRef);
       return component?.id === 'core.workflow.entrypoint';
     });
@@ -809,8 +809,7 @@ function WorkflowBuilderContent() {
       return {};
     }
 
-    const nodeData = triggerNode.data as any;
-    const runtimeInputsParam = nodeData.config?.params?.runtimeInputs;
+    const runtimeInputsParam = triggerNode.data.config?.params?.runtimeInputs;
 
     // Extract default values from each runtime input definition
     if (Array.isArray(runtimeInputsParam)) {
