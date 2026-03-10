@@ -43,6 +43,7 @@ import './ai/openrouter-provider';
 import './ai/ai-agent';
 import './ai/llm-generate-text';
 import './ai/opencode';
+import './ai/claude-code';
 
 // Security components
 import './security/subfinder';
