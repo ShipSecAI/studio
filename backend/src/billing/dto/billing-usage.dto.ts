@@ -1,76 +1,47 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class BillingPlanSummaryDto {
-  @ApiProperty({ example: 'pro' })
-  id!: string;
+export const BillingPlanSummarySchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  priceUsdCents: z.number().describe('Monthly price in USD cents'),
+});
+export class BillingPlanSummaryDto extends createZodDto(BillingPlanSummarySchema) {}
 
-  @ApiProperty({ example: 'Pro' })
-  displayName!: string;
+export const BillingPeriodSchema = z.object({
+  start: z.string(),
+  end: z.string(),
+});
+export class BillingPeriodDto extends createZodDto(BillingPeriodSchema) {}
 
-  @ApiProperty({ example: 4900, description: 'Monthly price in USD cents' })
-  priceUsdCents!: number;
-}
+export const BillingMeterSchema = z.object({
+  used: z.number(),
+  limit: z.number().describe('-1 means unlimited'),
+  remaining: z.number().describe('-1 means unlimited'),
+});
+export class BillingMeterDto extends createZodDto(BillingMeterSchema) {}
 
-export class BillingPeriodDto {
-  @ApiProperty({ example: '2026-02-01T00:00:00.000Z' })
-  start!: string;
+export const BillingAiUsageSchema = z.object({
+  spentUsd: z.number().describe('USD spent via LiteLLM this period'),
+  budgetUsd: z.number().describe('Budget in USD (-1 = unlimited)'),
+  remainingUsd: z.number().describe('Remaining budget (-1 = unlimited)'),
+});
+export class BillingAiUsageDto extends createZodDto(BillingAiUsageSchema) {}
 
-  @ApiProperty({ example: '2026-03-01T00:00:00.000Z' })
-  end!: string;
-}
+export const BillingLimitsSchema = z.object({
+  maxConcurrentRuns: z.number().describe('-1 means unlimited'),
+  maxWorkflows: z.number().describe('-1 means unlimited'),
+  analyticsRetentionDays: z.number(),
+});
+export class BillingLimitsDto extends createZodDto(BillingLimitsSchema) {}
 
-export class BillingMeterDto {
-  @ApiProperty({ example: 42 })
-  used!: number;
-
-  @ApiProperty({ example: 500, description: '-1 means unlimited' })
-  limit!: number;
-
-  @ApiProperty({ example: 458, description: '-1 means unlimited' })
-  remaining!: number;
-}
-
-export class BillingAiUsageDto {
-  @ApiProperty({ example: 12.5, description: 'USD spent via LiteLLM this period' })
-  spentUsd!: number;
-
-  @ApiProperty({ example: 50, description: 'Budget in USD (-1 = unlimited)' })
-  budgetUsd!: number;
-
-  @ApiProperty({ example: 37.5, description: 'Remaining budget (-1 = unlimited)' })
-  remainingUsd!: number;
-}
-
-export class BillingLimitsDto {
-  @ApiProperty({ example: 3, description: '-1 means unlimited' })
-  maxConcurrentRuns!: number;
-
-  @ApiProperty({ example: -1, description: '-1 means unlimited' })
-  maxWorkflows!: number;
-
-  @ApiProperty({ example: 30 })
-  analyticsRetentionDays!: number;
-}
-
-export class BillingUsageResponseDto {
-  @ApiProperty({ example: 'org_abc123' })
-  organizationId!: string;
-
-  @ApiProperty({ enum: ['free', 'pro', 'team', 'enterprise'], example: 'pro' })
-  subscriptionTier!: string;
-
-  @ApiProperty({ type: BillingPlanSummaryDto })
-  plan!: BillingPlanSummaryDto;
-
-  @ApiProperty({ type: BillingPeriodDto })
-  period!: BillingPeriodDto;
-
-  @ApiProperty({ type: BillingMeterDto })
-  workflowRuns!: BillingMeterDto;
-
-  @ApiProperty({ type: BillingAiUsageDto })
-  ai!: BillingAiUsageDto;
-
-  @ApiProperty({ type: BillingLimitsDto })
-  limits!: BillingLimitsDto;
-}
+export const BillingUsageResponseSchema = z.object({
+  organizationId: z.string(),
+  subscriptionTier: z.enum(['free', 'pro', 'team', 'enterprise']),
+  plan: BillingPlanSummarySchema,
+  period: BillingPeriodSchema,
+  workflowRuns: BillingMeterSchema,
+  ai: BillingAiUsageSchema,
+  limits: BillingLimitsSchema,
+});
+export class BillingUsageResponseDto extends createZodDto(BillingUsageResponseSchema) {}
