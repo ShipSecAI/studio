@@ -137,13 +137,14 @@ export class SecurityAnalyticsService {
    * Format: security-findings-{orgId}-{YYYY.MM.DD}
    */
   private buildIndexName(orgId: string, indexSuffix?: string): string {
+    const normalizedOrgId = orgId.toLowerCase();
     const date = new Date();
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
 
     const suffix = indexSuffix || `${year}.${month}.${day}`;
-    return `security-findings-${orgId}-${suffix}`;
+    return `security-findings-${normalizedOrgId}-${suffix}`;
   }
 
   /**
@@ -178,9 +179,10 @@ export class SecurityAnalyticsService {
 
     try {
       // Route to latest-state index or event-log index pattern
+      const normalizedOrgId = orgId.toLowerCase();
       const indexPattern = options.useLatest
-        ? `findings-latest-${orgId}`
-        : `security-findings-${orgId}-*`;
+        ? `findings-latest-${normalizedOrgId}`
+        : `security-findings-${normalizedOrgId}-*`;
 
       // Execute the search
       const response = await client.search({
@@ -251,7 +253,7 @@ export class SecurityAnalyticsService {
     }
 
     try {
-      const indexPattern = `security-findings-${orgId}-*`;
+      const indexPattern = `security-findings-${orgId.toLowerCase()}-*`;
 
       const response = await client.search({
         index: indexPattern,
@@ -315,7 +317,10 @@ export class SecurityAnalyticsService {
     }
 
     try {
-      const indexPattern = [`security-findings-${orgId}-*`, `findings-latest-${orgId}`];
+      const indexPattern = [
+        `security-findings-${orgId.toLowerCase()}-*`,
+        `findings-latest-${orgId.toLowerCase()}`,
+      ];
       const response = await client.cat.indices({
         index: indexPattern as unknown as string[],
         format: 'json',
@@ -358,8 +363,8 @@ export class SecurityAnalyticsService {
     }
 
     try {
-      const indexPattern = `security-findings-${orgId}-*`;
-      const latestIndex = `findings-latest-${orgId}`;
+      const indexPattern = `security-findings-${orgId.toLowerCase()}-*`;
+      const latestIndex = `findings-latest-${orgId.toLowerCase()}`;
       await client.indices.delete({
         index: [indexPattern, latestIndex] as any,
         ignore_unavailable: true,

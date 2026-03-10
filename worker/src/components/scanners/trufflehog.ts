@@ -454,6 +454,8 @@ const definition = defineComponent({
           },
           outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false),
         ],
+        // Output managed by component, not /shipsec-output/result.json
+        expectOutputFile: false,
       };
 
       // Execute TruffleHog

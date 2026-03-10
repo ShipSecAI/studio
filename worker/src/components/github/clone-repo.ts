@@ -375,6 +375,7 @@ const definition = defineComponent({
           ...(branch ? { GIT_BRANCH: branch } : {}),
           ...(ref ? { GIT_REF: ref } : {}),
         },
+        expectOutputFile: false, // Output is read from volume, not /shipsec-output/result.json
         volumes: [volume.getVolumeConfig('/workspace', false)], // Read-write for clone
       };
 

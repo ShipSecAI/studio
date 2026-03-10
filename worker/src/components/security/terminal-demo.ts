@@ -189,6 +189,8 @@ const definition = defineComponent({
         MESSAGE: message,
         DURATION_SECONDS: durationSeconds.toString(),
       },
+      // Output managed by component, not /shipsec-output/result.json
+      expectOutputFile: false,
     };
 
     const raw = await runComponentWithRunner<any, string | TerminalDemoOutput>(

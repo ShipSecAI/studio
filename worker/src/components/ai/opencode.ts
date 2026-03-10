@@ -332,6 +332,8 @@ Please investigate the issue and generate a detailed report.
           volume.getVolumeConfig('/workspace', false), // Read-write, mounted at /workspace
         ],
         workingDir: '/workspace',
+        // Output managed by component, not /shipsec-output/result.json
+        expectOutputFile: false,
       };
 
       // If we are using host network, we might need to handle port collisions or security?

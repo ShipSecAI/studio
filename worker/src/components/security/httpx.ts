@@ -369,6 +369,7 @@ const definition = defineComponent({
         ...definition.runner,
         entrypoint: 'httpx',
         command: httpxArgs,
+        expectOutputFile: false, // Output is read from volume, not /shipsec-output/result.json
         volumes: [volume.getVolumeConfig('/inputs', false)],
       };
 

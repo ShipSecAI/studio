@@ -82,6 +82,8 @@ export async function startMcpDockerServer(
     // Bind to 0.0.0.0 so all interfaces can reach it (both localhost and Docker network)
     ports: { [`0.0.0.0:${port}`]: port },
     volumes: input.volumes,
+    // Output managed by component, not /shipsec-output/result.json
+    expectOutputFile: false,
   };
 
   await runComponentWithRunner(runnerConfig, async () => ({}), input.params, input.context);

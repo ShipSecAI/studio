@@ -177,6 +177,8 @@ process.on('SIGTERM', () => {
         command: ['/workspace/server.js'],
         volumes: [volume.getVolumeConfig('/workspace', false)],
         workingDir: '/workspace',
+        // Output managed by component, not /shipsec-output/result.json
+        expectOutputFile: false,
       };
 
       // Run with a long timeout since this is a server
