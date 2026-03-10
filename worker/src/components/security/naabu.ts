@@ -364,6 +364,7 @@ const definition = defineComponent({
         stdinJson: false,
         // Pass naabu CLI args directly (image default entrypoint is naabu)
         command: [...(baseRunner.command ?? []), ...naabuArgs],
+        expectOutputFile: false, // Output is read from volume, not /shipsec-output/result.json
         volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, false)],
       };
 

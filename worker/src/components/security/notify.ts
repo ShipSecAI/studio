@@ -423,6 +423,8 @@ const definition = defineComponent({
         // Pass notify CLI args directly (image default entrypoint is notify)
         command: [...(baseRunner.command ?? []), ...notifyArgs],
         volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
+        // Output managed by component, not /shipsec-output/result.json
+        expectOutputFile: false,
       };
 
       const result = await runComponentWithRunner<Record<string, never>, string>(

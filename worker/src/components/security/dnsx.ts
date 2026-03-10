@@ -657,6 +657,7 @@ const definition = defineComponent({
         env: { ...(baseRunner.env ?? {}) },
         // Pass dnsx CLI args directly (image default entrypoint is dnsx)
         command: [...(baseRunner.command ?? []), ...dnsxArgs],
+        expectOutputFile: false, // DNSX output is parsed from runner return, not /shipsec-output/result.json
         volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, false)],
       };
 

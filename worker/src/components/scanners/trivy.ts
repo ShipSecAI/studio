@@ -543,6 +543,8 @@ const definition = defineComponent({
         env,
         timeoutSeconds: parsedParams.timeout + 60, // Add buffer for startup
         volumes: volumes.length > 0 ? volumes : undefined,
+        // Output managed by component, not /shipsec-output/result.json
+        expectOutputFile: false,
       };
 
       // Execute Trivy

@@ -364,6 +364,8 @@ const definition = defineComponent({
         volume.getVolumeConfig('/input', true),
         outputVolume.getVolumeConfig(TOOL_OUTPUT_DIR, false),
       ],
+      // Output managed by component, not /shipsec-output/result.json
+      expectOutputFile: false,
     };
 
     let rawOutput = '';
