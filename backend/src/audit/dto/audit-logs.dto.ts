@@ -15,6 +15,7 @@ export const AuditResourceTypeSchema = z.enum([
   'mcp_server',
   'mcp_group',
   'human_input',
+  'agent_skill',
 ]);
 
 const AuditJsonPrimitiveSchema: z.ZodType<AuditJsonPrimitive> = z.union([

@@ -38,6 +38,7 @@ import {
   Cloud,
   MessageSquare,
   CreditCard,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -493,6 +494,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/mcp-library',
       icon: ServerCog,
       requiredFlag: 'MCP_SERVERS',
+    },
+    {
+      name: 'Agent Skills',
+      href: '/agent-skills',
+      icon: Sparkles,
     },
     {
       name: 'Billing & Usage',

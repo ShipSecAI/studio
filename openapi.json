@@ -7597,6 +7597,245 @@
         ]
       }
     },
+    "/api/v1/agent-skills": {
+      "get": {
+        "operationId": "AgentSkillsController_listSkills",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentSkillResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List all agent skills",
+        "tags": [
+          "agent-skills"
+        ]
+      },
+      "post": {
+        "operationId": "AgentSkillsController_createSkill",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentSkillDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSkillResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create a new agent skill",
+        "tags": [
+          "agent-skills"
+        ]
+      }
+    },
+    "/api/v1/agent-skills/enabled": {
+      "get": {
+        "operationId": "AgentSkillsController_listEnabledSkills",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentSkillResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List enabled agent skills only",
+        "tags": [
+          "agent-skills"
+        ]
+      }
+    },
+    "/api/v1/agent-skills/{id}": {
+      "get": {
+        "operationId": "AgentSkillsController_getSkill",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSkillResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get a specific agent skill",
+        "tags": [
+          "agent-skills"
+        ]
+      },
+      "patch": {
+        "operationId": "AgentSkillsController_updateSkill",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgentSkillDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSkillResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update an agent skill",
+        "tags": [
+          "agent-skills"
+        ]
+      },
+      "delete": {
+        "operationId": "AgentSkillsController_deleteSkill",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Delete an agent skill",
+        "tags": [
+          "agent-skills"
+        ]
+      }
+    },
+    "/api/v1/agent-skills/{id}/toggle": {
+      "post": {
+        "operationId": "AgentSkillsController_toggleSkill",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSkillResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Toggle agent skill enabled/disabled status",
+        "tags": [
+          "agent-skills"
+        ]
+      }
+    },
+    "/api/v1/agent-skills/{id}/preview": {
+      "get": {
+        "operationId": "AgentSkillsController_previewSkillMd",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "content": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Preview the SKILL.md content for an agent skill",
+        "tags": [
+          "agent-skills"
+        ]
+      }
+    },
     "/api/v1/testing/webhooks": {
       "post": {
         "operationId": "TestingWebhookController_acceptWebhook",
@@ -7696,7 +7935,7 @@
   },
   "info": {
     "title": "ShipSec Studio API",
-    "description": "ShipSec backend API specification",
+    "description": "ShipSec backend API",
     "version": "0.1.0",
     "contact": {}
   },
@@ -11273,7 +11512,8 @@
                     "schedule",
                     "mcp_server",
                     "mcp_group",
-                    "human_input"
+                    "human_input",
+                    "agent_skill"
                   ]
                 },
                 "resourceId": {
@@ -20205,6 +20445,156 @@
         "required": [
           "success"
         ]
+      },
+      "AgentSkillResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "license": {
+            "type": "string",
+            "nullable": true
+          },
+          "compatibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "allowedTools": {
+            "type": "string",
+            "nullable": true
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "content",
+          "license",
+          "compatibility",
+          "metadata",
+          "allowedTools",
+          "isEnabled",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateAgentSkillDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1
+          },
+          "license": {
+            "type": "string"
+          },
+          "compatibility": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "allowedTools": {
+            "type": "string"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "content"
+        ]
+      },
+      "UpdateAgentSkillDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1
+          },
+          "license": {
+            "type": "string",
+            "nullable": true
+          },
+          "compatibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "allowedTools": {
+            "type": "string",
+            "nullable": true
+          },
+          "isEnabled": {
+            "type": "boolean"
+          }
+        }
       }
     }
   }

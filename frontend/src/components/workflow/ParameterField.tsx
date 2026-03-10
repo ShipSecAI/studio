@@ -36,8 +36,11 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Search } from 'lucide-react';
+import { Search, Sparkles, Check, Eye } from 'lucide-react';
 import type { ArtifactMetadata } from '@shipsec/shared';
+import { useAgentSkills } from '@/hooks/queries/useAgentSkillQueries';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 interface ParameterFieldProps {
   parameter: Parameter;
@@ -555,6 +558,17 @@ export function ParameterField({
           </p>
         )}
       </div>
+    );
+  }
+
+  // Skill selector: shows available skills with checkboxes, grouped by enabled/disabled
+  if ((parameter.type as string) === 'tags') {
+    return (
+      <SkillSelector
+        selected={Array.isArray(currentValue) ? currentValue : []}
+        onChange={onChange}
+        disabled={isReceivingInput}
+      />
     );
   }
 
@@ -1376,6 +1390,184 @@ export function ParameterFieldWrapper({
       {parameter.helpText && (
         <p className="text-xs text-muted-foreground italic mt-2">💡 {parameter.helpText}</p>
       )}
+    </div>
+  );
+}
+
+// ── Skill Selector ──────────────────────────────────────────────────────────
+
+interface SkillSelectorProps {
+  selected: string[];
+  onChange: (value: string[]) => void;
+  disabled?: boolean;
+}
+
+function SkillSelector({ selected, onChange, disabled }: SkillSelectorProps) {
+  const { data: skills = [], isLoading } = useAgentSkills();
+  const [search, setSearch] = useState('');
+  const [previewSkill, setPreviewSkill] = useState<{
+    name: string;
+    description: string;
+    content: string;
+  } | null>(null);
+
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+
+  const filteredSkills = useMemo(() => {
+    if (!search.trim()) return skills;
+    const q = search.toLowerCase();
+    return skills.filter(
+      (s) => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q),
+    );
+  }, [skills, search]);
+
+  const enabledSkills = useMemo(() => filteredSkills.filter((s) => s.isEnabled), [filteredSkills]);
+  const disabledSkills = useMemo(
+    () => filteredSkills.filter((s) => !s.isEnabled),
+    [filteredSkills],
+  );
+
+  const toggleSkill = (name: string) => {
+    if (disabled) return;
+    if (selectedSet.has(name)) {
+      onChange(selected.filter((s) => s !== name));
+    } else {
+      onChange([...selected, name]);
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-xs text-muted-foreground py-2">Loading skills...</div>;
+  }
+
+  if (skills.length === 0) {
+    return (
+      <div className="border rounded-md p-3 text-center">
+        <Sparkles className="h-5 w-5 text-muted-foreground/50 mx-auto mb-1.5" />
+        <p className="text-xs text-muted-foreground">
+          No skills available. Create skills in the Agent Skills page.
+        </p>
+      </div>
+    );
+  }
+
+  const renderSkillItem = (skill: {
+    id: string;
+    name: string;
+    description: string;
+    content: string;
+    isEnabled: boolean;
+  }) => {
+    const isSelected = selectedSet.has(skill.name);
+
+    return (
+      <div
+        key={skill.id}
+        className={cn(
+          'flex items-start gap-2 px-2.5 py-2 border rounded-md cursor-pointer transition-colors overflow-hidden',
+          'hover:bg-accent/50',
+          isSelected && 'bg-accent/30',
+          disabled && 'opacity-50 cursor-not-allowed',
+        )}
+        onClick={() => toggleSkill(skill.name)}
+      >
+        <div
+          className={cn(
+            'h-4 w-4 mt-0.5 rounded border flex items-center justify-center shrink-0 transition-colors',
+            isSelected
+              ? 'bg-primary border-primary text-primary-foreground'
+              : 'border-muted-foreground/30',
+          )}
+        >
+          {isSelected && <Check className="h-3 w-3" />}
+        </div>
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <div className="text-sm font-medium truncate">{skill.name}</div>
+          <div className="text-xs text-muted-foreground line-clamp-2">{skill.description}</div>
+        </div>
+        <button
+          type="button"
+          className="shrink-0 mt-0.5 p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
+          title="View skill content"
+          onClick={(e) => {
+            e.stopPropagation();
+            setPreviewSkill({
+              name: skill.name,
+              description: skill.description,
+              content: skill.content,
+            });
+          }}
+        >
+          <Eye className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Search */}
+      {skills.length > 4 && (
+        <div className="relative">
+          <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search skills..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-7 h-8 text-xs"
+          />
+        </div>
+      )}
+
+      {selected.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {selected.length} skill{selected.length !== 1 ? 's' : ''} selected
+        </p>
+      )}
+
+      {/* Skills list */}
+      <ScrollArea className="max-h-64">
+        <div className="space-y-1">
+          {enabledSkills.length > 0 && (
+            <div>
+              {disabledSkills.length > 0 && (
+                <div className="px-1 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Enabled
+                </div>
+              )}
+              {enabledSkills.map(renderSkillItem)}
+            </div>
+          )}
+          {disabledSkills.length > 0 && (
+            <div className={enabledSkills.length > 0 ? 'mt-2' : ''}>
+              <div className="px-1 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                Disabled
+              </div>
+              {disabledSkills.map(renderSkillItem)}
+            </div>
+          )}
+          {filteredSkills.length === 0 && (
+            <p className="text-xs text-muted-foreground text-center py-3">
+              No skills match your search.
+            </p>
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* Skill content preview dialog */}
+      <Dialog open={!!previewSkill} onOpenChange={(open) => !open && setPreviewSkill(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{previewSkill?.name}</DialogTitle>
+            <DialogDescription>{previewSkill?.description}</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1 min-h-0">
+            <pre className="text-xs font-mono whitespace-pre-wrap break-words leading-relaxed p-4">
+              {previewSkill?.content}
+            </pre>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

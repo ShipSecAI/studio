@@ -155,6 +155,80 @@ export async function requireOrgVirtualKey(
 }
 
 // ---------------------------------------------------------------------------
+// Agent Skills helpers (fetch from backend, generate SKILL.md files)
+// ---------------------------------------------------------------------------
+
+export interface AgentSkillData {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  allowedTools?: string | null;
+}
+
+/**
+ * Fetch enabled agent skills for an organization from the backend internal API.
+ */
+export async function fetchOrgSkills(organizationId: string | null): Promise<AgentSkillData[]> {
+  try {
+    const client = createInternalBackendClient({
+      headers: organizationId ? { 'X-Organization-Id': organizationId } : undefined,
+    });
+    const res = await client.listEnabledAgentSkills();
+    if (!res.data) return [];
+    return res.data as AgentSkillData[];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Generate a SKILL.md file from stored skill data.
+ * Format follows the Agent Skills open standard (https://agentskills.io).
+ */
+export function generateSkillMd(skill: AgentSkillData): string {
+  const lines: string[] = ['---', `name: ${skill.name}`, `description: ${skill.description}`];
+  if (skill.allowedTools) {
+    lines.push(`allowed-tools: ${skill.allowedTools}`);
+  }
+  lines.push('---', '', skill.content);
+  return lines.join('\n');
+}
+
+/**
+ * Generate workspace file entries for selected org skills.
+ * Returns a record of path → content for use with volume.initialize().
+ *
+ * @param organizationId - Organization to fetch skills for
+ * @param selectedSkillNames - If provided, only include skills with these names.
+ *                             If empty array, no skills are injected.
+ *                             If undefined/null, no skills are injected (opt-in).
+ * @param skillsDir - Directory prefix for skill files.
+ *                    Claude Code uses `.claude/skills`, OpenCode uses `.agents/skills`.
+ */
+export async function getSkillWorkspaceFiles(
+  organizationId: string | null,
+  selectedSkillNames?: string[] | null,
+  skillsDir: '.claude/skills' | '.agents/skills' = '.agents/skills',
+): Promise<Record<string, string>> {
+  // Skills are opt-in: if no selection provided or empty, inject nothing
+  if (!selectedSkillNames || selectedSkillNames.length === 0) {
+    return {};
+  }
+
+  const skills = await fetchOrgSkills(organizationId);
+  const files: Record<string, string> = {};
+  const selectedSet = new Set(selectedSkillNames.map((n) => n.trim().toLowerCase()));
+
+  for (const skill of skills) {
+    if (selectedSet.has(skill.name.toLowerCase())) {
+      files[`${skillsDir}/${skill.name}/SKILL.md`] = generateSkillMd(skill);
+    }
+  }
+  return files;
+}
+
+// ---------------------------------------------------------------------------
 // Budget enforcement helpers
 // ---------------------------------------------------------------------------
 

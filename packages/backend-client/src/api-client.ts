@@ -1459,6 +1459,22 @@ export class ShipSecApiClient {
       body,
     });
   }
+
+  // ===== Agent Skills =====
+
+  async listAgentSkills() {
+    return this.client.GET('/api/v1/agent-skills');
+  }
+
+  async listEnabledAgentSkills() {
+    return this.client.GET('/api/v1/agent-skills/enabled');
+  }
+
+  async getAgentSkill(id: string) {
+    return this.client.GET('/api/v1/agent-skills/{id}', {
+      params: { path: { id } },
+    });
+  }
 }
 
 /**

@@ -12,7 +12,8 @@ export type AuditResourceType =
   | 'schedule'
   | 'mcp_server'
   | 'mcp_group'
-  | 'human_input';
+  | 'human_input'
+  | 'agent_skill';
 
 export type AuditJsonPrimitive = string | number | boolean | null;
 export type AuditJsonValue = AuditJsonPrimitive | AuditJsonPrimitive[];

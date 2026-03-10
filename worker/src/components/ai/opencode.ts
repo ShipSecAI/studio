@@ -17,6 +17,7 @@ import {
   getGatewaySessionToken,
   requireOrgVirtualKey,
   shouldRouteViaLiteLLM,
+  getSkillWorkspaceFiles,
 } from './utils';
 
 const inputSchema = inputs({
@@ -111,6 +112,15 @@ const parameterSchema = parameters({
       description: 'Additional configuration merged into opencode.jsonc.',
     },
   ),
+  skills: param(
+    z.array(z.string()).default([]).describe('Agent skill names to inject into the workspace.'),
+    {
+      label: 'Skills',
+      editor: 'tags',
+      description:
+        'Select agent skills to inject into the workspace as .agents/skills/*/SKILL.md files.',
+    },
+  ),
 });
 
 const outputSchema = outputs({
@@ -160,7 +170,7 @@ const definition = defineComponent({
   },
   async execute({ inputs, params }, context) {
     const { task, context: taskContext, model, supplementaryA, supplementaryB } = inputs;
-    const { systemPrompt, providerConfig } = params;
+    const { systemPrompt, providerConfig, skills: selectedSkills } = params;
 
     const { connectedToolNodeIds, organizationId } = context.metadata;
 
@@ -317,6 +327,11 @@ Please investigate the issue and generate a detailed report.
       };
       if (supplementaryA) workspaceFiles['supplementary-a.txt'] = supplementaryA;
       if (supplementaryB) workspaceFiles['supplementary-b.txt'] = supplementaryB;
+
+      // Inject selected agent skills into workspace
+      const skillFiles = await getSkillWorkspaceFiles(organizationId ?? null, selectedSkills);
+      Object.assign(workspaceFiles, skillFiles);
+
       await volume.initialize(workspaceFiles);
 
       const runnerConfig = {

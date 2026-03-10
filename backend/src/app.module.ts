@@ -42,6 +42,7 @@ import { AsmModule } from './asm/asm.module';
 import { AssetDiscoveryModule } from './asset-discovery/asset-discovery.module';
 import { BillingModule } from './billing/billing.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { AgentSkillsModule } from './agent-skills/agent-skills.module';
 
 const coreModules = [
   AgentsModule,
@@ -69,6 +70,7 @@ const coreModules = [
   AssetDiscoveryModule,
   AuditModule,
   ChatModule,
+  AgentSkillsModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];

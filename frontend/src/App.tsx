@@ -53,6 +53,9 @@ const ArtifactLibrary = lazy(() =>
 const McpLibraryPage = lazy(() =>
   import('@/pages/McpLibraryPage').then((m) => ({ default: m.McpLibraryPage })),
 );
+const AgentSkillsPage = lazy(() =>
+  import('@/pages/AgentSkillsPage').then((m) => ({ default: m.AgentSkillsPage })),
+);
 const IntegrationCallback = lazy(() =>
   import('@/pages/IntegrationCallback').then((m) => ({ default: m.IntegrationCallback })),
 );
@@ -333,6 +336,7 @@ function App() {
                               <Route element={<FeatureFlagRoute flag="MCP_SERVERS" />}>
                                 <Route path="/mcp-library" element={<McpLibraryPage />} />
                               </Route>
+                              <Route path="/agent-skills" element={<AgentSkillsPage />} />
                               <Route element={<FeatureFlagRoute flag="ARTIFACTS" />}>
                                 <Route path="/artifacts" element={<ArtifactLibrary />} />
                               </Route>

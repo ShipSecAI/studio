@@ -2958,6 +2958,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent-skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all agent skills */
+        get: operations["AgentSkillsController_listSkills"];
+        put?: never;
+        /** Create a new agent skill */
+        post: operations["AgentSkillsController_createSkill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-skills/enabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List enabled agent skills only */
+        get: operations["AgentSkillsController_listEnabledSkills"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-skills/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a specific agent skill */
+        get: operations["AgentSkillsController_getSkill"];
+        put?: never;
+        post?: never;
+        /** Delete an agent skill */
+        delete: operations["AgentSkillsController_deleteSkill"];
+        options?: never;
+        head?: never;
+        /** Update an agent skill */
+        patch: operations["AgentSkillsController_updateSkill"];
+        trace?: never;
+    };
+    "/api/v1/agent-skills/{id}/toggle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Toggle agent skill enabled/disabled status */
+        post: operations["AgentSkillsController_toggleSkill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-skills/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview the SKILL.md content for an agent skill */
+        get: operations["AgentSkillsController_previewSkillMd"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/testing/webhooks": {
         parameters: {
             query?: never;
@@ -6470,6 +6558,47 @@ export interface components {
         RunCompletionResponseDto: {
             /** @enum {boolean} */
             success: true;
+        };
+        AgentSkillResponseDto: {
+            id: string;
+            name: string;
+            description: string;
+            content: string;
+            license: string | null;
+            compatibility: string | null;
+            metadata: {
+                [key: string]: unknown;
+            } | null;
+            allowedTools: string | null;
+            isEnabled: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateAgentSkillDto: {
+            name: string;
+            description: string;
+            content: string;
+            license?: string;
+            compatibility?: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+            allowedTools?: string;
+            isEnabled?: boolean;
+        };
+        UpdateAgentSkillDto: {
+            name?: string;
+            description?: string;
+            content?: string;
+            license?: string | null;
+            compatibility?: string | null;
+            metadata?: {
+                [key: string]: unknown;
+            } | null;
+            allowedTools?: string | null;
+            isEnabled?: boolean;
         };
     };
     responses: never;
@@ -11575,6 +11704,176 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunCompletionResponseDto"];
+                };
+            };
+        };
+    };
+    AgentSkillsController_listSkills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSkillResponseDto"][];
+                };
+            };
+        };
+    };
+    AgentSkillsController_createSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAgentSkillDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSkillResponseDto"];
+                };
+            };
+        };
+    };
+    AgentSkillsController_listEnabledSkills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSkillResponseDto"][];
+                };
+            };
+        };
+    };
+    AgentSkillsController_getSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSkillResponseDto"];
+                };
+            };
+        };
+    };
+    AgentSkillsController_deleteSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentSkillsController_updateSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAgentSkillDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSkillResponseDto"];
+                };
+            };
+        };
+    };
+    AgentSkillsController_toggleSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSkillResponseDto"];
+                };
+            };
+        };
+    };
+    AgentSkillsController_previewSkillMd: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        content?: string;
+                    };
                 };
             };
         };

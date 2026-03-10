@@ -25,6 +25,10 @@ export const queryKeys = {
     all: () => ['mcpServers', getOrgScope()] as const,
     tools: () => ['mcpServers', getOrgScope(), 'tools'] as const,
   },
+  agentSkills: {
+    all: () => ['agentSkills', getOrgScope()] as const,
+    detail: (id: string) => ['agentSkills', getOrgScope(), id] as const,
+  },
   mcpGroups: {
     all: () => ['mcpGroups', getOrgScope()] as const,
     servers: (groupId: string) => ['mcpGroupServers', getOrgScope(), groupId] as const,

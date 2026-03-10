@@ -186,14 +186,18 @@ export class IsolatedContainerVolume {
       );
     }
 
-    // Additional check: no leading dots (hidden files) unless explicitly allowed
+    // Additional check: no leading dots (hidden files) unless in allowlist
+    const ALLOWED_HIDDEN_PREFIXES = ['.agents/', '.claude/', '.opencode/'];
     const parts = filename.split('/');
     for (const part of parts) {
       if (part.startsWith('.') && part !== '.' && part !== '..') {
-        throw new ValidationError(`Invalid filename (hidden file): ${filename}`, {
-          fieldErrors: { filename: ['hidden files not allowed'] },
-          details: { filename },
-        });
+        const isAllowed = ALLOWED_HIDDEN_PREFIXES.some((prefix) => filename.startsWith(prefix));
+        if (!isAllowed) {
+          throw new ValidationError(`Invalid filename (hidden file): ${filename}`, {
+            fieldErrors: { filename: ['hidden files not allowed'] },
+            details: { filename },
+          });
+        }
       }
     }
   }
@@ -286,6 +290,10 @@ export class IsolatedContainerVolume {
     // Replace ' with '\'' (close quote, escaped quote, open quote)
     const safeFilename = filename.replace(/'/g, "'\\''");
 
+    // Create parent directories if the path is nested (e.g. .agents/skills/name/SKILL.md)
+    const dirPart = filename.includes('/') ? filename.slice(0, filename.lastIndexOf('/')) : null;
+    const mkdirCmd = dirPart ? `mkdir -p '/data/${dirPart.replace(/'/g, "'\\''")}' && ` : '';
+
     return new Promise((resolve, reject) => {
       const proc = spawn('docker', [
         'run',
@@ -297,7 +305,7 @@ export class IsolatedContainerVolume {
         'sh',
         'alpine:latest',
         '-c',
-        `cat > '/data/${safeFilename}'`, // Single quotes prevent shell injection
+        `${mkdirCmd}cat > '/data/${safeFilename}'`, // Single quotes prevent shell injection
       ]);
 
       let stderr = '';
