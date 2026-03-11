@@ -12,6 +12,7 @@ import { LogStreamService } from '../trace/log-stream.service';
 import { SchedulesService } from '../schedules/schedules.service';
 import { SecretsService } from '../secrets/secrets.service';
 import { HumanInputsService } from '../human-inputs/human-inputs.service';
+import { SecurityAnalyticsService } from '../analytics/security-analytics.service';
 import type { AuthContext } from '../auth/types';
 import type { StudioMcpDeps } from './tools/types';
 import { registerWorkflowTools } from './tools/workflow.tools';
@@ -21,6 +22,7 @@ import { registerArtifactTools } from './tools/artifact.tools';
 import { registerScheduleTools } from './tools/schedule.tools';
 import { registerSecretTools } from './tools/secret.tools';
 import { registerHumanInputTools } from './tools/human-input.tools';
+import { registerAnalyticsTools } from './tools/analytics.tools';
 
 @Injectable()
 export class StudioMcpService {
@@ -36,6 +38,7 @@ export class StudioMcpService {
     @Optional() private readonly schedulesService?: SchedulesService,
     @Optional() private readonly secretsService?: SecretsService,
     @Optional() private readonly humanInputsService?: HumanInputsService,
+    @Optional() private readonly securityAnalyticsService?: SecurityAnalyticsService,
   ) {}
 
   /**
@@ -73,6 +76,7 @@ export class StudioMcpService {
       schedulesService: this.schedulesService,
       secretsService: this.secretsService,
       humanInputsService: this.humanInputsService,
+      securityAnalyticsService: this.securityAnalyticsService,
     };
 
     registerWorkflowTools(server, auth, deps);
@@ -82,5 +86,6 @@ export class StudioMcpService {
     registerScheduleTools(server, auth, deps);
     registerSecretTools(server, auth, deps);
     registerHumanInputTools(server, auth, deps);
+    registerAnalyticsTools(server, auth, deps);
   }
 }

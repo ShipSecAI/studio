@@ -24,7 +24,8 @@ export type PermissionPath =
   | 'schedules.update'
   | 'schedules.delete'
   | 'human-inputs.read'
-  | 'human-inputs.resolve';
+  | 'human-inputs.resolve'
+  | 'analytics.query';
 
 export interface ToolResult {
   [x: string]: unknown;
@@ -71,6 +72,24 @@ export interface StudioMcpDeps {
     list(query?: any, organizationId?: string): Promise<any[]>;
     getById(id: string, organizationId?: string): Promise<any>;
     resolve(id: string, dto: any, organizationId?: string, auth?: any): Promise<any>;
+  };
+  securityAnalyticsService?: {
+    query(
+      orgId: string,
+      options: {
+        query?: Record<string, any>;
+        size?: number;
+        from?: number;
+        aggs?: Record<string, any>;
+        sort?: Record<string, any>[];
+        collapse?: Record<string, any>;
+        useLatest?: boolean;
+      },
+    ): Promise<{
+      total: number;
+      hits: { _id: string; _source: Record<string, any>; _score?: number }[];
+      aggregations?: Record<string, any>;
+    }>;
   };
 }
 

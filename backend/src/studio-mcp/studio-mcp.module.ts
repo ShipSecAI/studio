@@ -6,6 +6,7 @@ import { NodeIOModule } from '../node-io/node-io.module';
 import { SchedulesModule } from '../schedules/schedules.module';
 import { SecretsModule } from '../secrets/secrets.module';
 import { HumanInputsModule } from '../human-inputs/human-inputs.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 import { StudioMcpController } from './studio-mcp.controller';
 import { StudioMcpService } from './studio-mcp.service';
 
@@ -17,6 +18,7 @@ import { StudioMcpService } from './studio-mcp.service';
     SchedulesModule,
     SecretsModule,
     HumanInputsModule,
+    AnalyticsModule,
     // TraceModule is @Global() — no import needed
   ],
   controllers: [StudioMcpController],

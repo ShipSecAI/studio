@@ -11,7 +11,6 @@ import { eq, asc } from 'drizzle-orm';
 
 import {
   requireOrgVirtualKey,
-  shouldRouteViaLiteLLM,
   isBudgetExceededError,
   BUDGET_EXCEEDED_USER_MESSAGE,
 } from '../../components/ai/utils';
@@ -154,22 +153,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
-  const liteLLMEnabled = shouldRouteViaLiteLLM();
-  const liteLLMBaseUrl = process.env.LITELLM_BASE_URL?.trim();
-
-  const baseURL =
-    overrides?.baseURL ??
-    (liteLLMEnabled && liteLLMBaseUrl ? liteLLMBaseUrl : process.env.CHAT_AI_BASE_URL);
-  const apiKey =
-    overrides?.apiKey ??
-    (liteLLMEnabled ? process.env.LITELLM_API_KEY?.trim() : undefined) ??
-    process.env.CHAT_AI_API_KEY;
+  const baseURL = overrides?.baseURL ?? process.env.LITELLM_BASE_URL?.trim();
+  const apiKey = overrides?.apiKey ?? process.env.LITELLM_API_KEY?.trim();
   const modelId = process.env.CHAT_AI_MODEL_ID;
   const providerName = process.env.CHAT_AI_PROVIDER ?? 'chat-provider';
 
   if (!baseURL || !apiKey || !modelId) {
     throw new Error(
-      'Chat AI not configured. Set CHAT_AI_BASE_URL, CHAT_AI_API_KEY, and CHAT_AI_MODEL_ID.',
+      'Chat AI not configured. Set LITELLM_BASE_URL, LITELLM_API_KEY, and CHAT_AI_MODEL_ID.',
     );
   }
 
@@ -178,19 +169,14 @@ function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
 }
 
 /**
- * Build a model instance with per-org virtual key when LiteLLM is enabled.
- * Falls back to default env-var credentials otherwise.
+ * Build a model instance with per-org virtual key via LiteLLM.
  */
 async function getModelForOrg(organizationId?: string) {
-  if (shouldRouteViaLiteLLM()) {
-    const virtualKey = await requireOrgVirtualKey(organizationId, {
-      backendUrl: globalBackendUrl,
-      consumer: 'Chat AI',
-    });
-    const liteLLMBaseUrl = process.env.LITELLM_BASE_URL?.trim();
-    return getModel({ apiKey: virtualKey, baseURL: liteLLMBaseUrl });
-  }
-  return getModel();
+  const virtualKey = await requireOrgVirtualKey(organizationId, {
+    backendUrl: globalBackendUrl,
+    consumer: 'Chat AI',
+  });
+  return getModel({ apiKey: virtualKey });
 }
 
 /** Publish a streaming chunk to Redis pub/sub for real-time relay */
