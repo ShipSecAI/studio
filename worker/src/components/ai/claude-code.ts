@@ -17,7 +17,6 @@ import {
   getGatewaySessionToken,
   requireOrgVirtualKey,
   shouldRouteViaLiteLLM,
-  getSkillWorkspaceFiles,
 } from './utils';
 
 const inputSchema = inputs({
@@ -110,15 +109,6 @@ const parameterSchema = parameters({
       description: 'Additional configuration passed as environment variables.',
     },
   ),
-  skills: param(
-    z.array(z.string()).default([]).describe('Agent skill names to inject into the workspace.'),
-    {
-      label: 'Skills',
-      editor: 'tags',
-      description:
-        'Select agent skills to inject into the workspace as .claude/skills/*/SKILL.md files.',
-    },
-  ),
 });
 
 const outputSchema = outputs({
@@ -168,7 +158,7 @@ const definition = defineComponent({
   },
   async execute({ inputs, params }, context) {
     const { task, context: taskContext, model, supplementaryA, supplementaryB } = inputs;
-    const { systemPrompt, skills: selectedSkills } = params;
+    const { systemPrompt } = params;
 
     const { connectedToolNodeIds, organizationId } = context.metadata;
 
@@ -306,22 +296,6 @@ Please investigate the issue and generate a detailed report.
       if (supplementaryA) workspaceFiles['supplementary-a.txt'] = supplementaryA;
       if (supplementaryB) workspaceFiles['supplementary-b.txt'] = supplementaryB;
 
-      // Inject selected agent skills into workspace
-      const skillFiles = await getSkillWorkspaceFiles(
-        organizationId ?? null,
-        selectedSkills,
-        '.claude/skills',
-      );
-      const skillCount = Object.keys(skillFiles).length;
-      if (skillCount > 0) {
-        context.logger.info(
-          `[ClaudeCode] Injecting ${skillCount} skill(s): ${Object.keys(skillFiles).join(', ')}`,
-        );
-      } else if (selectedSkills && selectedSkills.length > 0) {
-        context.logger.warn(`[ClaudeCode] No skills found matching: ${selectedSkills.join(', ')}`);
-      }
-      Object.assign(workspaceFiles, skillFiles);
-
       await volume.initialize(workspaceFiles);
 
       const runnerConfig = {
@@ -386,7 +360,6 @@ function cleanReport(raw: string): string {
  *
  * - LiteLLM routing: ANTHROPIC_API_KEY=<virtual-key>, ANTHROPIC_BASE_URL=<litellm>/anthropic
  * - Direct Anthropic: ANTHROPIC_API_KEY=<key>
- * - ZAI provider: ANTHROPIC_API_KEY=<key>, ANTHROPIC_BASE_URL=https://api.z.ai/api/coding/paas/v4
  */
 function buildProviderEnv(
   model?: { provider: string; apiKey?: string },
@@ -411,14 +384,7 @@ function buildProviderEnv(
   switch (model.provider) {
     case 'anthropic':
       return { ANTHROPIC_API_KEY: model.apiKey };
-    case 'zai-coding-plan':
-      return {
-        ANTHROPIC_API_KEY: model.apiKey,
-        ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
-      };
     default:
-      // Claude Code natively uses Anthropic API; for other providers,
-      // pass the key as ANTHROPIC_API_KEY and hope the base URL is set elsewhere
       return { ANTHROPIC_API_KEY: model.apiKey };
   }
 }
