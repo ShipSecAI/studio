@@ -81,10 +81,14 @@ export class LokiLogClient implements LokiPushClient {
 }
 
 export class LokiLogAdapter implements WorkflowLogSink {
+  private readonly environment: string;
+
   constructor(
     private readonly client: LokiPushClient,
     private readonly db?: NodePgDatabase<typeof schema>,
-  ) {}
+  ) {
+    this.environment = process.env.SHIPSEC_ENV ?? 'local';
+  }
   private ensureIndexPromise?: Promise<void>;
 
   async append(entry: WorkflowLogEntry): Promise<void> {
@@ -122,6 +126,7 @@ export class LokiLogAdapter implements WorkflowLogSink {
       run_id: entry.runId,
       node: entry.nodeRef,
       stream: entry.stream,
+      environment: this.environment,
     };
 
     if (entry.level) {

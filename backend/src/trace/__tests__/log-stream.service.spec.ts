@@ -20,7 +20,7 @@ describe('LogStreamService', () => {
     runId: 'run-123',
     nodeRef: 'node-1',
     stream: 'stdout',
-    labels: { run_id: 'run-123', node: 'node-1', stream: 'stdout' },
+    labels: { run_id: 'run-123', node: 'node-1', stream: 'stdout', environment: 'staging' },
     firstTimestamp: new Date('2025-01-01T00:00:00Z'),
     lastTimestamp: new Date('2025-01-01T00:00:01Z'),
     lineCount: 2,
@@ -34,6 +34,7 @@ describe('LogStreamService', () => {
     process.env.LOKI_USERNAME = '';
     process.env.LOKI_PASSWORD = '';
     process.env.LOKI_TENANT_ID = '';
+    process.env.SHIPSEC_ENV = 'staging';
   });
 
   afterEach(() => {
@@ -107,6 +108,7 @@ describe('LogStreamService', () => {
     const calledUrl = decodeURIComponent(calls[0].input.toString());
     expect(calledUrl).toContain('/loki/api/v1/query_range');
     expect(calledUrl).toContain('run_id="run-123"');
+    expect(calledUrl).toContain('environment="staging"');
   });
 
   it('derives start and end timestamps from stored metadata', async () => {

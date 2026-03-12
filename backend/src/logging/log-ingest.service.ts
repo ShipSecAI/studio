@@ -22,6 +22,7 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
   private readonly kafkaGroupId: string;
   private readonly kafkaClientId: string;
   private readonly lokiClient: LokiLogClient;
+  private readonly environment: string;
 
   constructor(private readonly repository: LogStreamRepository) {
     const brokerEnv = process.env.LOG_KAFKA_BROKERS ?? '';
@@ -39,6 +40,7 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
 
     this.kafkaGroupId = process.env.LOG_KAFKA_GROUP_ID ?? 'shipsec-log-ingestor';
     this.kafkaClientId = process.env.LOG_KAFKA_CLIENT_ID ?? 'shipsec-backend';
+    this.environment = process.env.SHIPSEC_ENV ?? 'local';
 
     const lokiUrl = process.env.LOKI_URL;
     if (!lokiUrl) {
@@ -240,6 +242,7 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
       run_id: entry.runId,
       node: entry.nodeRef,
       stream: entry.stream,
+      environment: this.environment,
     };
 
     if (entry.level) {

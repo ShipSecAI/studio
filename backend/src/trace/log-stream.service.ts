@@ -29,12 +29,14 @@ export class LogStreamService {
   private readonly username?: string;
   private readonly password?: string;
   private readonly defaultTailWindowMs = 60_000;
+  private readonly environment: string;
 
   constructor(private readonly repository: LogStreamRepository) {
     this.baseUrl = process.env.LOKI_URL;
     this.tenantId = process.env.LOKI_TENANT_ID;
     this.username = process.env.LOKI_USERNAME;
     this.password = process.env.LOKI_PASSWORD;
+    this.environment = process.env.SHIPSEC_ENV ?? 'local';
   }
 
   async fetch(runId: string, auth: AuthContext | null, options: FetchLogsOptions = {}) {
@@ -79,7 +81,10 @@ export class LogStreamService {
     }
 
     // Build Loki query selector
-    const selectorLabels: Record<string, string> = { run_id: runId };
+    const selectorLabels: Record<string, string> = {
+      run_id: runId,
+      environment: this.environment,
+    };
     if (options.nodeRef) selectorLabels.node = options.nodeRef;
     if (options.stream) selectorLabels.stream = options.stream;
     if (options.level) selectorLabels.level = options.level;
@@ -135,7 +140,10 @@ export class LogStreamService {
     }[];
     cursor: string | null;
   }> {
-    const selector = this.buildSelector({ run_id: runId });
+    const selector = this.buildSelector({
+      run_id: runId,
+      environment: this.environment,
+    });
     const startTime =
       lastCursor ??
       (await this.resolveEarliestTimestamp(runId, organizationId))?.toISOString() ??

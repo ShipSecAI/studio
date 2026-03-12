@@ -9,6 +9,7 @@ describe('LogIngestService', () => {
   beforeEach(() => {
     process.env.LOG_KAFKA_BROKERS = 'localhost:9092';
     process.env.LOKI_URL = 'http://localhost:3100';
+    process.env.SHIPSEC_ENV = 'staging';
   });
 
   afterEach(() => {
@@ -36,7 +37,9 @@ describe('LogIngestService', () => {
     expect(push).toHaveBeenCalledTimes(1);
     const call = push.mock.calls[0] as unknown[] | undefined;
     expect(call).toBeTruthy();
+    const labels = (call?.[0] ?? {}) as Record<string, string>;
     const lines = (call?.[1] ?? []) as { message: string }[];
+    expect(labels.environment).toBe('staging');
     expect(lines).toHaveLength(1);
     expect(lines[0]?.message).toContain('token=[REDACTED]');
     expect(lines[0]?.message).toContain('authorization=[REDACTED]');

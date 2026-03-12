@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 
 import { LokiLogAdapter, type LokiPushClient, type LokiStreamLine } from '../loki-log.adapter';
 import type { WorkflowLogEntry } from '../../temporal/types';
@@ -38,6 +38,7 @@ class FakeDb {
 }
 
 describe('LokiLogAdapter', () => {
+  const originalEnv = { ...process.env };
   let client: FakeClient;
   let db: FakeDb;
   let adapter: LokiLogAdapter;
@@ -61,9 +62,14 @@ describe('LokiLogAdapter', () => {
   });
 
   beforeEach(() => {
+    process.env.SHIPSEC_ENV = 'staging';
     client = new FakeClient();
     db = new FakeDb();
     adapter = new LokiLogAdapter(client, db as unknown as NodePgDatabase<typeof schema>);
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
   });
 
   it('pushes logs to Loki and persists metadata', async () => {
@@ -77,6 +83,7 @@ describe('LokiLogAdapter', () => {
       run_id: 'run-123',
       node: 'node-1',
       stream: 'stdout',
+      environment: 'staging',
       level: 'info',
       activity_id: 'activity-1',
       attempt: '2',
