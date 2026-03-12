@@ -46,8 +46,8 @@ import {
 // ---------------------------------------------------------------------------
 
 const PROWLER_IMAGE = 'ghcr.io/shipsecai/prowler:latest';
-const SINGLE_ACCOUNT_TIMEOUT_SECONDS = 900;
-const _ORG_SCAN_TIMEOUT_SECONDS = 7200;
+const SINGLE_ACCOUNT_TIMEOUT_SECONDS = 2700; // 45 minutes — Prowler scans typically take 20-45 min
+const _ORG_SCAN_TIMEOUT_SECONDS = 7200; // 2 hours — reserved for future per-org timeout budget
 const FLUSH_THRESHOLD = 5000;
 const PROWLER_ASFF_OUTPUT_FILE = 'shipsec.asff.json';
 

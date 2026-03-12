@@ -90,7 +90,7 @@ const {
     requiredNodeIds: string[];
   }): Promise<{ ready: boolean }>;
 }>({
-  startToCloseTimeout: '10 minutes',
+  startToCloseTimeout: '60 minutes',
 });
 
 const { prepareRunPayloadActivity } = proxyActivities<{
@@ -718,7 +718,7 @@ export async function shipsecWorkflowRun(
                   input: RunComponentActivityInput,
                 ): Promise<RunComponentActivityOutput>;
               }>({
-                startToCloseTimeout: '10 minutes',
+                startToCloseTimeout: '60 minutes',
                 retry: retryOptions,
               });
 
@@ -813,7 +813,7 @@ export async function shipsecWorkflowRun(
             input: RunComponentActivityInput,
           ): Promise<RunComponentActivityOutput>;
         }>({
-          startToCloseTimeout: '10 minutes',
+          startToCloseTimeout: '60 minutes',
           retry: retryOptions,
         });
 
@@ -867,7 +867,39 @@ export async function shipsecWorkflowRun(
           `[Workflow] Executing component ${action.componentId} (node ${action.ref})${isMcpGroup ? ' [MCP Group]' : ''}${isToolMode ? ' [Tool Mode]' : ''}`,
         );
 
-        const output = await runComponentWithRetry(activityInput);
+        let output: RunComponentActivityOutput;
+        try {
+          output = await runComponentWithRetry(activityInput);
+        } catch (activityError) {
+          // Emit NODE_FAILED at the workflow level as a safety net.
+          // When Temporal kills an activity (e.g. startToCloseTimeout), the activity's
+          // own catch block never runs, so no NODE_FAILED trace event is recorded.
+          // This ensures the node always gets a terminal trace event.
+          const errorMsg =
+            activityError instanceof Error ? activityError.message : String(activityError);
+          console.error(`[Workflow] Activity failed for node ${action.ref}: ${errorMsg}`);
+          await recordTraceEventActivity({
+            type: 'NODE_FAILED',
+            runId: input.runId,
+            nodeRef: action.ref,
+            timestamp: new Date().toISOString(),
+            message: errorMsg,
+            error: {
+              message: errorMsg,
+              type: activityError instanceof Error ? activityError.name : 'ActivityFailure',
+            },
+            level: 'error',
+            context: {
+              activityId: 'workflow-orchestration-safety-net',
+            },
+          }).catch((traceErr) => {
+            console.error(
+              `[Workflow] Failed to record NODE_FAILED trace for ${action.ref}:`,
+              traceErr,
+            );
+          });
+          throw activityError;
+        }
 
         // MCP groups in tool mode: NOW register the parent as ready after execution completes.
         // This ensures child servers are discovered and registered before the agent starts.
