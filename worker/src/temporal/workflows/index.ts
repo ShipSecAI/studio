@@ -90,7 +90,7 @@ const {
     requiredNodeIds: string[];
   }): Promise<{ ready: boolean }>;
 }>({
-  startToCloseTimeout: '60 minutes',
+  startToCloseTimeout: '10 minutes',
 });
 
 const { prepareRunPayloadActivity } = proxyActivities<{
