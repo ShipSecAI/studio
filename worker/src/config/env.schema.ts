@@ -38,6 +38,7 @@ export const workerEnvSchema = z
     INTERNAL_SERVICE_TOKEN: z.string().optional().default(''),
 
     // --- Terminal Redis ---
+    REDIS_URL: z.string().optional(),
     TERMINAL_REDIS_URL: z.string().optional(),
     TERMINAL_REDIS_MAXLEN: z.coerce.number().optional().default(5000),
 

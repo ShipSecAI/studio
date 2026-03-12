@@ -13,10 +13,9 @@ import type {
 } from '../types';
 import Redis from 'ioredis';
 
-// Initialize Redis for caching
-const redisUrl =
-  process.env.REDIS_URL || process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379';
-const redis = new Redis(redisUrl);
+// Initialize Redis for caching when configured.
+const redisUrl = process.env.REDIS_URL ?? process.env.TERMINAL_REDIS_URL;
+const redis = redisUrl ? new Redis(redisUrl) : null;
 
 /**
  * Cache discovery results in Redis
@@ -26,6 +25,10 @@ export async function cacheDiscoveryResultActivity(input: {
   tools: McpTool[];
   workflowId: string;
 }): Promise<void> {
+  if (!redis) {
+    console.warn('[MCP Discovery] Redis URL not set; skipping discovery cache write');
+    return;
+  }
   const key = `mcp-discovery:${input.cacheToken}`;
   const value = JSON.stringify({
     status: 'completed',
@@ -46,6 +49,9 @@ export async function cacheDiscoveryResultActivity(input: {
 export async function getCachedDiscoveryActivity(input: {
   cacheToken: string;
 }): Promise<{ tools: McpTool[]; toolCount: number } | null> {
+  if (!redis) {
+    return null;
+  }
   const key = `mcp-discovery:${input.cacheToken}`;
   const value = await redis.get(key);
   if (!value) {

@@ -31,9 +31,11 @@ import { MCP_DISCOVERY_REDIS } from './mcp.tokens';
     {
       provide: MCP_DISCOVERY_REDIS,
       useFactory: () => {
-        // Keep consistent with the worker-side caching (worker uses REDIS_URL || TERMINAL_REDIS_URL || localhost).
-        const redisUrl =
-          process.env.REDIS_URL || process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379';
+        const redisUrl = process.env.REDIS_URL ?? process.env.TERMINAL_REDIS_URL;
+        if (!redisUrl) {
+          console.warn('[MCP] Redis URL not set; discovery cache disabled');
+          return null;
+        }
         return new Redis(redisUrl);
       },
     },
@@ -41,7 +43,10 @@ import { MCP_DISCOVERY_REDIS } from './mcp.tokens';
       provide: TOOL_REGISTRY_REDIS,
       useFactory: () => {
         // Use the same Redis URL as terminal or a dedicated one
-        const url = process.env.TOOL_REGISTRY_REDIS_URL ?? process.env.TERMINAL_REDIS_URL;
+        const url =
+          process.env.TOOL_REGISTRY_REDIS_URL ??
+          process.env.REDIS_URL ??
+          process.env.TERMINAL_REDIS_URL;
         if (!url) {
           console.warn('[MCP] Redis URL not set; tool registry disabled');
         }

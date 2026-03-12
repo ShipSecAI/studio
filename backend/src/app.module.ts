@@ -100,7 +100,7 @@ function getEnvFilePaths(): string[] {
     }),
     ThrottlerModule.forRootAsync({
       useFactory: () => {
-        const redisUrl = process.env.REDIS_URL;
+        const redisUrl = process.env.REDIS_URL ?? process.env.TERMINAL_REDIS_URL;
 
         return {
           throttlers: [
@@ -110,7 +110,7 @@ function getEnvFilePaths(): string[] {
               limit: 500, // 500 requests per minute
             },
           ],
-          storage: redisUrl ? new ThrottlerStorageRedisService(new Redis(redisUrl)) : undefined, // Falls back to in-memory storage if Redis not configured
+          storage: redisUrl ? new ThrottlerStorageRedisService(new Redis(redisUrl)) : undefined,
         };
       },
     }),

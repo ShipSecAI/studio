@@ -19,13 +19,13 @@ export class McpDiscoveryOrchestratorService implements OnModuleDestroy {
 
   constructor(
     private readonly temporalService: TemporalService,
-    @Inject(MCP_DISCOVERY_REDIS) private readonly redis: Redis,
+    @Inject(MCP_DISCOVERY_REDIS) private readonly redis: Redis | null,
   ) {}
 
   async onModuleDestroy(): Promise<void> {
     // Best-effort shutdown.
     try {
-      await this.redis.quit();
+      await this.redis?.quit();
     } catch {
       // ignore
     }
@@ -40,11 +40,15 @@ export class McpDiscoveryOrchestratorService implements OnModuleDestroy {
     );
 
     // Store cache token in Redis (worker populates final result); expire in 5 minutes.
-    await this.redis.setex(
-      `mcp-discovery:${cacheToken}`,
-      300,
-      JSON.stringify({ status: 'pending', workflowId }),
-    );
+    if (this.redis) {
+      await this.redis.setex(
+        `mcp-discovery:${cacheToken}`,
+        300,
+        JSON.stringify({ status: 'pending', workflowId }),
+      );
+    } else {
+      this.logger.warn('Redis not configured; MCP discovery cache disabled');
+    }
 
     await this.temporalService.startWorkflow({
       workflowType: 'mcpDiscoveryWorkflow',
@@ -104,15 +108,19 @@ export class McpDiscoveryOrchestratorService implements OnModuleDestroy {
       `Starting MCP group discovery workflow ${workflowId} for ${input.servers.length} server(s)`,
     );
 
-    await Promise.all(
-      Object.values(cacheTokens).map((cacheToken) =>
-        this.redis.setex(
-          `mcp-discovery:${cacheToken}`,
-          300,
-          JSON.stringify({ status: 'pending', workflowId }),
+    if (this.redis) {
+      await Promise.all(
+        Object.values(cacheTokens).map((cacheToken) =>
+          this.redis!.setex(
+            `mcp-discovery:${cacheToken}`,
+            300,
+            JSON.stringify({ status: 'pending', workflowId }),
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      this.logger.warn('Redis not configured; MCP group discovery cache disabled');
+    }
 
     await this.temporalService.startWorkflow({
       workflowType: 'mcpGroupDiscoveryWorkflow',

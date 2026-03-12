@@ -29,6 +29,7 @@ export const backendEnvSchema = z
     // --- With defaults ---
     PORT: z.coerce.number().optional().default(3211),
     HOST: z.string().optional().default('0.0.0.0'),
+    SHIPSEC_ENV: z.string().optional().default('local'),
     REQUEST_BODY_LIMIT: z.string().optional().default('1mb'),
     SKIP_INGEST_SERVICES: stringToBoolean(false),
     ENABLE_INGEST_SERVICES: stringToBoolean(true),
@@ -211,6 +212,19 @@ export const backendEnvSchema = z
           message: 'CLERK_PUBLISHABLE_KEY is required when AUTH_PROVIDER=clerk',
         });
       }
+    }
+
+    const shipsecEnv = data.SHIPSEC_ENV.trim().toLowerCase();
+    if (
+      (shipsecEnv === 'prod' || shipsecEnv === 'staging') &&
+      !data.REDIS_URL &&
+      !data.TERMINAL_REDIS_URL
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['REDIS_URL'],
+        message: 'REDIS_URL or TERMINAL_REDIS_URL is required when SHIPSEC_ENV is prod or staging',
+      });
     }
   });
 
