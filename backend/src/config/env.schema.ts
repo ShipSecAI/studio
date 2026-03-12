@@ -101,13 +101,13 @@ export const backendEnvSchema = z
     NODE_IO_KAFKA_TOPIC: z.string().optional().default('telemetry.node-io'),
     ASSET_EVENT_KAFKA_TOPIC: z.string().optional().default('asset.events'),
 
-    // --- GitHub App (required) ---
-    GITHUB_APP_ID: z.string().min(1, 'GITHUB_APP_ID is required'),
-    GITHUB_APP_SLUG: z.string().min(1, 'GITHUB_APP_SLUG is required'),
-    GITHUB_APP_PRIVATE_KEY: z.string().min(1, 'GITHUB_APP_PRIVATE_KEY is required'),
-    GITHUB_APP_WEBHOOK_SECRET: z.string().min(1, 'GITHUB_APP_WEBHOOK_SECRET is required'),
-    GITHUB_APP_CLIENT_ID: z.string().min(1, 'GITHUB_APP_CLIENT_ID is required'),
-    GITHUB_APP_CLIENT_SECRET: z.string().min(1, 'GITHUB_APP_CLIENT_SECRET is required'),
+    // --- GitHub App ---
+    GITHUB_APP_ID: z.string().optional(),
+    GITHUB_APP_SLUG: z.string().optional(),
+    GITHUB_APP_PRIVATE_KEY: z.string().optional(),
+    GITHUB_APP_WEBHOOK_SECRET: z.string().optional(),
+    GITHUB_APP_CLIENT_ID: z.string().optional(),
+    GITHUB_APP_CLIENT_SECRET: z.string().optional(),
     GITHUB_API_URL: z.string().optional().default('https://api.github.com'),
     GITHUB_URL: z.string().optional().default('https://github.com'),
 
@@ -121,9 +121,9 @@ export const backendEnvSchema = z
     ZOOM_OAUTH_CLIENT_SECRET: z.string().optional(),
     ZOOM_OAUTH_SCOPES: z.string().optional(),
 
-    // --- Slack OAuth (required) ---
-    SLACK_OAUTH_CLIENT_ID: z.string().min(1, 'SLACK_OAUTH_CLIENT_ID is required'),
-    SLACK_OAUTH_CLIENT_SECRET: z.string().min(1, 'SLACK_OAUTH_CLIENT_SECRET is required'),
+    // --- Slack OAuth ---
+    SLACK_OAUTH_CLIENT_ID: z.string().optional(),
+    SLACK_OAUTH_CLIENT_SECRET: z.string().optional(),
     SLACK_OAUTH_SCOPES: z.string().optional(),
 
     // --- AWS ---
@@ -133,7 +133,7 @@ export const backendEnvSchema = z
     SHIPSEC_AWS_SESSION_TOKEN: z.string().optional(),
     SHIPSEC_AWS_STRICT_IDENTITY_CHECK: stringToBoolean(true),
     SHIPSEC_AWS_STS_DURATION_SECONDS: z.coerce.number().optional().default(3600),
-    SHIPSEC_PLATFORM_ROLE_ARN: z.string().min(1, 'SHIPSEC_PLATFORM_ROLE_ARN is required'),
+    SHIPSEC_PLATFORM_ROLE_ARN: z.string().optional(),
     AWS_REGION: z.string().optional(),
     AWS_DEFAULT_REGION: z.string().optional(),
 

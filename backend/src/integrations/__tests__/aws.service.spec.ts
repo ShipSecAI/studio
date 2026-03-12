@@ -176,6 +176,44 @@ describe('AwsService platform session caching', () => {
   });
 });
 
+describe('AwsService startup verification', () => {
+  const PLATFORM_ARN = 'arn:aws:iam::123456789012:role/ShipSec-Studio-Access';
+  let savedEnv: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    savedEnv = {
+      SHIPSEC_PLATFORM_ROLE_ARN: process.env.SHIPSEC_PLATFORM_ROLE_ARN,
+      SHIPSEC_AWS_STRICT_IDENTITY_CHECK: process.env.SHIPSEC_AWS_STRICT_IDENTITY_CHECK,
+    };
+    process.env.SHIPSEC_PLATFORM_ROLE_ARN = PLATFORM_ARN;
+    process.env.SHIPSEC_AWS_STRICT_IDENTITY_CHECK = 'false';
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value === undefined) Reflect.deleteProperty(process.env, key);
+      else process.env[key] = value;
+    }
+  });
+
+  it('continues startup when strict identity checks are disabled and credentials are unavailable', async () => {
+    const service = new AwsService();
+    const warnSpy = mock(() => {});
+    (service as any).logger = { warn: warnSpy, log: mock(() => {}), error: mock(() => {}) };
+    (service as any).getBootstrapStsClient = () => ({
+      send: () =>
+        Promise.reject(
+          Object.assign(new Error('Could not load credentials from any providers'), {
+            name: 'CredentialsProviderError',
+          }),
+        ),
+    });
+
+    await expect(service.onModuleInit()).resolves.toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('AwsService bootstrapIsPlatformRole fast path', () => {
   it('uses bootstrap client directly when identity already matches', async () => {
     const service = new AwsService();

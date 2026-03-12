@@ -90,13 +90,9 @@ export class AwsService implements OnModuleInit {
         );
         return;
       }
-      const isAccessDenied =
-        error?.name === 'AccessDenied' ||
-        error?.name === 'AccessDeniedException' ||
-        String(error?.message ?? '').includes('Platform role assumption failed');
-      if (isAccessDenied && !this.isStrictIdentityCheckEnabled()) {
+      if (!this.isStrictIdentityCheckEnabled()) {
         this.logger.warn(
-          'AWS platform identity verification failed, but SHIPSEC_AWS_STRICT_IDENTITY_CHECK=false; continuing without platform-role bootstrap.',
+          `AWS platform identity verification failed, but SHIPSEC_AWS_STRICT_IDENTITY_CHECK=false; continuing without platform-role bootstrap. Original: ${error?.message ?? error}`,
         );
         return;
       }
