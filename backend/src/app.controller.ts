@@ -30,6 +30,7 @@ export class AppController {
     this.authCfg = this.configService.get<AuthConfig>('auth')!;
   }
 
+  @Public()
   @SkipThrottle()
   @Get('/health')
   health() {

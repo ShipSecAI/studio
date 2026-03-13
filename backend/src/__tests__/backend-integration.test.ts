@@ -190,11 +190,13 @@ interface Component {
   });
 
   describe('Health Check', () => {
-    it('should list workflows (basic connectivity test)', async () => {
-      const response = await fetch(api('/workflows'));
+    it('returns health without authentication', async () => {
+      const response = await fetch(api('/health'));
       expect(response.ok).toBe(true);
-      const data = await readJson<WorkflowGraphDto[]>(response);
-      expect(Array.isArray(data)).toBe(true);
+      const data = await readJson<{ status: string; service: string; timestamp: string }>(response);
+      expect(data.status).toBe('ok');
+      expect(data.service).toBe('shipsec-backend');
+      expect(typeof data.timestamp).toBe('string');
     });
   });
 
