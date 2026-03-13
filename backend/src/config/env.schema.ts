@@ -27,9 +27,10 @@ export const backendEnvSchema = z
     SECRET_STORE_MASTER_KEY: secretStoreKeySchema,
 
     // --- With defaults ---
+    NODE_ENV: z.string().optional().default('development'),
     PORT: z.coerce.number().optional().default(3211),
     HOST: z.string().optional().default('0.0.0.0'),
-    SHIPSEC_ENV: z.string().optional().default('local'),
+    SHIPSEC_ENV: z.string().optional(),
     REQUEST_BODY_LIMIT: z.string().optional().default('1mb'),
     SKIP_INGEST_SERVICES: stringToBoolean(false),
     ENABLE_INGEST_SERVICES: stringToBoolean(true),
@@ -56,8 +57,7 @@ export const backendEnvSchema = z
     INTEGRATION_STORE_MASTER_KEY: z.string().optional(),
     ALLOW_INSECURE_INTERNAL_ENDPOINTS: stringToBoolean(false),
 
-    // --- Terminal / Tool Registry Redis ---
-    TERMINAL_REDIS_URL: z.string().optional(),
+    // --- Tool Registry Redis ---
     TOOL_REGISTRY_REDIS_URL: z.string().optional(),
 
     // --- OpenSearch ---
@@ -214,16 +214,14 @@ export const backendEnvSchema = z
       }
     }
 
-    const shipsecEnv = data.SHIPSEC_ENV.trim().toLowerCase();
-    if (
-      (shipsecEnv === 'prod' || shipsecEnv === 'staging') &&
-      !data.REDIS_URL &&
-      !data.TERMINAL_REDIS_URL
-    ) {
+    const shipsecEnv = data.SHIPSEC_ENV?.trim().toLowerCase();
+    const requiresRedis =
+      data.NODE_ENV === 'production' || shipsecEnv === 'prod' || shipsecEnv === 'staging';
+    if (requiresRedis && !data.REDIS_URL) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['REDIS_URL'],
-        message: 'REDIS_URL or TERMINAL_REDIS_URL is required when SHIPSEC_ENV is prod or staging',
+        message: 'REDIS_URL is required when running in production, staging, or prod',
       });
     }
   });

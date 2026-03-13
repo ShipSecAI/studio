@@ -1,18 +1,17 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import Redis from 'ioredis';
 
-type RedisEnv = Partial<
-  Pick<NodeJS.ProcessEnv, 'REDIS_URL' | 'TERMINAL_REDIS_URL' | 'SHIPSEC_ENV'>
->;
+type RedisEnv = Partial<Pick<NodeJS.ProcessEnv, 'NODE_ENV' | 'REDIS_URL' | 'SHIPSEC_ENV'>>;
 type RedisPing = (url: string) => Promise<void>;
 
 function shouldRequireRedis(env: RedisEnv): boolean {
-  const shipsecEnv = env.SHIPSEC_ENV?.trim().toLowerCase() ?? 'local';
-  return shipsecEnv === 'prod' || shipsecEnv === 'staging';
+  const nodeEnv = env.NODE_ENV?.trim().toLowerCase();
+  const shipsecEnv = env.SHIPSEC_ENV?.trim().toLowerCase();
+  return nodeEnv === 'production' || shipsecEnv === 'prod' || shipsecEnv === 'staging';
 }
 
 export function resolveRedisStartupUrl(env: RedisEnv): string | null {
-  return env.REDIS_URL ?? env.TERMINAL_REDIS_URL ?? null;
+  return env.REDIS_URL ?? null;
 }
 
 export async function verifyRedisAvailability(
@@ -54,8 +53,8 @@ export class RedisStartupGuardService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     const env = {
+      NODE_ENV: process.env.NODE_ENV,
       REDIS_URL: process.env.REDIS_URL,
-      TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL,
       SHIPSEC_ENV: process.env.SHIPSEC_ENV,
     };
 

@@ -2,21 +2,27 @@ import { describe, expect, it, mock } from 'bun:test';
 import { resolveRedisStartupUrl, verifyRedisAvailability } from '../redis-startup-guard.service';
 
 describe('resolveRedisStartupUrl', () => {
-  it('prefers REDIS_URL over TERMINAL_REDIS_URL', () => {
-    expect(
-      resolveRedisStartupUrl({
-        REDIS_URL: 'redis://primary:6379',
-        TERMINAL_REDIS_URL: 'redis://terminal:6379',
-      }),
-    ).toBe('redis://primary:6379');
+  it('returns REDIS_URL when configured', () => {
+    expect(resolveRedisStartupUrl({ REDIS_URL: 'redis://primary:6379' })).toBe(
+      'redis://primary:6379',
+    );
   });
 
-  it('falls back to TERMINAL_REDIS_URL when REDIS_URL is missing', () => {
-    expect(
-      resolveRedisStartupUrl({
-        TERMINAL_REDIS_URL: 'redis://terminal:6379',
-      }),
-    ).toBe('redis://terminal:6379');
+  it('returns null when REDIS_URL is missing', () => {
+    expect(resolveRedisStartupUrl({})).toBeNull();
+  });
+
+  it('requires Redis in production even if SHIPSEC_ENV is missing', async () => {
+    const pingRedis = mock(async () => {});
+
+    await expect(
+      verifyRedisAvailability(
+        {
+          NODE_ENV: 'production',
+        },
+        pingRedis,
+      ),
+    ).rejects.toThrow('Redis is required in staging and production');
   });
 });
 
@@ -55,6 +61,7 @@ describe('verifyRedisAvailability', () => {
     await expect(
       verifyRedisAvailability(
         {
+          NODE_ENV: 'production',
           SHIPSEC_ENV: 'staging',
           REDIS_URL: 'redis://shipsec-managed-redis.shipsec-staging.svc.cluster.local:6379/1',
         },
@@ -75,6 +82,7 @@ describe('verifyRedisAvailability', () => {
     await expect(
       verifyRedisAvailability(
         {
+          NODE_ENV: 'production',
           SHIPSEC_ENV: 'prod',
           REDIS_URL: 'redis://shipsec-managed-redis.shipsec-system.svc.cluster.local:6379',
         },

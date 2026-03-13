@@ -100,7 +100,7 @@ function getEnvFilePaths(): string[] {
     }),
     ThrottlerModule.forRootAsync({
       useFactory: () => {
-        const redisUrl = process.env.REDIS_URL ?? process.env.TERMINAL_REDIS_URL;
+        const redisUrl = process.env.REDIS_URL;
 
         return {
           throttlers: [

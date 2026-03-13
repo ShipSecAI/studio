@@ -209,7 +209,7 @@ async function main() {
     throw error;
   }
 
-  const terminalRedisUrl = process.env.TERMINAL_REDIS_URL;
+  const terminalRedisUrl = process.env.REDIS_URL;
   let terminalStream: RedisTerminalStreamAdapter | undefined;
   if (terminalRedisUrl) {
     try {
@@ -221,7 +221,7 @@ async function main() {
       console.error('⚠️ Failed to initialize terminal Redis streaming', error);
     }
   } else {
-    console.warn('⚠️ TERMINAL_REDIS_URL not set; terminal streaming disabled');
+    console.warn('⚠️ REDIS_URL not set; terminal streaming disabled');
   }
 
   // Initialize global services for activities

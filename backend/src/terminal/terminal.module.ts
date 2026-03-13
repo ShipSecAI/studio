@@ -9,7 +9,7 @@ import { TerminalStreamService, TERMINAL_REDIS } from './terminal-stream.service
     {
       provide: TERMINAL_REDIS,
       useFactory: () => {
-        const url = process.env.REDIS_URL ?? process.env.TERMINAL_REDIS_URL;
+        const url = process.env.REDIS_URL;
         if (!url) {
           return null;
         }

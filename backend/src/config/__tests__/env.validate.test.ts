@@ -74,9 +74,10 @@ describe('backendEnvSchema', () => {
     }
   });
 
-  it('fails in prod when neither REDIS_URL nor TERMINAL_REDIS_URL is configured', () => {
+  it('fails in prod when REDIS_URL is missing', () => {
     const result = backendEnvSchema.safeParse(
       validEnv({
+        NODE_ENV: 'production',
         SHIPSEC_ENV: 'prod',
       }),
     );
@@ -87,15 +88,28 @@ describe('backendEnvSchema', () => {
     }
   });
 
-  it('passes in staging when TERMINAL_REDIS_URL is configured', () => {
+  it('passes in staging when REDIS_URL is configured', () => {
     const result = backendEnvSchema.safeParse(
       validEnv({
+        NODE_ENV: 'production',
         SHIPSEC_ENV: 'staging',
-        TERMINAL_REDIS_URL:
-          'redis://shipsec-managed-redis.shipsec-staging.svc.cluster.local:6379/1',
+        REDIS_URL: 'redis://shipsec-managed-redis.shipsec-staging.svc.cluster.local:6379/1',
       }),
     );
     expect(result.success).toBe(true);
+  });
+
+  it('fails in production when SHIPSEC_ENV is missing and REDIS_URL is missing', () => {
+    const result = backendEnvSchema.safeParse(
+      validEnv({
+        NODE_ENV: 'production',
+      }),
+    );
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths).toContain('REDIS_URL');
+    }
   });
 
   it('falls back unknown AUTH_PROVIDER to "local"', () => {

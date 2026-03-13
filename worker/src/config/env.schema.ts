@@ -39,7 +39,6 @@ export const workerEnvSchema = z
 
     // --- Terminal Redis ---
     REDIS_URL: z.string().optional(),
-    TERMINAL_REDIS_URL: z.string().optional(),
     TERMINAL_REDIS_MAXLEN: z.coerce.number().optional().default(5000),
 
     // --- Loki ---

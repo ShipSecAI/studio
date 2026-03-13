@@ -14,7 +14,7 @@ import type {
 import Redis from 'ioredis';
 
 // Initialize Redis for caching when configured.
-const redisUrl = process.env.REDIS_URL ?? process.env.TERMINAL_REDIS_URL;
+const redisUrl = process.env.REDIS_URL;
 const redis = redisUrl ? new Redis(redisUrl) : null;
 
 /**

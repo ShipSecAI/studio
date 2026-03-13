@@ -22,7 +22,7 @@ const MCP_SERVERS_REDIS = 'MCP_SERVERS_REDIS';
     {
       provide: MCP_SERVERS_REDIS,
       useFactory: () => {
-        const url = process.env.REDIS_URL ?? process.env.TERMINAL_REDIS_URL;
+        const url = process.env.REDIS_URL;
         if (!url) {
           console.warn('[MCP Servers] Redis URL not set; Redis-backed features disabled');
           return null;
