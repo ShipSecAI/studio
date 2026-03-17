@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { IconBaseProps } from 'react-icons';
+import { FaAws } from 'react-icons/fa';
 import {
   SiCloudflare,
   SiNginx,
@@ -7,7 +8,6 @@ import {
   SiNextdotjs,
   SiReact,
   SiGooglecloud,
-  SiAmazonwebservices,
   SiNodedotjs,
   SiNetlify,
   SiVercel,
@@ -45,8 +45,8 @@ const TECH_ICON_MAP: Record<string, ComponentType<IconBaseProps>> = {
   react: SiReact,
   'google cloud': SiGooglecloud,
   gcp: SiGooglecloud,
-  aws: SiAmazonwebservices,
-  'amazon web services': SiAmazonwebservices,
+  aws: FaAws,
+  'amazon web services': FaAws,
   'node.js': SiNodedotjs,
   nodejs: SiNodedotjs,
   netlify: SiNetlify,
