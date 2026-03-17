@@ -172,7 +172,7 @@
         "react": "^19.2.0",
         "react-day-picker": "^9.13.2",
         "react-dom": "^19.2.0",
-        "react-icons": "^5.5.0",
+        "react-icons": "^5.6.0",
         "react-router-dom": "^7.9.3",
         "reactflow": "^11.11.4",
         "recharts": "^3.7.0",
@@ -320,6 +320,7 @@
         "@modelcontextprotocol/sdk": "^1.25.1",
         "@okta/okta-sdk-nodejs": "^7.3.0",
         "@opensearch-project/opensearch": "^3.5.1",
+        "@shipsec/backend-client": "*",
         "@shipsec/component-sdk": "*",
         "@shipsec/contracts": "*",
         "@shipsec/shared": "*",
@@ -3018,7 +3019,7 @@
 
     "react-dom": ["react-dom@19.2.4", "", { "dependencies": { "scheduler": "^0.27.0" }, "peerDependencies": { "react": "^19.2.4" } }, "sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ=="],
 
-    "react-icons": ["react-icons@5.5.0", "", { "peerDependencies": { "react": "*" } }, "sha512-MEFcXdkP3dLo8uumGI5xN3lDFNsRtrjbOEKDLD7yv76v4wpnEq2Lt2qeHaQOr34I/wPN3s3+N08WkQ+CW37Xiw=="],
+    "react-icons": ["react-icons@5.6.0", "", { "peerDependencies": { "react": "*" } }, "sha512-RH93p5ki6LfOiIt0UtDyNg/cee+HLVR6cHHtW3wALfo+eOHTp8RnU2kRkI6E+H19zMIs03DyxUG/GfZMOGvmiA=="],
 
     "react-is": ["react-is@17.0.2", "", {}, "sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w=="],
 
