@@ -1,8 +1,0 @@
-{
-  "instance": "1",
-  "orgId": "local-dev",
-  "tier": "small",
-  "apiBaseUrl": "http://127.0.0.1:3311/api/v1",
-  "frontendBaseUrl": "http://localhost:5273",
-  "timestamp": "2026-02-21T00:56:55.316Z"
-}

@@ -51,12 +51,17 @@ CLAUDE.md
 # Testing
 coverage/
 .nyc_output/
+e2e-tests/ui/test-results/
 
 # Planning files
 .planning/
 
+# Auto-generated
+wiki.json
+
 # Temporary files
 *.tmp
+*.bak
 .cache/
 .temp/
 
