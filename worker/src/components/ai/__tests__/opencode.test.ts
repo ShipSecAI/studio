@@ -140,7 +140,7 @@ describe('shipsec.opencode.agent', () => {
     expect(config.extraSetting).toBe(123);
   });
 
-  it('should inject plugin methodology files when enablePlugins is set', async () => {
+  it('should include plugin setup in wrapper script when enablePlugins is set', async () => {
     const component = componentRegistry.get('core.ai.opencode');
     if (!component) throw new Error('Component not found');
 
@@ -165,31 +165,31 @@ describe('shipsec.opencode.agent', () => {
     };
 
     const params = {
-      enablePlugins: ['superpowers', 'oh-my-claudecode'],
+      enablePlugins: ['oh-my-opencode'],
     };
 
     await component.execute({ inputs, params }, context as any);
 
     const volumeInstance = (createIsolatedVolume as any).mock.results[0].value;
     const initCall = volumeInstance.initialize.mock.calls[0][0];
+    const runScript = initCall['run.sh'] as string;
 
-    // Should have injected combined review skill
-    expect(initCall['.agents/skills/enhanced-review/SKILL.md']).toBeDefined();
-    expect(initCall['.agents/skills/enhanced-review/SKILL.md']).toContain(
-      'Enhanced Review Protocol',
-    );
+    // Should contain oh-my-opencode install command
+    expect(runScript).toContain('oh-my-opencode install');
+    expect(runScript).toContain('--no-tui');
 
-    // Should have injected AGENTS.md instruction file
-    expect(initCall['AGENTS.md']).toBeDefined();
-    expect(initCall['AGENTS.md']).toContain('Enhanced Review Mode');
+    // Plugin setup should appear BEFORE opencode run
+    const pluginIdx = runScript.indexOf('oh-my-opencode install');
+    const opencodeIdx = runScript.indexOf('opencode run');
+    expect(pluginIdx).toBeLessThan(opencodeIdx);
 
     // Should log plugin activation
     expect(context.logger.info).toHaveBeenCalledWith(
-      expect.stringContaining('Enabling plugin methodologies'),
+      expect.stringContaining('Plugins will be installed'),
     );
   });
 
-  it('should not inject plugin files when enablePlugins is empty', async () => {
+  it('should not include plugin setup when enablePlugins is empty', async () => {
     const component = componentRegistry.get('core.ai.opencode');
     if (!component) throw new Error('Component not found');
 
@@ -221,9 +221,10 @@ describe('shipsec.opencode.agent', () => {
 
     const volumeInstance = (createIsolatedVolume as any).mock.results[0].value;
     const initCall = volumeInstance.initialize.mock.calls[0][0];
+    const runScript = initCall['run.sh'] as string;
 
-    // Should NOT have injected any plugin files
-    expect(initCall['.agents/skills/enhanced-review/SKILL.md']).toBeUndefined();
-    expect(initCall['AGENTS.md']).toBeUndefined();
+    // Should NOT contain any plugin setup
+    expect(runScript).not.toContain('oh-my-opencode install');
+    expect(runScript).not.toContain('Plugin Installation');
   });
 });

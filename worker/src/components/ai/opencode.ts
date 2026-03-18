@@ -19,7 +19,7 @@ import {
   shouldRouteViaLiteLLM,
   getSkillWorkspaceFiles,
 } from './utils';
-import { getPluginMethodologyFiles, getPluginInstructionFile } from './plugin-methodologies';
+import { getOpenCodePluginSetupScript } from './opencode-plugins';
 
 const inputSchema = inputs({
   task: port(
@@ -124,19 +124,15 @@ const parameterSchema = parameters({
   ),
   enablePlugins: param(
     z
-      .array(z.enum(['superpowers', 'oh-my-claudecode', 'oh-my-opencode']))
+      .array(z.enum(['oh-my-opencode']))
       .default([])
-      .describe('Enable plugin methodologies or install real plugins for enhanced output quality.'),
+      .describe('Install and activate OpenCode plugins for enhanced agent capabilities.'),
     {
       label: 'Enable Plugins',
       editor: 'multi-select',
-      options: [
-        { label: 'oh-my-opencode', value: 'oh-my-opencode' },
-        { label: 'oh-my-claudecode (methodology)', value: 'oh-my-claudecode' },
-        { label: 'Superpowers (methodology)', value: 'superpowers' },
-      ],
+      options: [{ label: 'oh-my-opencode', value: 'oh-my-opencode' }],
       description:
-        'Activate review/analysis plugins or methodologies. oh-my-opencode installs the real plugin; others inject methodology files.',
+        'Install and activate oh-my-opencode plugin. Adds multi-agent review with Momus, Oracle, and Sisyphus agents.',
     },
   ),
 });
@@ -308,10 +304,14 @@ Please investigate the issue and generate a detailed report.
       // Write a wrapper script to properly execute opencode with file reading
       // The script runs inside the container, so $(cat /workspace/prompt.txt) works correctly
       // Note: --quiet flag doesn't exist in opencode 1.1.34, use --log-level ERROR instead
+      // Generate plugin setup lines if plugins are enabled
+      const pluginSetupLines = getOpenCodePluginSetupScript(enablePlugins ?? []);
+
       const wrapperScript = [
         '#!/bin/sh',
         'set -e',
         'cd /workspace',
+        ...pluginSetupLines,
         '# List MCP tools for debugging (stderr only)',
         'opencode mcp list --log-level ERROR >&2 || true',
         '# Run the agent — only agent output goes to stdout',
@@ -336,18 +336,11 @@ Please investigate the issue and generate a detailed report.
       const skillFiles = await getSkillWorkspaceFiles(organizationId ?? null, selectedSkills);
       Object.assign(workspaceFiles, skillFiles);
 
-      // Inject plugin methodology files if enabled
-      const pluginFiles = getPluginMethodologyFiles(enablePlugins, '.agents/skills');
-      if (Object.keys(pluginFiles).length > 0) {
+      // Log plugin activation (actual installation happens in wrapper script)
+      if (enablePlugins && enablePlugins.length > 0) {
         context.logger.info(
-          `[OpenCode] Enabling plugin methodologies: ${enablePlugins.join(', ')}`,
+          `[OpenCode] Plugins will be installed at startup: ${enablePlugins.join(', ')}`,
         );
-        Object.assign(workspaceFiles, pluginFiles);
-
-        const instructionFile = getPluginInstructionFile(enablePlugins);
-        if (instructionFile) {
-          workspaceFiles['AGENTS.md'] = instructionFile;
-        }
       }
 
       await volume.initialize(workspaceFiles);
