@@ -131,8 +131,7 @@ const parameterSchema = parameters({
       label: 'Enable Plugins',
       editor: 'multi-select',
       options: [{ label: 'oh-my-opencode', value: 'oh-my-opencode' }],
-      description:
-        'Install and activate oh-my-opencode plugin. Adds multi-agent review with Momus, Oracle, and Sisyphus agents.',
+      description: 'Enable plugins for enhanced agent capabilities.',
     },
   ),
 });

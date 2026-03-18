@@ -132,8 +132,7 @@ const parameterSchema = parameters({
         { label: 'oh-my-claudecode', value: 'oh-my-claudecode' },
         { label: 'Superpowers', value: 'superpowers' },
       ],
-      description:
-        'Install and activate oh-my-claudecode and/or superpowers plugins. Adds ~10s startup for plugin installation. Requires git in the Docker image.',
+      description: 'Enable plugins for enhanced agent capabilities.',
     },
   ),
 });
