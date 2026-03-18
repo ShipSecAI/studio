@@ -12,7 +12,14 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
-import { requireOrgVirtualKey, shouldRouteViaLiteLLM, getSkillWorkspaceFiles } from './utils';
+import {
+  DEFAULT_GATEWAY_URL,
+  getGatewaySessionToken,
+  requireOrgVirtualKey,
+  shouldRouteViaLiteLLM,
+  getSkillWorkspaceFiles,
+} from './utils';
+import { getPluginSetupScript } from './claude-plugins';
 
 const inputSchema = inputs({
   task: port(
@@ -113,6 +120,22 @@ const parameterSchema = parameters({
         'Select agent skills to inject into the workspace as .claude/skills/*/SKILL.md files.',
     },
   ),
+  enablePlugins: param(
+    z
+      .array(z.enum(['superpowers', 'oh-my-claudecode']))
+      .default([])
+      .describe('Install and activate real Claude Code plugins for enhanced agent capabilities.'),
+    {
+      label: 'Enable Plugins',
+      editor: 'multi-select',
+      options: [
+        { label: 'oh-my-claudecode', value: 'oh-my-claudecode' },
+        { label: 'Superpowers', value: 'superpowers' },
+      ],
+      description:
+        'Install and activate oh-my-claudecode and/or superpowers plugins. Adds ~10s startup for plugin installation. Requires git in the Docker image.',
+    },
+  ),
 });
 
 const outputSchema = outputs({
@@ -162,7 +185,7 @@ const definition = defineComponent({
   },
   async execute({ inputs, params }, context) {
     const { task, context: taskContext, model, supplementaryA, supplementaryB } = inputs;
-    const { systemPrompt, skills: selectedSkills } = params;
+    const { systemPrompt, skills: selectedSkills, enablePlugins } = params;
 
     const { organizationId } = context.metadata;
 
@@ -253,10 +276,41 @@ Please investigate the issue and generate a detailed report.
         ? `--model ${providerEnv.CLAUDE_CODE_MODEL}`
         : '';
 
+      // Generate plugin setup lines if plugins are enabled
+      const pluginSetupLines = getPluginSetupScript(enablePlugins);
+
+      // Pre-seed Claude Code config to skip onboarding prompts
+      const apiKey = providerEnv.ANTHROPIC_API_KEY || '';
+      const claudeConfigLines = [
+        '# Pre-seed Claude config to skip onboarding/trust/API-key prompts',
+        'mkdir -p "$HOME/.claude"',
+        `cat > "$HOME/.claude.json" << 'CLAUDE_CFG'`,
+        JSON.stringify(
+          {
+            hasCompletedOnboarding: true,
+            numStartups: 1,
+            firstStartTime: '2026-01-01T00:00:00.000Z',
+            customApiKeyResponses: { approved: [apiKey], rejected: [] },
+            projects: {
+              '/workspace': { hasTrustDialogAccepted: true, allowedTools: [] },
+            },
+          },
+          null,
+          2,
+        ),
+        'CLAUDE_CFG',
+        `cat > "$HOME/.claude/settings.json" << 'CLAUDE_SETTINGS'`,
+        JSON.stringify({ skipDangerousModePermissionPrompt: true }, null, 2),
+        'CLAUDE_SETTINGS',
+        '',
+      ];
+
       const wrapperScript = [
         '#!/bin/sh',
         'set -e',
         'cd /workspace',
+        ...claudeConfigLines,
+        ...pluginSetupLines,
         'claude -p \\',
         '  --dangerously-skip-permissions \\',
         '  --output-format text \\',
@@ -297,6 +351,13 @@ Please investigate the issue and generate a detailed report.
         context.logger.warn(`[ClaudeCode] No skills found matching: ${selectedSkills.join(', ')}`);
       }
       Object.assign(workspaceFiles, skillFiles);
+
+      // Log plugin activation (actual installation happens in wrapper script)
+      if (enablePlugins.length > 0) {
+        context.logger.info(
+          `[ClaudeCode] Plugins will be installed at startup: ${enablePlugins.join(', ')}`,
+        );
+      }
 
       await volume.initialize(workspaceFiles);
 
