@@ -139,4 +139,91 @@ describe('shipsec.opencode.agent', () => {
     expect(config.githubToken).toBe('gh-token');
     expect(config.extraSetting).toBe(123);
   });
+
+  it('should inject plugin methodology files when enablePlugins is set', async () => {
+    const component = componentRegistry.get('core.ai.opencode');
+    if (!component) throw new Error('Component not found');
+
+    const context = {
+      runId: 'test-run-plugins',
+      componentRef: 'test-ref-plugins',
+      metadata: {
+        connectedToolNodeIds: [],
+        organizationId: 'org-1',
+      },
+      logger: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+      },
+      emitProgress: vi.fn(),
+    };
+
+    const inputs = {
+      task: 'Review this PR',
+    };
+
+    const params = {
+      enablePlugins: ['superpowers', 'oh-my-claudecode'],
+    };
+
+    await component.execute({ inputs, params }, context as any);
+
+    const volumeInstance = (createIsolatedVolume as any).mock.results[0].value;
+    const initCall = volumeInstance.initialize.mock.calls[0][0];
+
+    // Should have injected combined review skill
+    expect(initCall['.agents/skills/enhanced-review/SKILL.md']).toBeDefined();
+    expect(initCall['.agents/skills/enhanced-review/SKILL.md']).toContain(
+      'Enhanced Review Protocol',
+    );
+
+    // Should have injected AGENTS.md instruction file
+    expect(initCall['AGENTS.md']).toBeDefined();
+    expect(initCall['AGENTS.md']).toContain('Enhanced Review Mode');
+
+    // Should log plugin activation
+    expect(context.logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('Enabling plugin methodologies'),
+    );
+  });
+
+  it('should not inject plugin files when enablePlugins is empty', async () => {
+    const component = componentRegistry.get('core.ai.opencode');
+    if (!component) throw new Error('Component not found');
+
+    const context = {
+      runId: 'test-run-no-plugins',
+      componentRef: 'test-ref-no-plugins',
+      metadata: {
+        connectedToolNodeIds: [],
+        organizationId: 'org-1',
+      },
+      logger: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+      },
+      emitProgress: vi.fn(),
+    };
+
+    const inputs = {
+      task: 'Review this PR',
+    };
+
+    const params = {
+      enablePlugins: [],
+    };
+
+    await component.execute({ inputs, params }, context as any);
+
+    const volumeInstance = (createIsolatedVolume as any).mock.results[0].value;
+    const initCall = volumeInstance.initialize.mock.calls[0][0];
+
+    // Should NOT have injected any plugin files
+    expect(initCall['.agents/skills/enhanced-review/SKILL.md']).toBeUndefined();
+    expect(initCall['AGENTS.md']).toBeUndefined();
+  });
 });

@@ -12,7 +12,14 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
-import { requireOrgVirtualKey, shouldRouteViaLiteLLM, getSkillWorkspaceFiles } from './utils';
+import {
+  DEFAULT_GATEWAY_URL,
+  getGatewaySessionToken,
+  requireOrgVirtualKey,
+  shouldRouteViaLiteLLM,
+  getSkillWorkspaceFiles,
+} from './utils';
+import { getPluginMethodologyFiles, getPluginInstructionFile } from './plugin-methodologies';
 
 const inputSchema = inputs({
   task: port(
@@ -115,6 +122,23 @@ const parameterSchema = parameters({
         'Select agent skills to inject into the workspace as .agents/skills/*/SKILL.md files.',
     },
   ),
+  enablePlugins: param(
+    z
+      .array(z.enum(['superpowers', 'oh-my-claudecode', 'oh-my-opencode']))
+      .default([])
+      .describe('Enable plugin methodologies or install real plugins for enhanced output quality.'),
+    {
+      label: 'Enable Plugins',
+      editor: 'multi-select',
+      options: [
+        { label: 'oh-my-opencode', value: 'oh-my-opencode' },
+        { label: 'oh-my-claudecode (methodology)', value: 'oh-my-claudecode' },
+        { label: 'Superpowers (methodology)', value: 'superpowers' },
+      ],
+      description:
+        'Activate review/analysis plugins or methodologies. oh-my-opencode installs the real plugin; others inject methodology files.',
+    },
+  ),
 });
 
 const outputSchema = outputs({
@@ -164,7 +188,7 @@ const definition = defineComponent({
   },
   async execute({ inputs, params }, context) {
     const { task, context: taskContext, model, supplementaryA, supplementaryB } = inputs;
-    const { systemPrompt, providerConfig, skills: selectedSkills } = params;
+    const { systemPrompt, providerConfig, skills: selectedSkills, enablePlugins } = params;
 
     const { organizationId } = context.metadata;
 
@@ -311,6 +335,20 @@ Please investigate the issue and generate a detailed report.
       // Inject selected agent skills into workspace
       const skillFiles = await getSkillWorkspaceFiles(organizationId ?? null, selectedSkills);
       Object.assign(workspaceFiles, skillFiles);
+
+      // Inject plugin methodology files if enabled
+      const pluginFiles = getPluginMethodologyFiles(enablePlugins, '.agents/skills');
+      if (Object.keys(pluginFiles).length > 0) {
+        context.logger.info(
+          `[OpenCode] Enabling plugin methodologies: ${enablePlugins.join(', ')}`,
+        );
+        Object.assign(workspaceFiles, pluginFiles);
+
+        const instructionFile = getPluginInstructionFile(enablePlugins);
+        if (instructionFile) {
+          workspaceFiles['AGENTS.md'] = instructionFile;
+        }
+      }
 
       await volume.initialize(workspaceFiles);
 
