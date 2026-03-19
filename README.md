@@ -54,6 +54,9 @@ This installer will:
 - Guide you through any required setup steps
 
 Once complete, visit **http://localhost** to access ShipSec Studio.
+App:         http://localhost
+API:         http://localhost/api
+Analytics:   http://localhost/analytics
 
 ### 2. ShipSec Cloud (Preview)
 
