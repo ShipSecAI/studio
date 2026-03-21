@@ -5,6 +5,7 @@ import {
   serializeNodes,
   serializeEdges,
 } from '@/utils/workflowSerializer';
+import yaml from 'js-yaml';
 import { WorkflowImportSchema, DEFAULT_WORKFLOW_VIEWPORT } from '@/schemas/workflow';
 import {
   cloneNodes,
@@ -82,7 +83,33 @@ export function useWorkflowImportExport({
       }
 
       const contents = await file.text();
-      const parsed = WorkflowImportSchema.parse(JSON.parse(contents));
+      const isYaml = /\.(ya?ml)$/i.test(file.name);
+
+      let importData: unknown;
+      try {
+        importData = isYaml
+          ? yaml.load(contents, { schema: yaml.CORE_SCHEMA })
+          : JSON.parse(contents);
+      } catch (err) {
+        toast({
+          variant: 'destructive',
+          title: 'Invalid file',
+          description: err instanceof Error ? err.message : 'Could not parse the selected file.',
+        });
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = WorkflowImportSchema.parse(importData);
+      } catch {
+        toast({
+          variant: 'destructive',
+          title: 'Invalid workflow format',
+          description: 'The file does not match the expected workflow schema.',
+        });
+        return;
+      }
 
       const graph =
         'graph' in parsed
@@ -275,8 +302,23 @@ export function useWorkflowImportExport({
         },
       };
 
-      const fileContents = JSON.stringify(payload, null, 2);
-      const blob = new Blob([fileContents], { type: 'application/json' });
+      const header = [
+        '# ShipSec Workflow Definition',
+        '# Import this file into ShipSec Studio to recreate the workflow.',
+        '# Nodes define the components; edges define the data flow between them.',
+        `# Exported: ${new Date().toISOString()}`,
+        '',
+      ].join('\n');
+      const fileContents =
+        header +
+        yaml.dump(payload, {
+          schema: yaml.CORE_SCHEMA,
+          indent: 2,
+          lineWidth: 120,
+          noRefs: true,
+          sortKeys: false,
+        });
+      const blob = new Blob([fileContents], { type: 'application/x-yaml' });
       const url = URL.createObjectURL(blob);
       const safeName =
         (metadata.name || 'workflow')
@@ -286,7 +328,7 @@ export function useWorkflowImportExport({
 
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${safeName}.json`;
+      link.download = `${safeName}.yaml`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -295,7 +337,7 @@ export function useWorkflowImportExport({
       toast({
         variant: 'success',
         title: 'Workflow exported',
-        description: `${safeName}.json saved to your device.`,
+        description: `${safeName}.yaml saved to your device.`,
       });
     } catch (error) {
       console.error('Failed to export workflow:', error);

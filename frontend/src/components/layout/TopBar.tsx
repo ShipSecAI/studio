@@ -460,7 +460,7 @@ export function TopBar({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="application/json"
+                accept=".json,.yaml,.yml"
                 className="hidden"
                 onChange={handleFileChange}
               />
