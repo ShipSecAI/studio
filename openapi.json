@@ -1728,6 +1728,99 @@
         ]
       }
     },
+    "/api/v1/analytics/scanner-severity-counts": {
+      "post": {
+        "operationId": "AnalyticsController_scannerSeverityCounts",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScannerSeverityCountsRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Get severity counts grouped by scanner for security findings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScannerSeverityCountsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/time-series": {
+      "post": {
+        "operationId": "AnalyticsController_timeSeries",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimeSeriesRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Get time-series data for security findings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeSeriesResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/lifecycle": {
+      "post": {
+        "operationId": "AnalyticsController_lifecycle",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifecycleRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Get lifecycle data (first seen, last seen, occurrences) for findings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifecycleResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
     "/api/v1/analytics/settings": {
       "get": {
         "operationId": "AnalyticsController_getAnalyticsSettings",
@@ -1815,7 +1908,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Get OpenSearch storage usage for the authenticated organization",
+            "description": "Get analytics storage usage for the authenticated organization",
             "content": {
               "application/json": {
                 "schema": {
@@ -1897,7 +1990,7 @@
         },
         "responses": {
           "200": {
-            "description": "Ensure tenant resources exist for organization",
+            "description": "Ensure analytics schema exists for organization",
             "content": {
               "application/json": {
                 "schema": {
@@ -7935,7 +8028,7 @@
   },
   "info": {
     "title": "ShipSec Studio API",
-    "description": "ShipSec backend API",
+    "description": "ShipSec backend API specification",
     "version": "0.1.0",
     "contact": {}
   },
@@ -11128,13 +11221,89 @@
       "AnalyticsQueryRequestDto": {
         "type": "object",
         "properties": {
-          "query": {
-            "description": "OpenSearch DSL query object",
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {}
+          "filters": {
+            "description": "Filter conditions",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "eq",
+                    "in",
+                    "gte",
+                    "lte",
+                    "like",
+                    "prefix",
+                    "not_eq",
+                    "exists",
+                    "not_exists"
+                  ]
+                },
+                "value": {}
+              },
+              "required": [
+                "field",
+                "op"
+              ]
+            }
+          },
+          "search": {
+            "description": "Free-text search across key fields",
+            "type": "string"
+          },
+          "aggs": {
+            "description": "Named aggregations",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "name",
+                "field"
+              ]
+            }
+          },
+          "sort": {
+            "description": "Sort specification",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "asc",
+                    "desc"
+                  ]
+                }
+              },
+              "required": [
+                "field",
+                "direction"
+              ]
+            }
+          },
+          "distinct": {
+            "description": "Field to deduplicate results on",
+            "type": "string"
           },
           "size": {
             "description": "Number of results to return",
@@ -11143,33 +11312,6 @@
           "from": {
             "description": "Offset for pagination",
             "type": "number"
-          },
-          "aggs": {
-            "description": "OpenSearch aggregations object",
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {}
-          },
-          "sort": {
-            "description": "Sort specification",
-            "type": "array",
-            "items": {
-              "type": "object",
-              "propertyNames": {
-                "type": "string"
-              },
-              "additionalProperties": {}
-            }
-          },
-          "collapse": {
-            "description": "Field collapsing specification for deduplication",
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {}
           },
           "useLatest": {
             "description": "Query the deduplicated latest-state index instead of the event log",
@@ -11184,29 +11326,14 @@
             "type": "number",
             "description": "Total number of matching documents"
           },
-          "hits": {
+          "results": {
             "type": "array",
             "items": {
               "type": "object",
-              "properties": {
-                "_id": {
-                  "type": "string"
-                },
-                "_source": {
-                  "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {}
-                },
-                "_score": {
-                  "type": "number"
-                }
+              "propertyNames": {
+                "type": "string"
               },
-              "required": [
-                "_id",
-                "_source"
-              ]
+              "additionalProperties": {}
             }
           },
           "aggregations": {
@@ -11215,12 +11342,225 @@
             "propertyNames": {
               "type": "string"
             },
-            "additionalProperties": {}
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "key",
+                  "count"
+                ]
+              }
+            }
           }
         },
         "required": [
           "total",
-          "hits"
+          "results"
+        ]
+      },
+      "ScannerSeverityCountsRequestDto": {
+        "type": "object",
+        "properties": {
+          "filters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "eq",
+                    "in",
+                    "gte",
+                    "lte",
+                    "like",
+                    "prefix",
+                    "not_eq",
+                    "exists",
+                    "not_exists"
+                  ]
+                },
+                "value": {}
+              },
+              "required": [
+                "field",
+                "op"
+              ]
+            }
+          },
+          "useLatest": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ScannerSeverityCountsResponseDto": {
+        "type": "object",
+        "properties": {
+          "buckets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scanner": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "scanner",
+                "severity",
+                "count"
+              ]
+            }
+          }
+        },
+        "required": [
+          "buckets"
+        ]
+      },
+      "TimeSeriesRequestDto": {
+        "type": "object",
+        "properties": {
+          "filters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "eq",
+                    "in",
+                    "gte",
+                    "lte",
+                    "like",
+                    "prefix",
+                    "not_eq",
+                    "exists",
+                    "not_exists"
+                  ]
+                },
+                "value": {}
+              },
+              "required": [
+                "field",
+                "op"
+              ]
+            }
+          },
+          "interval": {
+            "default": "day",
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ]
+          },
+          "days": {
+            "default": 30,
+            "type": "number"
+          },
+          "timezone": {
+            "type": "string"
+          }
+        }
+      },
+      "TimeSeriesResponseDto": {
+        "type": "object",
+        "properties": {
+          "buckets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "date",
+                "severity",
+                "count"
+              ]
+            }
+          }
+        },
+        "required": [
+          "buckets"
+        ]
+      },
+      "LifecycleRequestDto": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string"
+          },
+          "hashes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "LifecycleResponseDto": {
+        "type": "object",
+        "properties": {
+          "lifecycles": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "firstSeen": {
+                  "type": "string"
+                },
+                "lastSeen": {
+                  "type": "string"
+                },
+                "occurrences": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "firstSeen",
+                "lastSeen",
+                "occurrences"
+              ]
+            }
+          }
+        },
+        "required": [
+          "lifecycles"
         ]
       },
       "AnalyticsSettingsResponseDto": {
@@ -11362,7 +11702,7 @@
           "indexCount": {
             "type": "number"
           },
-          "opensearchEnabled": {
+          "analyticsEnabled": {
             "type": "boolean"
           }
         },
@@ -11370,7 +11710,7 @@
           "usedBytes",
           "documentCount",
           "indexCount",
-          "opensearchEnabled"
+          "analyticsEnabled"
         ]
       },
       "PurgeDataResponseDto": {

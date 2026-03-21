@@ -229,10 +229,10 @@ export function SecurityDashboardContent() {
         if (filters.from) params.set('from', filters.from);
         if (filters.to) params.set('to', filters.to);
         if (filters.page > 1) params.set('page', String(filters.page));
-        if (filters.sort !== '@timestamp') params.set('sort', filters.sort);
+        if (filters.sort !== 'timestamp') params.set('sort', filters.sort);
         if (filters.order !== 'desc') params.set('order', filters.order);
         if (selectedFinding) {
-          params.set('finding', selectedFinding._id);
+          params.set('finding', selectedFinding.id);
         } else if (deepLinkedFindingId && !userClosedRef.current) {
           // Preserve the finding param while the deep-linked finding is still loading
           params.set('finding', deepLinkedFindingId);
@@ -732,7 +732,7 @@ export function SecurityDashboardContent() {
                   <TabsTrigger key={acct.key} value={acct.key} className="text-xs">
                     {accountNameMap.get(acct.key) ?? formatAccountId(acct.key)}
                     <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">
-                      {acct.doc_count}
+                      {acct.count}
                     </Badge>
                   </TabsTrigger>
                 ))}
@@ -953,10 +953,10 @@ export function SecurityDashboardContent() {
                 <TableHead className="w-[140px]">
                   <button
                     className="inline-flex items-center gap-1 hover:text-foreground"
-                    onClick={() => handleSort('@timestamp')}
+                    onClick={() => handleSort('timestamp')}
                   >
                     Last Seen
-                    {filters.sort === '@timestamp' ? (
+                    {filters.sort === 'timestamp' ? (
                       filters.order === 'asc' ? (
                         <ArrowUp className="h-3 w-3" />
                       ) : (
@@ -1040,10 +1040,10 @@ export function SecurityDashboardContent() {
               ) : null}
               {findings.map((finding) => (
                 <TableRow
-                  key={finding._id}
+                  key={finding.id}
                   className={cn(
                     'cursor-pointer',
-                    newFindingIds.has(finding._id) && 'animate-highlight-fade',
+                    newFindingIds.has(finding.id) && 'animate-highlight-fade',
                   )}
                   onClick={() => handleFindingClick(finding)}
                 >
@@ -1122,17 +1122,17 @@ export function SecurityDashboardContent() {
                   )}
                   {hasColumn('repository') && (
                     <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                      {finding.shipsec?.trigger_source ? (
+                      {finding.trigger_source ? (
                         <div className="flex items-center gap-1.5 min-w-0">
                           <GitBranch className="h-3.5 w-3.5 flex-shrink-0" />
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="line-clamp-1 font-mono text-xs">
-                                {finding.shipsec.trigger_source.replace(/#.*$|:.*$/, '')}
+                                {finding.trigger_source.replace(/#.*$|:.*$/, '')}
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="bottom" className="max-w-sm break-all">
-                              {finding.shipsec.trigger_source}
+                              {finding.trigger_source}
                             </TooltipContent>
                           </Tooltip>
                         </div>
@@ -1217,7 +1217,7 @@ export function SecurityDashboardContent() {
                     </TableCell>
                   )}
                   <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                    {formatTimestamp(finding['@timestamp'])}
+                    {formatTimestamp(finding.timestamp)}
                   </TableCell>
                 </TableRow>
               ))}

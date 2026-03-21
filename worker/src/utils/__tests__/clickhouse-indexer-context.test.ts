@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'bun:test';
 
 /**
- * Tests for the scan context → shipsec namespace mapping in OpenSearchIndexer.
+ * Tests for the scan context → column mapping in ClickHouseIndexer.
  *
- * The actual buildEnrichedDocument is a private method. These tests validate
+ * The actual buildRow is a private method. These tests validate
  * the mapping logic and allowlist to ensure correctness.
  */
 
-// Mirror the allowlist from opensearch-indexer.ts
+// Mirror the allowlist from clickhouse-indexer.ts
 const SCAN_CONTEXT_TO_SHIPSEC: Record<string, string> = {
   repository: 'repository',
   branch: 'branch',
@@ -27,7 +27,7 @@ function mapScanContext(scanContext?: Record<string, string>): Record<string, st
   return result;
 }
 
-describe('OpenSearch indexer scan context mapping', () => {
+describe('ClickHouse indexer scan context mapping', () => {
   it('maps all known keys to their shipsec equivalents', () => {
     const scanContext = {
       repository: 'org/repo',
@@ -83,7 +83,7 @@ describe('OpenSearch indexer scan context mapping', () => {
 
   describe('triggerType mapping', () => {
     it('triggerType appears as trigger_type in shipsec namespace', () => {
-      // This is handled by the spread in buildEnrichedDocument:
+      // This is handled by the spread in buildRow:
       // ...(options.triggerType && { trigger_type: options.triggerType }),
       const options = { triggerType: 'schedule' as string | null };
       const shipsec: Record<string, unknown> = {};

@@ -1,9 +1,9 @@
 ---
 title: "Workflow Analytics"
-description: "Index security findings into OpenSearch for dashboards, queries, and alerting"
+description: "Index security findings into ClickHouse for dashboards, queries, and alerting"
 ---
 
-ShipSec Studio includes a workflow analytics system that indexes security findings into OpenSearch. This enables real-time dashboards, historical trend analysis, and alerting on security data.
+ShipSec Studio includes a workflow analytics system that indexes security findings into ClickHouse. This enables real-time dashboards, historical trend analysis, and alerting on security data.
 
 ---
 
@@ -11,9 +11,9 @@ ShipSec Studio includes a workflow analytics system that indexes security findin
 
 The analytics system consists of:
 
-1. **Analytics Sink component** - Indexes workflow output data into OpenSearch
+1. **Analytics Sink component** - Indexes workflow output data into ClickHouse
 2. **Results output port** - Structured findings from security scanners
-3. **OpenSearch storage** - Time-series index for querying and visualization
+3. **ClickHouse storage** - Columnar database for querying and visualization
 4. **View Analytics button** - Quick access to filtered dashboards
 
 ---
@@ -30,7 +30,7 @@ flowchart LR
     end
 
     AS[Analytics Sink]
-    OS[(OpenSearch)]
+    OS[(ClickHouse)]
 
     subgraph Dashboard[Security Dashboard]
         V[Findings Table]
@@ -86,7 +86,7 @@ Indexed documents follow this structure:
 | Timestamp | `@timestamp` | Indexing timestamp |
 
 <Note>
-  Nested objects in findings are automatically serialized to JSON strings to prevent OpenSearch field explosion (1000 field limit).
+  Nested objects in findings are automatically serialized to JSON strings to prevent field explosion.
 </Note>
 
 ---
@@ -179,44 +179,25 @@ finding_hash: "a1b2c3d4e5f67890"
 
 ---
 
-## Setting Up OpenSearch
+## Setting Up ClickHouse
 
 ### Environment Variables
 
 Set these in your `worker/.env`:
 
 ```bash
-OPENSEARCH_URL=http://localhost:9200
-OPENSEARCH_USERNAME=admin
-OPENSEARCH_PASSWORD=admin
-```
-
-Set this in your `frontend/.env`:
-
-```bash
-VITE_OPENSEARCH_DASHBOARDS_URL=http://localhost/analytics
+CLICKHOUSE_URL=http://localhost:8123
+CLICKHOUSE_USER=default
+CLICKHOUSE_PASSWORD=
 ```
 
 ### Docker Compose
 
-The infrastructure stack includes OpenSearch and OpenSearch Dashboards:
+The infrastructure stack includes ClickHouse:
 
 ```bash
-docker compose -f docker/docker-compose.infra.yml up -d opensearch opensearch-dashboards
+docker compose -f docker/docker-compose.infra.yml up -d clickhouse
 ```
-
-### Index Pattern
-
-After indexing data, create an index pattern in OpenSearch Dashboards:
-
-1. Go to **Dashboards Management** > **Index Patterns**
-2. Create pattern: `security-findings-*`
-3. Select `@timestamp` as the time field
-4. Click **Create index pattern**
-
-<Warning>
-  If you don't see `shipsec.*` fields in Available Fields after indexing, refresh the index pattern field list in Dashboards Management.
-</Warning>
 
 ---
 
@@ -256,7 +237,7 @@ The `FindingDetailSheet` component uses `useProwlerChecksMetadata()` to fetch th
 
 ## Analytics API Limits
 
-The analytics query API enforces sane bounds to protect OpenSearch:
+The analytics query API enforces sane bounds to protect ClickHouse:
 
 - `size` must be a non-negative integer and is capped at **1000**
 - `from` must be a non-negative integer and is capped at **10000**
@@ -287,7 +268,6 @@ Omit fields you don’t want to change. The backend validates retention days onl
 
 | Parameter | Description |
 |-----------|-------------|
-| **Index Suffix** | Custom suffix for the index name. Defaults to slugified workflow name. |
 | **Asset Key Field** | Field to use as asset identifier. Auto-detect checks: asset_key > host > domain > subdomain > url > ip > asset > target |
 | **Custom Field Name** | Custom field when Asset Key Field is "custom" |
 | **Fail on Error** | When enabled, workflow stops if indexing fails. Default: fire-and-forget. |
@@ -303,26 +283,17 @@ By default, Analytics Sink operates in fire-and-forget mode:
 
 ## View Analytics Button
 
-The workflow builder includes a "View Analytics" button that opens OpenSearch Dashboards with pre-filtered data:
+The workflow builder includes a "View Analytics" button that opens the analytics view with pre-filtered data:
 
 - **When a run is selected**: Filters by `shipsec.run_id`
 - **When no run is selected**: Filters by `shipsec.workflow_id`
 - **Time range**: Last 7 days
 
-The button only appears when `VITE_OPENSEARCH_DASHBOARDS_URL` is configured.
-
 ---
 
-## Index Naming
+## Table Structure
 
-Indexes follow the pattern: `security-findings-{orgId}-{suffix}`
-
-| Component | Value |
-|-----------|-------|
-| `orgId` | Organization ID from workflow context |
-| `suffix` | Custom suffix parameter, or date (`YYYY.MM.DD`) |
-
-Example: `security-findings-org_abc123-2025.01.21`
+Findings are written to the `security_findings` table in ClickHouse, partitioned by `toYYYYMM(timestamp)`. The `security_findings_latest` table (ReplacingMergeTree) provides deduplicated latest state per `finding_hash`, automatically populated by a materialized view.
 
 ---
 
@@ -350,24 +321,12 @@ Example: `security-findings-org_abc123-2025.01.21`
 
 ## Troubleshooting
 
-### Data not appearing in OpenSearch
+### Data not appearing in ClickHouse
 
-1. Check worker logs for `[OpenSearchIndexer]` messages
-2. Verify `OPENSEARCH_URL` is set in worker environment
+1. Check worker logs for `[ClickHouseIndexer]` messages
+2. Verify `CLICKHOUSE_URL` is set in worker environment
 3. Ensure Analytics Sink is connected to a `results` port
-4. Check if OpenSearch is running: `curl http://localhost:9200/_cluster/health`
-
-### Field mapping errors
-
-If you see "Limit of total fields [1000] has been exceeded":
-1. Delete the problematic index: `curl -X DELETE "http://localhost:9200/security-findings-*"`
-2. Re-run the workflow (new index will use correct schema)
-
-### shipsec fields not visible
-
-1. Fields starting with `_` are hidden in OpenSearch UI
-2. Ensure you're using `shipsec.*` (no underscore prefix)
-3. Refresh the index pattern in Dashboards Management
+4. Check if ClickHouse is running: `curl http://localhost:8123/ping`
 
 ### pm2 not loading environment variables
 

@@ -203,7 +203,7 @@ function loadFrontendEnv(envFilePath) {
   return env;
 }
 
-// Load worker .env file for OpenSearch and other worker-specific variables
+// Load worker .env file for worker-specific variables
 function loadWorkerEnv() {
   const envPath = path.join(__dirname, 'worker', '.env');
   const env = {};
@@ -367,7 +367,7 @@ module.exports = {
       env_file: resolveEnvFile('worker', instanceNum),
       env: Object.assign(
         {
-          ...workerEnv, // Load worker .env file (includes OPENSEARCH_URL, etc.)
+          ...workerEnv, // Load worker .env file
           ...currentEnvConfig,
           NAPI_RS_FORCE_WASI: '1',
           INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
@@ -404,7 +404,7 @@ module.exports = {
       env_file: __dirname + '/worker/.env',
       env: Object.assign(
         {
-          ...workerEnv, // Load worker .env file (includes OPENSEARCH_URL, etc.)
+          ...workerEnv, // Load worker .env file
           TEMPORAL_TASK_QUEUE: 'test-worker-integration',
           TEMPORAL_NAMESPACE: 'shipsec-dev',
           NODE_ENV: 'development',

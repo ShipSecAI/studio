@@ -142,18 +142,18 @@ pool: {
 
 ---
 
-### 3. Analytics API Failures (OpenSearch Not Seeded)
+### 3. Analytics API Failures (ClickHouse Not Seeded)
 
 **Status**: ⚠️ Medium Priority
 **Impact**: Dashboard widgets stuck in loading state, console errors
-**Root Cause**: OpenSearch has no sample data in production environment
+**Root Cause**: ClickHouse has no sample data in production environment
 
 **Current Behavior**:
 
 ```bash
 POST /api/v1/analytics/query
 500 Internal Server Error
-"OpenSearchClientError: index_not_found_exception"
+"ClickHouseClientError: table not found"
 ```
 
 **Recommended Fixes**:

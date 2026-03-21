@@ -36,7 +36,7 @@ const baseInputSchema = inputs({
 const outputSchema = outputs({
   indexed: port(z.boolean(), {
     label: 'Indexed',
-    description: 'Indicates whether the data was successfully indexed to OpenSearch.',
+    description: 'Indicates whether the data was successfully indexed to ClickHouse.',
   }),
   documentCount: port(z.number(), {
     label: 'Document Count',
@@ -44,7 +44,7 @@ const outputSchema = outputs({
   }),
   indexName: port(z.string(), {
     label: 'Index Name',
-    description: 'Name of the OpenSearch index where data was stored.',
+    description: 'Name of the ClickHouse table where data was stored.',
   }),
 });
 
@@ -61,21 +61,6 @@ const parameterSchema = parameters({
         'Configure input ports for different scanner results. Each input creates a corresponding input port.',
       helpText:
         'Each input accepts AnalyticsResult[] and can be tagged for filtering in dashboards.',
-    },
-  ),
-  indexSuffix: param(
-    z
-      .string()
-      .optional()
-      .describe(
-        'Optional suffix to append to the index name. Defaults to date (YYYY.MM.DD) if not provided.',
-      ),
-    {
-      label: 'Index Suffix',
-      editor: 'text',
-      placeholder: 'YYYY.MM.DD (default)',
-      description:
-        'Custom suffix for the index name (e.g., "subdomain-enum"). Defaults to date-based sharding (YYYY.MM.DD) if not provided.',
     },
   ),
   assetKeyField: param(
@@ -152,14 +137,14 @@ const definition = defineComponent({
   inputs: baseInputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Indexes structured analytics results into OpenSearch for dashboards, queries, and alerts. Configure multiple data inputs to aggregate results from different scanner components. Each input can be tagged with a sourceTag for filtering in dashboards. Supports lenient (fire-and-forget) and strict (all-or-nothing) modes via the failOnError parameter.',
+  docs: 'Indexes structured analytics results into ClickHouse for dashboards, queries, and alerts. Configure multiple data inputs to aggregate results from different scanner components. Each input can be tagged with a sourceTag for filtering in dashboards. Supports lenient (fire-and-forget) and strict (all-or-nothing) modes via the failOnError parameter.',
   ui: {
     slug: 'analytics-sink',
-    version: '2.0.0',
+    version: '3.0.0',
     type: 'output',
     category: 'output',
     description:
-      'Index security findings from multiple scanners into OpenSearch for analytics, dashboards, and alerting.',
+      'Index security findings from multiple scanners into ClickHouse for analytics, dashboards, and alerting.',
     icon: 'BarChart3',
     author: {
       name: 'ShipSecAI',
@@ -205,8 +190,8 @@ const definition = defineComponent({
     };
   },
   async execute({ inputs, params }, context) {
-    const { getOpenSearchIndexer } = await import('../../utils/opensearch-indexer');
-    const indexer = getOpenSearchIndexer();
+    const { getClickHouseIndexer } = await import('../../utils/clickhouse-indexer');
+    const indexer = getClickHouseIndexer();
 
     const dataInputsMap = new Map<string, DataInputDefinition>(
       (params.dataInputs ?? []).map((d) => [d.id, d]),
@@ -215,7 +200,7 @@ const definition = defineComponent({
     // Check if indexing is enabled
     if (!indexer.isEnabled()) {
       context.logger.debug(
-        '[Analytics Sink] OpenSearch not configured, skipping indexing (fire-and-forget)',
+        '[Analytics Sink] ClickHouse not configured, skipping indexing (fire-and-forget)',
       );
       return {
         indexed: false,
@@ -326,8 +311,6 @@ const definition = defineComponent({
         assetKeyField = params.assetKeyField;
       }
 
-      const fallbackIndexSuffix = params.indexSuffix || undefined;
-
       const indexOptions = {
         workflowId: context.workflowId,
         workflowName: context.workflowName,
@@ -335,7 +318,6 @@ const definition = defineComponent({
         nodeRef: context.componentRef,
         componentId: 'core.analytics.sink',
         assetKeyField,
-        indexSuffix: fallbackIndexSuffix,
         trace: context.trace,
         triggerSource: context.triggerSource,
         triggerType: context.triggerType,
@@ -346,15 +328,6 @@ const definition = defineComponent({
         `[Analytics Sink] Bulk indexing ${documentCount} documents from ${dataInputsMap.size} input(s)`,
       );
       const result = await indexer.bulkIndex(context.organizationId, allDocuments, indexOptions);
-
-      // Dual-write: upsert to latest-state index for deduplication
-      try {
-        await indexer.upsertToLatest(context.organizationId, allDocuments, indexOptions);
-      } catch (err) {
-        context.logger.warn(
-          `[Analytics Sink] Failed to upsert to latest index (event log is primary): ${err instanceof Error ? err.message : err}`,
-        );
-      }
 
       context.logger.info(
         `[Analytics Sink] Successfully indexed ${result.documentCount} document(s) to ${result.indexName}`,

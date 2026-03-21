@@ -239,7 +239,13 @@ export class IntegrationsRepository {
         createdAt: new Date(),
         updatedAt: new Date(),
       })
-      .onConflictDoNothing()
+      .onConflictDoUpdate({
+        target: userSettingsTable.userId,
+        set: {
+          awsExternalId: externalId,
+          updatedAt: new Date(),
+        },
+      })
       .returning({ awsExternalId: userSettingsTable.awsExternalId });
     return record?.awsExternalId ?? null;
   }

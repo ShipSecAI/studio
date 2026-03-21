@@ -42,7 +42,8 @@ export const frontendEnvSchema = z
     VITE_LOGO_DEV_PUBLIC_KEY: z.string().optional().default(''),
     VITE_PUBLIC_POSTHOG_KEY: z.string().optional().default(''),
     VITE_PUBLIC_POSTHOG_HOST: z.string().optional().default(''),
-    VITE_OPENSEARCH_DASHBOARDS_URL: z.string().optional().default(''),
+    // Analytics URL (shows analytics link in sidebar)
+    VITE_ANALYTICS_URL: z.string().optional().default(''),
 
     // Auth
     VITE_AUTH_PROVIDER: z.string().optional().default(''),

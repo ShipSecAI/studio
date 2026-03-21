@@ -20,7 +20,7 @@ const LOG_PREFIX = '[Findings Normalize]';
  *
  * This enables:
  * - Unified PR comments with findings from multiple scanners
- * - Consistent OpenSearch indexing via Analytics Sink
+ * - Consistent ClickHouse indexing via Analytics Sink
  * - Filtering findings to only changed files in PRs
  * - Cross-scanner deduplication via finding_hash
  */
@@ -498,7 +498,7 @@ const definition = defineComponent({
     category: 'security',
     description: 'Normalize findings from multiple scanners into a unified format.',
     documentation:
-      'Connect this component after any scanner (TruffleHog, OpenGrep, etc.) to convert findings to a standard format. The normalized output can be used with Analytics Sink for OpenSearch indexing or with findings formatters for PR comments.',
+      'Connect this component after any scanner (TruffleHog, OpenGrep, etc.) to convert findings to a standard format. The normalized output can be used with Analytics Sink for ClickHouse indexing or with findings formatters for PR comments.',
     icon: 'Filter',
     author: {
       name: 'ShipSecAI',

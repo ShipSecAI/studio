@@ -8,7 +8,7 @@ import { AuthService } from '../../auth/auth.service';
 import { AuthGuard } from '../../auth/auth.guard';
 import { ApiKeysService } from '../../api-keys/api-keys.service';
 import { AnalyticsService } from '../../analytics/analytics.service';
-import { OpenSearchTenantService } from '../../analytics/opensearch-tenant.service';
+import { ClickHouseTenantService } from '../../analytics/clickhouse-tenant.service';
 import { SecurityAnalyticsService } from '../../analytics/security-analytics.service';
 import { OrganizationSettingsService } from '../../analytics/organization-settings.service';
 import { AnalyticsModule } from '../../analytics/analytics.module';
@@ -37,8 +37,8 @@ import { Pool } from 'pg';
       },
     },
     {
-      provide: OpenSearchTenantService,
-      useValue: { provisionTenant: async () => true },
+      provide: ClickHouseTenantService,
+      useValue: { ensureSchemaExists: async () => true },
     },
     {
       provide: SecurityAnalyticsService,
@@ -54,7 +54,7 @@ import { Pool } from 'pg';
   ],
   exports: [
     AnalyticsService,
-    OpenSearchTenantService,
+    ClickHouseTenantService,
     SecurityAnalyticsService,
     OrganizationSettingsService,
   ],

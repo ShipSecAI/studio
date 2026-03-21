@@ -16,7 +16,6 @@ import {
   EllipsisVertical,
   Undo2,
   Redo2,
-  ExternalLink,
   Lock,
   LayoutTemplate,
 } from 'lucide-react';
@@ -30,9 +29,7 @@ import {
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { WorkflowIconPicker } from '@/components/workflow/WorkflowIconPicker';
-import { useAuthStore, DEFAULT_ORG_ID } from '@/store/authStore';
 import { cn } from '@/lib/utils';
-import { env } from '@/config/env';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface TopBarProps {
@@ -59,8 +56,8 @@ const DEFAULT_WORKFLOW_NAME = 'Untitled Workflow';
 export function TopBar({
   workflowId,
   selectedRunId,
-  selectedRunStatus,
-  selectedRunOrgId,
+  selectedRunStatus: _selectedRunStatus,
+  selectedRunOrgId: _selectedRunOrgId,
   onRun,
   onSave,
   onAutoSave,
@@ -71,7 +68,7 @@ export function TopBar({
   onRedo,
   canUndo,
   canRedo,
-  hasAnalyticsSink = false,
+  hasAnalyticsSink: _hasAnalyticsSink = false,
 }: TopBarProps) {
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
@@ -84,9 +81,6 @@ export function TopBar({
 
   const { metadata, isDirty, setWorkflowName, setMetadata } = useWorkflowStore();
   const mode = useWorkflowUiStore((state) => state.mode);
-  const organizationId = useAuthStore((s) => s.organizationId);
-  const authProvider = useAuthStore((s) => s.provider);
-  const isOrgReady = authProvider !== 'clerk' || organizationId !== DEFAULT_ORG_ID;
   const isSystemWorkflow = metadata.isSystem === true;
   const canEdit = Boolean(canManageWorkflows) && !isSystemWorkflow;
 
@@ -174,25 +168,6 @@ export function TopBar({
     } finally {
       setIsImporting(false);
     }
-  };
-
-  const handleViewAnalytics = () => {
-    if (!isOrgReady || !hasAnalyticsSink || !workflowId) return;
-    const baseUrl = env.VITE_OPENSEARCH_DASHBOARDS_URL.replace(/\/+$/, '');
-    const filterQuery = selectedRunId
-      ? `shipsec.run_id.keyword:"${selectedRunId}"`
-      : `shipsec.workflow_id.keyword:"${workflowId}"`;
-    const effectiveOrgId = (selectedRunOrgId || organizationId).toLowerCase();
-    const orgScopedPattern = `security-findings-${effectiveOrgId}-*`;
-    const aParam = encodeURIComponent(
-      `(discover:(columns:!(_source),interval:auto,sort:!()),metadata:(indexPattern:'${orgScopedPattern}',view:discover))`,
-    );
-    const qParam = encodeURIComponent(`(query:(language:kuery,query:'${filterQuery}'))`);
-    const gParam = encodeURIComponent(
-      '(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1y,to:now))',
-    );
-    const url = `${baseUrl}/app/data-explorer/discover/#?_a=${aParam}&_q=${qParam}&_g=${gParam}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   useEffect(() => {
@@ -287,11 +262,6 @@ export function TopBar({
     ) : (
       <Save className="h-4 w-4" />
     );
-
-  const showAnalytics =
-    env.VITE_OPENSEARCH_DASHBOARDS_URL &&
-    workflowId &&
-    (!selectedRunId || (selectedRunStatus && selectedRunStatus !== 'RUNNING'));
 
   return (
     <div className="h-14 border-b bg-background flex flex-nowrap items-center px-2 md:px-4 gap-1.5 md:gap-3 py-0">
@@ -457,15 +427,6 @@ export function TopBar({
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
-                )}
-                {showAnalytics && (
-                  <DropdownMenuItem
-                    onClick={handleViewAnalytics}
-                    disabled={!isOrgReady || !hasAnalyticsSink}
-                  >
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    <span>View Analytics</span>
-                  </DropdownMenuItem>
                 )}
                 <DropdownMenuItem disabled={!canEdit}>
                   <LayoutTemplate className="mr-2 h-4 w-4" />

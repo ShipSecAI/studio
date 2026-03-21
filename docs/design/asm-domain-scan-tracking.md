@@ -33,7 +33,7 @@ For each domain, the returned timestamp is `MAX(org-wide, per-domain)`.
 ### Why closeTime
 
 Using `COALESCE(close_time, created_at)` means "Last Scan" reflects when the
-workflow **finished** (data was persisted to OpenSearch), not when it was
+workflow **finished** (data was persisted to ClickHouse), not when it was
 triggered. `close_time` is set by the Temporal status cache when a run reaches
 a terminal state.
 

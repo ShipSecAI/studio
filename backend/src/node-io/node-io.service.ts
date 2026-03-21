@@ -113,6 +113,24 @@ export class NodeIOService {
       inputsSize = inputs.originalSize ?? 0;
     }
 
+    // Track nested spill markers (e.g. { input1: { __spilled__: true, storageRef: ... } })
+    const nestedInputSpills = new Map<
+      string,
+      { storageRef: string; handle?: string; originalSize?: number }
+    >();
+    if (!inputsSpilled && inputs && typeof inputs === 'object' && !Array.isArray(inputs)) {
+      for (const [key, value] of Object.entries(inputs)) {
+        if (isSpillMarker(value)) {
+          const v = value as Record<string, unknown>;
+          nestedInputSpills.set(key, {
+            storageRef: v.storageRef as string,
+            handle: typeof v.__spilled_handle__ === 'string' ? v.__spilled_handle__ : undefined,
+            originalSize: typeof v.originalSize === 'number' ? v.originalSize : undefined,
+          });
+        }
+      }
+    }
+
     let outputsSpilled = record.outputsSpilled;
     let outputsStorageRef = record.outputsStorageRef;
     let outputsSize = record.outputsSize;
@@ -121,6 +139,24 @@ export class NodeIOService {
       outputsSpilled = true;
       outputsStorageRef = outputs.storageRef;
       outputsSize = outputs.originalSize ?? 0;
+    }
+
+    // Track nested spill markers in outputs too
+    const nestedOutputSpills = new Map<
+      string,
+      { storageRef: string; handle?: string; originalSize?: number }
+    >();
+    if (!outputsSpilled && outputs && typeof outputs === 'object' && !Array.isArray(outputs)) {
+      for (const [key, value] of Object.entries(outputs)) {
+        if (isSpillMarker(value)) {
+          const v = value as Record<string, unknown>;
+          nestedOutputSpills.set(key, {
+            storageRef: v.storageRef as string,
+            handle: typeof v.__spilled_handle__ === 'string' ? v.__spilled_handle__ : undefined,
+            originalSize: typeof v.originalSize === 'number' ? v.originalSize : undefined,
+          });
+        }
+      }
     }
 
     let inputsTruncated = false;
@@ -145,6 +181,47 @@ export class NodeIOService {
           inputsTruncated = true;
         }
       }
+    } else if (nestedInputSpills.size > 0) {
+      // Resolve nested spill markers individually
+      inputsSpilled = true;
+      for (const [key, spill] of nestedInputSpills) {
+        if (full) {
+          try {
+            const buffer = await this.storage.downloadFile(spill.storageRef);
+            const fullData = JSON.parse(buffer.toString('utf8'));
+            // Extract the handle sub-key if specified
+            if (
+              spill.handle &&
+              spill.handle !== '__self__' &&
+              fullData &&
+              typeof fullData === 'object'
+            ) {
+              inputs[key] = fullData[spill.handle] ?? fullData;
+            } else {
+              inputs[key] = fullData;
+            }
+          } catch (err) {
+            this.logger.error(
+              `Failed to fetch spilled input '${key}' from ${spill.storageRef}`,
+              err,
+            );
+            inputs[key] = { error: 'Failed to fetch full data' };
+          }
+        } else {
+          try {
+            const buffer = await this.storage.downloadFilePreview(spill.storageRef, 2048);
+            inputs[key] = buffer.toString('utf8').slice(0, 1000) + '\n... (truncated)';
+            inputsTruncated = true;
+          } catch (err) {
+            this.logger.warn(
+              `Failed to fetch preview for input '${key}' from ${spill.storageRef}`,
+              err,
+            );
+            inputs[key] = '(Data too large to display, click View Full to load)';
+            inputsTruncated = true;
+          }
+        }
+      }
     }
 
     let outputsTruncated = false;
@@ -166,6 +243,46 @@ export class NodeIOService {
           this.logger.warn(`Failed to fetch preview for outputs from ${outputsStorageRef}`, err);
           outputs = '(Data too large to display, click View Full to load)';
           outputsTruncated = true;
+        }
+      }
+    } else if (nestedOutputSpills.size > 0) {
+      // Resolve nested spill markers individually
+      outputsSpilled = true;
+      for (const [key, spill] of nestedOutputSpills) {
+        if (full) {
+          try {
+            const buffer = await this.storage.downloadFile(spill.storageRef);
+            const fullData = JSON.parse(buffer.toString('utf8'));
+            if (
+              spill.handle &&
+              spill.handle !== '__self__' &&
+              fullData &&
+              typeof fullData === 'object'
+            ) {
+              outputs[key] = fullData[spill.handle] ?? fullData;
+            } else {
+              outputs[key] = fullData;
+            }
+          } catch (err) {
+            this.logger.error(
+              `Failed to fetch spilled output '${key}' from ${spill.storageRef}`,
+              err,
+            );
+            outputs[key] = { error: 'Failed to fetch full data' };
+          }
+        } else {
+          try {
+            const buffer = await this.storage.downloadFilePreview(spill.storageRef, 2048);
+            outputs[key] = buffer.toString('utf8').slice(0, 1000) + '\n... (truncated)';
+            outputsTruncated = true;
+          } catch (err) {
+            this.logger.warn(
+              `Failed to fetch preview for output '${key}' from ${spill.storageRef}`,
+              err,
+            );
+            outputs[key] = '(Data too large to display, click View Full to load)';
+            outputsTruncated = true;
+          }
         }
       }
     }

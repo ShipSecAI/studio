@@ -1,12 +1,12 @@
 /**
  * E2E Tests - Workflow Analytics
  *
- * Validates analytics sink ingestion into OpenSearch and analytics query API.
+ * Validates analytics sink ingestion into ClickHouse and analytics query API.
  *
  * Requirements:
  * - Backend API running
  * - Worker running and component registry loaded
- * - OpenSearch running on http://localhost:9200
+ * - ClickHouse running on http://localhost:8123
  */
 
 import { expect, beforeAll, afterAll } from 'bun:test';
@@ -22,35 +22,23 @@ import {
   checkServicesAvailable,
 } from '../helpers/e2e-harness';
 
-const OPENSEARCH_URL = process.env.OPENSEARCH_URL ?? 'http://localhost:9200';
-
-async function pollOpenSearch(runId: string, timeoutMs = 60000): Promise<number> {
+async function pollAnalytics(runId: string, timeoutMs = 60000): Promise<number> {
   const startTime = Date.now();
   const pollInterval = 2000;
 
-  const query = {
-    size: 1,
-    query: {
-      term: {
-        'shipsec.run_id': runId,
-      },
-    },
-  };
-
   while (Date.now() - startTime < timeoutMs) {
-    const res = await fetch(`${OPENSEARCH_URL}/security-findings-*/_search`, {
+    const res = await fetch(`${API_BASE}/analytics/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(query),
+      headers: HEADERS,
+      body: JSON.stringify({
+        filters: [{ field: 'run_id', op: 'eq', value: runId }],
+        size: 1,
+      }),
     });
 
     if (res.ok) {
       const body = await res.json();
-      const total =
-        typeof body?.hits?.total === 'object'
-          ? body.hits.total.value ?? 0
-          : body?.hits?.total ?? 0;
-
+      const total = body?.total ?? 0;
       if (total > 0) {
         return total;
       }
@@ -59,7 +47,7 @@ async function pollOpenSearch(runId: string, timeoutMs = 60000): Promise<number>
     await new Promise((resolve) => setTimeout(resolve, pollInterval));
   }
 
-  throw new Error(`OpenSearch documents not indexed for runId ${runId} within ${timeoutMs}ms`);
+  throw new Error(`ClickHouse documents not indexed for runId ${runId} within ${timeoutMs}ms`);
 }
 
 let servicesAvailable = false;
@@ -76,7 +64,7 @@ beforeAll(async () => {
     console.log('    Required services are not available. Tests will be skipped.');
     return;
   }
-  console.log('    Backend API and OpenSearch are running');
+  console.log('    Backend API and ClickHouse are running');
 });
 
 afterAll(async () => {
@@ -84,7 +72,7 @@ afterAll(async () => {
 });
 
 e2eDescribe('Workflow Analytics E2E Tests', () => {
-  e2eTest('Analytics Sink indexes results into OpenSearch', { timeout: 180000 }, async () => {
+  e2eTest('Analytics Sink indexes results into ClickHouse', { timeout: 180000 }, async () => {
     console.log('\n  Test: Analytics Sink indexing');
 
     const workflow = {
@@ -147,18 +135,14 @@ e2eDescribe('Workflow Analytics E2E Tests', () => {
     const status = await pollRunStatus(runId);
     expect(status.status).toBe('COMPLETED');
 
-    const total = await pollOpenSearch(runId);
+    const total = await pollAnalytics(runId);
     expect(total).toBeGreaterThan(0);
 
     const analyticsRes = await fetch(`${API_BASE}/analytics/query`, {
       method: 'POST',
       headers: HEADERS,
       body: JSON.stringify({
-        query: {
-          term: {
-            'shipsec.run_id': runId,
-          },
-        },
+        filters: [{ field: 'run_id', op: 'eq', value: runId }],
         size: 5,
       }),
     });

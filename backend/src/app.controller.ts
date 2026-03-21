@@ -13,7 +13,7 @@ import {
   SESSION_COOKIE_MAX_AGE,
   createSessionToken,
 } from './auth/session.utils';
-import { OpenSearchTenantService } from './analytics/opensearch-tenant.service';
+import { ClickHouseTenantService } from './analytics/clickhouse-tenant.service';
 
 @Controller()
 export class AppController {
@@ -25,7 +25,7 @@ export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly configService: ConfigService,
-    private readonly tenantService: OpenSearchTenantService,
+    private readonly tenantService: ClickHouseTenantService,
   ) {
     this.authCfg = this.configService.get<AuthConfig>('auth')!;
   }
@@ -63,22 +63,20 @@ export class AppController {
     res.setHeader('X-Auth-Organization-Id', normalizedOrgId);
     res.setHeader('X-Auth-User-Id', auth.userId || '');
 
-    // Ensure OpenSearch tenant exists for this org (fire-and-forget, cached)
+    // Ensure ClickHouse schema exists (fire-and-forget, cached)
     // Uses a Map of promises so: (1) concurrent requests share the same in-flight provisioning,
     // (2) failures are removed from cache to allow retry on next auth request.
     if (normalizedOrgId && !this.provisioningOrgs.has(normalizedOrgId)) {
-      const promise = this.tenantService.ensureTenantExists(normalizedOrgId).then(
+      const promise = this.tenantService.ensureSchemaExists().then(
         (success) => {
           if (!success) {
-            // Provisioning returned false (validation error, etc.) — allow retry
             this.provisioningOrgs.delete(normalizedOrgId);
           }
           return success;
         },
         (err) => {
-          // Remove from cache so it retries next request
           this.provisioningOrgs.delete(normalizedOrgId);
-          this.logger.error(`Failed to provision OpenSearch tenant for ${normalizedOrgId}: ${err}`);
+          this.logger.error(`Failed to provision ClickHouse schema for ${normalizedOrgId}: ${err}`);
           return false;
         },
       );

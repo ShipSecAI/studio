@@ -47,14 +47,11 @@ export const workerEnvSchema = z
     LOKI_USERNAME: z.string().optional().default(''),
     LOKI_PASSWORD: z.string().optional().default(''),
 
-    // --- OpenSearch ---
-    OPENSEARCH_URL: z.string().optional(),
-    OPENSEARCH_USERNAME: z.string().optional(),
-    OPENSEARCH_PASSWORD: z.string().optional(),
-    OPENSEARCH_DASHBOARDS_URL: z.string().optional().default(''),
-    OPENSEARCH_SECURITY_ENABLED: stringToBoolean(false),
-    OPENSEARCH_CA_CERT_PATH: z.string().optional().default(''),
-    OPENSEARCH_SSL_REJECT_UNAUTHORIZED: stringToBoolean(true),
+    // --- ClickHouse ---
+    CLICKHOUSE_URL: z.string().optional(),
+    CLICKHOUSE_DATABASE: z.string().optional().default('shipsec'),
+    CLICKHOUSE_USERNAME: z.string().optional(),
+    CLICKHOUSE_PASSWORD: z.string().optional(),
 
     // --- K8s execution ---
     EXECUTION_MODE: z.string().optional(),

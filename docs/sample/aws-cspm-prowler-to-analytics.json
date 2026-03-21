@@ -1,6 +1,6 @@
 {
   "name": "AWS CSPM – Prowler Scan to Analytics",
-  "description": "End-to-end AWS CSPM workflow: resolves credentials from an integration connection, runs a Prowler security scan, and indexes the results into the Analytics dashboard via OpenSearch.",
+  "description": "End-to-end AWS CSPM workflow: resolves credentials from an integration connection, runs a Prowler security scan, and indexes the results into the Analytics dashboard via ClickHouse.",
   "nodes": [
     {
       "id": "entry-1",

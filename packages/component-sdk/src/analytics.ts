@@ -2,7 +2,7 @@
  * Analytics helpers for component authors.
  *
  * These utilities help components output structured findings
- * that can be indexed into OpenSearch via the Analytics Sink.
+ * that can be indexed into ClickHouse via the Analytics Sink.
  */
 
 import { createHash } from 'crypto';

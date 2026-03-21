@@ -6,13 +6,11 @@ import {
   ForbiddenException,
   Get,
   Header,
-  Headers,
   HttpCode,
   Post,
   Put,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ApiOkResponse, ApiTags, ApiHeader } from '@nestjs/swagger';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { readFileSync } from 'node:fs';
@@ -20,14 +18,19 @@ import { join } from 'node:path';
 
 import { SecurityAnalyticsService } from './security-analytics.service';
 import { OrganizationSettingsService } from './organization-settings.service';
-import { OpenSearchTenantService } from './opensearch-tenant.service';
 import {
   AnalyticsQueryRequestDto,
   AnalyticsQueryResponseDto,
+  ScannerSeverityCountsRequestDto,
+  ScannerSeverityCountsResponseDto,
   ProwlerChecksMetadataResponseDto,
   ProwlerChecksMetadataResponseSchema,
   StorageUsageResponseDto,
   PurgeDataResponseDto,
+  TimeSeriesRequestDto,
+  TimeSeriesResponseDto,
+  LifecycleRequestDto,
+  LifecycleResponseDto,
   type ProwlerChecksMetadataResponse,
 } from './dto/analytics-query.dto';
 import {
@@ -38,12 +41,9 @@ import {
 import {
   BatchRunSummariesRequestDto,
   BatchRunSummariesResponseDto,
-  EnsureTenantRequestDto,
-  EnsureTenantResponseDto,
 } from './dto/analytics-internal.dto';
 import { AuditLogService } from '../audit/audit-log.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
-import { Public } from '../auth/public.decorator';
 import type { AuthContext } from '../auth/types';
 
 const MAX_QUERY_SIZE = 1000;
@@ -56,7 +56,6 @@ function isValidNonNegativeInt(value: unknown): value is number {
 @ApiTags('analytics')
 @Controller('analytics')
 export class AnalyticsController {
-  private readonly internalServiceToken: string;
   private _prowlerChecksMetadata: ProwlerChecksMetadataResponse | null = null;
 
   private get prowlerChecksMetadata(): ProwlerChecksMetadataResponse {
@@ -75,16 +74,12 @@ export class AnalyticsController {
   constructor(
     private readonly securityAnalyticsService: SecurityAnalyticsService,
     private readonly organizationSettingsService: OrganizationSettingsService,
-    private readonly openSearchTenantService: OpenSearchTenantService,
-    private readonly configService: ConfigService,
     private readonly auditLogService: AuditLogService,
-  ) {
-    this.internalServiceToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN') || '';
-  }
+  ) {}
 
   @Post('query')
   @HttpCode(200)
-  @Throttle({ default: { limit: 100, ttl: 60000 } }) // 100 requests per minute per user
+  @Throttle({ default: { limit: 100, ttl: 60000 } })
   @ApiOkResponse({
     description: 'Query analytics data for the authenticated organization',
     type: AnalyticsQueryResponseDto,
@@ -103,56 +98,27 @@ export class AnalyticsController {
     @CurrentAuth() auth: AuthContext | null,
     @Body() queryDto: AnalyticsQueryRequestDto,
   ): Promise<AnalyticsQueryResponseDto> {
-    // Require authentication
     if (!auth || !auth.isAuthenticated) {
       throw new UnauthorizedException('Authentication required');
     }
-
-    // Require organization context
     if (!auth.organizationId) {
       throw new UnauthorizedException('Organization context required');
     }
 
-    // Validate query syntax
-    if (queryDto.query && typeof queryDto.query !== 'object') {
-      throw new BadRequestException('Invalid query syntax: query must be an object');
-    }
-
-    if (queryDto.aggs && typeof queryDto.aggs !== 'object') {
-      throw new BadRequestException('Invalid query syntax: aggs must be an object');
-    }
-
-    // Set defaults
     const size = queryDto.size ?? 10;
     const from = queryDto.from ?? 0;
 
     if (!isValidNonNegativeInt(size)) {
       throw new BadRequestException('Invalid size: must be a non-negative integer');
     }
-
     if (!isValidNonNegativeInt(from)) {
       throw new BadRequestException('Invalid from: must be a non-negative integer');
     }
-
     if (size > MAX_QUERY_SIZE) {
       throw new BadRequestException(`Invalid size: maximum is ${MAX_QUERY_SIZE}`);
     }
-
     if (from > MAX_QUERY_FROM) {
       throw new BadRequestException(`Invalid from: maximum is ${MAX_QUERY_FROM}`);
-    }
-
-    // Validate collapse shape: only allow { field: string }, block inner_hits
-    if (queryDto.collapse) {
-      if (typeof queryDto.collapse !== 'object') {
-        throw new BadRequestException('Invalid collapse: must be an object');
-      }
-      if ('inner_hits' in queryDto.collapse) {
-        throw new BadRequestException('Invalid collapse: inner_hits is not allowed');
-      }
-      if (typeof queryDto.collapse.field !== 'string') {
-        throw new BadRequestException('Invalid collapse: must contain a "field" string');
-      }
     }
 
     this.auditLogService.record(auth, {
@@ -163,21 +129,105 @@ export class AnalyticsController {
       metadata: {
         size,
         from,
-        hasQuery: Boolean(queryDto.query),
-        hasAggs: Boolean(queryDto.aggs),
+        hasFilters: Boolean(queryDto.filters?.length),
+        hasAggs: Boolean(queryDto.aggs?.length),
       },
     });
 
-    // Call the service to execute the query
     return this.securityAnalyticsService.query(auth.organizationId, {
-      query: queryDto.query,
+      filters: queryDto.filters,
+      search: queryDto.search,
+      sort: queryDto.sort,
+      aggs: queryDto.aggs,
+      distinct: queryDto.distinct,
+      countDistinct: queryDto.countDistinct,
       size,
       from,
-      aggs: queryDto.aggs,
-      sort: queryDto.sort,
-      collapse: queryDto.collapse,
       useLatest: queryDto.useLatest,
     });
+  }
+
+  @Post('scanner-severity-counts')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 100, ttl: 60000 } })
+  @ApiOkResponse({
+    description: 'Get severity counts grouped by scanner for security findings',
+    type: ScannerSeverityCountsResponseDto,
+  })
+  async scannerSeverityCounts(
+    @CurrentAuth() auth: AuthContext | null,
+    @Body() body: ScannerSeverityCountsRequestDto,
+  ): Promise<ScannerSeverityCountsResponseDto> {
+    if (!auth || !auth.isAuthenticated) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    if (!auth.organizationId) {
+      throw new UnauthorizedException('Organization context required');
+    }
+
+    return this.securityAnalyticsService.scannerSeverityCounts(auth.organizationId, {
+      filters: body.filters,
+      useLatest: body.useLatest,
+    });
+  }
+
+  @Post('time-series')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 100, ttl: 60000 } })
+  @ApiOkResponse({
+    description: 'Get time-series data for security findings',
+    type: TimeSeriesResponseDto,
+  })
+  async timeSeries(
+    @CurrentAuth() auth: AuthContext | null,
+    @Body() body: TimeSeriesRequestDto,
+  ): Promise<TimeSeriesResponseDto> {
+    if (!auth || !auth.isAuthenticated) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    if (!auth.organizationId) {
+      throw new UnauthorizedException('Organization context required');
+    }
+
+    return this.securityAnalyticsService.timeSeries(auth.organizationId, {
+      filters: body.filters,
+      interval: body.interval,
+      days: body.days,
+      timezone: body.timezone,
+    });
+  }
+
+  @Post('lifecycle')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 100, ttl: 60000 } })
+  @ApiOkResponse({
+    description: 'Get lifecycle data (first seen, last seen, occurrences) for findings',
+    type: LifecycleResponseDto,
+  })
+  async lifecycle(
+    @CurrentAuth() auth: AuthContext | null,
+    @Body() body: LifecycleRequestDto,
+  ): Promise<LifecycleResponseDto> {
+    if (!auth || !auth.isAuthenticated) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    if (!auth.organizationId) {
+      throw new UnauthorizedException('Organization context required');
+    }
+
+    const hashes: string[] = [];
+    if (body.hash) hashes.push(body.hash);
+    if (body.hashes) hashes.push(...body.hashes);
+
+    if (hashes.length === 0) {
+      throw new BadRequestException('At least one hash or hashes[] is required');
+    }
+
+    const lifecycles = await this.securityAnalyticsService.lifecycle(auth.organizationId, [
+      ...new Set(hashes),
+    ]);
+
+    return { lifecycles };
   }
 
   @Get('settings')
@@ -188,22 +238,16 @@ export class AnalyticsController {
   async getAnalyticsSettings(
     @CurrentAuth() auth: AuthContext | null,
   ): Promise<AnalyticsSettingsResponseDto> {
-    // Require authentication
     if (!auth || !auth.isAuthenticated) {
       throw new UnauthorizedException('Authentication required');
     }
-
-    // Require organization context
     if (!auth.organizationId) {
       throw new UnauthorizedException('Organization context required');
     }
 
-    // Get or create organization settings
     const settings = await this.organizationSettingsService.getOrganizationSettings(
       auth.organizationId,
     );
-
-    // Get max retention days for tier
     const maxRetentionDays = this.organizationSettingsService.getMaxRetentionDays(
       settings.subscriptionTier,
     );
@@ -227,30 +271,21 @@ export class AnalyticsController {
     @CurrentAuth() auth: AuthContext | null,
     @Body() updateDto: UpdateAnalyticsSettingsDto,
   ): Promise<AnalyticsSettingsResponseDto> {
-    // Require authentication
     if (!auth || !auth.isAuthenticated) {
       throw new UnauthorizedException('Authentication required');
     }
-
-    // Require organization context
     if (!auth.organizationId) {
       throw new UnauthorizedException('Organization context required');
     }
-
-    // Only org admins can update settings
     if (!auth.roles.includes('ADMIN')) {
       throw new ForbiddenException('Only organization admins can update analytics settings');
     }
 
-    // Get current settings to validate against tier
     const currentSettings = await this.organizationSettingsService.getOrganizationSettings(
       auth.organizationId,
     );
-
-    // Determine the tier to validate against (use new tier if provided, otherwise current)
     const tierToValidate = updateDto.subscriptionTier ?? currentSettings.subscriptionTier;
 
-    // Validate retention period is within tier limits
     if (updateDto.analyticsRetentionDays !== undefined) {
       if (
         typeof updateDto.analyticsRetentionDays !== 'number' ||
@@ -272,7 +307,6 @@ export class AnalyticsController {
       }
     }
 
-    // Update settings
     const updated = await this.organizationSettingsService.updateOrganizationSettings(
       auth.organizationId,
       {
@@ -281,7 +315,6 @@ export class AnalyticsController {
       },
     );
 
-    // Get max retention days for updated tier
     const maxRetentionDays = this.organizationSettingsService.getMaxRetentionDays(
       updated.subscriptionTier,
     );
@@ -330,15 +363,10 @@ export class AnalyticsController {
 
   @Get('storage-usage')
   @ApiOkResponse({
-    description: 'Get OpenSearch storage usage for the authenticated organization',
+    description: 'Get analytics storage usage for the authenticated organization',
     type: StorageUsageResponseDto,
   })
-  async getStorageUsage(@CurrentAuth() auth: AuthContext | null): Promise<{
-    usedBytes: number;
-    documentCount: number;
-    indexCount: number;
-    opensearchEnabled: boolean;
-  }> {
+  async getStorageUsage(@CurrentAuth() auth: AuthContext | null): Promise<StorageUsageResponseDto> {
     if (!auth || !auth.isAuthenticated) {
       throw new UnauthorizedException('Authentication required');
     }
@@ -354,7 +382,7 @@ export class AnalyticsController {
     description: 'Purge all analytics data for the authenticated organization',
     type: PurgeDataResponseDto,
   })
-  async purgeData(@CurrentAuth() auth: AuthContext | null): Promise<{ deletedIndices: number }> {
+  async purgeData(@CurrentAuth() auth: AuthContext | null): Promise<{ tablesCleared: number }> {
     if (!auth || !auth.isAuthenticated) {
       throw new UnauthorizedException('Authentication required');
     }
@@ -381,55 +409,5 @@ export class AnalyticsController {
       throw new UnauthorizedException('Authentication required');
     }
     return this.prowlerChecksMetadata;
-  }
-
-  /**
-   * Ensure tenant resources exist for an organization.
-   * Called by worker before indexing to ensure tenant isolation is set up.
-   *
-   * Requires X-Internal-Token header for authentication (internal service-to-service).
-   * This endpoint is idempotent - safe to call multiple times.
-   */
-  @Public()
-  @SkipThrottle()
-  @Post('ensure-tenant')
-  @ApiOkResponse({
-    description: 'Ensure tenant resources exist for organization',
-    type: EnsureTenantResponseDto,
-  })
-  async ensureTenant(
-    @Headers('x-internal-token') internalToken: string | undefined,
-    @Body() body: EnsureTenantRequestDto,
-  ): Promise<EnsureTenantResponseDto> {
-    // Validate internal service token
-    if (!this.internalServiceToken) {
-      // Token not configured - allow in dev mode but log warning
-      console.warn('[ensureTenant] INTERNAL_SERVICE_TOKEN not configured');
-    } else if (internalToken !== this.internalServiceToken) {
-      throw new UnauthorizedException('Invalid internal service token');
-    }
-
-    // Validate request body
-    if (!body.organizationId || typeof body.organizationId !== 'string') {
-      throw new BadRequestException('organizationId is required');
-    }
-
-    const orgId = body.organizationId.trim();
-    if (!orgId) {
-      throw new BadRequestException('organizationId cannot be empty');
-    }
-
-    // Always ensure index templates and seed indices exist. When security mode is
-    // disabled, ensureTenantExists still provisions mappings but skips security-plugin
-    // resources (tenant/role/role-mapping/index-pattern).
-    const success = await this.openSearchTenantService.ensureTenantExists(orgId);
-
-    return {
-      success,
-      securityEnabled: this.openSearchTenantService.isSecurityEnabled(),
-      message: success
-        ? `Tenant provisioned for ${orgId}`
-        : `Failed to provision tenant for ${orgId}`,
-    };
   }
 }

@@ -4102,7 +4102,7 @@ export interface components {
                 actorDisplay: string | null;
                 action: string;
                 /** @enum {string} */
-                resourceType: "workflow" | "secret" | "api_key" | "webhook" | "artifact" | "analytics" | "schedule" | "mcp_server" | "mcp_group" | "human_input";
+                resourceType: "workflow" | "secret" | "api_key" | "webhook" | "artifact" | "analytics" | "schedule" | "mcp_server" | "mcp_group" | "human_input" | "agent_skill";
                 resourceId: string | null;
                 resourceName: string | null;
                 metadata: {

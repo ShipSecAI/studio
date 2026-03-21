@@ -24,8 +24,7 @@ export interface FindingsProvider {
  * This is the current implementation — findings are returned inline
  * with the scan result from GET /api/v1/github/scans/:id.
  *
- * When OpenSearch is ready, swap to OpenSearchFindingsProvider
- * which will query the findings index directly.
+ * TODO: swap to analytics-backed provider that queries ClickHouse directly.
  */
 export class EmbeddedFindingsProvider implements FindingsProvider {
   constructor(private getScanResult: (id: string) => Promise<GitHubScanResult>) {}

@@ -248,7 +248,7 @@ export function CloudScanDetailPanel({ runId, onClose }: { runId: string; onClos
                     <div className="space-y-2">
                       {severityFindings.map((finding) => (
                         <button
-                          key={finding._id}
+                          key={finding.id}
                           type="button"
                           onClick={() => setSelectedFinding(finding)}
                           className="w-full rounded-lg border p-3 text-left hover:bg-muted/40 transition-colors"

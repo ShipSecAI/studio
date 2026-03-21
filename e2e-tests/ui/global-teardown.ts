@@ -20,16 +20,7 @@ async function globalTeardown(_config: FullConfig) {
     console.warn('  ⚠ Postgres cleanup failed:', e.message);
   }
 
-  // Clean OpenSearch findings
-  try {
-    execSync(
-      'bun scripts/seed-opensearch-findings.ts --org-id local-dev --clear',
-      { cwd: rootDir, stdio: 'pipe' },
-    );
-    console.log('  ✓ OpenSearch cleaned');
-  } catch (e: any) {
-    console.warn('  ⚠ OpenSearch cleanup failed:', e.message);
-  }
+  // ClickHouse data is managed via TTL — no manual cleanup needed
 
   console.log('✅ Global teardown complete');
 }

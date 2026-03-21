@@ -9,7 +9,7 @@ import {
   SubscriptionTier,
 } from '../database/schema/organization-settings';
 import { TIER_LIMITS } from './dto/analytics-settings.dto';
-import { OpenSearchTenantService } from './opensearch-tenant.service';
+import { ClickHouseTenantService } from './clickhouse-tenant.service';
 
 @Injectable()
 export class OrganizationSettingsService {
@@ -18,7 +18,7 @@ export class OrganizationSettingsService {
   constructor(
     @Inject(DRIZZLE_TOKEN)
     private readonly db: NodePgDatabase,
-    private readonly tenantService: OpenSearchTenantService,
+    private readonly tenantService: ClickHouseTenantService,
   ) {}
 
   /**
@@ -46,9 +46,9 @@ export class OrganizationSettingsService {
       })
       .returning();
 
-    // Provision OpenSearch tenant for the new organization (fire-and-forget)
-    this.tenantService.ensureTenantExists(organizationId).catch((err) => {
-      this.logger.error(`Failed to provision OpenSearch tenant for ${organizationId}: ${err}`);
+    // Provision ClickHouse schema (fire-and-forget)
+    this.tenantService.ensureSchemaExists().catch((err) => {
+      this.logger.error(`Failed to provision ClickHouse schema for ${organizationId}: ${err}`);
     });
 
     return created;

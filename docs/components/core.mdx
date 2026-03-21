@@ -285,7 +285,7 @@ Provides AWS credentials for S3 operations.
 
 ### Analytics Sink
 
-Indexes workflow output data into OpenSearch for analytics dashboards, queries, and alerts. Connect the `results` port from upstream security scanners.
+Indexes workflow output data into ClickHouse for analytics queries and alerts. Connect the `results` port from upstream security scanners.
 
 | Input | Type | Description |
 |-------|------|-------------|
@@ -295,11 +295,9 @@ Indexes workflow output data into OpenSearch for analytics dashboards, queries, 
 |--------|------|-------------|
 | `indexed` | Boolean | Whether data was successfully indexed |
 | `documentCount` | Number | Number of documents indexed |
-| `indexName` | String | Name of the OpenSearch index used |
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `indexSuffix` | String | Custom suffix for the index name. Defaults to slugified workflow name. |
 | `assetKeyField` | Select | Field to use as asset identifier. Options: auto, asset_key, host, domain, subdomain, url, ip, asset, target, custom |
 | `customAssetKeyField` | String | Custom field name when assetKeyField is "custom" |
 | `failOnError` | Boolean | When enabled, workflow stops if indexing fails. Default: false (fire-and-forget) |

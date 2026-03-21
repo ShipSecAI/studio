@@ -3,7 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AnalyticsService } from './analytics.service';
 import { SecurityAnalyticsService } from './security-analytics.service';
 import { OrganizationSettingsService } from './organization-settings.service';
-import { OpenSearchTenantService } from './opensearch-tenant.service';
+import { ClickHouseTenantService } from './clickhouse-tenant.service';
 import { AnalyticsController } from './analytics.controller';
 
 @Module({
@@ -13,13 +13,13 @@ import { AnalyticsController } from './analytics.controller';
     AnalyticsService,
     SecurityAnalyticsService,
     OrganizationSettingsService,
-    OpenSearchTenantService,
+    ClickHouseTenantService,
   ],
   exports: [
     AnalyticsService,
     SecurityAnalyticsService,
     OrganizationSettingsService,
-    OpenSearchTenantService,
+    ClickHouseTenantService,
   ],
 })
 export class AnalyticsModule {}

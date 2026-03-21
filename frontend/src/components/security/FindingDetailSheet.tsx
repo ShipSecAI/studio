@@ -246,8 +246,8 @@ export function FindingDetailSheet({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const workflowId = finding.shipsec?.workflow_id;
-  const runId = finding.shipsec?.run_id;
+  const workflowId = finding.workflow_id;
+  const runId = finding.run_id;
   const isCodeFinding = finding.scanner === 'opengrep' || finding.scanner === 'trufflehog';
 
   return (
@@ -290,7 +290,7 @@ export function FindingDetailSheet({
                         to={`/workflows/${workflowId}/runs/${runId}`}
                         className="inline-flex items-center gap-1.5 hover:underline"
                       >
-                        {finding.shipsec?.workflow_name ?? 'View Run'}
+                        {finding.workflow_name ?? 'View Run'}
                         <ExternalLink className="h-3 w-3 text-muted-foreground" />
                       </Link>
                     ) : null
@@ -299,11 +299,9 @@ export function FindingDetailSheet({
                 <DetailRow label="Rule ID" value={finding.rule_id} />
                 <DetailRow
                   label="Timestamp"
-                  value={
-                    finding['@timestamp'] ? new Date(finding['@timestamp']).toLocaleString() : null
-                  }
+                  value={finding.timestamp ? new Date(finding.timestamp).toLocaleString() : null}
                 />
-                <DetailRow label="Repository" value={finding.shipsec?.trigger_source} />
+                <DetailRow label="Repository" value={finding.trigger_source} />
               </>
             ) : (
               <>
@@ -340,7 +338,7 @@ export function FindingDetailSheet({
                         to={`/workflows/${workflowId}/runs/${runId}`}
                         className="inline-flex items-center gap-1.5 hover:underline"
                       >
-                        {finding.shipsec?.workflow_name ?? 'View Run'}
+                        {finding.workflow_name ?? 'View Run'}
                         <ExternalLink className="h-3 w-3 text-muted-foreground" />
                       </Link>
                     ) : null
@@ -349,9 +347,7 @@ export function FindingDetailSheet({
                 <DetailRow label="Check" value={finding.check_name} />
                 <DetailRow
                   label="Timestamp"
-                  value={
-                    finding['@timestamp'] ? new Date(finding['@timestamp']).toLocaleString() : null
-                  }
+                  value={finding.timestamp ? new Date(finding.timestamp).toLocaleString() : null}
                 />
               </>
             )}

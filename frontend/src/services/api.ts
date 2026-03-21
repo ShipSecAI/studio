@@ -1402,23 +1402,75 @@ export const api = {
   },
 
   analytics: {
-    query: async <
-      TQuery extends Record<string, JsonValue>,
-      TAggs extends Record<string, JsonValue>,
-      TSort extends Record<string, JsonValue>,
-      TCollapse extends Record<string, JsonValue>,
-    >(body: {
-      query?: TQuery;
+    query: async (body: {
+      filters?: { field: string; op: string; value?: unknown }[];
+      search?: string;
+      aggs?: { name: string; field: string; size?: number }[];
+      sort?: { field: string; direction: 'asc' | 'desc' }[];
+      distinct?: string;
+      countDistinct?: string;
       size?: number;
       from?: number;
-      aggs?: TAggs;
-      sort?: TSort[];
-      collapse?: TCollapse;
       useLatest?: boolean;
-    }) => {
-      const response = await apiClient.queryAnalytics(body);
+    }): Promise<{
+      total: number;
+      results: Record<string, any>[];
+      aggregations?: Record<string, { key: string; count: number }[]>;
+      distinctCount?: number;
+    }> => {
+      const response = await apiClient.queryAnalytics(body as any);
       if (response.error || !response.data) throw new Error('Analytics query failed');
-      return response.data;
+      return response.data as any;
+    },
+
+    timeSeries: async (body: {
+      filters?: { field: string; op: string; value?: unknown }[];
+      interval?: 'day' | 'week' | 'month';
+      days?: number;
+      timezone?: string;
+    }): Promise<{
+      buckets: { date: string; severity: string; count: number }[];
+    }> => {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_V1_URL}/analytics/time-series`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) throw new Error('Time series query failed');
+      return resp.json();
+    },
+
+    lifecycle: async (body: {
+      hash?: string;
+      hashes?: string[];
+    }): Promise<{
+      lifecycles: Record<string, { firstSeen: string; lastSeen: string; occurrences: number }>;
+    }> => {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_V1_URL}/analytics/lifecycle`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) throw new Error('Lifecycle query failed');
+      return resp.json();
+    },
+
+    scannerSeverityCounts: async (body: {
+      filters?: { field: string; op: string; value?: unknown }[];
+      useLatest?: boolean;
+    }): Promise<{
+      buckets: { scanner: string; severity: string; count: number }[];
+    }> => {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_V1_URL}/analytics/scanner-severity-counts`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) throw new Error('Scanner severity counts query failed');
+      return resp.json();
     },
 
     prowlerChecksMetadata: async (): Promise<Record<string, ProwlerCheckMetadata>> => {

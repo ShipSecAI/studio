@@ -1,4 +1,4 @@
-import { Client } from '@opensearch-project/opensearch';
+import { createClient } from '@clickhouse/client';
 import { Pool } from 'pg';
 import { randomUUID } from 'crypto';
 import { config } from 'dotenv';
@@ -9,7 +9,6 @@ config();
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const ORG_ID = process.env.SEED_ORG_ID || 'stress-test';
-const INDEX_PREFIX = `security-findings-${ORG_ID}`;
 
 interface TierConfig {
   findings: number;
@@ -58,10 +57,6 @@ function recentWeightedDate(daysBack: number): Date {
 
 function shortUUID(): string {
   return randomUUID().split('-')[0];
-}
-
-function formatDateIndex(d: Date): string {
-  return `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
 // ─── Scanner Definitions ─────────────────────────────────────────────────────
@@ -753,43 +748,65 @@ function generateResourceTags(): Record<string, string> {
   return tags;
 }
 
+interface FindingRow {
+  organization_id: string;
+  run_id: string;
+  workflow_id: string;
+  workflow_name: string;
+  component_id: string;
+  node_ref: string;
+  scanner: string;
+  finding_hash: string;
+  severity: string;
+  status: string;
+  title: string;
+  description: string;
+  asset_key: string;
+  region: string;
+  account_id: string;
+  service_name: string;
+  check_name: string;
+  compliance: string;
+  resource_tags: string;
+  finding_types: string;
+  remediation_text: string;
+  recommendation_url: string;
+  timestamp: string;
+}
+
 function generateFinding(
   scanner: string,
   wfRef: WorkflowRef,
   findingHash: string,
   timestamp: Date,
-): Record<string, unknown> {
+): FindingRow {
   const severity = pickWeighted(SEVERITY_DIST);
   const status = pickWeighted(STATUS_DIST);
 
-  // Base document — all scanners share this
-  const doc: Record<string, unknown> = {
+  const row: FindingRow = {
+    organization_id: ORG_ID,
+    run_id: wfRef.run_id,
+    workflow_id: wfRef.workflow_id,
+    workflow_name: wfRef.workflow_name,
+    component_id: `security.${scanner}`,
+    node_ref: `node_${shortUUID()}`,
     scanner,
     finding_hash: findingHash,
     severity,
     status,
-    title: null,
-    description: null,
-    asset_key: null,
-    region: null,
-    account_id: null,
-    service_name: null,
-    check_name: null,
-    compliance: null,
-    resource_tags: null,
-    finding_types: null,
-    remediationText: null,
-    recommendationUrl: null,
-    shipsec: {
-      organization_id: ORG_ID,
-      workflow_id: wfRef.workflow_id,
-      workflow_name: wfRef.workflow_name,
-      run_id: wfRef.run_id,
-      component_id: `security.${scanner}`,
-      node_ref: `node_${shortUUID()}`,
-      asset_key: null, // set per-scanner below
-    },
-    '@timestamp': timestamp.toISOString(),
+    title: '',
+    description: '',
+    asset_key: '',
+    region: '',
+    account_id: '',
+    service_name: '',
+    check_name: '',
+    compliance: '',
+    resource_tags: '',
+    finding_types: '',
+    remediation_text: '',
+    recommendation_url: '',
+    timestamp: timestamp.toISOString().replace('T', ' ').replace('Z', ''),
   };
 
   switch (scanner) {
@@ -803,35 +820,32 @@ function generateFinding(
         const checks = PROWLER_CHECKS[service] ?? PROWLER_CHECKS['iam'];
         const checkDef = pick(checks);
 
-        doc.region = region;
-        doc.account_id = account.id;
-        doc.service_name = service;
-        doc.check_name = checkDef.check;
-        doc.title = checkDef.title;
-        doc.description = `[${account.name}/${region}] ${checkDef.title}`;
-        doc.compliance = pickN(COMPLIANCE_FRAMEWORKS, randInt(1, 3));
-        doc.resource_tags = generateResourceTags();
-        doc.finding_types = pickN(FINDING_TYPES, randInt(1, 2));
-        doc.remediationText = checkDef.remediation;
-        doc.recommendationUrl = `https://docs.aws.amazon.com/securityhub/latest/userguide/${service}-checks.html`;
-        doc.asset_key = `arn:aws:${service}:${region}:${account.id}:${shortUUID()}`;
-        (doc.shipsec as Record<string, unknown>).asset_key = doc.asset_key;
+        row.region = region;
+        row.account_id = account.id;
+        row.service_name = service;
+        row.check_name = checkDef.check;
+        row.title = checkDef.title;
+        row.description = `[${account.name}/${region}] ${checkDef.title}`;
+        row.compliance = pickN(COMPLIANCE_FRAMEWORKS, randInt(1, 3)).join(',');
+        row.resource_tags = JSON.stringify(generateResourceTags());
+        row.finding_types = pickN(FINDING_TYPES, randInt(1, 2)).join(',');
+        row.remediation_text = checkDef.remediation;
+        row.recommendation_url = `https://docs.aws.amazon.com/securityhub/latest/userguide/${service}-checks.html`;
+        row.asset_key = `arn:aws:${service}:${region}:${account.id}:${shortUUID()}`;
       } else {
-        // supabase-scanner
         const checkDef = pick(SUPABASE_CHECKS);
-        doc.region = region;
-        doc.account_id = account.id;
-        doc.service_name = checkDef.service;
-        doc.check_name = checkDef.check;
-        doc.title = checkDef.title;
-        doc.description = checkDef.description;
-        doc.compliance = pickN(COMPLIANCE_FRAMEWORKS, randInt(1, 2));
-        doc.resource_tags = generateResourceTags();
-        doc.finding_types = ['Software and Configuration Checks'];
-        doc.remediationText = checkDef.description; // supabase descriptions are actionable
-        doc.recommendationUrl = 'https://supabase.com/docs/guides/platform/going-into-production';
-        doc.asset_key = `supabase://${checkDef.service}/${shortUUID()}`;
-        (doc.shipsec as Record<string, unknown>).asset_key = doc.asset_key;
+        row.region = region;
+        row.account_id = account.id;
+        row.service_name = checkDef.service;
+        row.check_name = checkDef.check;
+        row.title = checkDef.title;
+        row.description = checkDef.description;
+        row.compliance = pickN(COMPLIANCE_FRAMEWORKS, randInt(1, 2)).join(',');
+        row.resource_tags = JSON.stringify(generateResourceTags());
+        row.finding_types = 'Software and Configuration Checks';
+        row.remediation_text = checkDef.description;
+        row.recommendation_url = 'https://supabase.com/docs/guides/platform/going-into-production';
+        row.asset_key = `supabase://${checkDef.service}/${shortUUID()}`;
       }
       break;
     }
@@ -839,39 +853,36 @@ function generateFinding(
     case 'opengrep': {
       const rule = pick(OPENGREP_RULES);
       const file = pick(CODE_FILES);
-      doc.title = rule.title;
-      doc.description = rule.description;
-      doc.asset_key = file;
-      doc.check_name = rule.rule;
-      doc.remediationText = `Fix the issue in ${file} by following the rule guidance.`;
-      doc.recommendationUrl = `https://semgrep.dev/r/${rule.rule}`;
-      (doc.shipsec as Record<string, unknown>).asset_key = file;
+      row.title = rule.title;
+      row.description = rule.description;
+      row.asset_key = file;
+      row.check_name = rule.rule;
+      row.remediation_text = `Fix the issue in ${file} by following the rule guidance.`;
+      row.recommendation_url = `https://semgrep.dev/r/${rule.rule}`;
       break;
     }
 
     case 'trufflehog': {
       const secret = pick(TRUFFLEHOG_SECRETS);
       const file = pick(CODE_FILES);
-      doc.title = secret.title;
-      doc.description = secret.description;
-      doc.asset_key = file;
-      doc.check_name = `trufflehog.${secret.type.toLowerCase()}`;
-      doc.remediationText = `Rotate the exposed ${secret.type} credential and remove it from source control.`;
-      doc.recommendationUrl = 'https://trufflesecurity.com/docs/remediation';
-      (doc.shipsec as Record<string, unknown>).asset_key = file;
+      row.title = secret.title;
+      row.description = secret.description;
+      row.asset_key = file;
+      row.check_name = `trufflehog.${secret.type.toLowerCase()}`;
+      row.remediation_text = `Rotate the exposed ${secret.type} credential and remove it from source control.`;
+      row.recommendation_url = 'https://trufflesecurity.com/docs/remediation';
       break;
     }
 
     case 'dependency':
     case 'trivy': {
       const dep = pick(DEPENDENCY_PACKAGES);
-      doc.title = `${dep.cve}: ${dep.title}`;
-      doc.description = dep.description;
-      doc.asset_key = `${dep.name}@${dep.version}`;
-      doc.check_name = dep.cve;
-      doc.remediationText = `Upgrade ${dep.name} from ${dep.version} to ${dep.fixedVersion} or later.`;
-      doc.recommendationUrl = `https://nvd.nist.gov/vuln/detail/${dep.cve}`;
-      (doc.shipsec as Record<string, unknown>).asset_key = doc.asset_key;
+      row.title = `${dep.cve}: ${dep.title}`;
+      row.description = dep.description;
+      row.asset_key = `${dep.name}@${dep.version}`;
+      row.check_name = dep.cve;
+      row.remediation_text = `Upgrade ${dep.name} from ${dep.version} to ${dep.fixedVersion} or later.`;
+      row.recommendation_url = `https://nvd.nist.gov/vuln/detail/${dep.cve}`;
       break;
     }
 
@@ -879,59 +890,47 @@ function generateFinding(
     case 'grype': {
       const image = pick(CONTAINER_IMAGES);
       const vuln = pick(CONTAINER_VULNS);
-      doc.title = `${vuln.cve}: ${vuln.title}`;
-      doc.description = `${vuln.title} (${vuln.pkg} ${vuln.version} in ${image})`;
-      doc.asset_key = image;
-      doc.check_name = vuln.cve;
-      doc.remediationText = `Update ${vuln.pkg} from ${vuln.version} to ${vuln.fixedVersion} in image ${image}.`;
-      doc.recommendationUrl = `https://nvd.nist.gov/vuln/detail/${vuln.cve}`;
-      (doc.shipsec as Record<string, unknown>).asset_key = `${image}:${vuln.pkg}`;
+      row.title = `${vuln.cve}: ${vuln.title}`;
+      row.description = `${vuln.title} (${vuln.pkg} ${vuln.version} in ${image})`;
+      row.asset_key = image;
+      row.check_name = vuln.cve;
+      row.remediation_text = `Update ${vuln.pkg} from ${vuln.version} to ${vuln.fixedVersion} in image ${image}.`;
+      row.recommendation_url = `https://nvd.nist.gov/vuln/detail/${vuln.cve}`;
       break;
     }
 
     case 'nuclei': {
       const target = pick(NUCLEI_TARGETS);
       const template = pick(NUCLEI_TEMPLATES);
-      doc.title = template.title;
-      doc.description = template.description;
-      doc.asset_key = target;
-      doc.check_name = template.templateId;
-      doc.finding_types = template.tags;
-      doc.remediationText = template.description;
-      doc.recommendationUrl = `https://github.com/projectdiscovery/nuclei-templates/blob/main/${template.templateId}.yaml`;
-      (doc.shipsec as Record<string, unknown>).asset_key = target;
+      row.title = template.title;
+      row.description = template.description;
+      row.asset_key = target;
+      row.check_name = template.templateId;
+      row.finding_types = template.tags.join(',');
+      row.remediation_text = template.description;
+      row.recommendation_url = `https://github.com/projectdiscovery/nuclei-templates/blob/main/${template.templateId}.yaml`;
       break;
     }
   }
 
-  return doc;
+  return row;
 }
 
-// ─── OpenSearch Bulk Indexing ─────────────────────────────────────────────────
+// ─── ClickHouse Bulk Insertion ────────────────────────────────────────────────
 
-async function bulkIndex(
-  osClient: Client,
-  docs: { index: string; body: Record<string, unknown> }[],
+async function bulkInsert(
+  chClient: ReturnType<typeof createClient>,
+  rows: FindingRow[],
 ): Promise<number> {
-  if (docs.length === 0) return 0;
+  if (rows.length === 0) return 0;
 
-  const bulkBody: any[] = [];
-  for (const doc of docs) {
-    bulkBody.push({ index: { _index: doc.index } });
-    bulkBody.push(doc.body);
-  }
+  await chClient.insert({
+    table: 'security_findings',
+    values: rows,
+    format: 'JSONEachRow',
+  });
 
-  const response = await osClient.bulk({ body: bulkBody });
-
-  if (response.body.errors) {
-    const errors = response.body.items.filter((item: any) => item.index?.error).slice(0, 3); // show first 3 errors
-    console.error(`  Bulk index errors (showing ${errors.length}):`);
-    for (const err of errors) {
-      console.error(`    ${err.index.error.type}: ${err.index.error.reason}`);
-    }
-  }
-
-  return docs.length - (response.body.items?.filter((i: any) => i.index?.error)?.length ?? 0);
+  return rows.length;
 }
 
 // ─── Main Logic ──────────────────────────────────────────────────────────────
@@ -939,7 +938,6 @@ async function bulkIndex(
 async function loadWorkflowRefs(pgPool: Pool): Promise<WorkflowRef[]> {
   const client = await pgPool.connect();
   try {
-    // Get workflows and their runs from the parent seed
     const result = await client.query(
       `SELECT w.id AS workflow_id, w.name AS workflow_name, r.run_id
        FROM workflows w
@@ -964,42 +962,23 @@ async function loadWorkflowRefs(pgPool: Pool): Promise<WorkflowRef[]> {
   }
 }
 
-async function cleanupIndices(osClient: Client): Promise<void> {
-  console.log(`\nCleaning up indices matching ${INDEX_PREFIX}-*`);
-  try {
-    const indices = await osClient.cat.indices({
-      index: `${INDEX_PREFIX}-*`,
-      format: 'json',
-    });
-
-    const indexNames = (indices.body as any[]).map((i) => i.index).filter(Boolean);
-
-    if (indexNames.length === 0) {
-      console.log('  No matching indices found.');
-      return;
-    }
-
-    console.log(`  Found ${indexNames.length} indices to delete`);
-    await osClient.indices.delete({ index: indexNames.join(',') });
-    console.log('  Deleted successfully.');
-  } catch (err: any) {
-    if (err?.meta?.statusCode === 404) {
-      console.log('  No matching indices found.');
-    } else {
-      throw err;
-    }
-  }
+async function cleanupFindings(chClient: ReturnType<typeof createClient>): Promise<void> {
+  console.log(`\nDeleting existing findings for organization '${ORG_ID}'...`);
+  await chClient.command({
+    query: `ALTER TABLE security_findings DELETE WHERE organization_id = {orgId:String}`,
+    query_params: { orgId: ORG_ID },
+  });
+  console.log('  Deleted successfully.');
 }
 
 async function seedFindings(
-  osClient: Client,
+  chClient: ReturnType<typeof createClient>,
   wfRefs: WorkflowRef[],
   totalFindings: number,
 ): Promise<void> {
   const BATCH_SIZE = 500;
 
   // Generate unique finding hashes — roughly 1/3 of total count
-  // Each hash will appear across 1-5 runs to simulate lifecycle
   const uniqueHashCount = Math.max(50, Math.ceil(totalFindings / 3));
   const findingHashes: string[] = [];
   for (let i = 0; i < uniqueHashCount; i++) {
@@ -1007,35 +986,34 @@ async function seedFindings(
   }
 
   let totalIndexed = 0;
-  let batch: { index: string; body: Record<string, unknown> }[] = [];
+  let batch: FindingRow[] = [];
 
   for (let i = 0; i < totalFindings; i++) {
     const scanner = pickWeighted(SCANNER_DIST);
     const wfRef = pick(wfRefs);
     const hash = pick(findingHashes);
     const timestamp = recentWeightedDate(90);
-    const dateIndex = `${INDEX_PREFIX}-${formatDateIndex(timestamp)}`;
 
-    const doc = generateFinding(scanner, wfRef, hash, timestamp);
-    batch.push({ index: dateIndex, body: doc });
+    const row = generateFinding(scanner, wfRef, hash, timestamp);
+    batch.push(row);
 
     if (batch.length >= BATCH_SIZE) {
-      const indexed = await bulkIndex(osClient, batch);
-      totalIndexed += indexed;
+      const inserted = await bulkInsert(chClient, batch);
+      totalIndexed += inserted;
       batch = [];
 
       if (totalIndexed % 2000 === 0 || totalIndexed === BATCH_SIZE) {
-        console.log(`  ... indexed ${totalIndexed}/${totalFindings} findings`);
+        console.log(`  ... inserted ${totalIndexed}/${totalFindings} findings`);
       }
     }
   }
 
   // Flush remaining
   if (batch.length > 0) {
-    totalIndexed += await bulkIndex(osClient, batch);
+    totalIndexed += await bulkInsert(chClient, batch);
   }
 
-  console.log(`  Indexed ${totalIndexed}/${totalFindings} findings total`);
+  console.log(`  Inserted ${totalIndexed}/${totalFindings} findings total`);
 }
 
 // ─── CLI & Main ──────────────────────────────────────────────────────────────
@@ -1066,46 +1044,42 @@ function parseArgs(): { tier: string; clean: boolean } {
 async function main() {
   const { tier, clean } = parseArgs();
 
-  // ── OpenSearch connection (required) ──
-  const osUrl = process.env.OPENSEARCH_URL;
-  if (!osUrl) {
-    console.error('❌ OPENSEARCH_URL environment variable is required');
-    console.error('   Example: OPENSEARCH_URL=https://localhost:9200');
+  // ── ClickHouse connection (required) ──
+  const chUrl = process.env.CLICKHOUSE_URL;
+  if (!chUrl) {
+    console.error('❌ CLICKHOUSE_URL environment variable is required');
+    console.error('   Example: CLICKHOUSE_URL=http://localhost:8123');
     process.exit(1);
   }
 
-  const osUsername = process.env.OPENSEARCH_USERNAME;
-  const osPassword = process.env.OPENSEARCH_PASSWORD;
-
-  const osClient = new Client({
-    node: osUrl,
-    auth: osUsername && osPassword ? { username: osUsername, password: osPassword } : undefined,
-    ssl: {
-      rejectUnauthorized: process.env.NODE_ENV === 'production',
-    },
+  const chClient = createClient({
+    url: chUrl,
+    username: process.env.CLICKHOUSE_USER ?? 'default',
+    password: process.env.CLICKHOUSE_PASSWORD ?? '',
   });
 
-  // Test OpenSearch connection
+  // Test ClickHouse connection
   try {
-    const health = await osClient.cluster.health();
-    console.log(`✅ Connected to OpenSearch (status: ${health.body.status})`);
+    await chClient.ping();
+    console.log('✅ Connected to ClickHouse');
   } catch (err) {
-    console.error('❌ Failed to connect to OpenSearch:', err);
+    console.error('❌ Failed to connect to ClickHouse:', err);
     process.exit(1);
   }
 
   // ── Cleanup mode ──
   if (clean) {
-    await cleanupIndices(osClient);
+    await cleanupFindings(chClient);
     console.log('\nCleanup complete.');
+    await chClient.close();
     return;
   }
 
   // ── Seed mode ──
-  const config = TIERS[tier];
+  const tierConfig = TIERS[tier];
 
   console.log(`\nSecurity Findings Seed - Tier: ${tier.toUpperCase()}`);
-  console.log(`Target: ${config.findings} findings`);
+  console.log(`Target: ${tierConfig.findings} findings`);
   console.log('='.repeat(50));
 
   // ── Postgres connection (to read parent seed data) ──
@@ -1127,30 +1101,22 @@ async function main() {
     console.log(`  Found ${wfRefs.length} workflow/run references`);
 
     // Clean existing findings before re-seeding
-    await cleanupIndices(osClient);
+    await cleanupFindings(chClient);
 
     const startTime = Date.now();
 
-    console.log(`\nSeeding ${config.findings} security findings...`);
-    await seedFindings(osClient, wfRefs, config.findings);
-
-    // Refresh indices so data is immediately searchable
-    try {
-      await osClient.indices.refresh({ index: `${INDEX_PREFIX}-*` });
-      console.log('  Indices refreshed.');
-    } catch {
-      // Non-fatal — indices will refresh on their own
-    }
+    console.log(`\nSeeding ${tierConfig.findings} security findings...`);
+    await seedFindings(chClient, wfRefs, tierConfig.findings);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
     console.log('\n' + '='.repeat(50));
     console.log(`Seed complete in ${elapsed}s`);
     console.log(`Tier: ${tier} | Organization: ${ORG_ID}`);
-    console.log(`Index pattern: ${INDEX_PREFIX}-*`);
     console.log('Run --clean to remove all seeded findings.');
   } finally {
     await pgPool.end();
+    await chClient.close();
   }
 }
 

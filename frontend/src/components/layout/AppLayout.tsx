@@ -458,14 +458,14 @@ export function AppLayout({ children }: AppLayoutProps) {
         { name: 'Webhooks', href: '/webhooks', icon: Webhook, requiredFlag: 'WEBHOOKS' },
       ],
     },
-    ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
+    ...(env.VITE_ANALYTICS_URL
       ? [
           {
             label: undefined,
             items: [
               {
                 name: 'Dashboards',
-                href: env.VITE_OPENSEARCH_DASHBOARDS_URL,
+                href: env.VITE_ANALYTICS_URL,
                 icon: BarChart3,
                 external: true,
               },
@@ -514,7 +514,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           },
         ]
       : []),
-    ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
+    ...(env.VITE_ANALYTICS_URL
       ? [
           {
             name: 'Analytics Settings',

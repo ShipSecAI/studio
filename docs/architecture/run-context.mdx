@@ -51,16 +51,16 @@ without manual wiring.
                                                ┌────────▼─────────┐
                                                │  analytics-sink  │
                                                │  (indexes to     │
-                                               │   OpenSearch)    │
+                                               │   ClickHouse)    │
                                                └──────────────────┘
 ```
 
-## OpenSearch Namespace
+## ClickHouse Field Mapping
 
 The analytics sink maps run context keys to the `shipsec` namespace in indexed
 documents:
 
-| Run Context Key | OpenSearch Field |
+| Run Context Key | ClickHouse Field |
 |----------------|-----------------|
 | `repository` | `shipsec.repository` |
 | `branch` | `shipsec.branch` |
@@ -71,7 +71,7 @@ documents:
 
 Additionally, trigger metadata is indexed:
 
-| Source | OpenSearch Field |
+| Source | ClickHouse Field |
 |--------|-----------------|
 | `triggerType` (from backend) | `shipsec.trigger_type` |
 | `triggerSource` (from backend) | `shipsec.trigger_source` |
@@ -110,7 +110,7 @@ The SDK enforces three levels of protection:
 2. **Workflow level** (merge logic): Defense-in-depth re-check of allowlist,
    type, length, and entry limits.
 3. **Indexer level** (`SCAN_CONTEXT_TO_SHIPSEC`): Only allowlisted keys are
-   mapped to OpenSearch fields.
+   mapped to ClickHouse fields.
 
 ## Design Decisions
 
@@ -156,5 +156,5 @@ To add a new allowed key:
 2. Mirror the key in the inline `RUN_CONTEXT_ALLOWED_KEYS` in
    `worker/src/temporal/workflows/index.ts` (Temporal sandbox constraint).
 3. Add the mapping in `SCAN_CONTEXT_TO_SHIPSEC` in
-   `worker/src/utils/opensearch-indexer.ts` if it should be indexed.
+   `worker/src/utils/clickhouse-indexer.ts` if it should be indexed.
 4. Call `context.contributeRunContext(key, value)` in the contributing component.

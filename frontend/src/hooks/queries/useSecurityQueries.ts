@@ -19,23 +19,6 @@ import {
   type SeverityCounts,
 } from '@/lib/securityQueryHelpers';
 
-interface AnalyticsBucketNode {
-  key?: string;
-  key_as_string?: string;
-  doc_count?: number;
-  value?: number;
-  value_as_string?: string;
-  buckets?: AnalyticsBucketNode[];
-  by_severity?: AnalyticsBucketNode;
-  first_seen?: AnalyticsBucketNode;
-  last_seen?: AnalyticsBucketNode;
-  unique_findings?: AnalyticsBucketNode;
-}
-
-function getAggregationBuckets(aggregation?: AnalyticsBucketNode): AnalyticsBucketNode[] {
-  return aggregation?.buckets ?? [];
-}
-
 // ── Findings + Summary (combined query) ─────────────────────────────
 
 export function useSecurityFindings(
@@ -45,31 +28,33 @@ export function useSecurityFindings(
   return useQuery({
     queryKey: queryKeys.security.findings(filters, viewFilter),
     queryFn: async (): Promise<SecurityFindingsResult> => {
+      const { filters: queryFilters, search } = buildBaseFilter(filters, viewFilter);
       const result = await api.analytics.query({
-        query: buildBaseFilter(filters, viewFilter),
+        filters: queryFilters,
+        search,
         size: PAGE_SIZE,
         from: (filters.page - 1) * PAGE_SIZE,
         sort: buildSort(filters),
         useLatest: true,
-        aggs: {
-          severity_counts: { terms: { field: 'severity' } },
-          accounts: { terms: { field: 'account_id', size: 50 } },
-          regions: { terms: { field: 'region', size: 50 } },
-          services: { terms: { field: 'service_name', size: 100 } },
-          compliance_frameworks: { terms: { field: 'compliance.keyword', size: 50 } },
-          check_names: { terms: { field: 'check_name', size: 200 } },
-          status_counts: { terms: { field: 'status' } },
-          scanners: { terms: { field: 'scanner', size: 50 } },
-          repositories: { terms: { field: 'shipsec.trigger_source', size: 100 } },
-          rule_ids: { terms: { field: 'rule_id.keyword', size: 200 } },
-          files: { terms: { field: 'file.keyword', size: 200 } },
-        },
+        aggs: [
+          { name: 'severity_counts', field: 'severity' },
+          { name: 'accounts', field: 'account_id', size: 50 },
+          { name: 'regions', field: 'region', size: 50 },
+          { name: 'services', field: 'service_name', size: 100 },
+          { name: 'compliance_frameworks', field: 'compliance', size: 50 },
+          { name: 'check_names', field: 'check_name', size: 200 },
+          { name: 'status_counts', field: 'status' },
+          { name: 'scanners', field: 'scanner', size: 50 },
+          { name: 'repositories', field: 'trigger_source', size: 100 },
+          { name: 'rule_ids', field: 'rule_id', size: 200 },
+          { name: 'files', field: 'file', size: 200 },
+        ],
       });
 
-      const findings = result.hits.map(parseFinding);
-      const aggregations = result.aggregations as Record<string, AnalyticsBucketNode> | undefined;
+      const findings = result.results.map(parseFinding);
+      const aggregations = result.aggregations;
       const severityCounts = parseSeverityCounts(
-        getAggregationBuckets(aggregations?.severity_counts) as AggBucket[],
+        (aggregations?.severity_counts ?? []) as AggBucket[],
       );
 
       return {
@@ -77,18 +62,16 @@ export function useSecurityFindings(
         total: result.total,
         summary: {
           severityCounts,
-          accounts: getAggregationBuckets(aggregations?.accounts) as AggBucket[],
-          regions: getAggregationBuckets(aggregations?.regions) as AggBucket[],
-          services: getAggregationBuckets(aggregations?.services) as AggBucket[],
-          complianceFrameworks: getAggregationBuckets(
-            aggregations?.compliance_frameworks,
-          ) as AggBucket[],
-          checkNames: getAggregationBuckets(aggregations?.check_names) as AggBucket[],
-          statusCounts: getAggregationBuckets(aggregations?.status_counts) as AggBucket[],
-          scanners: getAggregationBuckets(aggregations?.scanners) as AggBucket[],
-          repositories: getAggregationBuckets(aggregations?.repositories) as AggBucket[],
-          ruleIds: getAggregationBuckets(aggregations?.rule_ids) as AggBucket[],
-          files: getAggregationBuckets(aggregations?.files) as AggBucket[],
+          accounts: (aggregations?.accounts ?? []) as AggBucket[],
+          regions: (aggregations?.regions ?? []) as AggBucket[],
+          services: (aggregations?.services ?? []) as AggBucket[],
+          complianceFrameworks: (aggregations?.compliance_frameworks ?? []) as AggBucket[],
+          checkNames: (aggregations?.check_names ?? []) as AggBucket[],
+          statusCounts: (aggregations?.status_counts ?? []) as AggBucket[],
+          scanners: (aggregations?.scanners ?? []) as AggBucket[],
+          repositories: (aggregations?.repositories ?? []) as AggBucket[],
+          ruleIds: (aggregations?.rule_ids ?? []) as AggBucket[],
+          files: (aggregations?.files ?? []) as AggBucket[],
         },
       };
     },
@@ -109,53 +92,33 @@ export function useSecurityTimeSeries(
   return useQuery({
     queryKey: queryKeys.security.timeSeries(filters, viewFilter, interval, days),
     queryFn: async (): Promise<TimeSeriesBucket[]> => {
-      const now = new Date();
-      const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      const { filters: queryFilters } = buildBaseFilter(filters, viewFilter);
 
-      const result = await api.analytics.query({
-        query: buildBaseFilter(filters, viewFilter),
-        size: 0,
-        aggs: {
-          over_time: {
-            date_histogram: {
-              field: '@timestamp',
-              ...(['minute', 'hour', 'day', 'week', 'month', 'quarter', 'year'].includes(interval)
-                ? { calendar_interval: interval }
-                : { fixed_interval: interval }),
-              time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-              min_doc_count: 0,
-              extended_bounds: {
-                min: cutoff.getTime(),
-                max: now.getTime(),
-              },
-            },
-            aggs: {
-              by_severity: {
-                terms: { field: 'severity' },
-                aggs: {
-                  unique_findings: { cardinality: { field: 'finding_hash' } },
-                },
-              },
-            },
-          },
-        },
+      const result = await api.analytics.timeSeries({
+        filters: queryFilters,
+        interval: interval as 'day' | 'week' | 'month',
+        days,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
-      const aggregations = result.aggregations as Record<string, AnalyticsBucketNode> | undefined;
-      const buckets = getAggregationBuckets(aggregations?.over_time);
-      return buckets.map((bucket) => {
-        const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
-        for (const sev of getAggregationBuckets(bucket.by_severity)) {
-          const key = sev.key?.toLowerCase();
-          if (key && key in counts) {
-            counts[key] = sev.unique_findings?.value ?? sev.doc_count ?? 0;
-          }
+      // Pivot { date, severity, count }[] into TimeSeriesBucket[]
+      const dateMap: Record<string, Record<string, number>> = {};
+      for (const b of result.buckets) {
+        if (!dateMap[b.date]) {
+          dateMap[b.date] = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
         }
-        return {
-          date: bucket.key_as_string ?? new Date(bucket.key ?? Date.now()).toISOString(),
+        const key = b.severity.toLowerCase();
+        if (key in dateMap[b.date]) {
+          dateMap[b.date][key] = b.count;
+        }
+      }
+
+      return Object.entries(dateMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, counts]) => ({
+          date,
           ...counts,
-        };
-      }) as TimeSeriesBucket[];
+        })) as TimeSeriesBucket[];
     },
     staleTime: 30_000,
     refetchInterval: 20_000,
@@ -172,42 +135,32 @@ export function useSecurityTimeSeriesForHeatmap(days = 90) {
       const from = new Date(Date.now() - days * 86_400_000).toISOString();
       const filters: SecurityDashboardFilters = { ...INITIAL_FILTERS, from, to };
 
-      const result = await api.analytics.query({
-        query: buildBaseFilter(filters, {}),
-        size: 0,
-        aggs: {
-          over_time: {
-            date_histogram: {
-              field: '@timestamp',
-              calendar_interval: 'day',
-              time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-              min_doc_count: 0,
-            },
-            aggs: {
-              by_severity: {
-                terms: { field: 'severity' },
-                aggs: {
-                  unique_findings: { cardinality: { field: 'finding_hash' } },
-                },
-              },
-            },
-          },
-        },
+      const { filters: queryFilters } = buildBaseFilter(filters, {});
+
+      const result = await api.analytics.timeSeries({
+        filters: queryFilters,
+        interval: 'day',
+        days,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
-      const aggregations = result.aggregations as Record<string, AnalyticsBucketNode> | undefined;
-      const buckets = getAggregationBuckets(aggregations?.over_time);
-      return buckets.map((bucket) => {
-        const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
-        for (const sev of getAggregationBuckets(bucket.by_severity)) {
-          const key = sev.key?.toLowerCase();
-          if (key && key in counts) counts[key] = sev.unique_findings?.value ?? sev.doc_count ?? 0;
+      const dateMap: Record<string, Record<string, number>> = {};
+      for (const b of result.buckets) {
+        if (!dateMap[b.date]) {
+          dateMap[b.date] = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
         }
-        return {
-          date: bucket.key_as_string ?? new Date(bucket.key ?? Date.now()).toISOString(),
+        const key = b.severity.toLowerCase();
+        if (key in dateMap[b.date]) {
+          dateMap[b.date][key] = b.count;
+        }
+      }
+
+      return Object.entries(dateMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, counts]) => ({
+          date,
           ...counts,
-        };
-      }) as TimeSeriesBucket[];
+        })) as TimeSeriesBucket[];
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -221,12 +174,12 @@ export function useFindingDetail(docId: string | null) {
     queryFn: docId
       ? async (): Promise<SecurityFinding | null> => {
           const result = await api.analytics.query({
-            query: { ids: { values: [docId] } },
+            filters: [{ field: 'finding_hash', op: 'eq', value: docId }],
             size: 1,
             useLatest: true,
           });
-          if (result.hits.length > 0) {
-            return parseFinding(result.hits[0]);
+          if (result.results.length > 0) {
+            return parseFinding(result.results[0]);
           }
           return null;
         }
@@ -242,29 +195,9 @@ export function useFindingLifecycle(hash: string | null) {
     queryKey: queryKeys.security.findingLifecycle(hash ?? ''),
     queryFn: hash
       ? async (): Promise<FindingLifecycle | null> => {
-          const result = await api.analytics.query({
-            query: {
-              bool: {
-                filter: [{ term: { finding_hash: hash } }],
-              },
-            },
-            size: 0,
-            aggs: {
-              first_seen: { min: { field: '@timestamp' } },
-              last_seen: { max: { field: '@timestamp' } },
-            },
-          });
-
-          const aggregations = result.aggregations as
-            | Record<string, AnalyticsBucketNode>
-            | undefined;
-          const firstSeen = aggregations?.first_seen?.value_as_string;
-          const lastSeen = aggregations?.last_seen?.value_as_string;
-          const occurrences = result.total;
-
-          if (firstSeen && lastSeen) {
-            return { firstSeen, lastSeen, occurrences };
-          }
+          const result = await api.analytics.lifecycle({ hash });
+          const lifecycle = result.lifecycles[hash];
+          if (lifecycle) return lifecycle;
           return null;
         }
       : skipToken,
@@ -283,43 +216,8 @@ export function useBatchLifecycles(hashes: string[]) {
     queryFn:
       sortedHashes.length > 0
         ? async (): Promise<Record<string, FindingLifecycle>> => {
-            const result = await api.analytics.query({
-              query: {
-                bool: {
-                  filter: [{ terms: { finding_hash: uniqueHashes } }],
-                },
-              },
-              size: 0,
-              aggs: {
-                by_hash: {
-                  terms: {
-                    field: 'finding_hash',
-                    size: uniqueHashes.length,
-                  },
-                  aggs: {
-                    first_seen: { min: { field: '@timestamp' } },
-                    last_seen: { max: { field: '@timestamp' } },
-                  },
-                },
-              },
-            });
-
-            const lifecycles: Record<string, FindingLifecycle> = {};
-            const aggregations = result.aggregations as
-              | Record<string, AnalyticsBucketNode>
-              | undefined;
-            const buckets = getAggregationBuckets(aggregations?.by_hash);
-            for (const bucket of buckets) {
-              if (!bucket.key) {
-                continue;
-              }
-              lifecycles[bucket.key] = {
-                firstSeen: bucket.first_seen?.value_as_string ?? '',
-                lastSeen: bucket.last_seen?.value_as_string ?? '',
-                occurrences: bucket.doc_count ?? 0,
-              };
-            }
-            return lifecycles;
+            const result = await api.analytics.lifecycle({ hashes: uniqueHashes });
+            return result.lifecycles;
           }
         : skipToken,
     staleTime: 30_000,
@@ -339,32 +237,9 @@ export function useCategoryCounts(scannerToCategory: Record<string, string>, cat
   return useQuery({
     queryKey: queryKeys.security.categoryCounts(),
     queryFn: async (): Promise<Record<string, CategoryCounts>> => {
-      const result = await api.analytics.query({
-        query: {
-          bool: {
-            filter: [
-              {
-                bool: {
-                  should: [
-                    { term: { status: 'FAILED' } },
-                    { bool: { must_not: [{ exists: { field: 'status' } }] } },
-                  ],
-                  minimum_should_match: 1,
-                },
-              },
-            ],
-          },
-        },
-        size: 0,
+      const result = await api.analytics.scannerSeverityCounts({
+        filters: [{ field: 'status', op: 'in', value: ['FAILED', ''] }],
         useLatest: true,
-        aggs: {
-          by_scanner: {
-            terms: { field: 'scanner', size: 20 },
-            aggs: {
-              by_severity: { terms: { field: 'severity' } },
-            },
-          },
-        },
       });
 
       const emptyCounts = { critical: 0, high: 0, medium: 0, low: 0 };
@@ -373,21 +248,16 @@ export function useCategoryCounts(scannerToCategory: Record<string, string>, cat
         counts[cat] = { ...emptyCounts };
       }
 
-      const aggregations = result.aggregations as Record<string, AnalyticsBucketNode> | undefined;
-      const scannerBuckets = getAggregationBuckets(aggregations?.by_scanner);
-      for (const bucket of scannerBuckets) {
-        if (!bucket.key) {
-          continue;
-        }
-        const category = scannerToCategory[bucket.key];
+      for (const bucket of result.buckets) {
+        const category = scannerToCategory[bucket.scanner];
         if (!category || !counts[category]) continue;
-        for (const sev of getAggregationBuckets(bucket.by_severity)) {
-          const key = sev.key?.toLowerCase() as keyof CategoryCounts;
-          if (key in emptyCounts) {
-            counts[category][key] += sev.doc_count ?? 0;
-          }
+
+        const key = bucket.severity.toLowerCase() as keyof CategoryCounts;
+        if (key in emptyCounts) {
+          counts[category][key] += bucket.count;
         }
       }
+
       return counts;
     },
     staleTime: 30_000,
@@ -408,15 +278,13 @@ export function useNewFindingHighlights(currentFindings: SecurityFinding[] | und
       return;
     }
 
-    const currentIds = new Set(currentFindings.map((f) => f._id));
+    const currentIds = new Set(currentFindings.map((f) => f.id));
 
-    // On first load, just set the prev reference
     if (prevIdsRef.current.size === 0) {
       prevIdsRef.current = currentIds;
       return;
     }
 
-    // Find IDs that are new since last poll
     const newIds = new Set<string>();
     for (const id of currentIds) {
       if (!prevIdsRef.current.has(id)) {

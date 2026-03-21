@@ -107,13 +107,13 @@ For first-time environment setup (which variables to fill in), see the [Developm
 
 These variables appear in both `backend/.env` and `worker/.env` and **must have identical values** — they share the same database, encryption keys, and infrastructure:
 
-| Variable                           | Why it must match                                  |
-| ---------------------------------- | -------------------------------------------------- |
-| `SECRET_STORE_MASTER_KEY`          | Same encryption key for secrets in shared Postgres |
-| `DATABASE_URL`                     | Same database (PM2 overrides per-instance DB name) |
-| `LOG_KAFKA_BROKERS`                | Same Kafka cluster                                 |
-| `OPENSEARCH_URL`                   | Same OpenSearch cluster (if enabled)               |
-| `OPENSEARCH_USERNAME` / `PASSWORD` | Same OpenSearch credentials                        |
+| Variable                                  | Why it must match                                  |
+| ----------------------------------------- | -------------------------------------------------- |
+| `SECRET_STORE_MASTER_KEY`                 | Same encryption key for secrets in shared Postgres |
+| `DATABASE_URL`                            | Same database (PM2 overrides per-instance DB name) |
+| `LOG_KAFKA_BROKERS`                       | Same Kafka cluster                                 |
+| `CLICKHOUSE_URL`                          | Same ClickHouse cluster (if enabled)               |
+| `CLICKHOUSE_USER` / `CLICKHOUSE_PASSWORD` | Same ClickHouse credentials                        |
 
 ### Env vars with auto-defaults (safe to omit)
 

@@ -60,16 +60,11 @@ export const backendEnvSchema = z
     // --- Tool Registry Redis ---
     TOOL_REGISTRY_REDIS_URL: z.string().optional(),
 
-    // --- OpenSearch ---
-    OPENSEARCH_URL: z.string().optional(),
-    OPENSEARCH_USERNAME: z.string().optional(),
-    OPENSEARCH_PASSWORD: z.string().optional(),
-    OPENSEARCH_DASHBOARDS_URL: z.string().optional().default(''),
-    OPENSEARCH_SECURITY_ENABLED: stringToBoolean(false),
-    OPENSEARCH_ADMIN_USERNAME: z.string().optional().default('admin'),
-    OPENSEARCH_ADMIN_PASSWORD: z.string().optional().default(''),
-    OPENSEARCH_CA_CERT_PATH: z.string().optional().default(''),
-    OPENSEARCH_SSL_REJECT_UNAUTHORIZED: stringToBoolean(true),
+    // --- ClickHouse ---
+    CLICKHOUSE_URL: z.string().optional(),
+    CLICKHOUSE_DATABASE: z.string().optional().default('shipsec'),
+    CLICKHOUSE_USERNAME: z.string().optional(),
+    CLICKHOUSE_PASSWORD: z.string().optional(),
 
     // --- Loki ---
     LOKI_URL: z.string().optional(),

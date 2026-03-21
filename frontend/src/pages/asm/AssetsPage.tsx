@@ -13,11 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  useAsmAssetsFromOpenSearch,
-  useAsmDomains,
-  type AsmAssetHit,
-} from '@/hooks/queries/useAsmQueries';
+import { useAsmAssets, useAsmDomains, type AsmAssetHit } from '@/hooks/queries/useAsmQueries';
 
 const PAGE_SIZE = 25;
 
@@ -122,7 +118,7 @@ function AssetDetailPanel({ asset, onClose }: { asset: AsmAssetHit; onClose: () 
             )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Last Seen</span>
-              <span>{formatDate(asset['@timestamp'] as string)}</span>
+              <span>{formatDate(asset.timestamp)}</span>
             </div>
           </div>
         </section>
@@ -177,7 +173,7 @@ export function AssetsPage() {
 
   const { data: domains } = useAsmDomains();
 
-  const { data, isLoading } = useAsmAssetsFromOpenSearch({
+  const { data, isLoading } = useAsmAssets({
     scanner: scannerFilter ? [scannerFilter] : undefined,
     search: debouncedSearch || undefined,
     page,
@@ -293,9 +289,9 @@ export function AssetsPage() {
                   <tbody>
                     {hits.map((hit) => (
                       <tr
-                        key={hit._id}
+                        key={hit.id}
                         className={`border-b hover:bg-muted/30 cursor-pointer transition-colors ${
-                          selectedAsset?._id === hit._id ? 'bg-muted/50' : ''
+                          selectedAsset?.id === hit.id ? 'bg-muted/50' : ''
                         }`}
                         onClick={() => setSelectedAsset(hit)}
                       >
@@ -306,7 +302,7 @@ export function AssetsPage() {
                           <div className="flex flex-wrap gap-1">
                             {getScannerLabels(hit).map((scanner) => (
                               <Badge
-                                key={`${hit._id}-${scanner}`}
+                                key={`${hit.id}-${scanner}`}
                                 variant="outline"
                                 className="text-xs"
                               >
@@ -346,7 +342,7 @@ export function AssetsPage() {
                           {hit.webserver ?? '-'}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
-                          {formatDate(hit['@timestamp'] as string)}
+                          {formatDate(hit.timestamp)}
                         </td>
                       </tr>
                     ))}

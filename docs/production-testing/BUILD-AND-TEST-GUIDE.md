@@ -48,7 +48,7 @@ docker compose -f docker/docker-compose.full.yml ps
 # - shipsec-backend (port 3211)
 # - shipsec-frontend (port 3000)
 # - shipsec-worker
-# - postgres, redis, temporal, opensearch, redpanda
+# - postgres, redis, temporal, clickhouse, redpanda
 ```
 
 ### 4. Wait for Backend Warm-up
@@ -267,13 +267,13 @@ Capture these metrics for each API endpoint:
 
 - POST `/api/v1/analytics/query` fails
 - Dashboard widgets stuck in loading state
-- OpenSearch errors in backend logs
+- ClickHouse errors in backend logs
 
 **Fixes**:
 
-1. Seed OpenSearch with sample data
+1. Seed ClickHouse with sample data
 2. Or disable analytics widgets temporarily
-3. Check OpenSearch is running: `docker ps | grep opensearch`
+3. Check ClickHouse is running: `docker ps | grep clickhouse`
 
 ### Issue: Bundle Size Exceeds 100 KB
 

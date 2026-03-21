@@ -77,19 +77,35 @@ export interface StudioMcpDeps {
     query(
       orgId: string,
       options: {
-        query?: Record<string, any>;
+        filters?: { field: string; op: string; value?: any }[];
+        search?: string;
         size?: number;
         from?: number;
-        aggs?: Record<string, any>;
-        sort?: Record<string, any>[];
-        collapse?: Record<string, any>;
+        sort?: { field: string; direction: 'asc' | 'desc' }[];
+        aggs?: { name: string; field: string; size?: number }[];
+        distinct?: string;
+        countDistinct?: string;
         useLatest?: boolean;
       },
     ): Promise<{
       total: number;
-      hits: { _id: string; _source: Record<string, any>; _score?: number }[];
-      aggregations?: Record<string, any>;
+      results: Record<string, any>[];
+      aggregations?: Record<string, { key: string; count: number }[]>;
+      distinctCount?: number;
     }>;
+    timeSeries(
+      orgId: string,
+      options: {
+        filters?: { field: string; op: string; value?: any }[];
+        interval?: 'day' | 'week' | 'month';
+        days?: number;
+        timezone?: string;
+      },
+    ): Promise<{ buckets: { date: string; severity: string; count: number }[] }>;
+    lifecycle(
+      orgId: string,
+      hashes: string[],
+    ): Promise<Record<string, { firstSeen: string; lastSeen: string; occurrences: number }>>;
   };
 }
 

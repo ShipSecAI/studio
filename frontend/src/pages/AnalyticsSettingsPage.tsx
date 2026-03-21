@@ -296,7 +296,7 @@ export function AnalyticsSettingsPage() {
           <p className="text-xs text-muted-foreground leading-relaxed">
             Analytics data is indexed from workflow executions via the Analytics Sink component.
             Includes security findings, scan results, and other workflow outputs. Query via the API
-            or view in OpenSearch Dashboards.
+            or query via ClickHouse.
           </p>
         </div>
 

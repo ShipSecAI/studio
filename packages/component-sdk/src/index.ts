@@ -39,3 +39,6 @@ export * from './zod-coerce';
 
 // Analytics helpers for component authors
 export * from './analytics';
+
+// ClickHouse analytics schema (shared between backend and worker)
+export * from './analytics-schema';

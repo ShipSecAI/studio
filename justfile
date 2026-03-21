@@ -9,8 +9,6 @@ default:
 # === Development (recommended for contributors) ===
 
 # Default dev passwords for convenience (override with env vars for real security)
-export OPENSEARCH_ADMIN_PASSWORD := env_var_or_default("OPENSEARCH_ADMIN_PASSWORD", "admin")
-export OPENSEARCH_DASHBOARDS_PASSWORD := env_var_or_default("OPENSEARCH_DASHBOARDS_PASSWORD", "admin")
 
 # Initialize environment files from examples
 init:
@@ -38,8 +36,8 @@ init:
     echo "   Then run: just dev"
 
 # Start development environment with hot-reload
-# Auto-detects auth mode: if CLERK_SECRET_KEY is set in backend/.env → secure mode (Clerk + OpenSearch Security)
-# Otherwise → local auth mode (faster startup, no multi-tenant isolation)
+# Auto-detects auth mode: if CLERK_SECRET_KEY is set in backend/.env → secure mode (Clerk)
+# Otherwise → local auth mode (faster startup)
 # Supports multi-instance: set SHIPSEC_INSTANCE=N (or .shipsec-instance file) to run on offset ports
 dev action="start":
     #!/usr/bin/env bash
@@ -115,17 +113,18 @@ dev action="start":
                 fi
 
                 # Start infrastructure with security enabled
-                # Note: dev-ports.yml exposes OpenSearch on localhost for backend tenant provisioning
-                echo "🚀  Starting infrastructure with OpenSearch Security..."
+                echo "🚀  Starting infrastructure (secure mode)..."
                 docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-secure.yml -f docker/docker-compose.dev-ports.yml up -d
 
                 # Wait for Postgres to be fully ready (not just accepting connections, but able to execute queries)
                 echo "⏳  Waiting for infrastructure..."
                 timeout 90s bash -c 'until docker exec shipsec-postgres psql -U shipsec -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
+                echo "✅  Postgres ready"
 
-                # Wait for OpenSearch to be healthy (security init takes longer)
-                echo "⏳  Waiting for OpenSearch security initialization..."
-                timeout 120s bash -c 'until docker exec shipsec-opensearch curl -sf -u admin:${OPENSEARCH_ADMIN_PASSWORD:-admin} --cacert /usr/share/opensearch/config/certs/root-ca.pem https://localhost:9200/_cluster/health >/dev/null 2>&1; do sleep 2; done' || true
+                # Wait for ClickHouse to be healthy
+                echo "⏳  Waiting for ClickHouse..."
+                timeout 60s bash -c 'until wget -q --spider http://localhost:8123/ping 2>/dev/null; do sleep 1; done'
+                echo "✅  ClickHouse ready"
 
                 # Instance 0 uses 'shipsec' (auto-created by docker-compose), others use 'shipsec_instance_N'
                 if [ "$INST" = "0" ]; then DB_NAME="shipsec"; else DB_NAME="shipsec_instance_${INST}"; fi
@@ -144,7 +143,7 @@ dev action="start":
 
                 # Update git SHA and start PM2 with security enabled
                 ./scripts/set-git-sha.sh || true
-                SHIPSEC_INSTANCE="$INST" SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=true NODE_TLS_REJECT_UNAUTHORIZED=0 \
+                SHIPSEC_INSTANCE="$INST" SHIPSEC_ENV=development NODE_ENV=development \
                     pm2 startOrReload pm2.config.cjs --only "$PM2_APPS" --update-env
 
                 echo ""
@@ -158,8 +157,6 @@ dev action="start":
                 echo "   Analytics:   http://localhost/analytics (requires login)"
                 echo "   Temporal UI: http://localhost:8081"
                 echo ""
-                echo "🔐  OpenSearch Security: ENABLED (multi-tenant isolation active)"
-                echo "   OpenSearch admin: admin / ${OPENSEARCH_ADMIN_PASSWORD:-admin}"
             else
                 echo "🚀  Starting development environment (local auth, instance ${INST})..."
 
@@ -169,6 +166,12 @@ dev action="start":
                 # Wait for Postgres to be fully ready (not just accepting connections, but able to execute queries)
                 echo "⏳  Waiting for infrastructure..."
                 timeout 90s bash -c 'until docker exec shipsec-postgres psql -U shipsec -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
+                echo "✅  Postgres ready"
+
+                # Wait for ClickHouse to be healthy
+                echo "⏳  Waiting for ClickHouse..."
+                timeout 60s bash -c 'until wget -q --spider http://localhost:8123/ping 2>/dev/null; do sleep 1; done'
+                echo "✅  ClickHouse ready"
 
                 # Instance 0 uses 'shipsec' (auto-created by docker-compose), others use 'shipsec_instance_N'
                 if [ "$INST" = "0" ]; then DB_NAME="shipsec"; else DB_NAME="shipsec_instance_${INST}"; fi
@@ -187,8 +190,7 @@ dev action="start":
 
                 # Update git SHA and start PM2
                 ./scripts/set-git-sha.sh || true
-                SHIPSEC_INSTANCE="$INST" SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=false \
-                    OPENSEARCH_URL=http://localhost:9200 \
+                SHIPSEC_INSTANCE="$INST" SHIPSEC_ENV=development NODE_ENV=development \
                     pm2 startOrReload pm2.config.cjs --only "$PM2_APPS" --update-env
 
                 echo ""
@@ -206,7 +208,7 @@ dev action="start":
                     echo "   (nginx always routes to instance 0)"
                     echo ""
                 fi
-                echo "💡  To enable Clerk auth + OpenSearch Security:"
+                echo "💡  To enable Clerk auth:"
                 echo "   Set CLERK_SECRET_KEY in backend/.env, then restart"
             fi
 
@@ -267,7 +269,7 @@ dev action="start":
 
 # Run production environment in Docker
 # Auto-detects security mode: if TLS certs exist (docker/certs/root-ca.pem) → secure mode with multitenancy
-# Otherwise → standard mode without OpenSearch Security
+# Otherwise → standard mode
 prod action="start":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -298,19 +300,10 @@ prod action="start":
                 echo "🔐  Starting production environment (secure mode)..."
 
                 # Check for required env vars in secure mode
-                if [ -z "${OPENSEARCH_ADMIN_PASSWORD:-}" ] || [ -z "${OPENSEARCH_DASHBOARDS_PASSWORD:-}" ]; then
-                    echo "❌  Required environment variables not set!"
-                    echo ""
-                    echo "   export OPENSEARCH_ADMIN_PASSWORD='your-secure-password'"
-                    echo "   export OPENSEARCH_DASHBOARDS_PASSWORD='your-secure-password'"
-                    exit 1
-                fi
-
-                $COMPOSE_CMD up -d
+                    $COMPOSE_CMD up -d
                 echo ""
                 echo "✅  Production environment ready (secure mode)"
                 echo "   Analytics:   https://localhost/analytics (requires auth)"
-                echo "   OpenSearch:  https://localhost:9200 (TLS enabled)"
                 echo ""
                 echo "💡  See docker/PRODUCTION.md for customer provisioning"
             else
@@ -522,28 +515,7 @@ generate-certs:
     echo "✅  Certificates generated in docker/certs/"
     echo ""
     echo "Next steps:"
-    echo "  1. export OPENSEARCH_ADMIN_PASSWORD='your-secure-password'"
-    echo "  2. export OPENSEARCH_DASHBOARDS_PASSWORD='your-secure-password'"
-    echo "  3. just prod"
-
-# Initialize or reinitialize OpenSearch security index
-security-init *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "🔐  Initializing OpenSearch Security..."
-    chmod +x docker/scripts/security-init.sh
-    docker/scripts/security-init.sh {{args}}
-
-# Generate BCrypt password hash for OpenSearch internal users
-hash-password password="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    chmod +x docker/scripts/hash-password.sh
-    if [ -n "{{password}}" ]; then
-        docker/scripts/hash-password.sh "{{password}}"
-    else
-        docker/scripts/hash-password.sh
-    fi
+    echo "  just prod"
 
 # === Infrastructure Only ===
 
@@ -554,7 +526,7 @@ infra action="up":
     case "{{action}}" in
         up)
             docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml up -d
-            echo "✅  Infrastructure started (Postgres, Temporal, MinIO, Redis)"
+            echo "✅  Infrastructure started (Postgres, Temporal, MinIO, Redis, ClickHouse)"
             echo "   All ports bound to 127.0.0.1 (localhost only)"
             ;;
         down)
@@ -670,11 +642,6 @@ help:
     @echo "  just prod logs     View production logs"
     @echo "  just prod status   Check production status"
     @echo "  just prod clean    Remove all data"
-    @echo ""
-    @echo "Security Management:"
-    @echo "  just security-init      Initialize OpenSearch security index"
-    @echo "  just security-init --force  Reinitialize (update config)"
-    @echo "  just hash-password      Generate BCrypt hash for passwords"
     @echo ""
     @echo "Infrastructure:"
     @echo "  just infra up      Start infrastructure only"

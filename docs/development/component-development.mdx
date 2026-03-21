@@ -505,7 +505,7 @@ async execute({ inputs }, context) {
 
 ## Analytics Output Port (Results)
 
-Security components should include a `results` output port for analytics integration. This port outputs structured findings that can be indexed into OpenSearch via the Analytics Sink.
+Security components should include a `results` output port for analytics integration. This port outputs structured findings that can be indexed into ClickHouse via the Analytics Sink.
 
 ### Schema Requirements
 
@@ -599,12 +599,12 @@ async execute({ inputs, params }, context) {
 
 1. **Component outputs `results`**: Each scanner outputs its findings with `scanner` and `asset_key` fields
 2. **Connect to Analytics Sink**: In the workflow canvas, connect the `results` port to Analytics Sink's `data` input
-3. **Indexed to OpenSearch**: Each item in the array becomes a separate document with:
+3. **Indexed to ClickHouse**: Each item in the array becomes a separate document with:
    - Finding data at root level (nested objects serialized to JSON strings)
    - Workflow context under `shipsec.*` namespace
    - Consistent `@timestamp` for all findings in the batch
 
-### Document Structure in OpenSearch
+### Document Structure in ClickHouse
 
 ```json
 {
@@ -661,7 +661,7 @@ finding_hash: "a1b2c3d4" | sort @timestamp
 ```
 
 <Note>
-  Nested objects in findings are automatically serialized to JSON strings to prevent OpenSearch field explosion (1000 field limit).
+  Nested objects in findings are automatically serialized to JSON strings to prevent field explosion.
 </Note>
 
 ---

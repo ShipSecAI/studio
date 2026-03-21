@@ -43,7 +43,7 @@ export function registerAnalyticsTools(
         ruleId: z
           .string()
           .optional()
-          .describe('Filter by rule/check ID (e.g. Prowler check_id, Nuclei template-id).'),
+          .describe('Filter by rule/check ID prefix (e.g. "php.", "java.lang.security").'),
         workflowId: z.string().optional().describe('Filter findings from a specific workflow.'),
         runId: z.string().optional().describe('Filter findings from a specific workflow run.'),
         fromDate: z
@@ -59,7 +59,7 @@ export function registerAnalyticsTools(
           .optional()
           .default(true)
           .describe(
-            'If true (default), query the deduplicated latest-state index. If false, query the full event log.',
+            'If true (default), query the deduplicated latest-state table. If false, query the full event log.',
           ),
         limit: z
           .number()
@@ -99,77 +99,46 @@ export function registerAnalyticsTools(
       }
 
       try {
-        const filters: any[] = [];
+        const filters: { field: string; op: string; value: any }[] = [];
 
         if (args.severity) {
-          filters.push({ term: { severity: args.severity } });
+          filters.push({ field: 'severity', op: 'eq', value: args.severity });
         }
         if (args.scanner) {
-          filters.push({ term: { scanner: args.scanner } });
+          filters.push({ field: 'scanner', op: 'eq', value: args.scanner });
         }
         if (args.assetKey) {
-          filters.push({ term: { asset_key: args.assetKey } });
+          filters.push({ field: 'asset_key', op: 'eq', value: args.assetKey });
         }
         if (args.ruleId) {
-          filters.push({
-            bool: {
-              should: [
-                { term: { 'rule_id.keyword': args.ruleId } },
-                { term: { check_id: args.ruleId } },
-              ],
-              minimum_should_match: 1,
-            },
-          });
+          filters.push({ field: 'rule_id', op: 'prefix', value: args.ruleId });
         }
         if (args.workflowId) {
-          filters.push({ term: { 'shipsec.workflow_id': args.workflowId } });
+          filters.push({ field: 'workflow_id', op: 'eq', value: args.workflowId });
         }
         if (args.runId) {
-          filters.push({ term: { 'shipsec.run_id': args.runId } });
+          filters.push({ field: 'run_id', op: 'eq', value: args.runId });
         }
-        if (args.fromDate || args.toDate) {
-          const range: any = {};
-          if (args.fromDate) range.gte = args.fromDate;
-          if (args.toDate) range.lte = args.toDate;
-          filters.push({ range: { '@timestamp': range } });
+        if (args.fromDate) {
+          filters.push({ field: 'timestamp', op: 'gte', value: args.fromDate });
         }
-
-        const must: any[] = [];
-        if (args.searchText) {
-          must.push({
-            multi_match: {
-              query: args.searchText,
-              fields: ['title', 'description', 'rule_id', 'asset_key', 'check_name', 'file'],
-              type: 'best_fields',
-              fuzziness: 'AUTO',
-            },
-          });
+        if (args.toDate) {
+          filters.push({ field: 'timestamp', op: 'lte', value: args.toDate });
         }
-
-        const query: any = {
-          bool: {
-            ...(must.length > 0 ? { must } : { must: [{ match_all: {} }] }),
-            ...(filters.length > 0 ? { filter: filters } : {}),
-          },
-        };
 
         const result = await securityAnalyticsService.query(auth.organizationId!, {
-          query,
+          filters,
+          search: args.searchText,
           size: args.limit ?? 20,
           from: args.offset ?? 0,
-          sort: [{ '@timestamp': { order: 'desc' } }],
+          sort: [{ field: 'timestamp', direction: 'desc' }],
           useLatest: args.useLatest ?? true,
         });
 
-        const findings = result.hits.map((hit) => ({
-          id: hit._id,
-          ...hit._source,
-        }));
-
         return jsonResult({
           total: result.total,
-          count: findings.length,
-          findings,
+          count: result.results.length,
+          findings: result.results,
         });
       } catch (error) {
         return errorResult(error);
@@ -193,7 +162,7 @@ export function registerAnalyticsTools(
           .boolean()
           .optional()
           .default(true)
-          .describe('If true (default), summarize from deduplicated latest-state index.'),
+          .describe('If true (default), summarize from deduplicated latest-state table.'),
       },
     },
     async (args: {
@@ -211,57 +180,43 @@ export function registerAnalyticsTools(
       }
 
       try {
-        const filters: any[] = [];
+        const filters: { field: string; op: string; value: any }[] = [];
         if (args.workflowId) {
-          filters.push({ term: { 'shipsec.workflow_id': args.workflowId } });
+          filters.push({ field: 'workflow_id', op: 'eq', value: args.workflowId });
         }
         if (args.runId) {
-          filters.push({ term: { 'shipsec.run_id': args.runId } });
+          filters.push({ field: 'run_id', op: 'eq', value: args.runId });
         }
         if (args.scanner) {
-          filters.push({ term: { scanner: args.scanner } });
+          filters.push({ field: 'scanner', op: 'eq', value: args.scanner });
         }
-        if (args.fromDate || args.toDate) {
-          const range: any = {};
-          if (args.fromDate) range.gte = args.fromDate;
-          if (args.toDate) range.lte = args.toDate;
-          filters.push({ range: { '@timestamp': range } });
+        if (args.fromDate) {
+          filters.push({ field: 'timestamp', op: 'gte', value: args.fromDate });
+        }
+        if (args.toDate) {
+          filters.push({ field: 'timestamp', op: 'lte', value: args.toDate });
         }
 
-        const query: any = filters.length > 0 ? { bool: { filter: filters } } : { match_all: {} };
+        const aggs = [
+          { name: 'by_severity', field: 'severity' },
+          { name: 'by_scanner', field: 'scanner' },
+          { name: 'by_rule_id', field: 'rule_id', size: 20 },
+          { name: 'by_asset_key', field: 'asset_key', size: 20 },
+        ];
 
         const result = await securityAnalyticsService.query(auth.organizationId!, {
-          query,
+          filters,
           size: 0,
           useLatest: args.useLatest ?? true,
-          aggs: {
-            by_severity: {
-              terms: { field: 'severity', size: 10 },
-            },
-            by_scanner: {
-              terms: { field: 'scanner', size: 20 },
-            },
-            top_rules: {
-              terms: { field: 'rule_id.keyword', size: 15 },
-            },
-            top_assets: {
-              terms: { field: 'asset_key', size: 15 },
-            },
-          },
+          aggs,
         });
-
-        const extractBuckets = (agg: any) =>
-          (agg?.buckets ?? []).map((b: any) => ({
-            key: b.key,
-            count: b.doc_count,
-          }));
 
         return jsonResult({
           totalFindings: result.total,
-          bySeverity: extractBuckets(result.aggregations?.by_severity),
-          byScanner: extractBuckets(result.aggregations?.by_scanner),
-          topRules: extractBuckets(result.aggregations?.top_rules),
-          topAssets: extractBuckets(result.aggregations?.top_assets),
+          bySeverity: result.aggregations?.by_severity ?? [],
+          byScanner: result.aggregations?.by_scanner ?? [],
+          topRules: result.aggregations?.by_rule_id ?? [],
+          topAssets: result.aggregations?.by_asset_key ?? [],
         });
       } catch (error) {
         return errorResult(error);
@@ -288,20 +243,18 @@ export function registerAnalyticsTools(
 
       try {
         const result = await securityAnalyticsService.query(auth.organizationId!, {
-          query: {
-            term: { finding_hash: args.findingHash },
-          },
+          filters: [{ field: 'finding_hash', op: 'eq', value: args.findingHash }],
           size: 1,
           useLatest: true,
         });
 
-        if (result.hits.length === 0) {
+        if (result.results.length === 0) {
           return jsonResult({ found: false, message: 'No finding found with that hash.' });
         }
 
         return jsonResult({
           found: true,
-          finding: { id: result.hits[0]._id, ...result.hits[0]._source },
+          finding: result.results[0],
         });
       } catch (error) {
         return errorResult(error);
@@ -325,7 +278,7 @@ export function registerAnalyticsTools(
           .boolean()
           .optional()
           .default(true)
-          .describe('If true (default), use deduplicated latest-state index.'),
+          .describe('If true (default), use deduplicated latest-state table.'),
       },
     },
     async (args: { assetKey: string; useLatest?: boolean }) => {
@@ -336,64 +289,38 @@ export function registerAnalyticsTools(
       }
 
       try {
-        const result = await securityAnalyticsService.query(auth.organizationId!, {
-          query: {
-            bool: {
-              should: [
-                { term: { asset_key: args.assetKey } },
-                { wildcard: { asset_key: { value: `*${args.assetKey}*` } } },
-              ],
-              minimum_should_match: 1,
-            },
-          },
-          size: 0,
-          useLatest: args.useLatest ?? true,
-          aggs: {
-            by_severity: {
-              terms: { field: 'severity', size: 10 },
-            },
-            by_scanner: {
-              terms: { field: 'scanner', size: 20 },
-            },
-            top_rules: {
-              terms: { field: 'rule_id.keyword', size: 10 },
-            },
-            sample_findings: {
-              top_hits: {
-                size: 10,
-                sort: [{ severity: { order: 'asc' } }],
-                _source: [
-                  'scanner',
-                  'severity',
-                  'title',
-                  'rule_id',
-                  'finding_hash',
-                  'asset_key',
-                  'file',
-                  'description',
-                  '@timestamp',
-                ],
-              },
-            },
-          },
-        });
+        const filters: { field: string; op: string; value: any }[] = [
+          { field: 'asset_key', op: 'eq', value: args.assetKey },
+        ];
 
-        const extractBuckets = (agg: any) =>
-          (agg?.buckets ?? []).map((b: any) => ({
-            key: b.key,
-            count: b.doc_count,
-          }));
+        const aggs = [
+          { name: 'by_severity', field: 'severity' },
+          { name: 'by_scanner', field: 'scanner' },
+          { name: 'by_rule_id', field: 'rule_id', size: 20 },
+        ];
 
-        const sampleFindings =
-          result.aggregations?.sample_findings?.hits?.hits?.map((h: any) => h._source) ?? [];
+        const [aggResult, sampleResult] = await Promise.all([
+          securityAnalyticsService.query(auth.organizationId!, {
+            filters,
+            size: 0,
+            useLatest: args.useLatest ?? true,
+            aggs,
+          }),
+          securityAnalyticsService.query(auth.organizationId!, {
+            filters,
+            size: 10,
+            useLatest: args.useLatest ?? true,
+            sort: [{ field: 'severity', direction: 'asc' }],
+          }),
+        ]);
 
         return jsonResult({
           asset: args.assetKey,
-          totalFindings: result.total,
-          bySeverity: extractBuckets(result.aggregations?.by_severity),
-          byScanner: extractBuckets(result.aggregations?.by_scanner),
-          topRules: extractBuckets(result.aggregations?.top_rules),
-          sampleFindings,
+          totalFindings: aggResult.total,
+          bySeverity: aggResult.aggregations?.by_severity ?? [],
+          byScanner: aggResult.aggregations?.by_scanner ?? [],
+          topRules: aggResult.aggregations?.by_rule_id ?? [],
+          sampleFindings: sampleResult.results,
         });
       } catch (error) {
         return errorResult(error);
@@ -439,63 +366,60 @@ export function registerAnalyticsTools(
       }
 
       try {
-        const filters: any[] = [];
+        const filters: { field: string; op: string; value: any }[] = [];
         if (args.severity) {
-          filters.push({ term: { severity: args.severity } });
+          filters.push({ field: 'severity', op: 'eq', value: args.severity });
         }
         if (args.scanner) {
-          filters.push({ term: { scanner: args.scanner } });
+          filters.push({ field: 'scanner', op: 'eq', value: args.scanner });
         }
 
+        // Calculate days from date range or default to 30
+        let days = 30;
         const now = new Date();
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        const range = {
-          gte: args.fromDate ?? thirtyDaysAgo.toISOString(),
-          lte: args.toDate ?? now.toISOString(),
-        };
-        filters.push({ range: { '@timestamp': range } });
 
-        const calendarInterval = args.interval === 'week' ? '1w' : '1d';
+        if (args.fromDate) {
+          const fromMs = new Date(args.fromDate).getTime();
+          const toMs = args.toDate ? new Date(args.toDate).getTime() : now.getTime();
+          days = Math.max(1, Math.ceil((toMs - fromMs) / 86_400_000));
+          filters.push({ field: 'timestamp', op: 'gte', value: args.fromDate });
+        } else {
+          const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          filters.push({ field: 'timestamp', op: 'gte', value: thirtyDaysAgo.toISOString() });
+        }
+        if (args.toDate) {
+          filters.push({ field: 'timestamp', op: 'lte', value: args.toDate });
+        }
 
-        const result = await securityAnalyticsService.query(auth.organizationId!, {
-          query: { bool: { filter: filters } },
-          size: 0,
-          useLatest: false, // trends need the event log
-          aggs: {
-            over_time: {
-              date_histogram: {
-                field: '@timestamp',
-                calendar_interval: calendarInterval,
-                min_doc_count: 0,
-                extended_bounds: {
-                  min: range.gte,
-                  max: range.lte,
-                },
-              },
-              aggs: {
-                by_severity: {
-                  terms: { field: 'severity', size: 10 },
-                },
-              },
-            },
-          },
+        const interval = (args.interval === 'week' ? 'week' : 'day') as 'day' | 'week';
+
+        const result = await securityAnalyticsService.timeSeries(auth.organizationId!, {
+          filters,
+          interval,
+          days,
         });
 
-        const buckets = (result.aggregations?.over_time?.buckets ?? []).map((b: any) => ({
-          date: b.key_as_string,
-          count: b.doc_count,
-          bySeverity: (b.by_severity?.buckets ?? []).reduce(
-            (acc: any, s: any) => {
-              acc[s.key] = s.doc_count;
-              return acc;
-            },
-            {} as Record<string, number>,
-          ),
-        }));
+        // Pivot buckets into date → { count, bySeverity }
+        const dateMap: Record<string, { count: number; bySeverity: Record<string, number> }> = {};
+        for (const b of result.buckets) {
+          if (!dateMap[b.date]) {
+            dateMap[b.date] = { count: 0, bySeverity: {} };
+          }
+          dateMap[b.date].count += b.count;
+          dateMap[b.date].bySeverity[b.severity] = b.count;
+        }
+
+        const dataPoints = Object.entries(dateMap)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, data]) => ({
+            date,
+            count: data.count,
+            bySeverity: data.bySeverity,
+          }));
 
         return jsonResult({
           interval: args.interval ?? 'day',
-          dataPoints: buckets,
+          dataPoints,
         });
       } catch (error) {
         return errorResult(error);

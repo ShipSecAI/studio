@@ -65,11 +65,11 @@ export interface CloudScanFindingsData {
 
 export function transformCloudScanFindingsResponse(result: {
   total: number;
-  hits: { _id: string; _source: Record<string, unknown>; _score?: number }[];
-  aggregations?: Record<string, any>;
+  results: Record<string, any>[];
+  aggregations?: Record<string, { key: string; count: number }[]>;
 }): CloudScanFindingsData {
-  const findings = result.hits.map(parseFinding);
-  const severityCounts = parseSeverityCounts(result.aggregations?.severity_counts?.buckets ?? []);
+  const findings = result.results.map(parseFinding);
+  const severityCounts = parseSeverityCounts(result.aggregations?.severity_counts ?? []);
   const total = result.total ?? 0;
   const isTruncated = total > findings.length;
 
@@ -166,17 +166,14 @@ export function useCloudScanFindings(runId: string | null | undefined) {
     queryFn: runId
       ? async (): Promise<CloudScanFindingsData> => {
           const result = await api.analytics.query({
-            query: {
-              bool: {
-                filter: [{ term: { 'shipsec.run_id': runId } }],
-              },
-            },
+            filters: [{ field: 'run_id', op: 'eq', value: runId }],
             size: CLOUD_SCAN_FINDINGS_LIMIT,
             from: 0,
-            sort: [{ severity: 'asc' }, { '@timestamp': 'desc' }],
-            aggs: {
-              severity_counts: { terms: { field: 'severity' } },
-            },
+            sort: [
+              { field: 'severity', direction: 'asc' },
+              { field: 'timestamp', direction: 'desc' },
+            ],
+            aggs: [{ name: 'severity_counts', field: 'severity' }],
           });
           return transformCloudScanFindingsResponse(result);
         }

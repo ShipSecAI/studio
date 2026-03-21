@@ -236,7 +236,7 @@ Resolves AWS credentials from an integration connection, discovers all member ac
 Entry Point → Resolve Credentials → Prowler Scan → Analytics Sink
 ```
 
-End-to-end CSPM workflow: resolves AWS credentials, runs a Prowler security scan (severity high/critical), and indexes the results into the Analytics dashboard via OpenSearch.
+End-to-end CSPM workflow: resolves AWS credentials, runs a Prowler security scan (severity high/critical), and indexes the results into the Analytics dashboard via ClickHouse.
 
 **Runtime Inputs:**
 
@@ -251,7 +251,7 @@ End-to-end CSPM workflow: resolves AWS credentials, runs a Prowler security scan
 Entry Point → Resolve Credentials → Prowler Scan (orgScan=true) → Analytics Sink
 ```
 
-Resolves AWS credentials for the organization management account, discovers all member accounts via AWS Organizations, assumes a cross-account role in each, runs Prowler per-account, and indexes aggregated findings into the Analytics dashboard. Failed accounts are recorded and scanning continues.
+Resolves AWS credentials for the organization management account, discovers all member accounts via AWS Organizations, assumes a cross-account role in each, runs Prowler per-account, and indexes aggregated findings into the Analytics dashboard via ClickHouse. Failed accounts are recorded and scanning continues.
 
 **Runtime Inputs:**
 

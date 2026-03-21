@@ -36,18 +36,7 @@ async function globalSetup(_config: FullConfig) {
   }
   console.log('  ✓ Postgres seeded');
 
-  // 3. Seed OpenSearch
-  console.log('  Seeding OpenSearch...');
-  try {
-    execSync(
-      'bun scripts/seed-opensearch-findings.ts --org-id local-dev --count 500 --days 90 --clear',
-      { cwd: rootDir, stdio: 'pipe' },
-    );
-  } catch (e: any) {
-    console.error('  OpenSearch seed stderr:', e.stderr?.toString());
-    throw new Error(`OpenSearch seed failed: ${e.message}`);
-  }
-  console.log('  ✓ OpenSearch seeded');
+  // 3. ClickHouse is auto-seeded via workflow runs — no manual seed needed
 
   // 4. Generate auth storage state
   console.log('  Generating auth storage state...');

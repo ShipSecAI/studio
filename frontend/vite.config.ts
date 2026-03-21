@@ -25,7 +25,7 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0',
+    host: 'localhost',
     port: frontendPort,
     strictPort: true,
     open: false,
@@ -38,11 +38,6 @@ export default defineConfig({
     proxy: {
       '/api/': {
         target: `http://localhost:${backendPort}`,
-        changeOrigin: true,
-        secure: false,
-      },
-      '/analytics/': {
-        target: 'http://localhost:5601',
         changeOrigin: true,
         secure: false,
       },

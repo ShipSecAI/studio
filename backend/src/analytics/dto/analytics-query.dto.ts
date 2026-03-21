@@ -20,16 +20,35 @@ export class ProwlerChecksMetadataResponseDto extends createZodDto(
 ) {}
 export type ProwlerChecksMetadataResponse = z.infer<typeof ProwlerChecksMetadataResponseSchema>;
 
+export const FilterSchema = z.object({
+  field: z.string(),
+  op: z.enum(['eq', 'in', 'gte', 'lte', 'like', 'prefix', 'not_eq', 'exists', 'not_exists']),
+  value: z.unknown().optional(),
+});
+
+export const AggSchema = z.object({
+  name: z.string(),
+  field: z.string(),
+  size: z.number().optional(),
+});
+
+export const SortSchema = z.object({
+  field: z.string(),
+  direction: z.enum(['asc', 'desc']),
+});
+
 export const AnalyticsQueryRequestSchema = z.object({
-  query: z.record(z.string(), z.unknown()).optional().describe('OpenSearch DSL query object'),
+  filters: z.array(FilterSchema).optional().describe('Filter conditions'),
+  search: z.string().optional().describe('Free-text search across key fields'),
+  aggs: z.array(AggSchema).optional().describe('Named aggregations'),
+  sort: z.array(SortSchema).optional().describe('Sort specification'),
+  distinct: z.string().optional().describe('Field to deduplicate results on'),
+  countDistinct: z
+    .string()
+    .optional()
+    .describe('Field to count distinct values for (returns distinctCount in response)'),
   size: z.number().optional().describe('Number of results to return'),
   from: z.number().optional().describe('Offset for pagination'),
-  aggs: z.record(z.string(), z.unknown()).optional().describe('OpenSearch aggregations object'),
-  sort: z.array(z.record(z.string(), z.unknown())).optional().describe('Sort specification'),
-  collapse: z
-    .record(z.string(), z.unknown())
-    .optional()
-    .describe('Field collapsing specification for deduplication'),
   useLatest: z
     .boolean()
     .optional()
@@ -40,27 +59,89 @@ export class AnalyticsQueryRequestDto extends createZodDto(AnalyticsQueryRequest
 
 export const AnalyticsQueryResponseSchema = z.object({
   total: z.number().describe('Total number of matching documents'),
-  hits: z.array(
-    z.object({
-      _id: z.string(),
-      _source: z.record(z.string(), z.unknown()),
-      _score: z.number().optional(),
-    }),
-  ),
-  aggregations: z.record(z.string(), z.unknown()).optional().describe('Aggregation results'),
+  results: z.array(z.record(z.string(), z.unknown())),
+  aggregations: z
+    .record(z.string(), z.array(z.object({ key: z.string(), count: z.number() })))
+    .optional()
+    .describe('Aggregation results'),
+  distinctCount: z.number().optional().describe('Count of distinct values for countDistinct field'),
 });
 
 export class AnalyticsQueryResponseDto extends createZodDto(AnalyticsQueryResponseSchema) {}
 
+export const ScannerSeverityCountsRequestSchema = z.object({
+  filters: z.array(FilterSchema).optional(),
+  useLatest: z.boolean().optional(),
+});
+
+export class ScannerSeverityCountsRequestDto extends createZodDto(
+  ScannerSeverityCountsRequestSchema,
+) {}
+
+export const ScannerSeverityCountsResponseSchema = z.object({
+  buckets: z.array(
+    z.object({
+      scanner: z.string(),
+      severity: z.string(),
+      count: z.number(),
+    }),
+  ),
+});
+
+export class ScannerSeverityCountsResponseDto extends createZodDto(
+  ScannerSeverityCountsResponseSchema,
+) {}
+
+export const TimeSeriesRequestSchema = z.object({
+  filters: z.array(FilterSchema).optional(),
+  interval: z.enum(['day', 'week', 'month']).optional().default('day'),
+  days: z.number().optional().default(30),
+  timezone: z.string().optional(),
+});
+
+export class TimeSeriesRequestDto extends createZodDto(TimeSeriesRequestSchema) {}
+
+export const TimeSeriesResponseSchema = z.object({
+  buckets: z.array(
+    z.object({
+      date: z.string(),
+      severity: z.string(),
+      count: z.number(),
+    }),
+  ),
+});
+
+export class TimeSeriesResponseDto extends createZodDto(TimeSeriesResponseSchema) {}
+
+export const LifecycleRequestSchema = z.object({
+  hash: z.string().optional(),
+  hashes: z.array(z.string()).optional(),
+});
+
+export class LifecycleRequestDto extends createZodDto(LifecycleRequestSchema) {}
+
+export const LifecycleResponseSchema = z.object({
+  lifecycles: z.record(
+    z.string(),
+    z.object({
+      firstSeen: z.string(),
+      lastSeen: z.string(),
+      occurrences: z.number(),
+    }),
+  ),
+});
+
+export class LifecycleResponseDto extends createZodDto(LifecycleResponseSchema) {}
+
 export const StorageUsageResponseSchema = z.object({
   usedBytes: z.number(),
   documentCount: z.number(),
-  indexCount: z.number(),
-  opensearchEnabled: z.boolean(),
+  partCount: z.number(),
+  analyticsEnabled: z.boolean(),
 });
 export class StorageUsageResponseDto extends createZodDto(StorageUsageResponseSchema) {}
 
 export const PurgeDataResponseSchema = z.object({
-  deletedIndices: z.number(),
+  tablesCleared: z.number(),
 });
 export class PurgeDataResponseDto extends createZodDto(PurgeDataResponseSchema) {}

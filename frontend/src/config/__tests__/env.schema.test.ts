@@ -41,7 +41,7 @@ describe('frontendEnvSchema', () => {
       expect(result.data.VITE_BACKEND_BRANCH).toBe('');
       expect(result.data.VITE_GIT_SHA).toBe('');
       expect(result.data.VITE_LOGO_DEV_PUBLIC_KEY).toBe('');
-      expect(result.data.VITE_OPENSEARCH_DASHBOARDS_URL).toBe('');
+      expect(result.data.VITE_ANALYTICS_URL).toBe('');
       expect(result.data.VITE_ENABLE_IT_OPS).toBe(false);
     }
   });

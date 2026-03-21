@@ -9,7 +9,7 @@ export interface FindingLifecycle {
 }
 
 export interface SecurityFinding {
-  _id: string;
+  id: string;
   scanner: string;
   finding_hash: string;
   severity: string;
@@ -30,14 +30,18 @@ export interface SecurityFinding {
   file: string | null;
   line: number | null;
   snippet: string | null;
-  shipsec: {
-    workflow_id: string;
-    workflow_name: string;
-    run_id: string;
-    component_id: string;
-    trigger_source?: string | null;
-  };
-  '@timestamp': string;
+  workflow_id: string;
+  workflow_name: string;
+  run_id: string;
+  component_id: string;
+  trigger_source: string | null;
+  timestamp: string;
+}
+
+export interface Filter {
+  field: string;
+  op: 'eq' | 'in' | 'gte' | 'lte' | 'like' | 'prefix' | 'not_eq' | 'exists' | 'not_exists';
+  value?: unknown;
 }
 
 export interface SecurityDashboardFilters {
@@ -81,7 +85,7 @@ export interface TimeSeriesBucket {
 
 export interface AggBucket {
   key: string;
-  doc_count: number;
+  count: number;
 }
 
 export interface SecuritySummary {
@@ -126,7 +130,7 @@ export const INITIAL_FILTERS: SecurityDashboardFilters = {
   from: null,
   to: null,
   page: 1,
-  sort: '@timestamp',
+  sort: 'timestamp',
   order: 'desc',
 };
 
@@ -146,34 +150,28 @@ const STATUS_AWARE_SCANNERS = new Set(['prowler', 'supabase-scanner']);
 export function buildBaseFilter(
   filters: SecurityDashboardFilters,
   viewFilter?: SecurityViewFilter,
-) {
-  const must: Record<string, any>[] = [];
+): { filters: Filter[]; search?: string } {
+  const result: Filter[] = [];
+  let search: string | undefined;
 
   if (viewFilter?.scannerTerms && viewFilter.scannerTerms.length > 0) {
     if (viewFilter.scannerTerms.length === 1) {
-      must.push({ term: { scanner: viewFilter.scannerTerms[0] } });
+      result.push({ field: 'scanner', op: 'eq', value: viewFilter.scannerTerms[0] });
     } else {
-      must.push({ terms: { scanner: viewFilter.scannerTerms } });
+      result.push({ field: 'scanner', op: 'in', value: viewFilter.scannerTerms });
     }
   }
 
   if (filters.search.trim()) {
-    must.push({
-      multi_match: {
-        query: filters.search.trim(),
-        fields: ['title', 'description'],
-      },
-    });
+    search = filters.search.trim();
   }
 
-  const filter: Record<string, any>[] = [];
-
   if (filters.account) {
-    filter.push({ term: { account_id: filters.account } });
+    result.push({ field: 'account_id', op: 'eq', value: filters.account });
   }
 
   if (filters.severity.length > 0) {
-    filter.push({ terms: { severity: filters.severity } });
+    result.push({ field: 'severity', op: 'in', value: filters.severity });
   }
 
   if (filters.status.length > 0) {
@@ -182,115 +180,79 @@ export function buildBaseFilter(
       viewScanners.length > 0 && viewScanners.every((s) => STATUS_AWARE_SCANNERS.has(s));
 
     if (allStatusAware) {
-      // Pure cloud view — every doc has a status field, simple filter works
-      filter.push({ terms: { status: filters.status } });
+      result.push({ field: 'status', op: 'in', value: filters.status });
     } else {
-      // Mixed or all-findings view — also include docs that have no status field
-      // (e.g. opengrep, trufflehog) so they aren't silently excluded
-      filter.push({
-        bool: {
-          should: [
-            { terms: { status: filters.status } },
-            { bool: { must_not: [{ exists: { field: 'status' } }] } },
-          ],
-          minimum_should_match: 1,
-        },
-      });
+      // Mixed view: filter by status but also include findings with no status
+      // Backend handles this with OR logic via two filters
+      result.push({ field: 'status', op: 'in', value: [...filters.status, ''] });
     }
   }
 
   if (filters.region.length > 0) {
-    filter.push({ terms: { region: filters.region } });
+    result.push({ field: 'region', op: 'in', value: filters.region });
   }
 
   if (filters.service.length > 0) {
-    filter.push({ terms: { service_name: filters.service } });
+    result.push({ field: 'service_name', op: 'in', value: filters.service });
   }
 
   if (filters.tags.length > 0) {
     for (const tagKey of filters.tags) {
-      filter.push({ exists: { field: `resource_tags.${tagKey}` } });
+      result.push({ field: `resource_tags.${tagKey}`, op: 'exists' });
     }
   }
 
   if (filters.compliance.length > 0) {
-    filter.push({ terms: { compliance: filters.compliance } });
+    result.push({ field: 'compliance', op: 'in', value: filters.compliance });
   }
 
   if (filters.checkName.length > 0) {
-    filter.push({ terms: { check_name: filters.checkName } });
+    result.push({ field: 'check_name', op: 'in', value: filters.checkName });
   }
 
   if (filters.scanner.length > 0) {
-    filter.push({ terms: { scanner: filters.scanner } });
+    result.push({ field: 'scanner', op: 'in', value: filters.scanner });
   }
 
   if (filters.repository.length > 0) {
-    filter.push({ terms: { 'shipsec.trigger_source': filters.repository } });
+    result.push({ field: 'trigger_source', op: 'in', value: filters.repository });
   }
 
   if (filters.ruleId.length > 0) {
-    filter.push({ terms: { 'rule_id.keyword': filters.ruleId } });
+    result.push({ field: 'rule_id', op: 'in', value: filters.ruleId });
   }
 
   if (filters.file.length > 0) {
-    filter.push({ terms: { 'file.keyword': filters.file } });
+    result.push({ field: 'file', op: 'in', value: filters.file });
   }
 
   if (filters.language.length > 0) {
-    // Language is derived from rule_id prefix (e.g. "php" matches "php.*")
-    filter.push({
-      bool: {
-        should: filters.language.map((lang) => ({
-          prefix: { 'rule_id.keyword': `${lang}.` },
-        })),
-        minimum_should_match: 1,
-      },
-    });
+    for (const lang of filters.language) {
+      result.push({ field: 'rule_id', op: 'prefix', value: `${lang}.` });
+    }
   }
 
-  if (filters.from || filters.to) {
-    const range: Record<string, any> = {};
-    if (filters.from) range.gte = filters.from;
-    if (filters.to) range.lte = filters.to;
-    filter.push({ range: { '@timestamp': range } });
+  if (filters.from) {
+    result.push({ field: 'timestamp', op: 'gte', value: filters.from });
+  }
+  if (filters.to) {
+    result.push({ field: 'timestamp', op: 'lte', value: filters.to });
   }
 
-  return { bool: { must, filter } };
+  return { filters: result, search };
 }
 
-// Fields mapped as bare keyword in the index template — use directly, no .keyword suffix.
-// Only rule_id and file are text+keyword (need .keyword for sorting/aggs).
-const KEYWORD_FIELDS = new Set([
-  'severity',
-  'status',
-  'scanner',
-  'region',
-  'service_name',
-  'check_name',
-  'account_id',
-  '@timestamp',
-]);
-
-export function buildSort(filters: SecurityDashboardFilters): Record<string, any>[] {
-  let field: string;
-  if (KEYWORD_FIELDS.has(filters.sort)) {
-    field = filters.sort;
-  } else {
-    // text+keyword fields (rule_id, file, etc.) need .keyword for sorting
-    field = `${filters.sort}.keyword`;
-  }
-  return [{ [field]: filters.order }];
+export function buildSort(
+  filters: SecurityDashboardFilters,
+): { field: string; direction: 'asc' | 'desc' }[] {
+  return [{ field: filters.sort, direction: filters.order }];
 }
 
 /** Infer scanner from document fields when not explicitly set */
 function inferScanner(source: Record<string, any>): string {
   if (source.scanner) return source.scanner;
-  // Cloud findings (prowler) have account_id + service_name
   if (source.account_id && source.service_name) return 'prowler';
-  // Code findings from opengrep have rule_id + file
   if (source.rule_id && source.file) return 'opengrep';
-  // Secret findings from trufflehog have detector_type or source_type
   if (source.detector_type || source.source_type) return 'trufflehog';
   return 'unknown';
 }
@@ -349,7 +311,6 @@ function deriveFindingTitle(source: Record<string, any>, scanner: string): strin
       ? source.rule_id.trim()
       : null;
 
-  // OpenGrep findings are often indexed with title === rule_id, which is not user-friendly.
   if (scanner === 'opengrep' && ruleId && (!rawTitle || rawTitle === ruleId)) {
     return humanizeOpenGrepRuleId(ruleId);
   }
@@ -357,49 +318,47 @@ function deriveFindingTitle(source: Record<string, any>, scanner: string): strin
   return rawTitle;
 }
 
-/** Parse a hit from the analytics API into a SecurityFinding */
-export function parseFinding(hit: any): SecurityFinding {
-  const scanner = inferScanner(hit._source);
+/** Parse a flat result object from the analytics API into a SecurityFinding */
+export function parseFinding(hit: Record<string, any>): SecurityFinding {
+  const scanner = inferScanner(hit);
   return {
-    _id: hit._id,
+    id: hit.id ?? hit.finding_hash ?? '',
     scanner,
-    finding_hash: hit._source.finding_hash ?? '',
-    severity: hit._source.severity ?? 'unknown',
-    status: hit._source.status ?? null,
-    title: deriveFindingTitle(hit._source, scanner),
-    description: hit._source.description ?? null,
-    region: hit._source.region ?? null,
-    asset_key: hit._source.asset_key ?? null,
-    account_id: hit._source.account_id ?? null,
-    service_name: hit._source.service_name ?? null,
-    resource_tags: hit._source.resource_tags ?? null,
-    check_name: hit._source.check_name ?? null,
-    compliance: hit._source.compliance ?? null,
-    finding_types: hit._source.finding_types ?? null,
-    remediationText: hit._source.remediationText ?? null,
-    recommendationUrl: hit._source.recommendationUrl ?? null,
-    rule_id: hit._source.rule_id ?? null,
-    file: hit._source.file ?? null,
-    line: hit._source.line ?? null,
-    snippet: hit._source.snippet ?? null,
-    shipsec: {
-      workflow_id: hit._source.shipsec?.workflow_id ?? hit._source.workflow_id ?? '',
-      workflow_name: hit._source.shipsec?.workflow_name ?? hit._source.workflow_name ?? '',
-      run_id: hit._source.shipsec?.run_id ?? hit._source.run_id ?? '',
-      component_id: hit._source.shipsec?.component_id ?? hit._source.component_id ?? '',
-      trigger_source: hit._source.shipsec?.trigger_source ?? null,
-    },
-    '@timestamp': hit._source['@timestamp'] ?? '',
+    finding_hash: hit.finding_hash ?? '',
+    severity: hit.severity ?? 'unknown',
+    status: hit.status ?? null,
+    title: deriveFindingTitle(hit, scanner),
+    description: hit.description ?? null,
+    region: hit.region ?? null,
+    asset_key: hit.asset_key ?? null,
+    account_id: hit.account_id ?? null,
+    service_name: hit.service_name ?? null,
+    resource_tags: hit.resource_tags ?? null,
+    check_name: hit.check_name ?? null,
+    compliance: hit.compliance ?? null,
+    finding_types: hit.finding_types ?? null,
+    remediationText: hit.remediationText ?? null,
+    recommendationUrl: hit.recommendationUrl ?? null,
+    rule_id: hit.rule_id ?? null,
+    file: hit.file ?? null,
+    line: hit.line ?? null,
+    snippet: hit.snippet ?? null,
+    workflow_id: hit.workflow_id ?? '',
+    workflow_name: hit.workflow_name ?? '',
+    run_id: hit.run_id ?? '',
+    component_id: hit.component_id ?? '',
+    trigger_source: hit.trigger_source ?? null,
+    timestamp: hit.timestamp ?? '',
   };
 }
 
-/** Parse severity count buckets into a SeverityCounts object */
-export function parseSeverityCounts(buckets: any[]): SeverityCounts {
+/** Parse severity count aggregation into a SeverityCounts object */
+export function parseSeverityCounts(buckets: AggBucket[]): SeverityCounts {
   const counts = { ...INITIAL_SEVERITY_COUNTS };
   for (const bucket of buckets) {
     const key = bucket.key?.toLowerCase();
     if (key in counts) {
-      counts[key as keyof SeverityCounts] = bucket.doc_count;
+      counts[key as keyof SeverityCounts] = bucket.count;
     }
   }
   return counts;

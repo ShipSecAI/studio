@@ -4,69 +4,68 @@ import { buildBaseFilter, parseFinding, INITIAL_FILTERS } from '../securityQuery
 describe('buildBaseFilter — status filter', () => {
   const base = { ...INITIAL_FILTERS };
 
-  it('uses simple terms filter for cloud-only view', () => {
+  it('uses simple in filter for cloud-only view', () => {
     const result = buildBaseFilter({ ...base, status: ['FAILED'] }, { scannerTerms: ['prowler'] });
-    const statusClause = result.bool.filter.find((f: any) => f.terms?.status);
-    expect(statusClause).toEqual({ terms: { status: ['FAILED'] } });
+    const statusFilter = result.filters.find((f) => f.field === 'status');
+    expect(statusFilter).toEqual({ field: 'status', op: 'in', value: ['FAILED'] });
   });
 
-  it('uses smart OR filter for mixed/all-findings view (no viewFilter)', () => {
+  it('uses in filter with empty string for mixed/all-findings view (no viewFilter)', () => {
     const result = buildBaseFilter({ ...base, status: ['FAILED'] });
-    const statusClause = result.bool.filter.find((f: any) => f.bool?.should)!;
-    expect(statusClause).toBeDefined();
-    expect(statusClause.bool.should).toHaveLength(2);
-    expect(statusClause.bool.should[0]).toEqual({ terms: { status: ['FAILED'] } });
-    expect(statusClause.bool.should[1]).toEqual({
-      bool: { must_not: [{ exists: { field: 'status' } }] },
-    });
+    const statusFilter = result.filters.find((f) => f.field === 'status');
+    expect(statusFilter).toBeDefined();
+    expect(statusFilter!.op).toBe('in');
+    expect(statusFilter!.value).toEqual(['FAILED', '']);
   });
 
-  it('uses smart OR filter for code-security view', () => {
+  it('uses in filter with empty string for code-security view', () => {
     const result = buildBaseFilter(
       { ...base, status: ['FAILED'] },
       { scannerTerms: ['opengrep', 'trufflehog'] },
     );
-    const statusClause = result.bool.filter.find((f: any) => f.bool?.should)!;
-    expect(statusClause).toBeDefined();
-    expect(statusClause.bool.minimum_should_match).toBe(1);
+    const statusFilter = result.filters.find((f) => f.field === 'status');
+    expect(statusFilter).toBeDefined();
+    expect(statusFilter!.value).toEqual(['FAILED', '']);
   });
 
-  it('uses simple terms for supabase-scanner only view', () => {
+  it('uses simple in filter for supabase-scanner only view', () => {
     const result = buildBaseFilter(
       { ...base, status: ['FAILED'] },
       { scannerTerms: ['supabase-scanner'] },
     );
-    const statusClause = result.bool.filter.find((f: any) => f.terms?.status);
-    expect(statusClause).toEqual({ terms: { status: ['FAILED'] } });
+    const statusFilter = result.filters.find((f) => f.field === 'status');
+    expect(statusFilter).toEqual({ field: 'status', op: 'in', value: ['FAILED'] });
   });
 
   it('does not add status filter when status array is empty', () => {
     const result = buildBaseFilter({ ...base, status: [] });
-    const hasStatus = result.bool.filter.some((f: any) => f.terms?.status || f.bool?.should);
+    const hasStatus = result.filters.some((f) => f.field === 'status');
     expect(hasStatus).toBe(false);
   });
 
-  it('passes multiple status values through in smart filter', () => {
+  it('passes multiple status values through in filter', () => {
     const result = buildBaseFilter(
       { ...base, status: ['FAILED', 'PASSED'] },
       { scannerTerms: ['prowler', 'opengrep'] },
     );
-    const statusClause = result.bool.filter.find((f: any) => f.bool?.should)!;
-    expect(statusClause.bool.should[0]).toEqual({
-      terms: { status: ['FAILED', 'PASSED'] },
-    });
+    const statusFilter = result.filters.find((f) => f.field === 'status');
+    expect(statusFilter!.value).toEqual(['FAILED', 'PASSED', '']);
+  });
+
+  it('emits compliance filter for array column', () => {
+    const result = buildBaseFilter({ ...base, compliance: ['cis-aws'] });
+    const complianceFilter = result.filters.find((f) => f.field === 'compliance');
+    expect(complianceFilter).toEqual({ field: 'compliance', op: 'in', value: ['cis-aws'] });
   });
 });
 
 describe('parseFinding', () => {
   it('humanizes OpenGrep title when title is the raw rule id', () => {
     const finding = parseFinding({
-      _id: 'finding-1',
-      _source: {
-        scanner: 'opengrep',
-        rule_id: 'php.lang.security.md5-loose-equality.md5-loose-equality',
-        title: 'php.lang.security.md5-loose-equality.md5-loose-equality',
-      },
+      id: 'finding-1',
+      scanner: 'opengrep',
+      rule_id: 'php.lang.security.md5-loose-equality.md5-loose-equality',
+      title: 'php.lang.security.md5-loose-equality.md5-loose-equality',
     });
 
     expect(finding.title).toBe('MD5 Loose Equality');
@@ -74,11 +73,9 @@ describe('parseFinding', () => {
 
   it('returns null status for non-status-aware scanners', () => {
     const finding = parseFinding({
-      _id: 'finding-httpx',
-      _source: {
-        scanner: 'httpx',
-        title: 'HTTP probe result',
-      },
+      id: 'finding-httpx',
+      scanner: 'httpx',
+      title: 'HTTP probe result',
     });
 
     expect(finding.status).toBeNull();
@@ -86,12 +83,10 @@ describe('parseFinding', () => {
 
   it('preserves status for status-aware scanners', () => {
     const finding = parseFinding({
-      _id: 'finding-prowler',
-      _source: {
-        scanner: 'prowler',
-        status: 'FAILED',
-        title: 'S3 bucket public',
-      },
+      id: 'finding-prowler',
+      scanner: 'prowler',
+      status: 'FAILED',
+      title: 'S3 bucket public',
     });
 
     expect(finding.status).toBe('FAILED');
@@ -99,12 +94,10 @@ describe('parseFinding', () => {
 
   it('keeps existing human-readable title', () => {
     const finding = parseFinding({
-      _id: 'finding-2',
-      _source: {
-        scanner: 'opengrep',
-        rule_id: 'php.lang.security.injection.tainted-filename.tainted-filename',
-        title: 'Potential path traversal via user-controlled filename',
-      },
+      id: 'finding-2',
+      scanner: 'opengrep',
+      rule_id: 'php.lang.security.injection.tainted-filename.tainted-filename',
+      title: 'Potential path traversal via user-controlled filename',
     });
 
     expect(finding.title).toBe('Potential path traversal via user-controlled filename');

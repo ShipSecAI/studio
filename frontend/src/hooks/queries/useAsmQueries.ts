@@ -121,10 +121,10 @@ export function useTriggerDomainScan() {
   });
 }
 
-// ── Asset Queries (OpenSearch-backed) ────────────────────────────────────────
+// ── Asset Queries (ClickHouse-backed) ────────────────────────────────────────
 
 export interface AsmAssetHit {
-  _id: string;
+  id: string;
   scanner: string;
   scanner_labels?: string[];
   source_scanners?: string[];
@@ -136,20 +136,36 @@ export interface AsmAssetHit {
   title?: string;
   webserver?: string;
   technologies?: string[];
-  '@timestamp'?: string;
+  timestamp?: string;
   [key: string]: unknown;
 }
 
-type SearchQueryValue =
-  | string
-  | number
-  | boolean
-  | null
-  | SearchQueryValue[]
-  | { [key: string]: SearchQueryValue };
-type SearchQueryClause = Record<string, SearchQueryValue>;
+function normalizeAsmAssetHit(hit: Record<string, unknown>): AsmAssetHit {
+  // Backend now spreads extra fields into the flat result via native JSON type
+  const host = [hit.asset_key, hit.host].find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  );
 
-export function useAsmAssetsFromOpenSearch(filters: {
+  return {
+    ...hit,
+    host: host ?? '',
+  } as AsmAssetHit;
+}
+
+export function transformAsmAssetsResponse(result: {
+  total: number;
+  results: Record<string, unknown>[];
+  aggregations?: Record<string, { key: string; count: number }[]>;
+  distinctCount?: number;
+}) {
+  return {
+    hits: result.results.map(normalizeAsmAssetHit),
+    total: result.distinctCount ?? result.total,
+    aggregations: result.aggregations,
+  };
+}
+
+export function useAsmAssets(filters: {
   scanner?: string[];
   search?: string;
   page?: number;
@@ -158,34 +174,27 @@ export function useAsmAssetsFromOpenSearch(filters: {
   return useQuery({
     queryKey: queryKeys.asm.assets(filters),
     queryFn: async () => {
-      const must: SearchQueryClause[] = [
-        { terms: { scanner: filters.scanner ?? ['dnsx', 'httpx'] } },
+      const queryFilters: { field: string; op: string; value?: unknown }[] = [
+        { field: 'scanner', op: 'in', value: filters.scanner ?? ['dnsx', 'httpx'] },
       ];
       if (filters.search) {
-        const escaped = filters.search.replace(/[*?\\]/g, '\\$&');
-        must.push({ wildcard: { 'host.keyword': `*${escaped}*` } });
+        queryFilters.push({ field: 'asset_key', op: 'like', value: filters.search });
       }
       if (filters.domain) {
-        must.push({ term: { 'shipsec.trigger_source': `asm:${filters.domain}` } });
+        queryFilters.push({ field: 'trigger_source', op: 'eq', value: `asm:${filters.domain}` });
       }
 
       const result = await api.analytics.query({
-        query: { bool: { must } },
+        filters: queryFilters,
         size: 25,
         from: (filters.page ?? 0) * 25,
-        sort: [{ '@timestamp': 'desc' }],
-        collapse: { field: 'host.keyword' },
-        aggs: {
-          scanners: { terms: { field: 'scanner' } },
-          unique_hosts: { cardinality: { field: 'host.keyword' } },
-        },
+        sort: [{ field: 'timestamp', direction: 'desc' }],
+        distinct: 'asset_key',
+        countDistinct: 'asset_key',
+        aggs: [{ name: 'scanners', field: 'scanner' }],
       });
 
-      return {
-        hits: result.hits.map((h) => ({ _id: h._id, ...h._source })) as AsmAssetHit[],
-        total: (result.aggregations?.unique_hosts as { value?: number })?.value ?? result.total,
-        aggregations: result.aggregations,
-      };
+      return transformAsmAssetsResponse(result);
     },
     staleTime: 30_000,
   });
@@ -215,13 +224,13 @@ export function useAsmStats() {
     queryFn: async () => {
       const pgStats = await api.asm.getStats();
       const osResult = await api.analytics.query({
-        query: { bool: { must: [{ terms: { scanner: ['dnsx', 'httpx'] } }] } },
+        filters: [{ field: 'scanner', op: 'in', value: ['dnsx', 'httpx'] }],
         size: 0,
-        aggs: { unique_hosts: { cardinality: { field: 'host.keyword' } } },
+        countDistinct: 'asset_key',
       });
       return {
         domains: pgStats.domains,
-        assets: (osResult.aggregations?.unique_hosts as { value?: number })?.value ?? 0,
+        assets: osResult.distinctCount ?? 0,
       };
     },
     staleTime: 60_000,
