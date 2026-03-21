@@ -90,7 +90,9 @@ export async function cleanupRunResourcesActivity(
   const response = (await callInternalApi('cleanup', { runId: input.runId })) as {
     sessionIds?: string[];
   };
-  const sessionIds = Array.isArray(response?.sessionIds) ? response.sessionIds : [];
+  const registeredIds = Array.isArray(response?.sessionIds) ? response.sessionIds : [];
+  const orphanIds = Array.isArray(input.orphanSessionIds) ? input.orphanSessionIds : [];
+  const sessionIds = [...new Set([...registeredIds, ...orphanIds])];
 
   if (sessionIds.length === 0) {
     console.log(`[MCP Cleanup] No sessions to clean up for run ${input.runId}`);

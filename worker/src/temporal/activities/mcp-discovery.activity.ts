@@ -100,26 +100,17 @@ export async function discoverMcpToolsActivity(
         runtime: 'docker',
         launch: {
           type: 'stdio',
-          command: 'docker',
-          args: [
-            'run',
-            '--rm',
-            '-i',
-            '--init',
-            'hotplug-mcp-runtime:latest',
-            'uvx',
-            input.command,
-            ...(input.args || []),
-          ],
+          command: input.command,
+          args: input.args || [],
         },
       },
       startup_timeout_ms: 60000,
     });
 
     return {
-      tools: result.tools.map((t) => ({
-        name: t.name,
-        description: t.description,
+      tools: result.tools.map((t: Record<string, unknown>) => ({
+        name: t.name as string,
+        description: t.description as string | undefined,
         inputSchema: t.inputSchema as Record<string, unknown> | undefined,
       })),
     };
@@ -170,26 +161,17 @@ export async function discoverMcpGroupToolsActivity(
             runtime: 'docker',
             launch: {
               type: 'stdio',
-              command: 'docker',
-              args: [
-                'run',
-                '--rm',
-                '-i',
-                '--init',
-                'hotplug-mcp-runtime:latest',
-                'uvx',
-                server.command,
-                ...(server.args ?? []),
-              ],
+              command: server.command,
+              args: server.args ?? [],
             },
           },
           startup_timeout_ms: 60000,
         });
         results.push({
           name: server.name,
-          tools: result.tools.map((t) => ({
-            name: t.name,
-            description: t.description,
+          tools: result.tools.map((t: Record<string, unknown>) => ({
+            name: t.name as string,
+            description: t.description as string | undefined,
             inputSchema: t.inputSchema as Record<string, unknown> | undefined,
           })),
         });

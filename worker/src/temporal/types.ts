@@ -238,6 +238,8 @@ export interface PrepareAndRegisterToolActivityInput {
 
 export interface CleanupRunResourcesActivityInput {
   runId: string;
+  /** Session IDs to delete even if not registered (e.g. from failed registration). */
+  orphanSessionIds?: string[];
 }
 
 export interface AreAllToolsReadyActivityInput {

@@ -197,8 +197,15 @@ export async function registerServerTools(
     const sessionId = session.session_id;
     const endpoint = hotplug.sessionMcpEndpoint(sessionId);
 
-    // Discover tools from the Hotplug session MCP endpoint
-    const tools = await discoverToolsFromEndpoint(endpoint, resolvedConfig.headers);
+    // Discover tools from the Hotplug session MCP endpoint.
+    // Session MCP endpoints require the Hotplug control token in addition to any server headers.
+    const hotplugAuthHeaders = {
+      Authorization: `Bearer ${process.env.HOTPLUG_CONTROL_TOKEN || 'hotplug-local-dev-token'}`,
+    };
+    const tools = await discoverToolsFromEndpoint(endpoint, {
+      ...resolvedConfig.headers,
+      ...hotplugAuthHeaders,
+    });
 
     // Register the server with pre-discovered tools
     await registerMcpServer({
