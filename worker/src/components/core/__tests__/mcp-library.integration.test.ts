@@ -93,7 +93,7 @@ describe('MCP Library Integration Tests', () => {
         return new Response(
           JSON.stringify({
             endpoint: 'http://localhost:3000/mcp',
-            containerId: 'container-123',
+            sessionId: 'session-123',
           }),
           {
             status: 200,

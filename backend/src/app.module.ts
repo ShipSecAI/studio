@@ -43,6 +43,7 @@ import { AssetDiscoveryModule } from './asset-discovery/asset-discovery.module';
 import { BillingModule } from './billing/billing.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { AgentSkillsModule } from './agent-skills/agent-skills.module';
+import { HotplugModule } from './hotplug/hotplug.module';
 
 const coreModules = [
   AgentsModule,
@@ -71,6 +72,7 @@ const coreModules = [
   AuditModule,
   ChatModule,
   AgentSkillsModule,
+  HotplugModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];

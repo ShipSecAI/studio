@@ -10,6 +10,7 @@ describe('McpGatewayService Unit Tests', () => {
   let workflowRunRepository: any;
   let traceRepository: any;
   let mcpServersRepository: any;
+  let hotplugService: any;
 
   beforeEach(() => {
     toolRegistry = {
@@ -28,6 +29,10 @@ describe('McpGatewayService Unit Tests', () => {
     mcpServersRepository = {
       findOne: jest.fn(),
     } as any;
+    hotplugService = {
+      isHotplugEndpoint: jest.fn().mockReturnValue(false),
+      getAuthHeaders: jest.fn().mockReturnValue({}),
+    } as any;
 
     service = new McpGatewayService(
       toolRegistry,
@@ -35,6 +40,7 @@ describe('McpGatewayService Unit Tests', () => {
       workflowRunRepository,
       traceRepository,
       mcpServersRepository,
+      hotplugService,
     );
   });
 

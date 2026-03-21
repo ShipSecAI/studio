@@ -21,6 +21,7 @@ import { WorkflowRunRepository } from '../workflows/repository/workflow-run.repo
 import { TraceRepository } from '../trace/trace.repository';
 import type { TraceEventType } from '../trace/types';
 import { McpServersRepository } from '../mcp-servers/mcp-servers.repository';
+import { HotplugService } from '../hotplug/hotplug.service';
 
 @Injectable()
 export class McpGatewayService {
@@ -46,6 +47,7 @@ export class McpGatewayService {
     private readonly workflowRunRepository: WorkflowRunRepository,
     private readonly traceRepository: TraceRepository,
     private readonly mcpServersRepository: McpServersRepository,
+    private readonly hotplugService: HotplugService,
   ) {}
 
   /**
@@ -479,12 +481,15 @@ export class McpGatewayService {
     }
 
     this.logger.log(`[getOrCreateExternalClient] Creating new persistent client for ${endpoint}`);
+    const headers: Record<string, string> = {
+      Accept: 'application/json, text/event-stream',
+    };
+    if (this.hotplugService.isHotplugEndpoint(endpoint)) {
+      this.logger.log(`[getOrCreateExternalClient] Detected Hotplug endpoint, adding auth header`);
+      Object.assign(headers, this.hotplugService.getAuthHeaders());
+    }
     const transport = new StreamableHTTPClientTransport(new URL(endpoint), {
-      requestInit: {
-        headers: {
-          Accept: 'application/json, text/event-stream',
-        },
-      },
+      requestInit: { headers },
     });
 
     const client = new Client(

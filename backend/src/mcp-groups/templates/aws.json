@@ -9,7 +9,7 @@
     "AWS_SESSION_TOKEN": "sessionToken",
     "AWS_REGION": "region"
   },
-  "defaultDockerImage": "shipsec/mcp-aws-suite:latest",
+  "defaultDockerImage": "hotplug-mcp-runtime:latest",
   "version": {
     "major": 2,
     "minor": 0,

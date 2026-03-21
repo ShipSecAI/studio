@@ -104,7 +104,12 @@ describe('MCP Internal API (Integration)', () => {
     const { McpModule } = await import('../mcp.module');
     const mockRedis = new MockRedis();
     const encryption = new SecretsEncryptionService();
-    const toolRegistryService = new ToolRegistryService(mockRedis as unknown as any, encryption);
+    const mockHotplugService = { deleteSession: async () => {} };
+    const toolRegistryService = new ToolRegistryService(
+      mockRedis as unknown as any,
+      encryption,
+      mockHotplugService as any,
+    );
     const mockGatewayService = {
       refreshServersForRun: async () => {},
     };

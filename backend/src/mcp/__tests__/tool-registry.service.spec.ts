@@ -65,11 +65,19 @@ describe('ToolRegistryService', () => {
   let service: ToolRegistryService;
   let redis: MockRedis;
   let encryption: MockEncryptionService;
+  let hotplugService: any;
 
   beforeEach(() => {
     redis = new MockRedis();
     encryption = new MockEncryptionService();
-    service = new ToolRegistryService(redis as any, encryption as any as SecretsEncryptionService);
+    hotplugService = {
+      deleteSession: async () => {},
+    } as any;
+    service = new ToolRegistryService(
+      redis as any,
+      encryption as any as SecretsEncryptionService,
+      hotplugService,
+    );
   });
 
   describe('registerComponentTool', () => {
@@ -147,7 +155,7 @@ describe('ToolRegistryService', () => {
         serverName: 'My MCP Server',
         transport: 'stdio',
         endpoint: 'http://localhost:9999',
-        containerId: 'container-abc',
+        sessionId: 'session-abc',
         tools: discoveredTools,
       });
 
@@ -163,20 +171,20 @@ describe('ToolRegistryService', () => {
       expect(tools?.[1].name).toBe('store');
     });
 
-    it('registers stdio server with containerId', async () => {
+    it('registers stdio server with sessionId', async () => {
       await service.registerMcpServer({
         runId: 'run-1',
         nodeId: 'stdio-mcp',
         serverName: 'Steampipe',
         transport: 'stdio',
         endpoint: 'http://localhost:8080',
-        containerId: 'container-123',
+        sessionId: 'session-123',
         tools: [{ name: 'query', description: 'Run SQL query' }],
       });
 
       const tool = await service.getTool('run-1', 'stdio-mcp');
       expect(tool?.type).toBe('mcp-server'); // stdio uses 'mcp-server' type
-      expect(tool?.containerId).toBe('container-123');
+      expect(tool?.sessionId).toBe('session-123');
     });
 
     it('encrypts headers when provided', async () => {
@@ -309,7 +317,7 @@ describe('ToolRegistryService', () => {
         serverName: 'aws-cloudtrail',
         transport: 'stdio',
         endpoint: 'http://localhost:8081',
-        containerId: 'ct-container',
+        sessionId: 'ct-session',
         tools: [{ name: 'lookup_events', description: 'Lookup CloudTrail events' }],
       });
 
@@ -319,7 +327,7 @@ describe('ToolRegistryService', () => {
         serverName: 'aws-cloudwatch',
         transport: 'stdio',
         endpoint: 'http://localhost:8082',
-        containerId: 'cw-container',
+        sessionId: 'cw-session',
         tools: [{ name: 'get_metrics', description: 'Get CloudWatch metrics' }],
       });
 
@@ -456,7 +464,7 @@ describe('ToolRegistryService', () => {
   });
 
   describe('cleanupRun', () => {
-    it('removes all tools and returns container IDs', async () => {
+    it('removes all tools and returns session IDs', async () => {
       await service.registerComponentTool({
         runId: 'run-1',
         nodeId: 'node-a',
@@ -473,12 +481,12 @@ describe('ToolRegistryService', () => {
         serverName: 'Steampipe',
         transport: 'stdio',
         endpoint: 'http://localhost:8080',
-        containerId: 'container-123',
+        sessionId: 'session-123',
         tools: [{ name: 'query' }],
       });
 
-      const containerIds = await service.cleanupRun('run-1');
-      expect(containerIds).toEqual(['container-123']);
+      const sessionIds = await service.cleanupRun('run-1');
+      expect(sessionIds).toEqual(['session-123']);
 
       const tools = await service.getToolsForRun('run-1');
       expect(tools.length).toBe(0);

@@ -30,9 +30,9 @@ const outputSchema = outputs({
     label: 'Endpoint',
     description: 'HTTP endpoint of the MCP server',
   }),
-  containerId: port(z.string(), {
-    label: 'Container ID',
-    description: 'Docker container ID running the server',
+  sessionId: port(z.string(), {
+    label: 'Session ID',
+    description: 'Hotplug session ID for the server',
   }),
   status: port(z.string(), {
     label: 'Status',
@@ -188,7 +188,7 @@ process.on('SIGTERM', () => {
           // The server will keep running, we just need to return the endpoint
           return {
             endpoint: `http://127.0.0.1:${port}/mcp`,
-            containerId: 'simple-http-mcp-container',
+            sessionId: 'simple-http-mcp-session',
             status: 'running',
           };
         },

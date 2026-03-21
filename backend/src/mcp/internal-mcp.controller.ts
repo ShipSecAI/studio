@@ -66,8 +66,8 @@ export class InternalMcpController {
   @Post('cleanup')
   @ApiOkResponse({ type: CleanupRunResponseDto })
   async cleanupRun(@Body() body: CleanupRunRequestDto): Promise<CleanupRunResponseDto> {
-    const containerIds = await this.toolRegistry.cleanupRun(body.runId);
-    return { containerIds };
+    const sessionIds = await this.toolRegistry.cleanupRun(body.runId);
+    return { sessionIds };
   }
 
   @Post('tools-ready')

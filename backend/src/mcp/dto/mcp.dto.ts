@@ -24,7 +24,7 @@ export const CleanupRunRequestSchema = z.object({
 export class CleanupRunRequestDto extends createZodDto(CleanupRunRequestSchema) {}
 
 export const CleanupRunResponseSchema = z.object({
-  containerIds: z.array(z.string()),
+  sessionIds: z.array(z.string()),
 });
 
 export class CleanupRunResponseDto extends createZodDto(CleanupRunResponseSchema) {}
@@ -87,8 +87,8 @@ export class RegisterMcpServerInput {
   transport!: 'http' | 'stdio';
   /** The HTTP endpoint to proxy requests to */
   endpoint!: string;
-  /** For stdio servers, the container ID for cleanup */
-  containerId?: string;
+  /** Hotplug session ID for cleanup */
+  sessionId?: string;
   /** Headers to pass when connecting to the server (e.g., auth tokens) */
   headers?: Record<string, string>;
   /**

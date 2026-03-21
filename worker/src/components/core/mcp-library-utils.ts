@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { ExecutionContext } from '@shipsec/component-sdk';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { startMcpDockerServer } from './mcp-runtime';
+import { HotplugClient } from '../../utils/hotplug-client';
 
 // Schema matching backend API response (McpServerResponse from mcp-servers.dto.ts)
 const McpServerSchema = z.object({
@@ -165,21 +165,39 @@ export async function registerServerTools(
   // Fetch resolved configuration (with secrets resolved)
   const resolvedConfig = await fetchResolvedConfig(server.id, context);
 
-  // For stdio servers, we need to spawn a Docker container
+  // For stdio servers, create a Hotplug session to manage the MCP server lifecycle
   if (server.transportType === 'stdio') {
-    const { endpoint, containerId } = await startMcpDockerServer({
-      image: 'shipsec/mcp-stdio-proxy:latest',
-      command: [],
-      env: {
-        MCP_COMMAND: server.command || '',
-        MCP_ARGS: JSON.stringify((resolvedConfig.args ?? server.args) || []),
+    const hotplug = new HotplugClient();
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const args = server.command ? server.command.split(' ') : [];
+    if (resolvedConfig.args ?? server.args) {
+      args.push(...((resolvedConfig.args ?? server.args) || []));
+    }
+
+    const session = await hotplug.createSession({
+      identity: {
+        tenant_id: tenantId,
+        user_id: context.componentRef,
+        run_id: context.runId,
       },
-      port: 0, // Auto-assign port
-      params: {},
-      context,
+      attachments: {
+        server: {
+          managed: {
+            runtime: 'docker',
+            launch: {
+              type: 'stdio',
+              command: args[0] || server.command || '',
+              args: args.slice(1),
+            },
+          },
+        },
+      },
     });
 
-    // Discover tools from the running container
+    const sessionId = session.session_id;
+    const endpoint = hotplug.sessionMcpEndpoint(sessionId);
+
+    // Discover tools from the Hotplug session MCP endpoint
     const tools = await discoverToolsFromEndpoint(endpoint, resolvedConfig.headers);
 
     // Register the server with pre-discovered tools
@@ -190,7 +208,7 @@ export async function registerServerTools(
       serverId: server.id,
       transport: 'stdio',
       endpoint,
-      containerId,
+      sessionId,
       headers: resolvedConfig.headers,
       tools,
     });
@@ -226,7 +244,7 @@ async function registerMcpServer(input: {
   serverId: string;
   transport: 'http' | 'stdio';
   endpoint: string;
-  containerId?: string;
+  sessionId?: string;
   headers?: Record<string, string>;
   tools: McpTool[];
 }): Promise<void> {
@@ -247,7 +265,7 @@ async function registerMcpServer(input: {
       serverId: input.serverId,
       transport: input.transport,
       endpoint: input.endpoint,
-      containerId: input.containerId,
+      sessionId: input.sessionId,
       headers: input.headers,
       tools: input.tools,
     }),

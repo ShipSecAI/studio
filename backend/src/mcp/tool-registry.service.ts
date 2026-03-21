@@ -14,6 +14,7 @@ import type Redis from 'ioredis';
 import { type ToolInputSchema } from '@shipsec/component-sdk';
 import { SecretsEncryptionService } from '../secrets/secrets.encryption';
 import { RegisterComponentToolInput, RegisterMcpServerInput } from './dto/mcp.dto';
+import { HotplugService } from '../hotplug/hotplug.service';
 
 export const TOOL_REGISTRY_REDIS = Symbol('TOOL_REGISTRY_REDIS');
 
@@ -75,8 +76,8 @@ export interface RegisteredTool {
   /** MCP endpoint URL (for remote/local MCPs) */
   endpoint?: string;
 
-  /** Docker container ID (for local MCPs) */
-  containerId?: string;
+  /** Hotplug session ID (for managed MCPs) */
+  sessionId?: string;
 
   /** MCP Server ID (for pre-registered MCP servers with cached tools) */
   serverId?: string;
@@ -97,6 +98,7 @@ export class ToolRegistryService implements OnModuleDestroy {
   constructor(
     @Inject(TOOL_REGISTRY_REDIS) private readonly redis: Redis | null,
     private readonly encryption: SecretsEncryptionService,
+    private readonly hotplugService: HotplugService,
   ) {}
 
   async onModuleDestroy() {
@@ -167,17 +169,8 @@ export class ToolRegistryService implements OnModuleDestroy {
       return;
     }
 
-    const {
-      runId,
-      nodeId,
-      serverName,
-      serverId,
-      transport,
-      endpoint,
-      containerId,
-      headers,
-      tools,
-    } = input;
+    const { runId, nodeId, serverName, serverId, transport, endpoint, sessionId, headers, tools } =
+      input;
 
     // Encrypt headers if provided
     let encryptedCredentials: string | undefined;
@@ -196,7 +189,7 @@ export class ToolRegistryService implements OnModuleDestroy {
       description: `MCP server: ${serverName}`,
       inputSchema: { type: 'object', properties: {} },
       endpoint,
-      containerId,
+      sessionId,
       serverId,
       encryptedCredentials,
       registeredAt: new Date().toISOString(),
@@ -375,8 +368,9 @@ export class ToolRegistryService implements OnModuleDestroy {
   }
 
   /**
-   * Clean up all tools for a run (called when workflow completes)
-   * Returns container IDs that need to be stopped
+   * Clean up all tools for a run (called when workflow completes).
+   * Deletes Hotplug sessions directly and cleans up Redis registry.
+   * Returns deleted session IDs for caller visibility.
    */
   async cleanupRun(runId: string): Promise<string[]> {
     if (!this.redis) {
@@ -384,17 +378,31 @@ export class ToolRegistryService implements OnModuleDestroy {
     }
 
     const tools = await this.getToolsForRun(runId);
-    const containerIds = tools
-      .filter((t) => (t.type === 'local-mcp' || t.type === 'mcp-server') && t.containerId)
-      .map((t) => t.containerId!);
+    const sessionIds = tools
+      .filter((t) => (t.type === 'local-mcp' || t.type === 'mcp-server') && t.sessionId)
+      .map((t) => t.sessionId!);
+
+    // Delete Hotplug sessions in parallel
+    if (sessionIds.length > 0) {
+      const results = await Promise.allSettled(
+        sessionIds.map((id) => this.hotplugService.deleteSession(id)),
+      );
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].status === 'rejected') {
+          this.logger.warn(
+            `Failed to delete Hotplug session ${sessionIds[i]}: ${(results[i] as PromiseRejectedResult).reason}`,
+          );
+        }
+      }
+    }
 
     const key = this.getRegistryKey(runId);
     await this.redis.del(key);
 
     this.logger.log(
-      `Cleaned up tool registry for run ${runId} (${tools.length} tools, ${containerIds.length} containers)`,
+      `Cleaned up tool registry for run ${runId} (${tools.length} tools, ${sessionIds.length} sessions)`,
     );
 
-    return containerIds;
+    return sessionIds;
   }
 }

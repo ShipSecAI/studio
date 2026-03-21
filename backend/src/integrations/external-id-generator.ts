@@ -43,7 +43,7 @@ const ADJECTIVES = [
   'cedar',
   'dawn',
   'echo',
-  'flint',
+  'hotplug',
   'granite',
   'harbor',
   'ivory',

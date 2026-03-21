@@ -225,7 +225,7 @@ export interface RegisterLocalMcpActivityInput {
   env?: Record<string, string>;
   port: number;
   endpoint: string;
-  containerId: string;
+  sessionId?: string;
 }
 
 export interface PrepareAndRegisterToolActivityInput {

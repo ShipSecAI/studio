@@ -1,8 +1,4 @@
-import { startMcpDockerServer } from '../../components/core/mcp-runtime';
-import { createExecutionContext } from '@shipsec/component-sdk';
-import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { HotplugClient } from '../../utils/hotplug-client';
 import type {
   DiscoveryActivityInput,
   DiscoveryActivityOutput,
@@ -69,13 +65,11 @@ export async function getCachedDiscoveryActivity(input: {
 
 /**
  * Main discovery activity for MCP servers.
- * Supports both HTTP (direct connection) and STDIO (Docker container) transports.
+ * Supports both HTTP (direct connection) and STDIO (via Hotplug) transports.
  *
  * For STDIO transport:
- * - Spawns a Docker container using the stdio-proxy image
- * - Waits for the container to be ready
- * - Discovers tools via MCP protocol
- * - Cleans up the container in finally block
+ * - Uses Hotplug's /discover endpoint for ephemeral tool discovery
+ * - Hotplug handles container lifecycle, MCP handshake, and cleanup
  *
  * For HTTP transport:
  * - Connects directly to the endpoint
@@ -85,85 +79,120 @@ export async function getCachedDiscoveryActivity(input: {
 export async function discoverMcpToolsActivity(
   input: DiscoveryActivityInput,
 ): Promise<DiscoveryActivityOutput> {
-  let containerId: string | undefined;
-
-  try {
-    let endpoint: string;
-
-    // HTTP: direct connection
-    if (input.transport === 'http') {
-      if (!input.endpoint) {
-        throw new Error('endpoint is required for http transport');
-      }
-      endpoint = input.endpoint;
-      await testMcpConnection(endpoint, input.headers);
+  // HTTP: direct connection
+  if (input.transport === 'http') {
+    if (!input.endpoint) {
+      throw new Error('endpoint is required for http transport');
     }
-    // STDIO: spawn Docker container
-    else if (input.transport === 'stdio') {
-      if (!input.command) {
-        throw new Error('command is required for stdio transport');
-      }
-      const result = await spawnStdioContainer({
-        command: input.command,
-        args: input.args || [],
-        image: input.image,
-      });
-      containerId = result.containerId;
-      if (!containerId) {
-        throw new Error('Container ID is required for STDIO transport');
-      }
-      endpoint = result.endpoint;
-      // Wait for container to be ready with health check
-      await waitForContainerReady(endpoint);
-    } else {
-      throw new Error(`Unsupported transport: ${(input as any).transport}`);
-    }
-
-    // Discover tools
-    const tools = await listMcpTools(endpoint, input.headers);
+    await testMcpConnection(input.endpoint, input.headers);
+    const tools = await listMcpTools(input.endpoint, input.headers);
     return { tools };
-  } finally {
-    // Always cleanup
-    if (containerId) {
-      await cleanupContainer(containerId);
-    }
   }
+
+  // STDIO: Hotplug ephemeral discovery
+  if (input.transport === 'stdio') {
+    if (!input.command) {
+      throw new Error('command is required for stdio transport');
+    }
+    const hotplug = new HotplugClient();
+    const result = await hotplug.discover({
+      managed: {
+        runtime: 'docker',
+        launch: {
+          type: 'stdio',
+          command: 'docker',
+          args: [
+            'run',
+            '--rm',
+            '-i',
+            '--init',
+            'hotplug-mcp-runtime:latest',
+            'uvx',
+            input.command,
+            ...(input.args || []),
+          ],
+        },
+      },
+      startup_timeout_ms: 60000,
+    });
+
+    return {
+      tools: result.tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema as Record<string, unknown> | undefined,
+      })),
+    };
+  }
+
+  throw new Error(`Unsupported transport: ${(input as any).transport}`);
 }
 
 /**
  * Group discovery activity for MCP servers.
- * Uses a single stdio proxy container with named servers for all stdio configs.
+ * Discovers each stdio server in parallel via Hotplug, HTTP servers directly.
  */
 export async function discoverMcpGroupToolsActivity(
   input: GroupDiscoveryActivityInput,
 ): Promise<GroupDiscoveryActivityOutput> {
-  let containerId: string | undefined;
-  let baseEndpoint: string | undefined;
+  const stdioServers = input.servers.filter((server) => server.transport === 'stdio');
+  const httpServers = input.servers.filter((server) => server.transport === 'http');
+  const results: GroupDiscoveryActivityResult[] = [];
 
-  try {
-    const stdioServers = input.servers.filter((server) => server.transport === 'stdio');
-    const httpServers = input.servers.filter((server) => server.transport === 'http');
-
-    if (stdioServers.length > 0) {
-      const spawn = await spawnNamedServersContainer({
-        servers: stdioServers,
-        image: input.image,
+  // HTTP servers: direct connection
+  for (const server of httpServers) {
+    try {
+      if (!server.endpoint) {
+        throw new Error('endpoint is required for http transport');
+      }
+      await testMcpConnection(server.endpoint, server.headers);
+      const tools = await listMcpTools(server.endpoint, server.headers);
+      results.push({ name: server.name, tools });
+    } catch (error) {
+      results.push({
+        name: server.name,
+        tools: [],
+        error: error instanceof Error ? error.message : String(error),
       });
-      containerId = spawn.containerId;
-      baseEndpoint = spawn.baseEndpoint;
-      await waitForContainerReady(`${baseEndpoint}/health`);
     }
+  }
 
-    const results: GroupDiscoveryActivityResult[] = [];
-
-    for (const server of httpServers) {
+  // STDIO servers: parallel Hotplug ephemeral discovery
+  const hotplug = new HotplugClient();
+  await Promise.all(
+    stdioServers.map(async (server) => {
       try {
-        if (!server.endpoint) {
-          throw new Error('endpoint is required for http transport');
+        if (!server.command) {
+          throw new Error(`command is required for stdio server '${server.name}'`);
         }
-        await testMcpConnection(server.endpoint, server.headers);
-        const tools = await listMcpTools(server.endpoint, server.headers);
-        results.push({ name: server.name, tools });
+        const result = await hotplug.discover({
+          managed: {
+            runtime: 'docker',
+            launch: {
+              type: 'stdio',
+              command: 'docker',
+              args: [
+                'run',
+                '--rm',
+                '-i',
+                '--init',
+                'hotplug-mcp-runtime:latest',
+                'uvx',
+                server.command,
+                ...(server.args ?? []),
+              ],
+            },
+          },
+          startup_timeout_ms: 60000,
+        });
+        results.push({
+          name: server.name,
+          tools: result.tools.map((t) => ({
+            name: t.name,
+            description: t.description,
+            inputSchema: t.inputSchema as Record<string, unknown> | undefined,
+          })),
+        });
       } catch (error) {
         results.push({
           name: server.name,
@@ -171,183 +200,14 @@ export async function discoverMcpGroupToolsActivity(
           error: error instanceof Error ? error.message : String(error),
         });
       }
-    }
+    }),
+  );
 
-    for (const server of stdioServers) {
-      try {
-        if (!baseEndpoint) {
-          throw new Error('stdio proxy endpoint not available');
-        }
-        const endpoint = `${baseEndpoint}/servers/${encodeURIComponent(server.name)}/sse`;
-        await waitForContainerReady(`${baseEndpoint}/health`);
-        const tools = await listMcpTools(endpoint, server.headers);
-        results.push({ name: server.name, tools });
-      } catch (error) {
-        results.push({
-          name: server.name,
-          tools: [],
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    return { results };
-  } finally {
-    if (containerId) {
-      await cleanupContainer(containerId);
-    }
-  }
+  return { results };
 }
 
 /**
- * Spawn stdio container using existing mcp-runtime.ts
- */
-async function spawnStdioContainer(input: {
-  command: string;
-  args: string[];
-  image?: string;
-}): Promise<{ containerId: string; endpoint: string }> {
-  // Create minimal execution context for Docker runner
-  const context = createExecutionContext({
-    runId: `mcp-discovery-${Date.now()}`,
-    componentRef: 'mcp-discovery',
-    logCollector: (entry) => {
-      // Log to console for discovery activity
-      const logMethod =
-        entry.level === 'error'
-          ? console.error
-          : entry.level === 'warn'
-            ? console.warn
-            : entry.level === 'debug'
-              ? console.debug
-              : console.log;
-      logMethod(`[MCP Discovery] ${entry.message}`);
-    },
-  });
-
-  const { awsEnv, volumes } = getAwsConfig();
-
-  const result = await startMcpDockerServer({
-    image: input.image || 'shipsec/mcp-stdio-proxy:latest',
-    command: [],
-    env: {
-      MCP_COMMAND: input.command,
-      MCP_ARGS: JSON.stringify(input.args),
-      // Override baked-in named-servers.json to force single-server mode
-      MCP_NAMED_SERVERS: '{}',
-      ...awsEnv,
-    },
-    volumes: volumes.length > 0 ? volumes : undefined,
-    port: 0, // Auto-assign
-    autoRemove: true,
-    params: {},
-    context,
-  });
-
-  // containerId should always be set for Docker containers
-  const containerId = result.containerId;
-  if (!containerId) {
-    throw new Error('Docker container ID not returned from startMcpDockerServer');
-  }
-
-  return {
-    containerId,
-    endpoint: result.endpoint,
-  };
-}
-
-async function spawnNamedServersContainer(input: {
-  servers: { name: string; command?: string; args?: string[] }[];
-  image?: string;
-}): Promise<{ containerId: string; baseEndpoint: string }> {
-  const context = createExecutionContext({
-    runId: `mcp-group-discovery-${Date.now()}`,
-    componentRef: 'mcp-group-discovery',
-    logCollector: (entry) => {
-      const logMethod =
-        entry.level === 'error'
-          ? console.error
-          : entry.level === 'warn'
-            ? console.warn
-            : entry.level === 'debug'
-              ? console.debug
-              : console.log;
-      logMethod(`[MCP Group Discovery] ${entry.message}`);
-    },
-  });
-
-  const { awsEnv, volumes } = getAwsConfig();
-
-  const namedServers: Record<string, { command: string; args?: string[] }> = {};
-  for (const server of input.servers) {
-    if (!server.command) {
-      throw new Error(`command is required for stdio server '${server.name}'`);
-    }
-    namedServers[server.name] = {
-      command: server.command,
-      args: server.args ?? [],
-    };
-  }
-
-  const result = await startMcpDockerServer({
-    image: input.image || 'shipsec/mcp-stdio-proxy:latest',
-    command: [],
-    env: {
-      MCP_NAMED_SERVERS: JSON.stringify({ mcpServers: namedServers }),
-      ...awsEnv,
-    },
-    volumes: volumes.length > 0 ? volumes : undefined,
-    port: 0,
-    autoRemove: true,
-    params: {},
-    context,
-  });
-
-  const containerId = result.containerId;
-  if (!containerId) {
-    throw new Error('Docker container ID not returned from startMcpDockerServer');
-  }
-
-  const baseEndpoint = result.endpoint.replace(/\/mcp$/, '');
-  return { containerId, baseEndpoint };
-}
-
-function getAwsConfig(): {
-  awsEnv: Record<string, string>;
-  volumes: { source: string; target: string; readOnly?: boolean }[];
-} {
-  const awsEnv: Record<string, string> = {};
-  const passThroughEnv = [
-    'AWS_ACCESS_KEY_ID',
-    'AWS_SECRET_ACCESS_KEY',
-    'AWS_SESSION_TOKEN',
-    'AWS_REGION',
-    'AWS_DEFAULT_REGION',
-    'AWS_PROFILE',
-  ];
-  for (const key of passThroughEnv) {
-    const value = process.env[key];
-    if (value) {
-      awsEnv[key] = value;
-    }
-  }
-
-  const home = homedir();
-  const awsCredentials = join(home, '.aws', 'credentials');
-  const awsConfig = join(home, '.aws', 'config');
-  const volumes = [];
-  if (existsSync(awsCredentials)) {
-    volumes.push({ source: awsCredentials, target: '/root/.aws/credentials', readOnly: true });
-  }
-  if (existsSync(awsConfig)) {
-    volumes.push({ source: awsConfig, target: '/root/.aws/config', readOnly: true });
-  }
-
-  return { awsEnv, volumes };
-}
-
-/**
- * Test MCP connection (initialize)
+ * Test MCP connection (initialize) — used for HTTP servers only
  */
 async function testMcpConnection(
   endpoint: string,
@@ -383,7 +243,7 @@ async function testMcpConnection(
 }
 
 /**
- * List tools via MCP protocol
+ * List tools via MCP protocol — used for HTTP servers only
  */
 async function listMcpTools(
   endpoint: string,
@@ -417,74 +277,4 @@ async function listMcpTools(
   }
 
   return data.result?.tools || [];
-}
-
-/**
- * Wait for container to be ready using health check
- * Waits for both HTTP server and STDIO MCP client to be ready
- */
-async function waitForContainerReady(endpoint: string): Promise<void> {
-  const healthUrl = endpoint.includes('/health') ? endpoint : endpoint.replace('/mcp', '/health');
-  const maxAttempts = 60; // 60 seconds total (STDIO connection can take time)
-  const pollInterval = 1000;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      const response = await fetch(healthUrl, { method: 'GET' });
-      if (response.ok) {
-        const data = (await response.json()) as {
-          status?: string;
-          servers?: { ready: boolean }[];
-        };
-        if (data.status === 'ok') {
-          // Check if the MCP server is actually ready (STDIO client connected)
-          const servers = data.servers ?? [];
-          const allReady = servers.every((s) => s.ready);
-          if (servers.length > 0 && allReady) {
-            console.log(
-              `[MCP Discovery] Container ready after ${attempt + 1}s (${servers.length} server(s) ready)`,
-            );
-            return;
-          }
-          // HTTP is up but waiting for STDIO client connection
-          if (attempt % 10 === 0) {
-            console.log(
-              `[MCP Discovery] HTTP ready, waiting for STDIO client... (${servers.filter((s) => s.ready).length}/${servers.length} ready)`,
-            );
-          }
-        }
-      }
-    } catch {
-      // Not ready yet, continue polling
-    }
-    await new Promise((resolve) => setTimeout(resolve, pollInterval));
-  }
-
-  throw new Error('Container failed to become ready after 60 seconds');
-}
-
-/**
- * Cleanup container using docker CLI
- */
-async function cleanupContainer(containerId: string | undefined): Promise<void> {
-  if (!containerId) {
-    return;
-  }
-  // In K8s mode there is no Docker daemon — skip container cleanup
-  if (process.env.EXECUTION_MODE === 'k8s') return;
-  // Validate container ID to prevent command injection
-  if (!/^[a-zA-Z0-9_.-][a-zA-Z0-9_.-]*$/.test(containerId)) {
-    console.warn(`[MCP Discovery] Skipping cleanup with unsafe container id: ${containerId}`);
-    return;
-  }
-
-  const { exec } = await import('node:child_process');
-  const { promisify } = await import('node:util');
-  const execAsync = promisify(exec);
-
-  try {
-    await execAsync(`docker rm -f ${containerId}`);
-  } catch (error) {
-    console.error(`[MCP Discovery] Failed to cleanup container ${containerId}:`, error);
-  }
 }

@@ -33,7 +33,7 @@ const AwsGroupTemplate = McpGroupTemplateSchema.parse({
   name: 'AWS MCPs',
   description: 'Curated AWS MCP servers (CloudTrail, CloudWatch, IAM, S3, Lambda, DynamoDB, ...)',
   credentialContractName: 'core.credential.aws',
-  defaultDockerImage: 'shipsec/mcp-aws-suite:latest',
+  defaultDockerImage: 'hotplug-mcp-runtime:latest',
   credentialMapping: {
     env: {
       AWS_ACCESS_KEY_ID: 'accessKeyId',
@@ -170,7 +170,7 @@ const definition = defineComponent({
     name: 'aws',
     description: 'Curated AWS MCP servers (CloudTrail, CloudWatch, IAM, S3, Lambda, DynamoDB, ...)',
     mcp: {
-      image: 'shipsec/mcp-aws-suite:latest',
+      image: 'hotplug-mcp-runtime:latest',
       credentialMapping: {
         AWS_ACCESS_KEY_ID: 'accessKeyId',
         AWS_SECRET_ACCESS_KEY: 'secretAccessKey',

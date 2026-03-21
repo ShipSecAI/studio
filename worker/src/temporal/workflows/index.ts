@@ -725,17 +725,13 @@ export async function shipsecWorkflowRun(
               const mcpOutput = await runMcp(activityInput);
               const output = mcpOutput.output as any;
               const endpoint = output.endpoint;
-              const containerId = output.containerId;
+              const sessionId = output.sessionId as string | undefined;
 
               if (!endpoint) {
                 throw new Error('MCP server output missing endpoint');
               }
 
-              if (!containerId) {
-                throw new Error('MCP server output missing containerId');
-              }
-
-              startedContainerId = containerId;
+              startedContainerId = sessionId ?? endpoint;
 
               const mcpMeta = MCP_SERVER_COMPONENTS[action.componentId];
               const toolName = mcpMeta.toolName(mergedParams);
@@ -750,7 +746,7 @@ export async function shipsecWorkflowRun(
                 image: (mergedParams.image as string) || 'unknown',
                 port: (mergedParams.port as number) || 8080,
                 endpoint,
-                containerId,
+                sessionId,
               });
             } else {
               await prepareAndRegisterToolActivity({

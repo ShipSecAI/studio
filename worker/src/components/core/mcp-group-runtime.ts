@@ -1,9 +1,7 @@
 import { z } from 'zod';
 import type { ExecutionContext } from '@shipsec/component-sdk';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { startMcpDockerServer } from './mcp-runtime';
-import { createIsolatedVolume } from '../../utils/isolated-volume';
+import { HotplugClient } from '../../utils/hotplug-client';
+import type { HotplugAttachment, HotplugTool } from '../../utils/hotplug-client';
 
 /**
  * Schema for MCP Group Templates (code-defined)
@@ -36,7 +34,7 @@ export type McpGroupTemplate = z.infer<typeof McpGroupTemplateSchema>;
  */
 export interface McpServerEndpoint {
   endpoint: string;
-  containerId: string;
+  sessionId: string;
   serverId: string;
 }
 
@@ -79,47 +77,15 @@ function buildCredentialEnv(
 }
 
 /**
- * Generates AWS credentials and config files for IsolatedContainerVolume
- */
-function buildAwsCredentialFiles(
-  credentials: Record<string, unknown>,
-): { credentials: string; config: string } | null {
-  if (!credentials.accessKeyId || !credentials.secretAccessKey) {
-    return null;
-  }
-
-  const region = credentials.region || 'us-east-1';
-
-  const credsLines = [
-    '[default]',
-    `aws_access_key_id = ${credentials.accessKeyId}`,
-    `aws_secret_access_key = ${credentials.secretAccessKey}`,
-  ];
-
-  if (credentials.sessionToken) {
-    credsLines.push(`aws_session_token = ${credentials.sessionToken}`);
-  }
-
-  const configLines = ['[default]', `region = ${region}`, 'output = json'];
-
-  return {
-    credentials: credsLines.join('\n'),
-    config: configLines.join('\n'),
-  };
-}
-
-/**
  * Main execution function for MCP Group nodes
  *
  * This helper:
  * 1. Takes credential contract inputs
  * 2. Takes enabledServers[] parameter
- * 3. For each enabled server:
- *    - Creates IsolatedContainerVolume with credentials
- *    - Starts container using group's defaultDockerImage
- *    - Sets MCP_COMMAND environment variable for the server
- *    - Calls /internal/mcp/register-local for each
- * 4. Returns array of { endpoint, containerId, serverId }
+ * 3. Creates ONE Hotplug session with all enabled servers as attachments
+ * 4. Each server becomes an attachment keyed by server.id
+ * 5. Discovers tools via Hotplug session response and registers them with the backend
+ * 6. Returns array of { endpoint, sessionId, serverId }
  *
  * @param context - Execution context
  * @param inputs - Input data including credentials
@@ -139,12 +105,6 @@ export async function executeMcpGroupNode(
   console.log(`[executeMcpGroupNode] Component ref: ${context.componentRef}`);
   console.log(`[executeMcpGroupNode] Run ID: ${context.runId}`);
   console.log(`[executeMcpGroupNode] Enabled servers: ${enabledServers.join(', ')}`);
-  console.log(
-    `[executeMcpGroupNode] [DEBUG] componentRef should match workflow node ID for proper gateway filtering`,
-  );
-  console.log(
-    `[executeMcpGroupNode] [DEBUG] Child server nodeIds will be: ${enabledServers.map((s) => `${context.componentRef}/${s}`).join(', ')}`,
-  );
 
   const credentials = inputs.credentials;
 
@@ -161,187 +121,94 @@ export async function executeMcpGroupNode(
   const env = buildCredentialEnv(credentials, groupTemplate.credentialMapping);
   console.log(`[executeMcpGroupNode] Built credential env:`, Object.keys(env));
 
-  // Get enabled servers from template (no API call needed!)
+  // Get enabled servers from template
   const enabledServerTemplates = groupTemplate.servers.filter((s) => enabledServers.includes(s.id));
 
   console.log(
     `[executeMcpGroupNode] Processing ${enabledServerTemplates.length} enabled servers from template`,
   );
 
-  const endpoints: McpServerEndpoint[] = [];
-  const volumes: ReturnType<ReturnType<typeof createIsolatedVolume>['getVolumeConfig']>[] = [];
-  let volume: ReturnType<typeof createIsolatedVolume> | null = null;
-
-  try {
-    // Create volume if AWS files are needed
-    if (groupTemplate.credentialMapping.awsFiles) {
-      const awsFiles = buildAwsCredentialFiles(credentials);
-      if (awsFiles) {
-        const tenantId = (context as any).tenantId ?? 'default-tenant';
-        volume = createIsolatedVolume(tenantId, context.runId);
-        await volume.initialize({
-          credentials: awsFiles.credentials,
-          config: awsFiles.config,
-        });
-        volumes.push(volume.getVolumeConfig('/root/.aws', true));
-      }
+  // Build Hotplug attachments: one per enabled server, keyed by server.id
+  const attachments: Record<string, HotplugAttachment> = {};
+  for (const serverTemplate of enabledServerTemplates) {
+    const args = [
+      'run',
+      '--rm',
+      '-i',
+      '--init',
+      groupTemplate.defaultDockerImage,
+      'uvx',
+      serverTemplate.command,
+    ];
+    if (serverTemplate.args) {
+      args.push(...serverTemplate.args);
     }
 
-    // Process each enabled server
-    for (const serverTemplate of enabledServerTemplates) {
-      console.log(`[executeMcpGroupNode] ----------------------------------------`);
-      console.log(`[executeMcpGroupNode] Starting container for server: ${serverTemplate.id}`);
-      console.log(`[executeMcpGroupNode] Command: ${serverTemplate.command}`);
-      console.log(`[executeMcpGroupNode] Args: ${JSON.stringify(serverTemplate.args || [])}`);
-      console.log(`[executeMcpGroupNode] Image: ${groupTemplate.defaultDockerImage}`);
-
-      // Set MCP_COMMAND for the stdio proxy
-      // MCP_NAMED_SERVERS='{}' disables the built-in named-servers.json config
-      // so the proxy falls through to MCP_COMMAND mode
-      const serverEnv: Record<string, string> = {
-        ...env,
-        MCP_COMMAND: serverTemplate.command,
-        MCP_NAMED_SERVERS: '{}',
-      };
-
-      if (serverTemplate.args && serverTemplate.args.length > 0) {
-        serverEnv.MCP_ARGS = JSON.stringify(serverTemplate.args);
-      }
-
-      console.log(`[executeMcpGroupNode] Env vars:`, Object.keys(serverEnv));
-
-      const result = await startMcpDockerServer({
-        image: groupTemplate.defaultDockerImage,
-        command: [],
-        env: serverEnv,
-        port: 0, // Auto-assign port
-        params: {},
-        context,
-        volumes,
-      });
-
-      console.log(`[executeMcpGroupNode] Container started successfully!`);
-      console.log(`[executeMcpGroupNode] Endpoint: ${result.endpoint}`);
-      console.log(`[executeMcpGroupNode] Container ID: ${result.containerId}`);
-
-      // Register with backend using hierarchical node ID (parent/child format)
-      // This allows explicit hierarchical queries instead of fragile prefix matching
-      const uniqueNodeId = `${context.componentRef}/${serverTemplate.id}`;
-      console.log(`[executeMcpGroupNode] Registering with backend...`);
-      console.log(`[executeMcpGroupNode] Unique nodeId: ${uniqueNodeId}`);
-      console.log(
-        `[executeMcpGroupNode] Backend URL: ${process.env.BACKEND_URL || 'http://localhost:3211'}`,
-      );
-
-      await registerServerWithBackend(
-        serverTemplate.id,
-        result.endpoint,
-        result.containerId ?? '',
-        context,
-      );
-
-      console.log(`[executeMcpGroupNode] Registration successful!`);
-
-      endpoints.push({
-        endpoint: result.endpoint,
-        containerId: result.containerId || '',
-        serverId: serverTemplate.id,
-      });
-    }
-
-    console.log(`[executeMcpGroupNode] ============================================`);
-    console.log(`[executeMcpGroupNode] Execution complete!`);
-    console.log(`[executeMcpGroupNode] Total endpoints: ${endpoints.length}`);
-    console.log(
-      `[executeMcpGroupNode] Endpoints:`,
-      endpoints.map((e) => `${e.serverId} -> ${e.endpoint}`),
-    );
-    console.log(`[executeMcpGroupNode] ============================================`);
-    return { endpoints };
-  } catch (error) {
-    // Cleanup volume on error
-    if (volume) {
-      await volume.cleanup().catch(() => {});
-    }
-    throw error;
-  }
-}
-
-/**
- * Schema for discovered MCP tools
- */
-interface McpTool {
-  name: string;
-  description?: string;
-  inputSchema?: Record<string, unknown>;
-}
-
-/**
- * Discover tools from an MCP endpoint with exponential backoff retry.
- *
- * Uses the MCP SDK Client + StreamableHTTPClientTransport so that a proper
- * `initialize` handshake is performed before `tools/list`.  Many MCP servers
- * (including the AWS MCP servers) reject a bare `tools/list` request without
- * a preceding `initialize`, which caused the old raw-fetch implementation to
- * silently return zero tools.
- */
-async function discoverToolsWithRetry(
-  endpoint: string,
-  maxRetries = 8,
-  baseDelayMs = 1000,
-): Promise<McpTool[]> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    let client: Client | null = null;
-    try {
-      console.log(
-        `[discoverToolsWithRetry] Attempt ${attempt}/${maxRetries}: Discovering tools from ${endpoint}`,
-      );
-
-      const transport = new StreamableHTTPClientTransport(new URL(endpoint), {
-        requestInit: {
-          headers: {
-            Accept: 'application/json, text/event-stream',
-          },
+    attachments[serverTemplate.id] = {
+      managed: {
+        runtime: 'docker',
+        launch: {
+          type: 'stdio',
+          command: 'docker',
+          args,
         },
-      });
-
-      client = new Client(
-        { name: 'shipsec-worker-tool-discovery', version: '1.0.0' },
-        { capabilities: {} },
-      );
-
-      await client.connect(transport);
-      const res = await client.listTools();
-      await client.close().catch(() => {});
-
-      const tools: McpTool[] = (res.tools ?? []).map((t) => ({
-        name: t.name,
-        description: t.description,
-        inputSchema: t.inputSchema as Record<string, unknown> | undefined,
-      }));
-      console.log(
-        `[discoverToolsWithRetry] ✓ Discovered ${tools.length} tools on attempt ${attempt}`,
-      );
-      return tools;
-    } catch (error) {
-      lastError = error as Error;
-      await client?.close().catch(() => {});
-      console.warn(`[discoverToolsWithRetry] Attempt ${attempt} failed: ${lastError.message}`);
-
-      if (attempt < maxRetries) {
-        const delayMs = Math.min(baseDelayMs * Math.pow(2, attempt - 1), 5000);
-        console.log(`[discoverToolsWithRetry] Retrying in ${delayMs}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
-    }
+        secrets: { env_vars: env },
+      },
+    };
   }
 
-  console.error(
-    `[discoverToolsWithRetry] ✗ Failed after ${maxRetries} attempts: ${lastError?.message}`,
+  console.log(`[executeMcpGroupNode] Built ${Object.keys(attachments).length} Hotplug attachments`);
+
+  const hotplug = new HotplugClient();
+  const tenantId = (context as any).tenantId ?? 'default-tenant';
+
+  // Create ONE Hotplug session with all servers as attachments
+  console.log(`[executeMcpGroupNode] Creating Hotplug session...`);
+  const session = await hotplug.createSession({
+    identity: {
+      tenant_id: tenantId,
+      user_id: context.componentRef,
+      run_id: context.runId,
+      labels: { group: groupTemplate.slug },
+    },
+    attachments,
+  });
+
+  const sessionId = session.session_id;
+  const mcpEndpoint = hotplug.sessionMcpEndpoint(sessionId);
+  console.log(`[executeMcpGroupNode] Hotplug session created: ${sessionId}`);
+  console.log(`[executeMcpGroupNode] MCP proxy endpoint: ${mcpEndpoint}`);
+
+  // Collect tools from the session response and register each server with backend
+  const endpoints: McpServerEndpoint[] = [];
+
+  for (const serverTemplate of enabledServerTemplates) {
+    const attachmentState = session.state.attachments[serverTemplate.id];
+    const tools: HotplugTool[] = attachmentState?.tools ?? [];
+
+    console.log(
+      `[executeMcpGroupNode] Server ${serverTemplate.id}: ${tools.length} tools discovered`,
+    );
+
+    // Register with backend using hierarchical node ID
+    await registerServerWithBackend(serverTemplate.id, mcpEndpoint, sessionId, context, tools);
+
+    endpoints.push({
+      endpoint: mcpEndpoint,
+      sessionId,
+      serverId: serverTemplate.id,
+    });
+  }
+
+  console.log(`[executeMcpGroupNode] ============================================`);
+  console.log(`[executeMcpGroupNode] Execution complete!`);
+  console.log(`[executeMcpGroupNode] Total endpoints: ${endpoints.length}`);
+  console.log(
+    `[executeMcpGroupNode] Endpoints:`,
+    endpoints.map((e) => `${e.serverId} -> ${e.endpoint}`),
   );
-  return [];
+  console.log(`[executeMcpGroupNode] ============================================`);
+  return { endpoints };
 }
 
 /**
@@ -352,8 +219,9 @@ async function discoverToolsWithRetry(
 async function registerServerWithBackend(
   serverId: string,
   endpoint: string,
-  containerId: string,
+  sessionId: string,
   context: ExecutionContext,
+  tools: HotplugTool[],
 ): Promise<void> {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:3211';
   const internalApiUrl = `${backendUrl}/api/v1/internal/mcp`;
@@ -366,11 +234,7 @@ async function registerServerWithBackend(
   console.log(`[registerServerWithBackend] Registering server ${serverId}`);
   console.log(`[registerServerWithBackend] Unique nodeId: ${uniqueNodeId}`);
   console.log(`[registerServerWithBackend] Endpoint: ${endpoint}`);
-
-  // Discover tools from endpoint with retry logic
-  console.log(`[registerServerWithBackend] Discovering tools from endpoint...`);
-  const discoveredTools = await discoverToolsWithRetry(endpoint);
-  console.log(`[registerServerWithBackend] Discovered ${discoveredTools.length} tools`);
+  console.log(`[registerServerWithBackend] Tools: ${tools.length}`);
 
   // Register using the new clean API
   const registerResponse = await fetch(`${internalApiUrl}/register-mcp-server`, {
@@ -386,8 +250,8 @@ async function registerServerWithBackend(
       serverId,
       transport: 'stdio',
       endpoint,
-      containerId,
-      tools: discoveredTools,
+      sessionId,
+      tools,
     }),
   });
 
@@ -397,7 +261,5 @@ async function registerServerWithBackend(
     throw new Error(`Failed to register server ${serverId}: ${registerResponse.statusText}`);
   }
 
-  console.log(
-    `[registerServerWithBackend] ✓ Registered ${serverId} with ${discoveredTools.length} tools`,
-  );
+  console.log(`[registerServerWithBackend] Registered ${serverId} with ${tools.length} tools`);
 }

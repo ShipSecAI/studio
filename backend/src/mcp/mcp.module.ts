@@ -11,6 +11,7 @@ import { ApiKeysModule } from '../api-keys/api-keys.module';
 import { McpDiscoveryController } from './mcp-discovery.controller';
 import { TemporalModule } from '../temporal/temporal.module';
 import { McpGroupsModule } from '../mcp-groups/mcp-groups.module';
+import { HotplugModule } from '../hotplug/hotplug.module';
 import { McpServersRepository } from '../mcp-servers/mcp-servers.repository';
 import { DatabaseModule } from '../database/database.module';
 import { McpDiscoveryOrchestratorService } from './mcp-discovery-orchestrator.service';
@@ -25,6 +26,7 @@ import { MCP_DISCOVERY_REDIS } from './mcp.tokens';
     TemporalModule,
     DatabaseModule,
     McpGroupsModule,
+    HotplugModule,
   ],
   controllers: [McpGatewayController, InternalMcpController, McpDiscoveryController],
   providers: [
