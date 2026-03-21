@@ -1,79 +1,112 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type {
-  HotplugCreateSessionRequest,
-  HotplugDiscoverRequest,
-  HotplugDiscoverResult,
-  HotplugSessionResponse,
-  HotplugSessionState,
-} from './hotplug.types';
+import {
+  createClient,
+  createConfig,
+  createSession as sdkCreateSession,
+  terminateSession as sdkTerminateSession,
+  inspectSession as sdkInspectSession,
+  health as sdkHealth,
+  discover as sdkDiscover,
+  type SessionResponse,
+  type DiscoverRequest,
+  type DiscoverResult,
+  type AttachmentInput,
+  type IdentityInput,
+  type ScopePolicyInput,
+  type LifecyclePolicyInput,
+} from '@shipsecai/hotplug';
+
+// Re-export SDK types for downstream consumers
+export type HotplugDiscoverRequest = DiscoverRequest;
+export type HotplugDiscoverResult = DiscoverResult;
+export type HotplugSessionState = SessionResponse;
+
+export interface HotplugTool {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+}
+
+export interface HotplugPrompt {
+  name: string;
+  description?: string;
+}
+
+export interface HotplugAttachment {
+  managed?: {
+    runtime: 'docker' | 'host';
+    launch: { type: 'stdio'; command: string; args: string[] };
+    secrets?: { env_vars?: Record<string, string>; temp_files?: Record<string, string> };
+  };
+  remote_http?: { url: string; headers?: Record<string, string> };
+}
+
+export interface HotplugCreateSessionRequest {
+  identity: { tenant_id: string; user_id: string; run_id: string; labels?: Record<string, string> };
+  attachments: Record<string, HotplugAttachment>;
+  scope?: ScopePolicyInput;
+  lifecycle?: LifecyclePolicyInput;
+}
+
+export interface HotplugSessionResponse {
+  session_id: string;
+  state: {
+    status: string;
+    attachments: Record<string, { status: string; tools: HotplugTool[] }>;
+  };
+}
 
 @Injectable()
 export class HotplugService {
   private readonly logger = new Logger(HotplugService.name);
   private readonly baseUrl: string;
   private readonly token: string;
+  private readonly sdkClient: ReturnType<typeof createClient>;
 
   constructor(private readonly configService: ConfigService) {
     this.baseUrl = this.configService.get<string>('HOTPLUG_URL', 'http://localhost:3230');
     this.token = this.configService.get<string>('HOTPLUG_CONTROL_TOKEN', 'hotplug-local-dev-token');
-  }
-
-  private get headers(): Record<string, string> {
-    return {
-      Authorization: `Bearer ${this.token}`,
-      'Content-Type': 'application/json',
-    };
+    this.sdkClient = createClient(
+      createConfig({
+        baseUrl: this.baseUrl,
+        headers: { Authorization: `Bearer ${this.token}` },
+      }),
+    );
   }
 
   async health(): Promise<{ status: string }> {
-    const res = await fetch(`${this.baseUrl}/health`);
-    if (!res.ok) throw new Error(`Hotplug health check failed: ${res.status}`);
-    return res.json() as Promise<{ status: string }>;
+    const { data, error } = await sdkHealth({ client: this.sdkClient });
+    if (error || !data) throw new Error(`Hotplug health check failed: ${JSON.stringify(error)}`);
+    return data as { status: string };
   }
 
-  /**
-   * Ephemeral tool discovery. Hotplug spins up an MCP server, enumerates tools, tears it down.
-   * Returns SSE stream — we parse it and return the final result.
-   */
   async discover(
-    input: HotplugDiscoverRequest,
+    input: DiscoverRequest,
     timeoutMs = 120_000,
-  ): Promise<HotplugDiscoverResult> {
+  ): Promise<{ tools: HotplugTool[]; prompts: HotplugPrompt[] }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const res = await fetch(`${this.baseUrl}/discover`, {
-        method: 'POST',
-        headers: this.headers,
-        body: JSON.stringify(input),
+      const { stream } = await sdkDiscover({
+        client: this.sdkClient,
+        body: input,
         signal: controller.signal,
       });
 
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`Hotplug discover failed (${res.status}): ${body}`);
-      }
-
-      // Parse SSE stream
-      const text = await res.text();
-      const lines = text.split('\n');
-      let result: HotplugDiscoverResult | null = null;
+      let result: { tools: HotplugTool[]; prompts: HotplugPrompt[] } | null = null;
       let error: string | null = null;
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (line.startsWith('event: result')) {
-          const dataLine = lines[i + 1];
-          if (dataLine?.startsWith('data: ')) {
-            result = JSON.parse(dataLine.slice(6));
-          }
-        } else if (line.startsWith('event: error')) {
-          const dataLine = lines[i + 1];
-          if (dataLine?.startsWith('data: ')) {
-            const parsed = JSON.parse(dataLine.slice(6));
-            error = parsed.message || JSON.stringify(parsed);
+      for await (const event of stream) {
+        const evt = event as Record<string, unknown>;
+        if (evt.tools) {
+          result = evt as unknown as { tools: HotplugTool[]; prompts: HotplugPrompt[] };
+        } else if (evt.phase && evt.message) {
+          const msg = evt.message as string;
+          if (msg.toLowerCase().includes('error')) {
+            error = msg;
           }
         }
       }
@@ -86,105 +119,71 @@ export class HotplugService {
     }
   }
 
-  /**
-   * Create a Hotplug session with MCP server attachments.
-   * Chains three API calls: create → attach (per attachment) → activate.
-   */
   async createSession(input: HotplugCreateSessionRequest): Promise<HotplugSessionResponse> {
-    // Step 1: Create empty session
-    const createBody: Record<string, unknown> = { identity: input.identity };
-    if (input.scope) createBody.scope = input.scope;
-    if (input.lifecycle) createBody.lifecycle = input.lifecycle;
-
-    const createRes = await fetch(`${this.baseUrl}/sessions`, {
-      method: 'POST',
-      headers: this.headers,
-      body: JSON.stringify(createBody),
+    const { data, error } = await sdkCreateSession({
+      client: this.sdkClient,
+      body: {
+        identity: input.identity as IdentityInput,
+        attachments: input.attachments as Record<string, AttachmentInput>,
+        scope: input.scope,
+        lifecycle: input.lifecycle,
+      },
     });
-    if (!createRes.ok) {
-      const body = await createRes.text();
-      throw new Error(`Hotplug createSession failed (${createRes.status}): ${body}`);
-    }
-    const session = (await createRes.json()) as HotplugSessionResponse;
-    const sessionId = session.session_id;
 
-    // Step 2: Attach each attachment
-    if (input.attachments) {
-      for (const [alias, attachment] of Object.entries(input.attachments)) {
-        const attachBody: Record<string, unknown> = { alias, ...attachment };
-        const attachRes = await fetch(`${this.baseUrl}/sessions/${sessionId}/attachments`, {
-          method: 'POST',
-          headers: this.headers,
-          body: JSON.stringify(attachBody),
-        });
-        if (!attachRes.ok) {
-          const body = await attachRes.text();
-          await this.deleteSession(sessionId).catch(() => {});
-          throw new Error(`Hotplug attach "${alias}" failed (${attachRes.status}): ${body}`);
-        }
+    if (error || !data) {
+      throw new Error(`Hotplug createSession failed: ${JSON.stringify(error)}`);
+    }
+
+    return this.mapSessionResponse(data);
+  }
+
+  async getSession(sessionId: string): Promise<SessionResponse> {
+    const { data, error } = await sdkInspectSession({
+      client: this.sdkClient,
+      path: { id: sessionId },
+    });
+
+    if (error || !data) {
+      throw new Error(`Hotplug getSession failed: ${JSON.stringify(error)}`);
+    }
+
+    return data;
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    const { error } = await sdkTerminateSession({
+      client: this.sdkClient,
+      path: { id: sessionId },
+    });
+
+    if (error) {
+      const msg = JSON.stringify(error);
+      if (!msg.includes('not_found')) {
+        throw new Error(`Hotplug deleteSession failed: ${msg}`);
       }
     }
-
-    // Step 3: Activate
-    const activateRes = await fetch(`${this.baseUrl}/sessions/${sessionId}/activate`, {
-      method: 'POST',
-      headers: this.headers,
-    });
-    if (!activateRes.ok) {
-      const body = await activateRes.text();
-      await this.deleteSession(sessionId).catch(() => {});
-      throw new Error(`Hotplug activate failed (${activateRes.status}): ${body}`);
-    }
-
-    return (await activateRes.json()) as HotplugSessionResponse;
   }
 
-  /**
-   * Get session state.
-   */
-  async getSession(sessionId: string): Promise<HotplugSessionState> {
-    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}`, {
-      headers: this.headers,
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Hotplug getSession failed (${res.status}): ${body}`);
-    }
-    return res.json() as Promise<HotplugSessionState>;
-  }
-
-  /**
-   * Terminate a session and all its containers.
-   */
-  async deleteSession(sessionId: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}`, {
-      method: 'DELETE',
-      headers: this.headers,
-    });
-    if (!res.ok && res.status !== 404) {
-      const body = await res.text();
-      throw new Error(`Hotplug deleteSession failed (${res.status}): ${body}`);
-    }
-  }
-
-  /**
-   * Get the MCP proxy endpoint URL for a session.
-   */
   sessionMcpEndpoint(sessionId: string): string {
     return `${this.baseUrl}/sessions/${sessionId}/mcp`;
   }
 
-  /**
-   * Check if an endpoint is a Hotplug session endpoint.
-   */
   isHotplugEndpoint(endpoint: string): boolean {
     return endpoint.startsWith(this.baseUrl) && endpoint.includes('/sessions/');
   }
 
-  /**
-   * Get authorization headers for Hotplug-managed endpoints.
-   */
   getAuthHeaders(): Record<string, string> {
     return { Authorization: `Bearer ${this.token}` };
+  }
+
+  private mapSessionResponse(data: SessionResponse): HotplugSessionResponse {
+    const attachmentsMap: Record<string, { status: string; tools: HotplugTool[] }> = {};
+    for (const att of data.attachments ?? []) {
+      attachmentsMap[att.alias] = { status: att.status, tools: [] };
+    }
+    return {
+      session_id: data.session_id,
+      state: { status: data.state.status, attachments: attachmentsMap },
+    };
   }
 }
