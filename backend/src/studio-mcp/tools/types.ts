@@ -25,7 +25,9 @@ export type PermissionPath =
   | 'schedules.delete'
   | 'human-inputs.read'
   | 'human-inputs.resolve'
-  | 'analytics.query';
+  | 'analytics.query'
+  | 'assets.list'
+  | 'assets.read';
 
 export interface ToolResult {
   [x: string]: unknown;
@@ -72,6 +74,21 @@ export interface StudioMcpDeps {
     list(query?: any, organizationId?: string): Promise<any[]>;
     getById(id: string, organizationId?: string): Promise<any>;
     resolve(id: string, dto: any, organizationId?: string, auth?: any): Promise<any>;
+  };
+  assetDiscoveryService?: {
+    listAssets(auth: any, options?: any): Promise<any>;
+    getAsset(auth: any, assetId: string): Promise<any>;
+    getSummary(auth: any): Promise<any>;
+    listSyncRuns(auth: any, options?: any): Promise<any>;
+  };
+  asmService?: {
+    listDomains(auth: any, options?: any): Promise<any>;
+    listAssets(auth: any, options?: any): Promise<any>;
+    getAsset(auth: any, id: string): Promise<any>;
+    getDashboardStats(auth: any): Promise<any>;
+  };
+  integrationsService?: {
+    listConnectionsForOrg(auth: any, provider?: string): Promise<any>;
   };
   securityAnalyticsService?: {
     query(

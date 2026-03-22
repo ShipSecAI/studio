@@ -13,6 +13,9 @@ import { SchedulesService } from '../schedules/schedules.service';
 import { SecretsService } from '../secrets/secrets.service';
 import { HumanInputsService } from '../human-inputs/human-inputs.service';
 import { SecurityAnalyticsService } from '../analytics/security-analytics.service';
+import { AssetDiscoveryService } from '../asset-discovery/asset-discovery.service';
+import { AsmService } from '../asm/asm.service';
+import { IntegrationsService } from '../integrations/integrations.service';
 import type { AuthContext } from '../auth/types';
 import type { StudioMcpDeps } from './tools/types';
 import { registerWorkflowTools } from './tools/workflow.tools';
@@ -23,6 +26,8 @@ import { registerScheduleTools } from './tools/schedule.tools';
 import { registerSecretTools } from './tools/secret.tools';
 import { registerHumanInputTools } from './tools/human-input.tools';
 import { registerAnalyticsTools } from './tools/analytics.tools';
+import { registerAssetTools } from './tools/asset.tools';
+import { registerConnectionTools } from './tools/connection.tools';
 
 @Injectable()
 export class StudioMcpService {
@@ -39,6 +44,9 @@ export class StudioMcpService {
     @Optional() private readonly secretsService?: SecretsService,
     @Optional() private readonly humanInputsService?: HumanInputsService,
     @Optional() private readonly securityAnalyticsService?: SecurityAnalyticsService,
+    @Optional() private readonly assetDiscoveryService?: AssetDiscoveryService,
+    @Optional() private readonly asmService?: AsmService,
+    @Optional() private readonly integrationsService?: IntegrationsService,
   ) {}
 
   /**
@@ -77,6 +85,9 @@ export class StudioMcpService {
       secretsService: this.secretsService,
       humanInputsService: this.humanInputsService,
       securityAnalyticsService: this.securityAnalyticsService,
+      assetDiscoveryService: this.assetDiscoveryService,
+      asmService: this.asmService,
+      integrationsService: this.integrationsService,
     };
 
     registerWorkflowTools(server, auth, deps);
@@ -87,5 +98,7 @@ export class StudioMcpService {
     registerSecretTools(server, auth, deps);
     registerHumanInputTools(server, auth, deps);
     registerAnalyticsTools(server, auth, deps);
+    registerAssetTools(server, auth, deps);
+    registerConnectionTools(server, auth, deps);
   }
 }
