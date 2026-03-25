@@ -141,6 +141,12 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Performs a generic HTTP request to any API endpoint. Supports all standard methods, headers, and body types.',
+  toolProvider: {
+    kind: 'component',
+    name: 'http_request',
+    description:
+      'Make an HTTP request to any URL. Supports GET, POST, PUT, PATCH, DELETE methods with custom headers and body.',
+  },
   ui: {
     slug: 'http-request',
     version: '1.0.0',

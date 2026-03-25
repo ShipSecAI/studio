@@ -10,7 +10,6 @@ import {
 } from '@shipsec/component-sdk';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { DEFAULT_GATEWAY_URL, getGatewaySessionToken } from '../ai/utils';
 
 /**
  * Test calls to exercise discovered tools.
@@ -84,7 +83,10 @@ const parameterSchema = parameters({
 export interface MockAgentOverrides {
   Client?: typeof Client;
   StreamableHTTPClientTransport?: typeof StreamableHTTPClientTransport;
-  getGatewaySessionToken?: typeof getGatewaySessionToken;
+  /** Override hotplug MCP URL for testing */
+  hotplugMcpUrl?: string;
+  /** Override hotplug MCP token for testing */
+  hotplugMcpToken?: string;
 }
 
 /**
@@ -132,13 +134,12 @@ const definition = defineComponent({
     },
   },
   async execute({ params }, context) {
-    const { connectedToolNodeIds, organizationId } = context.metadata;
+    const { connectedToolNodeIds } = context.metadata;
     const overrides = (context.metadata as { mockAgentOverrides?: MockAgentOverrides })
       .mockAgentOverrides;
 
     const ClientImpl = overrides?.Client ?? Client;
     const TransportImpl = overrides?.StreamableHTTPClientTransport ?? StreamableHTTPClientTransport;
-    const getTokenImpl = overrides?.getGatewaySessionToken ?? getGatewaySessionToken;
 
     const callTools = params.callTools ?? true;
     const maxToolCalls = params.maxToolCalls ?? 10;
@@ -147,23 +148,22 @@ const definition = defineComponent({
     console.log(`[mock.agent] connectedToolNodeIds: ${connectedIds.join(', ') || '(none)'}`);
     console.log(`[mock.agent] callTools=${callTools}, maxToolCalls=${maxToolCalls}`);
 
-    if (connectedIds.length === 0) {
-      console.log('[mock.agent] No connected tool nodes, returning empty list');
+    // Read Hotplug session URL and token from metadata (set by workflow orchestration)
+    const hotplugMcpUrl = overrides?.hotplugMcpUrl ?? context.metadata.hotplugMcpUrl;
+    const hotplugMcpToken = overrides?.hotplugMcpToken ?? context.metadata.hotplugMcpToken;
+
+    if (!hotplugMcpUrl || !hotplugMcpToken) {
+      console.log('[mock.agent] No Hotplug session available, returning empty list');
       return outputSchema.parse({ discoveredTools: [], toolCount: 0, toolCallResults: [] });
     }
 
-    // 1. Get gateway session token
-    const sessionToken = await getTokenImpl(context.runId, organizationId ?? null, connectedIds);
+    // Connect to Hotplug session via MCP SDK client
+    console.log(`[mock.agent] Connecting to Hotplug session: ${hotplugMcpUrl}`);
 
-    // 2. Connect to gateway via MCP SDK client
-    const gatewayUrl = DEFAULT_GATEWAY_URL;
-    console.log(`[mock.agent] Connecting to gateway: ${gatewayUrl}`);
-
-    const transport = new TransportImpl(new URL(gatewayUrl), {
+    const transport = new TransportImpl(new URL(hotplugMcpUrl), {
       requestInit: {
         headers: {
-          Authorization: `Bearer ${sessionToken}`,
-          Accept: 'application/json, text/event-stream',
+          Authorization: `Bearer ${hotplugMcpToken}`,
         },
       },
     });

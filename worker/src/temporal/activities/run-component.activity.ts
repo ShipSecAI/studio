@@ -171,6 +171,8 @@ export async function runComponentActivity(
       failure,
       connectedToolNodeIds,
       organizationId: input.organizationId ?? undefined,
+      hotplugMcpUrl: nodeMetadata.hotplugMcpUrl,
+      hotplugMcpToken: nodeMetadata.hotplugMcpToken,
     } as any,
     storage: globalStorage,
     secrets: allowSecrets ? globalSecrets : undefined,

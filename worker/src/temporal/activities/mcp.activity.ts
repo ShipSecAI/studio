@@ -162,5 +162,7 @@ export async function prepareAndRegisterToolActivity(input: {
     inputSchema: metadata.inputSchema,
     parameters: input.params,
     credentials,
+    preparedInputs: input.inputs,
+    preparedParams: input.params,
   });
 }

@@ -118,6 +118,10 @@ export class RegisterComponentToolInput {
   credentials!: Record<string, unknown>;
   parameters?: Record<string, unknown>;
   providerKind?: 'component' | 'mcp-server' | 'mcp-group';
+  /** Fixed inputs resolved from workflow DAG */
+  preparedInputs?: Record<string, unknown>;
+  /** Fixed parameters resolved from workflow DAG */
+  preparedParams?: Record<string, unknown>;
 }
 
 export const RegisterComponentResponseSchema = z.object({

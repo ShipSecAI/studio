@@ -49,7 +49,7 @@ describe('mock.agent', () => {
     expect(result).toEqual({ discoveredTools: [], toolCount: 0, toolCallResults: [] });
   });
 
-  test('discovers tools from gateway when connected tools exist', async () => {
+  test('discovers tools from Hotplug session when connected tools exist', async () => {
     const component = componentRegistry.get('mock.agent');
     expect(component).toBeDefined();
 
@@ -75,18 +75,17 @@ describe('mock.agent', () => {
       ) {}
     }
 
-    const mockGetToken = vi.fn().mockResolvedValue('mock-gateway-token');
-
     const context = createTestContext({
       metadata: {
         runId: 'test-run',
         componentRef: 'mock.agent',
         connectedToolNodeIds: ['aws-mcp-group'],
         organizationId: 'org-1',
+        hotplugMcpUrl: 'https://hotplug.example.com/session/abc/mcp',
+        hotplugMcpToken: 'mock-hotplug-token',
         mockAgentOverrides: {
           Client: MockClient as any,
           StreamableHTTPClientTransport: MockTransport as any,
-          getGatewaySessionToken: mockGetToken,
         },
       } as any,
     });
@@ -104,7 +103,6 @@ describe('mock.agent', () => {
       { name: 'aws-s3__list_buckets', description: 'List S3 buckets' },
     ]);
 
-    expect(mockGetToken).toHaveBeenCalledWith('test-run', 'org-1', ['aws-mcp-group']);
     expect(mockConnect).toHaveBeenCalled();
     expect(mockListTools).toHaveBeenCalled();
     expect(mockClose).toHaveBeenCalled();
@@ -136,10 +134,11 @@ describe('mock.agent', () => {
         runId: 'test-run',
         componentRef: 'mock.agent',
         connectedToolNodeIds: ['some-tool'],
+        hotplugMcpUrl: 'https://hotplug.example.com/session/xyz/mcp',
+        hotplugMcpToken: 'my-token',
         mockAgentOverrides: {
           Client: MockClient as any,
           StreamableHTTPClientTransport: MockTransport as any,
-          getGatewaySessionToken: vi.fn().mockResolvedValue('my-token'),
         },
       } as any,
     });

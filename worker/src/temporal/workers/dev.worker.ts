@@ -38,6 +38,10 @@ import {
   discoverMcpGroupToolsActivity,
   cacheDiscoveryResultActivity,
 } from '../activities/mcp-discovery.activity';
+import {
+  createHotplugSessionActivity,
+  deleteHotplugSessionActivity,
+} from '../activities/hotplug.activity';
 import { executeWebhookParsingScriptActivity } from '../activities/webhook-parsing.activity';
 import {
   createSyncRunActivity,
@@ -357,6 +361,8 @@ async function main() {
       loadChatMessagesActivity,
       generateSessionTitleActivity,
       markChatRunCompleteActivity,
+      createHotplugSessionActivity,
+      deleteHotplugSessionActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],

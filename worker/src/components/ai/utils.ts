@@ -1,41 +1,43 @@
 import { ConfigurationError } from '@shipsec/component-sdk';
 import { createInternalBackendClient } from '../../utils/internal-backend-client';
 import { getBackendOrigin } from '../../utils/backend-url';
+import { createMCPClient } from '@ai-sdk/mcp';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { ToolSet } from 'ai';
 
 export const DEFAULT_API_BASE_URL = getBackendOrigin({ preferDockerHost: true });
 
-export const DEFAULT_GATEWAY_URL = `${DEFAULT_API_BASE_URL}/api/v1/mcp/gateway`;
+/**
+ * Connect to a Hotplug session endpoint and return the discovered tools.
+ * Uses @ai-sdk/mcp with a pre-built StreamableHTTPClientTransport for
+ * proper Streamable HTTP MCP compatibility with Hotplug.
+ */
+export async function connectToHotplugTools(
+  mcpUrl: string,
+  mcpToken: string,
+  createClient: typeof createMCPClient = createMCPClient,
+): Promise<{ tools: ToolSet; close: () => Promise<void> }> {
+  console.log(`[Agent] Connecting to Hotplug MCP session at ${mcpUrl}`);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+  const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), {
+    requestInit: {
+      headers: { Authorization: `Bearer ${mcpToken}` },
+    },
+  });
 
-export async function getGatewaySessionToken(
-  runId: string,
-  organizationId: string | null,
-  connectedToolNodeIds?: string[],
-): Promise<string> {
-  const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
+  const mcpClient = await createClient({ transport });
 
-  if (!internalToken) {
-    throw new ConfigurationError(
-      'INTERNAL_SERVICE_TOKEN env var must be set for agent tool discovery',
-      { configKey: 'INTERNAL_SERVICE_TOKEN' },
-    );
-  }
+  const tools = await mcpClient.tools();
+  console.log(
+    `[Agent] Discovered ${Object.keys(tools).length} tools from Hotplug: ${Object.keys(tools).join(', ') || 'none'}`,
+  );
 
-  // If connectedToolNodeIds is empty or undefined, we might still want to generate a token
-  // without specific allowedNodeIds if the API supports it, or handle it otherwise.
-  // The original code passed `allowedNodeIds: connectedToolNodeIds`.
-  const body = { runId, organizationId, allowedNodeIds: connectedToolNodeIds };
-  const client = createInternalBackendClient({ baseUrl: DEFAULT_API_BASE_URL });
-  const response = await client.generateMcpGatewayToken(body);
-  const payload = response.data;
-  const token = isRecord(payload) && typeof payload.token === 'string' ? payload.token : null;
-  if (!token) {
-    throw new Error('Failed to generate gateway session token: invalid response shape');
-  }
-  return token;
+  return {
+    tools: tools as ToolSet,
+    close: async () => {
+      await mcpClient.close();
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------

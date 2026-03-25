@@ -1,7 +1,7 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { ToolRegistryService } from './tool-registry.service';
-import { McpGatewayService } from './mcp-gateway.service';
+import { ComponentToolMcpService } from './component-tool-mcp.service';
 import { McpGroupsService } from '../mcp-groups/mcp-groups.service';
 import { McpAuthService } from './mcp-auth.service';
 import {
@@ -24,8 +24,8 @@ import {
 export class InternalMcpController {
   constructor(
     private readonly toolRegistry: ToolRegistryService,
+    private readonly componentToolMcpService: ComponentToolMcpService,
     private readonly mcpGroupsService: McpGroupsService,
-    private readonly mcpGatewayService: McpGatewayService,
     private readonly mcpAuthService: McpAuthService,
   ) {}
 
@@ -47,7 +47,7 @@ export class InternalMcpController {
   @ApiCreatedResponse({ type: RegisterComponentResponseDto })
   async registerComponent(@Body() body: RegisterComponentToolInput) {
     await this.toolRegistry.registerComponentTool(body);
-    await this.mcpGatewayService.refreshServersForRun(body.runId);
+    await this.componentToolMcpService.refreshServerForRun(body.runId);
     return { success: true };
   }
 
@@ -59,7 +59,7 @@ export class InternalMcpController {
   @ApiCreatedResponse({ type: RegisterMcpServerResponseDto })
   async registerMcpServer(@Body() body: RegisterMcpServerInput) {
     await this.toolRegistry.registerMcpServer(body);
-    await this.mcpGatewayService.refreshServersForRun(body.runId);
+    await this.componentToolMcpService.refreshServerForRun(body.runId);
     return { success: true, toolCount: body.tools?.length ?? 0 };
   }
 
@@ -67,6 +67,7 @@ export class InternalMcpController {
   @ApiOkResponse({ type: CleanupRunResponseDto })
   async cleanupRun(@Body() body: CleanupRunRequestDto): Promise<CleanupRunResponseDto> {
     const sessionIds = await this.toolRegistry.cleanupRun(body.runId);
+    await this.componentToolMcpService.cleanupRun(body.runId);
     return { sessionIds };
   }
 

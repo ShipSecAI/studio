@@ -1,7 +1,6 @@
 import {
   ApplicationFailure,
   condition,
-  defineQuery,
   getExternalWorkflowHandle,
   proxyActivities,
   setHandler,
@@ -25,13 +24,7 @@ const RUN_CONTEXT_MAX_VALUE_LENGTH = 256;
 const RUN_CONTEXT_MAX_ENTRIES = 16;
 import { runWorkflowWithScheduler } from '../workflow-scheduler.js';
 import { buildActionPayload } from '../input-resolver.js';
-import {
-  resolveHumanInputSignal,
-  executeToolCallSignal,
-  type HumanInputResolution,
-  type ToolCallRequest,
-  type ToolCallResult,
-} from '../signals.js';
+import { resolveHumanInputSignal, type HumanInputResolution } from '../signals.js';
 import type { ExecutionTriggerMetadata, PreparedRunPayload } from '@shipsec/shared';
 import type {
   RunComponentActivityInput,
@@ -45,6 +38,7 @@ import type {
   RegisterLocalMcpActivityInput,
   PrepareAndRegisterToolActivityInput,
 } from '../types';
+import type { McpGroupAttachmentSpec } from '../../components/core/mcp-group-runtime.js';
 
 const {
   runComponentActivity: _runComponentActivity,
@@ -55,7 +49,7 @@ const {
   registerLocalMcpActivity,
   cleanupRunResourcesActivity,
   prepareAndRegisterToolActivity,
-  areAllToolsReadyActivity,
+  createHotplugSessionActivity,
 } = proxyActivities<{
   runComponentActivity(input: RunComponentActivityInput): Promise<RunComponentActivityOutput>;
   setRunMetadataActivity(input: {
@@ -85,10 +79,13 @@ const {
   registerLocalMcpActivity(input: RegisterLocalMcpActivityInput): Promise<void>;
   cleanupRunResourcesActivity(input: CleanupRunResourcesActivityInput): Promise<void>;
   prepareAndRegisterToolActivity(input: PrepareAndRegisterToolActivityInput): Promise<void>;
-  areAllToolsReadyActivity(input: {
+  createHotplugSessionActivity(input: {
     runId: string;
-    requiredNodeIds: string[];
-  }): Promise<{ ready: boolean }>;
+    organizationId: string;
+    componentToolsEndpoint?: string;
+    mcpGroupAttachments?: McpGroupAttachmentSpec[];
+    remoteMcpAttachments?: { alias: string; url: string; headers?: Record<string, string> }[];
+  }): Promise<{ sessionId: string; mcpUrl: string; mcpToken: string }>;
 }>({
   startToCloseTimeout: '10 minutes',
 });
@@ -197,103 +194,12 @@ export async function shipsecWorkflowRun(
     }
   });
 
-  // Track pending tool calls and their results (for MCP gateway)
-  const pendingToolCalls = new Map<
-    string,
-    { request: ToolCallRequest; resolve: (result: ToolCallResult) => void }
-  >();
-  const toolCallResults = new Map<string, ToolCallResult>();
+  // Track MCP group attachment specs collected during tool-mode node execution.
+  // These are passed to createHotplugSessionActivity when an agent node starts.
+  const mcpGroupAttachments: McpGroupAttachmentSpec[] = [];
 
-  // Set up signal handler for tool call execution requests
-  setHandler(executeToolCallSignal, async (request: ToolCallRequest) => {
-    // Prevent duplicate execution of the same callId
-    if (toolCallResults.has(request.callId)) {
-      console.warn(`[Workflow] Duplicate tool call ignored: ${request.callId}`);
-      return;
-    }
-
-    console.log(
-      `[Workflow] Received tool call signal: callId=${request.callId}, componentId=${request.componentId}`,
-    );
-
-    // Execute the component via runComponentActivity with timeout protection
-    const TOOL_CALL_TIMEOUT_MS = 300000; // 5 minutes
-    try {
-      const activityOutput = await Promise.race([
-        _runComponentActivity({
-          runId: input.runId,
-          workflowId: input.workflowId,
-          workflowVersionId: input.workflowVersionId,
-          organizationId: input.organizationId,
-          triggerType: input.triggerType ?? null,
-          triggerSource: input.triggerSource ?? null,
-          runContext: { ...runContext },
-          action: {
-            ref: `tool-call:${request.callId}`,
-            componentId: request.componentId,
-          },
-          // Merge credentials (pre-bound) with agent-provided arguments
-          inputs: {
-            ...(request.credentials ?? {}),
-            ...request.arguments,
-          },
-          params: request.parameters ?? {},
-          // Pass credentials as inputOverrides so resolveSecretInputOverrides
-          // in runComponentActivity resolves secret names to actual values.
-          inputOverrides: request.credentials ?? {},
-          metadata: {
-            streamId: request.callId,
-          },
-        }),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`Tool call timed out after ${TOOL_CALL_TIMEOUT_MS}ms`)),
-            TOOL_CALL_TIMEOUT_MS,
-          ),
-        ),
-      ]);
-
-      const result: ToolCallResult = {
-        callId: request.callId,
-        success: true,
-        output: (activityOutput as { output: unknown }).output,
-        completedAt: new Date().toISOString(),
-      };
-
-      toolCallResults.set(request.callId, result);
-      console.log(`[Workflow] Tool call completed: callId=${request.callId}, success=true`);
-
-      // Resolve any pending waiters
-      const pending = pendingToolCalls.get(request.callId);
-      if (pending) {
-        pending.resolve(result);
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const result: ToolCallResult = {
-        callId: request.callId,
-        success: false,
-        error: errorMessage,
-        completedAt: new Date().toISOString(),
-      };
-
-      toolCallResults.set(request.callId, result);
-      console.log(`[Workflow] Tool call failed: callId=${request.callId}, error=${errorMessage}`);
-
-      const pending = pendingToolCalls.get(request.callId);
-      if (pending) {
-        pending.resolve(result);
-      }
-    }
-  });
-
-  // Set up query handler for tool call results
-  setHandler(
-    defineQuery<ToolCallResult | null, [string]>('getToolCallResult'),
-    (callId: string) => {
-      return toolCallResults.get(callId) ?? null;
-    },
-  );
+  // Track the Hotplug session created for this run (one session shared across all agent nodes).
+  let hotplugSession: { sessionId: string; mcpUrl: string; mcpToken: string } | null = null;
 
   console.log(`[Workflow] Starting shipsec workflow run: ${input.runId}`);
   console.log(
@@ -788,15 +694,6 @@ export async function shipsecWorkflowRun(
           }
         }
 
-        // MCP groups in tool mode: execute FIRST, then register as ready AFTER discovery completes.
-        // This prevents a race condition where the agent starts before child servers are discovered.
-        // The agent's areAllToolsReadyActivity check will poll until this registration happens.
-        if (isToolMode && isMcpGroup) {
-          console.log(
-            `[Workflow] MCP Group node ${action.ref} is in tool mode, will register as ready AFTER execution completes (to avoid race with agent tool discovery)`,
-          );
-        }
-
         if (isMcpServerComponent(action.componentId)) {
           throw ApplicationFailure.nonRetryable(
             `Component ${action.componentId} is tool-mode only`,
@@ -813,49 +710,32 @@ export async function shipsecWorkflowRun(
           retry: retryOptions,
         });
 
-        // Wait for connected tools to be ready if this node has tool dependencies
+        // If this node has tool dependencies, create a Hotplug session now (once per workflow run).
+        // All tool-mode nodes (component tools + MCP groups) must have completed before
+        // this node runs, because the scheduler enforces data dependency ordering.
+        // Hotplug blocks internally until all attachments are ready.
         if (nodeMetadata?.connectedToolNodeIds && nodeMetadata.connectedToolNodeIds.length > 0) {
-          console.log(
-            `[Workflow] Node ${action.ref} has tool dependencies: ${nodeMetadata.connectedToolNodeIds.join(', ')}, waiting for tools to be ready...`,
-          );
-          const MAX_WAIT_TIME_MS = 120000; // 2 minutes
-          const POLL_INTERVAL_MS = 2000; // 2 seconds
-          const startTime = Date.now();
-
-          while (Date.now() - startTime < MAX_WAIT_TIME_MS) {
-            const readyCheck = await areAllToolsReadyActivity({
-              runId: input.runId,
-              requiredNodeIds: nodeMetadata.connectedToolNodeIds,
-            });
-
-            if (readyCheck.ready) {
-              console.log(
-                `[Workflow] All tools ready for ${action.ref}: ${nodeMetadata.connectedToolNodeIds.join(', ')}`,
-              );
-              break;
-            }
-
+          if (!hotplugSession) {
             console.log(
-              `[Workflow] Tools not ready yet for ${action.ref}, retrying in ${POLL_INTERVAL_MS}ms...`,
+              `[Workflow] Node ${action.ref} has tool dependencies, creating Hotplug session...`,
             );
-            await sleep(POLL_INTERVAL_MS);
-          }
-
-          // Final check after waiting
-          const finalReadyCheck = await areAllToolsReadyActivity({
-            runId: input.runId,
-            requiredNodeIds: nodeMetadata.connectedToolNodeIds,
-          });
-
-          if (!finalReadyCheck.ready) {
-            console.error(
-              `[Workflow] Timeout waiting for tools for ${action.ref}: ${nodeMetadata.connectedToolNodeIds.join(', ')}`,
-            );
-            throw ApplicationFailure.nonRetryable(
-              `Tools not ready after ${MAX_WAIT_TIME_MS}ms: ${nodeMetadata.connectedToolNodeIds.join(', ')}`,
-              'ToolsNotReady',
+            hotplugSession = await createHotplugSessionActivity({
+              runId: input.runId,
+              organizationId: input.organizationId ?? 'system',
+              mcpGroupAttachments: mcpGroupAttachments.length > 0 ? mcpGroupAttachments : undefined,
+            });
+            console.log(
+              `[Workflow] Hotplug session created: ${hotplugSession.sessionId}, url: ${hotplugSession.mcpUrl}`,
             );
           }
+          // Inject Hotplug session URL and token into the activity metadata so
+          // the agent component can connect directly to Hotplug.
+          activityInput.metadata = {
+            ...activityInput.metadata,
+            hotplugMcpUrl: hotplugSession.mcpUrl,
+            hotplugMcpToken: hotplugSession.mcpToken,
+          };
+          console.log(`[Workflow] Injected Hotplug metadata: url=${hotplugSession.mcpUrl}`);
         }
 
         // Debug logging: Track component execution start
@@ -897,22 +777,20 @@ export async function shipsecWorkflowRun(
           throw activityError;
         }
 
-        // MCP groups in tool mode: NOW register the parent as ready after execution completes.
-        // This ensures child servers are discovered and registered before the agent starts.
+        // MCP groups in tool mode: collect attachment specs from the component output.
+        // These are passed to createHotplugSessionActivity when the agent node starts.
         if (isToolMode && isMcpGroup) {
-          console.log(
-            `[Workflow] MCP Group node ${action.ref} execution complete, now registering parent as ready...`,
-          );
-          await prepareAndRegisterToolActivity({
-            runId: input.runId,
-            nodeId: action.ref,
-            componentId: action.componentId,
-            inputs: mergedInputs,
-            params: mergedParams,
-          });
-          console.log(
-            `[Workflow] MCP Group node ${action.ref} registered as ready (child servers already registered during execution)`,
-          );
+          const groupOutput = output.output as { attachmentSpecs?: McpGroupAttachmentSpec[] };
+          if (groupOutput?.attachmentSpecs && groupOutput.attachmentSpecs.length > 0) {
+            console.log(
+              `[Workflow] MCP Group node ${action.ref} returned ${groupOutput.attachmentSpecs.length} attachment spec(s)`,
+            );
+            mcpGroupAttachments.push(...groupOutput.attachmentSpecs);
+          } else {
+            console.log(
+              `[Workflow] MCP Group node ${action.ref} returned no attachment specs (no enabled servers)`,
+            );
+          }
         }
 
         // Merge run context contributions (first-writer-wins, defense-in-depth guards)
@@ -1159,6 +1037,60 @@ function extractFailureMessage(value: { success: boolean; error?: unknown }): st
     return JSON.stringify(errorMessage);
   }
   return 'Component reported failure';
+}
+
+/**
+ * Lightweight workflow for executing a single component tool call.
+ * Called by the backend ComponentToolMcpService via Temporal client.execute().
+ * Replaces the old signal/poll pattern for component tool execution.
+ */
+export interface ExecuteComponentToolInput {
+  runId: string;
+  workflowId: string;
+  workflowVersionId?: string | null;
+  organizationId?: string | null;
+  nodeId: string;
+  componentId: string;
+  inputs: Record<string, unknown>;
+  params: Record<string, unknown>;
+  credentials?: Record<string, unknown>;
+}
+
+export async function executeComponentToolWorkflow(
+  input: ExecuteComponentToolInput,
+): Promise<{ success: boolean; output?: unknown; error?: string }> {
+  try {
+    const activityOutput = await _runComponentActivity({
+      runId: input.runId,
+      workflowId: input.workflowId,
+      workflowVersionId: input.workflowVersionId,
+      organizationId: input.organizationId,
+      triggerType: null,
+      triggerSource: null,
+      runContext: {},
+      action: {
+        ref: `tool-call:${input.nodeId}`,
+        componentId: input.componentId,
+      },
+      inputs: {
+        ...(input.credentials ?? {}),
+        ...input.inputs,
+      },
+      params: input.params,
+      inputOverrides: input.credentials ?? {},
+      metadata: {},
+    });
+
+    return {
+      success: true,
+      output: activityOutput.output,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 export async function minimalWorkflow(): Promise<string> {

@@ -18,7 +18,7 @@ import { LogIngestService } from '../../logging/log-ingest.service';
 import { NodeIOIngestService } from '../../node-io/node-io-ingest.service';
 import { SecretsEncryptionService } from '../../secrets/secrets.encryption';
 import { InternalMcpController } from '../internal-mcp.controller';
-import { McpGatewayService } from '../mcp-gateway.service';
+import { ComponentToolMcpService } from '../component-tool-mcp.service';
 import { ToolRegistryService, TOOL_REGISTRY_REDIS } from '../tool-registry.service';
 import { WorkflowsService } from '../../workflows/workflows.service';
 import { Pool } from 'pg';
@@ -110,8 +110,9 @@ describe('MCP Internal API (Integration)', () => {
       encryption,
       mockHotplugService as any,
     );
-    const mockGatewayService = {
-      refreshServersForRun: async () => {},
+    const mockComponentToolMcpService = {
+      refreshServerForRun: async () => {},
+      cleanupRun: async () => {},
     };
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }), McpModule],
@@ -144,8 +145,8 @@ describe('MCP Internal API (Integration)', () => {
       .useValue({
         validateKey: async () => null,
       })
-      .overrideProvider(McpGatewayService)
-      .useValue(mockGatewayService)
+      .overrideProvider(ComponentToolMcpService)
+      .useValue(mockComponentToolMcpService)
       .overrideProvider(WorkflowsService)
       .useValue({})
       .overrideProvider(AuthService)
@@ -178,8 +179,9 @@ describe('MCP Internal API (Integration)', () => {
     const controller = moduleFixture.get(InternalMcpController);
     (controller as unknown as { toolRegistry: ToolRegistryService }).toolRegistry =
       toolRegistryService;
-    (controller as unknown as { mcpGatewayService: typeof mockGatewayService }).mcpGatewayService =
-      mockGatewayService;
+    (
+      controller as unknown as { componentToolMcpService: typeof mockComponentToolMcpService }
+    ).componentToolMcpService = mockComponentToolMcpService;
   });
 
   afterAll(async () => {

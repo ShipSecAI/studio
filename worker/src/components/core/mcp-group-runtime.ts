@@ -1,7 +1,5 @@
 import { z } from 'zod';
 import type { ExecutionContext } from '@shipsec/component-sdk';
-import { HotplugClient } from '../../utils/hotplug-client';
-import type { HotplugAttachment, HotplugTool } from '../../utils/hotplug-client';
 
 /**
  * Schema for MCP Group Templates (code-defined)
@@ -30,12 +28,16 @@ export const McpGroupTemplateSchema = z.object({
 export type McpGroupTemplate = z.infer<typeof McpGroupTemplateSchema>;
 
 /**
- * Output from a single MCP server in a group
+ * Attachment spec returned by executeMcpGroupNode.
+ * The workflow passes these to createHotplugSessionActivity, which creates
+ * a single Hotplug session with all attachments.
  */
-export interface McpServerEndpoint {
-  endpoint: string;
-  sessionId: string;
-  serverId: string;
+export interface McpGroupAttachmentSpec {
+  alias: string;
+  runtime: 'docker' | 'host';
+  command: string;
+  args: string[];
+  envVars: Record<string, string>;
 }
 
 /**
@@ -77,33 +79,28 @@ function buildCredentialEnv(
 }
 
 /**
- * Main execution function for MCP Group nodes
+ * Main execution function for MCP Group nodes.
  *
- * This helper:
- * 1. Takes credential contract inputs
- * 2. Takes enabledServers[] parameter
- * 3. Creates ONE Hotplug session with all enabled servers as attachments
- * 4. Each server becomes an attachment keyed by server.id
- * 5. Discovers tools via Hotplug session response and registers them with the backend
- * 6. Returns array of { endpoint, sessionId, serverId }
+ * Builds Hotplug attachment specs for each enabled server.
+ * Does NOT create a Hotplug session — that is delegated to
+ * createHotplugSessionActivity in the workflow orchestration.
  *
  * @param context - Execution context
  * @param inputs - Input data including credentials
  * @param params - Component parameters including enabledServers
  * @param groupTemplate - Group template defining servers and credential mapping
- * @returns Array of server endpoints
+ * @returns Array of attachment specs for the workflow to pass to Hotplug
  */
 export async function executeMcpGroupNode(
   context: ExecutionContext,
   inputs: { credentials: Record<string, unknown> },
   params: { enabledServers: string[] },
   groupTemplate: McpGroupTemplate,
-): Promise<{ endpoints: McpServerEndpoint[] }> {
+): Promise<{ attachmentSpecs: McpGroupAttachmentSpec[] }> {
   const enabledServers = params.enabledServers || [];
-  console.log(`[executeMcpGroupNode] ============================================`);
-  console.log(`[executeMcpGroupNode] Starting execution for group ${groupTemplate.slug}`);
-  console.log(`[executeMcpGroupNode] Component ref: ${context.componentRef}`);
-  console.log(`[executeMcpGroupNode] Run ID: ${context.runId}`);
+  console.log(
+    `[executeMcpGroupNode] Starting for group ${groupTemplate.slug}, run ${context.runId}`,
+  );
   console.log(`[executeMcpGroupNode] Enabled servers: ${enabledServers.join(', ')}`);
 
   const credentials = inputs.credentials;
@@ -113,8 +110,8 @@ export async function executeMcpGroupNode(
   }
 
   if (enabledServers.length === 0) {
-    console.log(`[executeMcpGroupNode] No enabled servers, returning empty endpoints`);
-    return { endpoints: [] };
+    console.log(`[executeMcpGroupNode] No enabled servers, returning empty attachment specs`);
+    return { attachmentSpecs: [] };
   }
 
   // Build environment variables from credential mapping
@@ -125,12 +122,11 @@ export async function executeMcpGroupNode(
   const enabledServerTemplates = groupTemplate.servers.filter((s) => enabledServers.includes(s.id));
 
   console.log(
-    `[executeMcpGroupNode] Processing ${enabledServerTemplates.length} enabled servers from template`,
+    `[executeMcpGroupNode] Building attachment specs for ${enabledServerTemplates.length} servers`,
   );
 
-  // Build Hotplug attachments: one per enabled server, keyed by server.id
-  const attachments: Record<string, HotplugAttachment> = {};
-  for (const serverTemplate of enabledServerTemplates) {
+  // Build one attachment spec per enabled server
+  const attachmentSpecs: McpGroupAttachmentSpec[] = enabledServerTemplates.map((serverTemplate) => {
     const args = [
       'run',
       '--rm',
@@ -144,122 +140,15 @@ export async function executeMcpGroupNode(
       args.push(...serverTemplate.args);
     }
 
-    attachments[serverTemplate.id] = {
-      managed: {
-        runtime: 'docker',
-        launch: {
-          type: 'stdio',
-          command: 'docker',
-          args,
-        },
-        secrets: { env_vars: env },
-      },
+    return {
+      alias: serverTemplate.id,
+      runtime: 'docker' as const,
+      command: 'docker',
+      args,
+      envVars: env,
     };
-  }
-
-  console.log(`[executeMcpGroupNode] Built ${Object.keys(attachments).length} Hotplug attachments`);
-
-  const hotplug = new HotplugClient();
-  const tenantId = (context as any).tenantId ?? 'default-tenant';
-
-  // Create ONE Hotplug session with all servers as attachments
-  console.log(`[executeMcpGroupNode] Creating Hotplug session...`);
-  const session = await hotplug.createSession({
-    identity: {
-      tenant_id: tenantId,
-      user_id: context.componentRef,
-      run_id: context.runId,
-      labels: { group: groupTemplate.slug },
-    },
-    attachments,
   });
 
-  const sessionId = session.session_id;
-  const mcpEndpoint = hotplug.sessionMcpEndpoint(sessionId);
-  console.log(`[executeMcpGroupNode] Hotplug session created: ${sessionId}`);
-  console.log(`[executeMcpGroupNode] MCP proxy endpoint: ${mcpEndpoint}`);
-
-  // Collect tools from the session response and register each server with backend
-  const endpoints: McpServerEndpoint[] = [];
-
-  for (const serverTemplate of enabledServerTemplates) {
-    const attachmentState = session.state.attachments[serverTemplate.id];
-    const tools: HotplugTool[] = attachmentState?.tools ?? [];
-
-    console.log(
-      `[executeMcpGroupNode] Server ${serverTemplate.id}: ${tools.length} tools discovered`,
-    );
-
-    // Register with backend using hierarchical node ID
-    await registerServerWithBackend(serverTemplate.id, mcpEndpoint, sessionId, context, tools);
-
-    endpoints.push({
-      endpoint: mcpEndpoint,
-      sessionId,
-      serverId: serverTemplate.id,
-    });
-  }
-
-  console.log(`[executeMcpGroupNode] ============================================`);
-  console.log(`[executeMcpGroupNode] Execution complete!`);
-  console.log(`[executeMcpGroupNode] Total endpoints: ${endpoints.length}`);
-  console.log(
-    `[executeMcpGroupNode] Endpoints:`,
-    endpoints.map((e) => `${e.serverId} -> ${e.endpoint}`),
-  );
-  console.log(`[executeMcpGroupNode] ============================================`);
-  return { endpoints };
-}
-
-/**
- * Registers a server with the backend Tool Registry using the new clean API.
- *
- * Uses the /register-mcp-server endpoint which accepts pre-discovered tools.
- */
-async function registerServerWithBackend(
-  serverId: string,
-  endpoint: string,
-  sessionId: string,
-  context: ExecutionContext,
-  tools: HotplugTool[],
-): Promise<void> {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3211';
-  const internalApiUrl = `${backendUrl}/api/v1/internal/mcp`;
-  const internalToken = process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token';
-
-  // Use a unique nodeId for each server to avoid overwriting in Redis
-  // Format: ${groupNodeId}/${serverId} (e.g., "aws-mcp-group/aws-cloudtrail")
-  const uniqueNodeId = `${context.componentRef}/${serverId}`;
-
-  console.log(`[registerServerWithBackend] Registering server ${serverId}`);
-  console.log(`[registerServerWithBackend] Unique nodeId: ${uniqueNodeId}`);
-  console.log(`[registerServerWithBackend] Endpoint: ${endpoint}`);
-  console.log(`[registerServerWithBackend] Tools: ${tools.length}`);
-
-  // Register using the new clean API
-  const registerResponse = await fetch(`${internalApiUrl}/register-mcp-server`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-internal-token': internalToken,
-    },
-    body: JSON.stringify({
-      runId: context.runId,
-      nodeId: uniqueNodeId,
-      serverName: serverId,
-      serverId,
-      transport: 'stdio',
-      endpoint,
-      sessionId,
-      tools,
-    }),
-  });
-
-  if (!registerResponse.ok) {
-    const errorText = await registerResponse.text();
-    console.error(`[registerServerWithBackend] Registration failed: ${errorText}`);
-    throw new Error(`Failed to register server ${serverId}: ${registerResponse.statusText}`);
-  }
-
-  console.log(`[registerServerWithBackend] Registered ${serverId} with ${tools.length} tools`);
+  console.log(`[executeMcpGroupNode] Returning ${attachmentSpecs.length} attachment specs`);
+  return { attachmentSpecs };
 }

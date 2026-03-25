@@ -73,6 +73,12 @@ export interface RegisteredTool {
   /** Encrypted credentials (for component tools) */
   encryptedCredentials?: string;
 
+  /** Fixed inputs resolved from workflow DAG (for component tools) */
+  preparedInputs?: Record<string, unknown>;
+
+  /** Fixed parameters resolved from workflow DAG (for component tools) */
+  preparedParams?: Record<string, unknown>;
+
   /** MCP endpoint URL (for remote/local MCPs) */
   endpoint?: string;
 
@@ -127,6 +133,8 @@ export class ToolRegistryService implements OnModuleDestroy {
       inputSchema,
       credentials,
       parameters,
+      preparedInputs,
+      preparedParams,
     } = input;
 
     // Encrypt credentials
@@ -146,6 +154,8 @@ export class ToolRegistryService implements OnModuleDestroy {
       description,
       inputSchema,
       encryptedCredentials,
+      preparedInputs,
+      preparedParams,
       registeredAt: new Date().toISOString(),
     };
 

@@ -25,6 +25,7 @@ import {
   webhookParsingWorkflow,
   assetSyncWorkflow,
   chatAgentWorkflow,
+  executeComponentToolWorkflow,
 } from '@shipsec/studio-worker/workflows';
 import type { ExecutionTriggerMetadata, ScheduleOverlapPolicy } from '@shipsec/shared';
 
@@ -164,9 +165,35 @@ export class TemporalService implements OnModuleDestroy {
         return assetSyncWorkflow;
       case 'chatAgentWorkflow':
         return chatAgentWorkflow;
+      case 'executeComponentToolWorkflow':
+        return executeComponentToolWorkflow;
       default:
         throw new Error(`Unknown workflow type: ${workflowType}`);
     }
+  }
+
+  /**
+   * Start a workflow and wait for its result synchronously.
+   * Used for short-lived workflows like component tool execution.
+   */
+  async executeWorkflow<T = unknown>(options: StartWorkflowOptions): Promise<T> {
+    const client = await this.getClient();
+    const workflowId = options.workflowId ?? `shipsec-workflow-${randomUUID()}`;
+    const taskQueue = options.taskQueue ?? this.defaultTaskQueue;
+    const workflowFn = this.getWorkflowFunction(options.workflowType);
+
+    this.logger.log(
+      `Executing Temporal workflow ${options.workflowType} (workflowId=${workflowId}, taskQueue=${taskQueue})`,
+    );
+
+    const handle = await client.start(workflowFn, {
+      workflowId,
+      taskQueue,
+      args: (options.args ?? []) as any,
+      memo: options.memo,
+    });
+
+    return handle.result() as Promise<T>;
   }
 
   async describeWorkflow(ref: WorkflowRunReference): Promise<WorkflowRunStatus> {

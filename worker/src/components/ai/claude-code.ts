@@ -12,13 +12,7 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
-import {
-  DEFAULT_GATEWAY_URL,
-  getGatewaySessionToken,
-  requireOrgVirtualKey,
-  shouldRouteViaLiteLLM,
-  getSkillWorkspaceFiles,
-} from './utils';
+import { requireOrgVirtualKey, shouldRouteViaLiteLLM, getSkillWorkspaceFiles } from './utils';
 
 const inputSchema = inputs({
   task: port(
@@ -170,46 +164,28 @@ const definition = defineComponent({
     const { task, context: taskContext, model, supplementaryA, supplementaryB } = inputs;
     const { systemPrompt, skills: selectedSkills } = params;
 
-    const { connectedToolNodeIds, organizationId } = context.metadata;
+    const { organizationId } = context.metadata;
 
-    // 1. Resolve Gateway Token for MCP
-    let gatewayToken = '';
-    const connectedToolIds = connectedToolNodeIds ?? [];
-    if (connectedToolIds.length > 0) {
-      try {
-        gatewayToken = await getGatewaySessionToken(
-          context.runId,
-          organizationId ?? null,
-          connectedToolIds,
-        );
-      } catch (error) {
-        context.logger.error(`[ClaudeCode] Failed to generate gateway token: ${error}`);
-      }
-    }
+    // 1. Read Hotplug session URL and token injected by the workflow orchestration
+    const hotplugMcpUrl = context.metadata.hotplugMcpUrl;
+    const hotplugMcpToken = context.metadata.hotplugMcpToken;
 
     // 2. Prepare MCP config for Claude Code
     // Claude Code accepts MCP config via --mcp-config flag pointing to a JSON file
     // Format: { "mcpServers": { "<name>": { "url": "...", "type": "sse" } } }
-    const mcpConfig: Record<string, unknown> = {
-      mcpServers: {
-        'shipsec-gateway': {
-          url: DEFAULT_GATEWAY_URL,
-          type: 'sse',
-          ...(gatewayToken
-            ? {
+    const mcpConfig: Record<string, unknown> =
+      hotplugMcpUrl && hotplugMcpToken
+        ? {
+            mcpServers: {
+              'workflow-tools': {
+                url: hotplugMcpUrl,
                 headers: {
-                  Authorization: `Bearer ${gatewayToken}`,
-                  Accept: 'application/json, text/event-stream',
+                  Authorization: `Bearer ${hotplugMcpToken}`,
                 },
-              }
-            : {
-                headers: {
-                  Accept: 'application/json, text/event-stream',
-                },
-              }),
-        },
-      },
-    };
+              },
+            },
+          }
+        : { mcpServers: {} };
 
     // 3. Resolve LiteLLM virtual key if needed
     let orgVirtualKey: string | undefined;

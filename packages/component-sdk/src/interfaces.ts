@@ -143,6 +143,10 @@ export interface ExecutionContextMetadata {
   failure?: ExecutionFailureMetadata;
   connectedToolNodeIds?: string[];
   organizationId?: string | null;
+  /** Hotplug MCP session endpoint URL (set by workflow orchestration) */
+  hotplugMcpUrl?: string;
+  /** Hotplug control token for MCP session auth (set by workflow orchestration) */
+  hotplugMcpToken?: string;
   // Internal/test-only overrides for AI SDK dependencies (kept optional for runtime)
   aiSdkOverrides?: {
     ToolLoopAgent?: unknown;

@@ -1,9 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import Redis from 'ioredis';
 import { ToolRegistryService, TOOL_REGISTRY_REDIS } from './tool-registry.service';
-import { McpGatewayService } from './mcp-gateway.service';
 import { McpAuthService } from './mcp-auth.service';
-import { McpGatewayController } from './mcp-gateway.controller';
 import { SecretsModule } from '../secrets/secrets.module';
 import { InternalMcpController } from './internal-mcp.controller';
 import { WorkflowsModule } from '../workflows/workflows.module';
@@ -16,6 +14,8 @@ import { McpServersRepository } from '../mcp-servers/mcp-servers.repository';
 import { DatabaseModule } from '../database/database.module';
 import { McpDiscoveryOrchestratorService } from './mcp-discovery-orchestrator.service';
 import { MCP_DISCOVERY_REDIS } from './mcp.tokens';
+import { ComponentToolMcpService } from './component-tool-mcp.service';
+import { ComponentToolMcpController } from './component-tool-mcp.controller';
 
 @Global()
 @Module({
@@ -28,7 +28,7 @@ import { MCP_DISCOVERY_REDIS } from './mcp.tokens';
     McpGroupsModule,
     HotplugModule,
   ],
-  controllers: [McpGatewayController, InternalMcpController, McpDiscoveryController],
+  controllers: [InternalMcpController, McpDiscoveryController, ComponentToolMcpController],
   providers: [
     {
       provide: MCP_DISCOVERY_REDIS,
@@ -47,8 +47,6 @@ import { MCP_DISCOVERY_REDIS } from './mcp.tokens';
         const url = process.env.TOOL_REGISTRY_REDIS_URL ?? process.env.REDIS_URL;
         if (!url) {
           console.warn('[MCP] Redis URL not set; tool registry disabled');
-        }
-        if (!url) {
           return null;
         }
         return new Redis(url);
@@ -56,10 +54,10 @@ import { MCP_DISCOVERY_REDIS } from './mcp.tokens';
     },
     ToolRegistryService,
     McpAuthService,
-    McpGatewayService,
     McpDiscoveryOrchestratorService,
     McpServersRepository,
+    ComponentToolMcpService,
   ],
-  exports: [ToolRegistryService, McpGatewayService, McpAuthService],
+  exports: [ToolRegistryService, McpAuthService, ComponentToolMcpService],
 })
 export class McpModule {}

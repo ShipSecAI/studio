@@ -95,6 +95,10 @@ export interface RunComponentActivityInput {
     triggeredBy?: string;
     failure?: WorkflowFailureMetadata;
     connectedToolNodeIds?: string[];
+    /** Hotplug MCP session URL (injected by workflow for agent nodes with tools) */
+    hotplugMcpUrl?: string;
+    /** Hotplug control token (injected by workflow for agent nodes with tools) */
+    hotplugMcpToken?: string;
   };
   inputOverrides?: Record<string, unknown>;
   rawParams?: Record<string, unknown>;

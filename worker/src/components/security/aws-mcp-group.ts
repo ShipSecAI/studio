@@ -9,7 +9,11 @@ import {
   port,
 } from '@shipsec/component-sdk';
 import { awsCredentialSchema } from '@shipsec/contracts';
-import { executeMcpGroupNode, McpGroupTemplateSchema } from '../core/mcp-group-runtime';
+import {
+  executeMcpGroupNode,
+  McpGroupTemplateSchema,
+  type McpGroupAttachmentSpec,
+} from '../core/mcp-group-runtime';
 
 /**
  * AWS MCP Group Template
@@ -115,6 +119,17 @@ const outputSchema = outputs({
     reason:
       'MCP tools are dynamically discovered from AWS servers at runtime and cannot have a fixed schema',
   }),
+  attachmentSpecs: port(
+    z
+      .array(z.unknown())
+      .optional()
+      .describe('Hotplug managed attachment specs for each enabled MCP server'),
+    {
+      label: 'Attachment Specs',
+      description: 'Hotplug attachment specs passed to workflow orchestration for session creation',
+      connectionType: { kind: 'primitive', name: 'json' },
+    },
+  ),
 });
 
 const parameterSchema = parameters({
@@ -205,11 +220,15 @@ const definition = defineComponent({
       return { tools: [] };
     }
 
-    // Use the group runtime helper to register tools
-    await executeMcpGroupNode(context, { credentials }, { enabledServers }, AwsGroupTemplate);
+    // Build Hotplug attachment specs — session creation is handled by workflow orchestration
+    const { attachmentSpecs } = await executeMcpGroupNode(
+      context,
+      { credentials },
+      { enabledServers },
+      AwsGroupTemplate,
+    );
 
-    // Return the list of enabled tools to the tools output port
-    // This allows the workflow to pass tool information to connected nodes
+    // Return attachment specs + tool metadata for the workflow to use
     return {
       tools: enabledServers.map((serverId) => ({
         id: serverId,
@@ -217,6 +236,7 @@ const definition = defineComponent({
         type: 'mcp-server',
         group: 'aws',
       })),
+      attachmentSpecs: attachmentSpecs as McpGroupAttachmentSpec[],
     };
   },
 });

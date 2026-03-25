@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterAll } from 'bun:test';
 import { componentRegistry } from '@shipsec/component-sdk';
 import * as SDK from '@shipsec/component-sdk'; // Import for spying
 import { createIsolatedVolume } from '../../../utils/isolated-volume';
-import * as utils from '../utils';
 import '../opencode'; // Register the component
 
 // Mock createIsolatedVolume
@@ -28,10 +27,6 @@ describe('shipsec.opencode.agent', () => {
     process.env = { ...envSnapshot };
     delete process.env.LITELLM_BASE_URL;
     delete process.env.LITELLM_API_KEY;
-
-    // Mock getGatewaySessionToken
-    // We use spyOn so we can restore it later if needed, but here we just want to ensure it's mocked for this suite.
-    vi.spyOn(utils, 'getGatewaySessionToken').mockResolvedValue('mock-session-token');
 
     // Spy on runComponentWithRunner
     runSpy = vi.spyOn(SDK, 'runComponentWithRunner').mockResolvedValue({

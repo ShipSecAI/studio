@@ -45,14 +45,13 @@ const DEFAULT_STEP_LIMIT = 4;
 const LOG_TRUNCATE_LIMIT = 2000;
 
 import {
-  DEFAULT_GATEWAY_URL,
-  getGatewaySessionToken,
   shouldRouteViaLiteLLM,
   getLiteLLMBaseUrl,
   normalizeLiteLLMModel,
   requireOrgVirtualKey,
   isBudgetExceededError,
   BUDGET_EXCEEDED_USER_MESSAGE,
+  connectToHotplugTools,
 } from './utils';
 
 const agentMessageSchema = z.object({
@@ -473,41 +472,6 @@ function toModelMessages(messages: AgentMessage[]): ModelMessage[] {
   return result;
 }
 
-interface RegisterGatewayToolsParams {
-  gatewayUrl: string;
-  sessionToken: string;
-  createClient?: typeof createMCPClient;
-}
-
-async function registerGatewayTools({
-  gatewayUrl,
-  sessionToken,
-  createClient = createMCPClient,
-}: RegisterGatewayToolsParams): Promise<{
-  tools: ToolSet;
-  close: () => Promise<void>;
-}> {
-  console.log(`[AGENT] Connecting to MCP gateway at ${gatewayUrl} to discover tools`);
-  const mcpClient = await createClient({
-    transport: {
-      type: 'http',
-      url: gatewayUrl,
-      headers: { Authorization: `Bearer ${sessionToken}` },
-    },
-  });
-
-  const tools = await mcpClient.tools();
-  console.log(
-    `[AGENT] Discovered ${Object.keys(tools).length} tools from gateway: ${Object.keys(tools).join(', ') || 'none'}`,
-  );
-  return {
-    tools: tools as ToolSet,
-    close: async () => {
-      await mcpClient.close();
-    },
-  };
-}
-
 const definition = defineComponent({
   id: 'core.ai.agent',
   label: 'AI SDK Agent',
@@ -555,7 +519,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
     const agentRunId = `${context.runId}:${context.componentRef}:${randomUUID()}`;
 
     const agentStream = new AgentStreamRecorder(context, agentRunId);
-    const { connectedToolNodeIds, organizationId } = context.metadata;
+    const { organizationId } = context.metadata;
     const aiSdkOverrides = (context.metadata as { aiSdkOverrides?: AiSdkOverrides }).aiSdkOverrides;
     const createMCPClientImpl = aiSdkOverrides?.createMCPClient ?? createMCPClient;
     const ToolLoopAgentImpl = aiSdkOverrides?.ToolLoopAgent ?? ToolLoopAgent;
@@ -567,25 +531,21 @@ Loop the Conversation State output back into the next agent invocation to keep m
     let discoveredTools: ToolSet = {};
     let closeDiscovery: (() => Promise<void>) | undefined;
 
-    if (connectedToolNodeIds && connectedToolNodeIds.length > 0) {
-      context.logger.info(
-        `Discovering tools from gateway for nodes: ${connectedToolNodeIds.join(', ')}`,
-      );
+    const hotplugMcpUrl = context.metadata.hotplugMcpUrl;
+    const hotplugMcpToken = context.metadata.hotplugMcpToken;
+
+    if (hotplugMcpUrl && hotplugMcpToken) {
+      context.logger.info(`Connecting to Hotplug session at ${hotplugMcpUrl}`);
       try {
-        const sessionToken = await getGatewaySessionToken(
-          context.runId,
-          organizationId ?? null,
-          connectedToolNodeIds,
+        const result = await connectToHotplugTools(
+          hotplugMcpUrl,
+          hotplugMcpToken,
+          createMCPClientImpl,
         );
-        const discoveryResult = await registerGatewayTools({
-          gatewayUrl: DEFAULT_GATEWAY_URL,
-          sessionToken,
-          createClient: createMCPClientImpl,
-        });
-        discoveredTools = discoveryResult.tools;
-        closeDiscovery = discoveryResult.close;
+        discoveredTools = result.tools;
+        closeDiscovery = result.close;
       } catch (error) {
-        context.logger.error(`Failed to discover tools from gateway: ${error}`);
+        context.logger.error(`Failed to connect to Hotplug tools: ${error}`);
       }
     }
 
@@ -696,7 +656,9 @@ Loop the Conversation State output back into the next agent invocation to keep m
             })(routedModel)
           : isOpenRouter
             ? openAIProvider.chat(routedModel)
-            : openAIProvider(routedModel);
+            : liteLLMEnabled
+              ? openAIProvider.chat(routedModel) // LiteLLM doesn't support Responses API
+              : openAIProvider(routedModel);
 
       const agentSettings: ToolLoopAgentSettings<never, AgentTools> = {
         id: `${sessionId}-agent`,
@@ -704,6 +666,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
         instructions: resolvedSystemPrompt || undefined,
         temperature,
         maxOutputTokens: maxTokens,
+        providerOptions: { openai: { store: true } },
         stopWhen: stepCountIsImpl(stepLimit),
         onStepFinish: (stepResult: AgentStepResult) => {
           for (const call of stepResult.toolCalls) {

@@ -12,13 +12,7 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
-import {
-  DEFAULT_GATEWAY_URL,
-  getGatewaySessionToken,
-  requireOrgVirtualKey,
-  shouldRouteViaLiteLLM,
-  getSkillWorkspaceFiles,
-} from './utils';
+import { requireOrgVirtualKey, shouldRouteViaLiteLLM, getSkillWorkspaceFiles } from './utils';
 
 const inputSchema = inputs({
   task: port(
@@ -172,22 +166,11 @@ const definition = defineComponent({
     const { task, context: taskContext, model, supplementaryA, supplementaryB } = inputs;
     const { systemPrompt, providerConfig, skills: selectedSkills } = params;
 
-    const { connectedToolNodeIds, organizationId } = context.metadata;
+    const { organizationId } = context.metadata;
 
-    // 1. Resolve Gateway Token for MCP
-    let gatewayToken = '';
-    const connectedToolIds = connectedToolNodeIds ?? [];
-    if (connectedToolIds.length > 0) {
-      try {
-        gatewayToken = await getGatewaySessionToken(
-          context.runId,
-          organizationId ?? null,
-          connectedToolIds,
-        );
-      } catch (error) {
-        context.logger.error(`[OpenCode] Failed to generate gateway token: ${error}`);
-      }
-    }
+    // 1. Read Hotplug session URL and token injected by the workflow orchestration
+    const hotplugMcpUrl = context.metadata.hotplugMcpUrl;
+    const hotplugMcpToken = context.metadata.hotplugMcpToken;
 
     // Helper to map provider to OpenCode model string format
     const getOpenCodeModelString = (
@@ -204,25 +187,22 @@ const definition = defineComponent({
     // Correct format from https://opencode.ai/docs/mcp-servers/
     // CRITICAL: oauth: false is required for custom headers (OAuth is auto-detected as default in v1.0.137+)
     // See: https://github.com/anomalyco/opencode/issues/5278
-    // Always add MCP config (even if token is empty, so OpenCode can attempt connection)
-    const mcpConfig = {
-      mcp: {
-        'shipsec-gateway': {
-          type: 'remote' as const,
-          url: DEFAULT_GATEWAY_URL,
-          oauth: false,
-          headers: gatewayToken
-            ? {
-                Authorization: `Bearer ${gatewayToken}`,
-                Accept: 'application/json, text/event-stream',
-              }
-            : {
-                Accept: 'application/json, text/event-stream',
+    const mcpConfig =
+      hotplugMcpUrl && hotplugMcpToken
+        ? {
+            mcp: {
+              'workflow-tools': {
+                type: 'remote' as const,
+                url: hotplugMcpUrl,
+                oauth: false,
+                headers: {
+                  Authorization: `Bearer ${hotplugMcpToken}`,
+                },
+                enabled: true,
               },
-          enabled: true,
-        },
-      },
-    };
+            },
+          }
+        : { mcp: {} };
 
     // Build provider config for OpenCode
     // Z.AI requires the API key to be in provider.options.apiKey

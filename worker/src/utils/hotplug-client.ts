@@ -50,6 +50,7 @@ export interface HotplugCreateSessionRequest {
 
 export interface HotplugSessionResponse {
   session_id: string;
+  mcp_token?: string;
   state: {
     status: string;
     attachments: Record<string, { status: string; tools: HotplugTool[] }>;
@@ -61,7 +62,7 @@ export class HotplugClient {
   private readonly sdkClient: ReturnType<typeof createClient>;
 
   constructor(
-    baseUrl = process.env.HOTPLUG_URL || 'http://localhost:3230',
+    baseUrl = process.env.HOTPLUG_URL || 'http://localhost:10011',
     token = process.env.HOTPLUG_CONTROL_TOKEN || 'hotplug-local-dev-token',
   ) {
     this.baseUrl = baseUrl;
@@ -154,6 +155,7 @@ export class HotplugClient {
     }
     return {
       session_id: data.session_id,
+      mcp_token: (data as any).mcp_token,
       state: { status: data.state.status, attachments: attachmentsMap },
     };
   }
