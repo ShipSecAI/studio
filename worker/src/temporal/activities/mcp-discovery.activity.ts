@@ -104,7 +104,7 @@ export async function discoverMcpToolsActivity(
           args: input.args || [],
         },
       },
-      startup_timeout_ms: 60000,
+      startup_timeout_ms: 180000,
     });
 
     return {
@@ -140,11 +140,9 @@ export async function discoverMcpGroupToolsActivity(
       const tools = await listMcpTools(server.endpoint, server.headers);
       results.push({ name: server.name, tools });
     } catch (error) {
-      results.push({
-        name: server.name,
-        tools: [],
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[MCP Discovery] HTTP server '${server.name}' failed: ${msg}`);
+      results.push({ name: server.name, tools: [], error: msg });
     }
   }
 
@@ -156,6 +154,9 @@ export async function discoverMcpGroupToolsActivity(
         if (!server.command) {
           throw new Error(`command is required for stdio server '${server.name}'`);
         }
+        console.log(
+          `[MCP Discovery] Discovering STDIO server '${server.name}': ${server.command} ${(server.args ?? []).join(' ')}`,
+        );
         const result = await hotplug.discover({
           managed: {
             runtime: 'docker',
@@ -165,8 +166,11 @@ export async function discoverMcpGroupToolsActivity(
               args: server.args ?? [],
             },
           },
-          startup_timeout_ms: 60000,
+          startup_timeout_ms: 180000,
         });
+        console.log(
+          `[MCP Discovery] Server '${server.name}' discovered ${result.tools.length} tools`,
+        );
         results.push({
           name: server.name,
           tools: result.tools.map((t: Record<string, unknown>) => ({
@@ -176,11 +180,9 @@ export async function discoverMcpGroupToolsActivity(
           })),
         });
       } catch (error) {
-        results.push({
-          name: server.name,
-          tools: [],
-          error: error instanceof Error ? error.message : String(error),
-        });
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error(`[MCP Discovery] STDIO server '${server.name}' failed: ${msg}`);
+        results.push({ name: server.name, tools: [], error: msg });
       }
     }),
   );

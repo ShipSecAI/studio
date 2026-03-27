@@ -125,26 +125,14 @@ export async function executeMcpGroupNode(
     `[executeMcpGroupNode] Building attachment specs for ${enabledServerTemplates.length} servers`,
   );
 
-  // Build one attachment spec per enabled server
+  // Build one attachment spec per enabled server.
+  // Hotplug wraps the command in the default runtime image automatically.
   const attachmentSpecs: McpGroupAttachmentSpec[] = enabledServerTemplates.map((serverTemplate) => {
-    const args = [
-      'run',
-      '--rm',
-      '-i',
-      '--init',
-      groupTemplate.defaultDockerImage,
-      'uvx',
-      serverTemplate.command,
-    ];
-    if (serverTemplate.args) {
-      args.push(...serverTemplate.args);
-    }
-
     return {
       alias: serverTemplate.id,
       runtime: 'docker' as const,
-      command: 'docker',
-      args,
+      command: serverTemplate.command,
+      args: serverTemplate.args ?? [],
       envVars: env,
     };
   });

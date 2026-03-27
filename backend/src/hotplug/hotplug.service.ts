@@ -66,7 +66,7 @@ export class HotplugService {
   private readonly sdkClient: ReturnType<typeof createClient>;
 
   constructor(private readonly configService: ConfigService) {
-    this.baseUrl = this.configService.get<string>('HOTPLUG_URL', 'http://localhost:3230');
+    this.baseUrl = this.configService.get<string>('HOTPLUG_URL', 'http://localhost:10011');
     this.token = this.configService.get<string>('HOTPLUG_CONTROL_TOKEN', 'hotplug-local-dev-token');
     this.sdkClient = createClient(
       createConfig({
