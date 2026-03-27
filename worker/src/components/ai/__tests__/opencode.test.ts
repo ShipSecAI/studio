@@ -89,7 +89,7 @@ describe('shipsec.opencode.agent', () => {
     const initCall = volumeInstance.initialize.mock.calls[0][0];
 
     expect(initCall['context.json']).toContain('"alertId": "123"');
-    expect(initCall['opencode.jsonc']).toContain('shipsec-gateway');
+    expect(initCall['opencode.jsonc']).toContain('"model": "openai/gpt-4o"');
 
     expect(runSpy).toHaveBeenCalled();
     const runnerCall = runSpy.mock.calls[0][0];

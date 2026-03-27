@@ -5,7 +5,13 @@ import { componentRegistry, runComponentWithRunner } from '@shipsec/component-sd
 import type { AiAgentInput, AiAgentOutput } from '../ai-agent';
 
 const stepCountIsMock = vi.fn((limit: number) => ({ type: 'step-count', limit }));
-const createOpenAIMock = vi.fn(() => (modelId: string) => ({ provider: 'openai', modelId }));
+const createOpenAIMock = vi.fn((options?: Record<string, unknown>) => {
+  const modelFactory = (modelId: string) => ({ provider: 'openai', modelId, options });
+  (
+    modelFactory as typeof modelFactory & { chat: (modelId: string) => Record<string, unknown> }
+  ).chat = (modelId: string) => ({ provider: 'openai', mode: 'chat', modelId, options });
+  return modelFactory;
+});
 const createGoogleGenerativeAIMock = vi.fn(() => (modelId: string) => ({
   provider: 'gemini',
   modelId,
@@ -247,15 +253,19 @@ describe('core.ai.agent (refactor)', () => {
     );
 
     expect(result.responseText).toBe('Agent final answer');
-    expect(createMCPClientMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        transport: {
-          type: 'http',
-          url: 'http://hotplug:10010/sessions/test-session/mcp',
-          headers: { Authorization: 'Bearer hotplug-test-token' },
-        },
-      }),
+    expect(createMCPClientMock).toHaveBeenCalledTimes(1);
+    const mcpCall = createMCPClientMock.mock.calls[0]?.[0] as {
+      transport?: {
+        _url?: URL;
+        _requestInit?: { headers?: Record<string, string> };
+      };
+    };
+    expect(mcpCall.transport?._url?.toString()).toBe(
+      'http://hotplug:10010/sessions/test-session/mcp',
     );
+    expect(mcpCall.transport?._requestInit?.headers).toMatchObject({
+      Authorization: 'Bearer hotplug-test-token',
+    });
 
     const settings = expectRecord(toolLoopAgentSettings, 'agent settings');
     const tools = expectRecord(settings.tools, 'agent tools');
@@ -359,6 +369,11 @@ describe('core.ai.agent (refactor)', () => {
     const openAiCall = (createOpenAIMock as any).mock.calls[0][0] as Record<string, unknown>;
     expect(openAiCall.baseURL).toBe('http://litellm.local:4000/v1');
     expect(openAiCall.apiKey).toBe('provider-key');
-    expect(openAiCall.headers).toBeUndefined();
+    const modelInvocation = (toolLoopAgentSettings as { model?: Record<string, unknown> })?.model;
+    expect(modelInvocation).toMatchObject({
+      provider: 'openai',
+      mode: 'chat',
+      modelId: 'gemini/gemini-2.5-flash',
+    });
   });
 });
