@@ -204,8 +204,7 @@ function loadFrontendEnv(envFilePath) {
 }
 
 // Load worker .env file for worker-specific variables
-function loadWorkerEnv() {
-  const envPath = path.join(__dirname, 'worker', '.env');
+function loadWorkerEnv(envPath) {
   const env = {};
 
   try {
@@ -241,8 +240,6 @@ function loadWorkerEnv() {
 
   return env;
 }
-
-const workerEnv = loadWorkerEnv();
 
 // Determine environment from NODE_ENV or SHIPSEC_ENV
 const environment = process.env.SHIPSEC_ENV || process.env.NODE_ENV || 'development';
@@ -299,6 +296,9 @@ function resolveEnvFile(appName, instance) {
   }
   return rootPath;
 }
+
+const workerEnvFile = resolveEnvFile('worker', instanceNum);
+const workerEnv = loadWorkerEnv(workerEnvFile);
 
 module.exports = {
   apps: [

@@ -482,12 +482,20 @@ export function McpLibraryPage() {
   }, [servers, tools]);
 
   const getGroupServerHealthStatus = (server: {
+    id: string;
     serverId: string;
     healthStatus: McpHealthStatus;
-  }) => servers.find((s) => s.id === server.serverId)?.lastHealthStatus ?? server.healthStatus;
+  }) =>
+    servers.find((s) => s.id === (server.serverId || server.id))?.lastHealthStatus ??
+    server.healthStatus;
 
-  const getGroupServerToolCounts = (server: { serverId: string; toolCount: number }) => {
-    const counts = toolCountsByServer[server.serverId];
+  const getGroupServerToolCounts = (server: {
+    id: string;
+    serverId: string;
+    toolCount: number;
+  }) => {
+    const serverId = server.serverId || server.id;
+    const counts = toolCountsByServer[serverId];
     // If we haven't loaded tools for this server (common for disabled servers),
     // don't let a 0/0 cache override the server's known discovered toolCount.
     if (counts && !(counts.total === 0 && server.toolCount > 0)) {
@@ -1098,6 +1106,7 @@ export function McpLibraryPage() {
       // Import template with cache tokens
       const result = await mcpGroupsApi.importTemplate(template.slug, serverCacheTokens);
       await queryClient.invalidateQueries({ queryKey: queryKeys.mcpGroups.all() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
       await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.tools() });
 
       toast({
@@ -1898,40 +1907,47 @@ export function McpLibraryPage() {
                   value={group.id}
                   className={cn('rounded-lg border overflow-hidden', theme.container)}
                 >
-                  <AccordionTrigger
-                    className={cn('hover:no-underline px-4 py-3', theme.headerBorder)}
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className={cn('p-2 rounded-lg border', theme.iconWrapper)}>
-                        <GroupLogo slug={group.slug} name={group.name} className={theme.iconText} />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <div className="flex items-center gap-3">
-                          <h3 className="font-semibold">{group.name}</h3>
-                          <Badge variant="secondary" className="text-xs font-medium">
-                            {serverCount} {serverCount === 1 ? 'server' : 'servers'}
-                          </Badge>
+                  <div className={cn('flex items-center px-4 py-3', theme.headerBorder)}>
+                    <div className="flex-1 min-w-0">
+                      <AccordionTrigger className="hover:no-underline py-0 w-full">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={cn('p-2 rounded-lg border', theme.iconWrapper)}>
+                            <GroupLogo
+                              slug={group.slug}
+                              name={group.name}
+                              className={theme.iconText}
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0 text-left">
+                            <div className="flex items-center gap-3">
+                              <h3 className="font-semibold">{group.name}</h3>
+                              <Badge variant="secondary" className="text-xs font-medium">
+                                {serverCount} {serverCount === 1 ? 'server' : 'servers'}
+                              </Badge>
+                            </div>
+                            {group.description && (
+                              <p className="text-sm text-muted-foreground mt-0.5">
+                                {group.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        {group.description && (
-                          <p className="text-sm text-muted-foreground mt-0.5">
-                            {group.description}
-                          </p>
-                        )}
-                      </div>
+                      </AccordionTrigger>
+                    </div>
+                    <div className="ml-2 shrink-0">
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={(event) => {
-                          event.stopPropagation();
+                        onClick={() => {
                           void handleRemoveGroup(group.id, group.name);
                         }}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
-                  </AccordionTrigger>
+                  </div>
                   <AccordionContent className="px-4 pb-4">
                     {serverCount === 0 ? (
                       <div className="border rounded-lg">
@@ -1954,11 +1970,12 @@ export function McpLibraryPage() {
                           {renderServerTableHeader()}
                           <TableBody>
                             {groupServerList.map((server) => {
+                              const groupServerId = server.serverId || server.id;
                               const toolCounts = getGroupServerToolCounts(server);
                               const healthStatus = getGroupServerHealthStatus(server);
 
                               return (
-                                <TableRow key={server.serverId}>
+                                <TableRow key={groupServerId}>
                                   <TableCell>
                                     <div>
                                       <div className="font-medium">{server.serverName}</div>
@@ -1989,7 +2006,7 @@ export function McpLibraryPage() {
                                   <TableCell>
                                     <HealthIndicator
                                       status={healthStatus}
-                                      checking={checkingServers.has(server.serverId)}
+                                      checking={checkingServers.has(groupServerId)}
                                     />
                                   </TableCell>
                                   <TableCell className="text-center">
@@ -2000,7 +2017,7 @@ export function McpLibraryPage() {
                                             variant="outline"
                                             size="sm"
                                             className="h-7 px-2 font-mono text-xs"
-                                            onClick={() => handleViewTools(server.serverId)}
+                                            onClick={() => handleViewTools(groupServerId)}
                                           >
                                             {toolCounts.enabled}/{toolCounts.total}
                                           </Button>
@@ -2019,7 +2036,7 @@ export function McpLibraryPage() {
                                   <TableCell className="text-center">
                                     <Switch
                                       checked={server.enabled}
-                                      onCheckedChange={() => handleToggle(server.serverId)}
+                                      onCheckedChange={() => handleToggle(groupServerId)}
                                     />
                                   </TableCell>
                                   <TableCell className="text-right">
@@ -2029,7 +2046,7 @@ export function McpLibraryPage() {
                                           <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={() => handleViewTools(server.serverId)}
+                                            onClick={() => handleViewTools(groupServerId)}
                                           >
                                             <Wrench className="h-4 w-4" />
                                           </Button>
@@ -2043,13 +2060,13 @@ export function McpLibraryPage() {
                                             size="icon"
                                             onClick={() =>
                                               handleDiscoverServerTools(
-                                                server.serverId,
+                                                groupServerId,
                                                 group.defaultDockerImage ?? undefined,
                                               )
                                             }
-                                            disabled={discoveringServerIds.has(server.serverId)}
+                                            disabled={discoveringServerIds.has(groupServerId)}
                                           >
-                                            {discoveringServerIds.has(server.serverId) ? (
+                                            {discoveringServerIds.has(groupServerId) ? (
                                               <Loader className="h-4 w-4 animate-spin" />
                                             ) : (
                                               <RefreshCw className="h-4 w-4" />

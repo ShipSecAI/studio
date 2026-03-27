@@ -71,6 +71,10 @@ get_backend_url() {
   echo "http://localhost:$(get_backend_port "$1")"
 }
 
+get_redis_url() {
+  echo "redis://localhost:6379"
+}
+
 
 resolve_source_env() {
   local app="$1"
@@ -111,8 +115,10 @@ apply_instance_vars() {
   case "$app" in
     backend)
       set_var "$file" "PORT" "$(get_backend_port "$instance")"
+      set_var "$file" "REDIS_URL" "$(get_redis_url)"
       ;;
     worker)
+      set_var "$file" "REDIS_URL" "$(get_redis_url)"
       set_var "$file" "BACKEND_URL" "$(get_backend_url "$instance")"
       set_var "$file" "STUDIO_API_BASE_URL" "$(get_backend_url "$instance")/api/v1"
       ;;

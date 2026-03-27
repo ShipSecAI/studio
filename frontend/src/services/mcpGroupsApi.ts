@@ -66,7 +66,11 @@ export const mcpGroupsApi = {
    * Fetch all MCP groups with their servers embedded (avoids N+1 queries)
    */
   async listGroupsWithServers(): Promise<McpGroupResponse[]> {
-    return api.mcpGroups.list({ includeServers: true });
+    const groups = await api.mcpGroups.list({ includeServers: true });
+    return groups.map((group) => ({
+      ...group,
+      servers: group.servers?.map(normalizeGroupServer),
+    }));
   },
 
   /**
