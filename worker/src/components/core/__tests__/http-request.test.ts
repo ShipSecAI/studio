@@ -2,6 +2,14 @@ import { describe, expect, test, beforeAll, afterAll } from 'bun:test';
 import { definition } from '../http-request';
 import type { ExecutionContext } from '@shipsec/component-sdk';
 
+function headersToObject(headers: Headers): Record<string, string> {
+  const result: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    result[key] = value;
+  });
+  return result;
+}
+
 // Use Bun.fetch (the native fetch) instead of globalThis.fetch.
 // bun runs test files in parallel sharing globalThis, so vi.spyOn(global, 'fetch') in other
 // test files replaces globalThis.fetch but CANNOT replace Bun.fetch which is the underlying
@@ -40,7 +48,7 @@ describe('HTTP Request Component', () => {
 
         if (url.pathname === '/json' && req.method === 'POST') {
           const body = await req.json();
-          return Response.json({ received: body, headers: Object.fromEntries(req.headers) });
+          return Response.json({ received: body, headers: headersToObject(req.headers) });
         }
 
         if (url.pathname === '/status/404') {
@@ -58,7 +66,7 @@ describe('HTTP Request Component', () => {
         }
 
         if (url.pathname === '/headers') {
-          return Response.json({ headers: Object.fromEntries(req.headers) });
+          return Response.json({ headers: headersToObject(req.headers) });
         }
 
         if (url.pathname === '/delete' && req.method === 'DELETE') {

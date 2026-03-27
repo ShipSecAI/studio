@@ -2,6 +2,14 @@ import { beforeEach, describe, expect, test, vi } from 'bun:test';
 
 import { fetchOrgVirtualKey, requireOrgVirtualKey } from '../utils';
 
+function headersToObject(headers: Headers): Record<string, string> {
+  const result: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    result[key] = value;
+  });
+  return result;
+}
+
 describe('LiteLLM org key helpers', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -18,7 +26,7 @@ describe('LiteLLM org key helpers', () => {
       const request = input as Request;
 
       expect(request.url).toBe('http://backend.local/api/v1/internal/billing/litellm-key');
-      expect(Object.fromEntries(request.headers.entries())).toMatchObject({
+      expect(headersToObject(request.headers)).toMatchObject({
         'x-internal-token': 'internal-token',
         'x-organization-id': 'org-123',
       });
