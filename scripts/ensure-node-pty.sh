@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKER_DIR="${ROOT_DIR}/worker"
 
+if [ "${CI:-}" = "true" ]; then
+  echo "ℹ️  CI detected; skipping node-pty local health/rebuild check"
+  exit 0
+fi
+
 if ! command -v node >/dev/null 2>&1; then
   echo "⚠️  node not found; skipping node-pty check"
   exit 0
