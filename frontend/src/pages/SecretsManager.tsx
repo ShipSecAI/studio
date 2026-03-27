@@ -339,7 +339,7 @@ export function SecretsManager() {
 
   return (
     <div className="flex-1 bg-background">
-      <div className="container mx-auto py-4 md:py-8 px-3 md:px-4">
+      <div className="mx-auto w-full max-w-[1600px] py-4 md:py-8 px-3 md:px-6">
         {isReadOnly && (
           <div className="mb-4 md:mb-6 rounded-md border border-border/60 bg-muted/30 px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm text-muted-foreground">
             You have read-only access. Viewing secrets metadata is allowed, but only administrators
@@ -353,240 +353,256 @@ export function SecretsManager() {
           </p>
         </div>
 
-        <div className="grid gap-4 md:gap-6 lg:grid-cols-[2fr,3fr]">
-          <div className="border rounded-lg bg-card p-4 md:p-6 space-y-4">
-            <div>
-              <h2 className="text-lg md:text-xl font-semibold mb-1">Add a new secret</h2>
-              <p className="text-xs md:text-sm text-muted-foreground">
-                Secret values are encrypted at rest. The plaintext you provide here is only used
-                during creation.
-              </p>
+        <div className="grid grid-cols-1 items-start gap-4 md:gap-6 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)]">
+          <div className="lg:sticky lg:top-6 h-fit">
+            <div className="border rounded-lg bg-card p-4 md:p-6 space-y-4">
+              <div className="space-y-3">
+                <div>
+                  <h2 className="text-lg md:text-xl font-semibold mb-1">Add a new secret</h2>
+                  <p className="text-xs md:text-sm text-muted-foreground">
+                    Secret values are encrypted at rest. The plaintext you provide here is only used
+                    during creation.
+                  </p>
+                </div>
+                <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  Name it clearly, tag it by usage, and keep the value scoped to the smallest
+                  workflow surface that needs it.
+                </div>
+              </div>
+
+              <form className="space-y-3 md:space-y-4" onSubmit={handleSubmit}>
+                <div className="space-y-2">
+                  <label htmlFor="secret-name" className="text-sm font-medium">
+                    Secret name
+                  </label>
+                  <Input
+                    id="secret-name"
+                    placeholder="ex: shodan-api-key"
+                    value={formState.name}
+                    onChange={handleChange('name')}
+                    disabled={disableCreate}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="secret-description" className="text-sm font-medium">
+                    Description
+                    <span className="text-muted-foreground"> (optional)</span>
+                  </label>
+                  <Input
+                    id="secret-description"
+                    placeholder="Describe how this secret is used"
+                    value={formState.description}
+                    onChange={handleChange('description')}
+                    disabled={disableCreate}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="secret-tags" className="text-sm font-medium">
+                    Tags
+                    <span className="text-muted-foreground"> (comma separated)</span>
+                  </label>
+                  <Input
+                    id="secret-tags"
+                    placeholder="prod, security, reconnaissance"
+                    value={formState.tags}
+                    onChange={handleChange('tags')}
+                    disabled={disableCreate}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="secret-value" className="text-sm font-medium">
+                    Secret value
+                  </label>
+                  <Textarea
+                    id="secret-value"
+                    placeholder="Paste the secret value"
+                    value={formState.value}
+                    onChange={handleChange('value')}
+                    disabled={disableCreate}
+                    rows={5}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The plaintext is never shown again after creation.
+                  </p>
+                </div>
+
+                {formError && <p className="text-sm text-destructive">{formError}</p>}
+
+                {formSuccess && (
+                  <p className="text-sm text-green-600 dark:text-green-400">{formSuccess}</p>
+                )}
+
+                <Button
+                  className="w-full sm:w-auto"
+                  type="submit"
+                  disabled={!isFormValid || disableCreate}
+                >
+                  {isSubmitting ? 'Saving…' : 'Create secret'}
+                </Button>
+              </form>
             </div>
-
-            <form className="space-y-3 md:space-y-4" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <label htmlFor="secret-name" className="text-sm font-medium">
-                  Secret name
-                </label>
-                <Input
-                  id="secret-name"
-                  placeholder="ex: shodan-api-key"
-                  value={formState.name}
-                  onChange={handleChange('name')}
-                  disabled={disableCreate}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="secret-description" className="text-sm font-medium">
-                  Description
-                  <span className="text-muted-foreground"> (optional)</span>
-                </label>
-                <Input
-                  id="secret-description"
-                  placeholder="Describe how this secret is used"
-                  value={formState.description}
-                  onChange={handleChange('description')}
-                  disabled={disableCreate}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="secret-tags" className="text-sm font-medium">
-                  Tags
-                  <span className="text-muted-foreground"> (comma separated)</span>
-                </label>
-                <Input
-                  id="secret-tags"
-                  placeholder="prod, security, reconnaissance"
-                  value={formState.tags}
-                  onChange={handleChange('tags')}
-                  disabled={disableCreate}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="secret-value" className="text-sm font-medium">
-                  Secret value
-                </label>
-                <Textarea
-                  id="secret-value"
-                  placeholder="Paste the secret value"
-                  value={formState.value}
-                  onChange={handleChange('value')}
-                  disabled={disableCreate}
-                  rows={4}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  The plaintext is never shown again after creation.
-                </p>
-              </div>
-
-              {formError && <p className="text-sm text-destructive">{formError}</p>}
-
-              {formSuccess && (
-                <p className="text-sm text-green-600 dark:text-green-400">{formSuccess}</p>
-              )}
-
-              <Button type="submit" disabled={!isFormValid || disableCreate}>
-                {isSubmitting ? 'Saving…' : 'Create secret'}
-              </Button>
-            </form>
           </div>
 
-          <div className="border rounded-lg bg-card p-4 md:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-lg md:text-xl font-semibold">Stored secrets</h2>
-                <p className="text-xs md:text-sm text-muted-foreground">
-                  Only metadata is shown. Use the Secret Fetch component or parameter selectors to
-                  reference a secret.
-                </p>
+          <div className="min-w-0">
+            <div className="border rounded-lg bg-card p-4 md:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-lg md:text-xl font-semibold">Stored secrets</h2>
+                  <p className="text-xs md:text-sm text-muted-foreground">
+                    Only metadata is shown. Use the Secret Fetch component or parameter selectors to
+                    reference a secret.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setListSuccess(null);
+                    queryClient
+                      .invalidateQueries({ queryKey: ['secrets'] })
+                      .catch((err) => console.error('Failed to refresh secrets', err));
+                  }}
+                  disabled={loading}
+                  className="self-start sm:self-auto flex-shrink-0"
+                >
+                  {loading ? 'Refreshing…' : 'Refresh'}
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setListSuccess(null);
-                  queryClient
-                    .invalidateQueries({ queryKey: ['secrets'] })
-                    .catch((err) => console.error('Failed to refresh secrets', err));
-                }}
-                disabled={loading}
-                className="self-start sm:self-auto flex-shrink-0"
-              >
-                {loading ? 'Refreshing…' : 'Refresh'}
-              </Button>
-            </div>
 
-            {error && <div className="mb-4 text-xs md:text-sm text-destructive">{error}</div>}
-            {listSuccess && (
-              <div className="mb-4 text-xs md:text-sm text-green-600 dark:text-green-400">
-                {listSuccess}
-              </div>
-            )}
+              {error && <div className="mb-4 text-xs md:text-sm text-destructive">{error}</div>}
+              {listSuccess && (
+                <div className="mb-4 text-xs md:text-sm text-green-600 dark:text-green-400">
+                  {listSuccess}
+                </div>
+              )}
 
-            {loading && secrets.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Loading secrets…</div>
-            ) : secrets.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                No secrets yet. Use the form to create your first secret.
-              </div>
-            ) : (
-              <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-muted-foreground">
-                      <th className="py-2 pr-4 font-medium min-w-[120px]">Name</th>
-                      <th className="py-2 pr-4 font-medium min-w-[100px] hidden sm:table-cell">
-                        Tags
-                      </th>
-                      <th className="py-2 pr-4 font-medium min-w-[120px] hidden md:table-cell">
-                        Active Version
-                      </th>
-                      <th className="py-2 pr-4 font-medium min-w-[100px] hidden lg:table-cell">
-                        Updated
-                      </th>
-                      <th className="py-2 font-medium text-right min-w-[100px]">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {secrets.map((secret) => (
-                      <tr key={secret.id} className="border-t last:border-b">
-                        <td className="py-3 pr-4 align-top">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div>
-                                <div className="font-medium truncate max-w-[150px] md:max-w-none">
-                                  {secret.name}
-                                </div>
-                                <div className="text-[10px] md:text-xs text-muted-foreground truncate max-w-[150px] md:max-w-none">
-                                  ID: <span className="font-mono">{secret.id}</span>
-                                </div>
-                                {secret.description && (
-                                  <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                    {secret.description}
-                                  </div>
-                                )}
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom" className="max-w-xs">
-                              <p className="font-medium">{secret.name}</p>
-                              <p className="text-xs text-muted-foreground font-mono">
-                                ID: {secret.id}
-                              </p>
-                              {secret.description && (
-                                <p className="text-xs text-muted-foreground">
-                                  {secret.description}
-                                </p>
-                              )}
-                            </TooltipContent>
-                          </Tooltip>
-                        </td>
-                        <td className="py-3 pr-4 align-top hidden sm:table-cell">
-                          <div className="flex flex-wrap gap-1">
-                            {secret.tags?.length ? (
-                              secret.tags.map((tag) => (
-                                <Badge key={tag} variant="secondary" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 pr-4 align-top hidden md:table-cell">
-                          {secret.activeVersion ? (
-                            <div>
-                              <div className="font-mono text-xs">
-                                v{secret.activeVersion.version}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                Created {formatDate(secret.activeVersion.createdAt)}
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">No active version</span>
-                          )}
-                        </td>
-                        <td className="py-3 pr-4 align-top hidden lg:table-cell">
-                          <div className="text-xs text-muted-foreground">
-                            {formatDate(secret.updatedAt)}
-                          </div>
-                        </td>
-                        <td className="py-3 align-top">
-                          <div className="flex justify-end gap-1 md:gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openEditDialog(secret)}
-                              disabled={isReadOnly}
-                              aria-disabled={isReadOnly}
-                              className="text-xs px-2 md:px-3"
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => openDeleteDialog(secret)}
-                              disabled={isReadOnly}
-                              aria-disabled={isReadOnly}
-                              className="text-xs px-2 md:px-3"
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </td>
+              {loading && secrets.length === 0 ? (
+                <div className="text-sm text-muted-foreground">Loading secrets…</div>
+              ) : secrets.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No secrets yet. Use the form to create your first secret.
+                </div>
+              ) : (
+                <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-muted-foreground">
+                        <th className="py-2 pr-4 font-medium min-w-[120px]">Name</th>
+                        <th className="py-2 pr-4 font-medium min-w-[100px] hidden sm:table-cell">
+                          Tags
+                        </th>
+                        <th className="py-2 pr-4 font-medium min-w-[120px] hidden md:table-cell">
+                          Active Version
+                        </th>
+                        <th className="py-2 pr-4 font-medium min-w-[100px] hidden lg:table-cell">
+                          Updated
+                        </th>
+                        <th className="py-2 font-medium text-right min-w-[100px]">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody>
+                      {secrets.map((secret) => (
+                        <tr key={secret.id} className="border-t last:border-b">
+                          <td className="py-3 pr-4 align-top">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div>
+                                  <div className="font-medium truncate max-w-[150px] md:max-w-none">
+                                    {secret.name}
+                                  </div>
+                                  <div className="text-[10px] md:text-xs text-muted-foreground truncate max-w-[150px] md:max-w-none">
+                                    ID: <span className="font-mono">{secret.id}</span>
+                                  </div>
+                                  {secret.description && (
+                                    <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                      {secret.description}
+                                    </div>
+                                  )}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-xs">
+                                <p className="font-medium">{secret.name}</p>
+                                <p className="text-xs text-muted-foreground font-mono">
+                                  ID: {secret.id}
+                                </p>
+                                {secret.description && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {secret.description}
+                                  </p>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          </td>
+                          <td className="py-3 pr-4 align-top hidden sm:table-cell">
+                            <div className="flex flex-wrap gap-1">
+                              {secret.tags?.length ? (
+                                secret.tags.map((tag) => (
+                                  <Badge key={tag} variant="secondary" className="text-xs">
+                                    {tag}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 pr-4 align-top hidden md:table-cell">
+                            {secret.activeVersion ? (
+                              <div>
+                                <div className="font-mono text-xs">
+                                  v{secret.activeVersion.version}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Created {formatDate(secret.activeVersion.createdAt)}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                No active version
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 pr-4 align-top hidden lg:table-cell">
+                            <div className="text-xs text-muted-foreground">
+                              {formatDate(secret.updatedAt)}
+                            </div>
+                          </td>
+                          <td className="py-3 align-top">
+                            <div className="flex justify-end gap-1 md:gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEditDialog(secret)}
+                                disabled={isReadOnly}
+                                aria-disabled={isReadOnly}
+                                className="text-xs px-2 md:px-3"
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => openDeleteDialog(secret)}
+                                disabled={isReadOnly}
+                                aria-disabled={isReadOnly}
+                                className="text-xs px-2 md:px-3"
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
