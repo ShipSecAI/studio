@@ -120,7 +120,7 @@ const { discoverMcpToolsActivity, discoverMcpGroupToolsActivity, cacheDiscoveryR
       workflowId: string;
     }): Promise<void>;
   }>({
-    startToCloseTimeout: '30 seconds',
+    startToCloseTimeout: '10 minutes',
   });
 
 /**

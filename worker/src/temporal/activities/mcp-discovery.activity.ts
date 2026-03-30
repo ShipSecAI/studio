@@ -95,9 +95,10 @@ export async function discoverMcpToolsActivity(
       throw new Error('command is required for stdio transport');
     }
     const hotplug = new HotplugClient();
+    const runtime = process.env.HOTPLUG_RUNTIME || 'docker';
     const result = await hotplug.discover({
       managed: {
-        runtime: 'docker',
+        runtime: runtime as 'docker' | 'kubernetes' | 'host',
         launch: {
           type: 'stdio',
           command: input.command,
@@ -148,6 +149,7 @@ export async function discoverMcpGroupToolsActivity(
 
   // STDIO servers: parallel Hotplug ephemeral discovery
   const hotplug = new HotplugClient();
+  const groupRuntime = process.env.HOTPLUG_RUNTIME || 'docker';
   await Promise.all(
     stdioServers.map(async (server) => {
       try {
@@ -159,7 +161,7 @@ export async function discoverMcpGroupToolsActivity(
         );
         const result = await hotplug.discover({
           managed: {
-            runtime: 'docker',
+            runtime: groupRuntime as 'docker' | 'kubernetes' | 'host',
             launch: {
               type: 'stdio',
               command: server.command,

@@ -76,10 +76,17 @@ export class HotplugClient {
 
   async discover(
     input: HotplugDiscoverRequest,
-    timeoutMs = 120_000,
+    timeoutMs = 300_000,
   ): Promise<HotplugDiscoverResult> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => {
+      console.warn(`[HotplugClient] discover timeout after ${timeoutMs}ms — aborting`);
+      controller.abort();
+    }, timeoutMs);
+
+    console.log(
+      `[HotplugClient] discover start url=${this.baseUrl} runtime=${(input as any).managed?.runtime ?? 'unknown'} timeout=${timeoutMs}ms`,
+    );
 
     try {
       const { stream } = await sdkDiscover({
@@ -90,19 +97,29 @@ export class HotplugClient {
 
       let result: HotplugDiscoverResult | null = null;
       let error: string | null = null;
+      let eventCount = 0;
 
       for await (const event of stream) {
+        eventCount++;
         const evt = event as Record<string, unknown>;
+        console.log(`[HotplugClient] SSE event #${eventCount}: ${JSON.stringify(evt)}`);
         if (evt.tools) {
+          console.log(
+            `[HotplugClient] Got result event with ${(evt.tools as unknown[]).length} tools`,
+          );
           result = evt as unknown as HotplugDiscoverResult;
         } else if (evt.phase && evt.message) {
-          // Check if this is an error event
           const msg = evt.message as string;
+          console.log(`[HotplugClient] Progress [${evt.phase}]: ${msg}`);
           if (msg.toLowerCase().includes('error')) {
             error = msg;
           }
         }
       }
+
+      console.log(
+        `[HotplugClient] stream ended after ${eventCount} events, result=${result ? 'OK' : 'null'}, error=${error}`,
+      );
 
       if (error) throw new Error(`Hotplug discovery error: ${error}`);
       if (!result) throw new Error('Hotplug discover returned no result');
