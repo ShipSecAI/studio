@@ -1,9 +1,13 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import Redis from 'ioredis';
 
 import { IntegrationsService } from '../integrations/integrations.service';
 import { SlackService } from '../integrations/slack.service';
 import { SlackThreadMappingRepository } from './slack-thread-mapping.repository';
+import { renderSlackMessagePayloads } from './slack-message-renderer';
+import { ChatService } from '../chat/chat.service';
+import { SlackTurnPostRepository } from './slack-turn-post.repository';
 
 /**
  * Subscribes to chat session events via Redis pub/sub and relays
@@ -16,12 +20,14 @@ export class SlackEventBridge implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SlackEventBridge.name);
   private subscriber: Redis | null = null;
   private readonly subscribedSessions = new Set<string>();
-  private readonly responseBuffers = new Map<string, string>();
+  private readonly responseBuffers = new Map<string, { text: string; finalText?: string }>();
 
   constructor(
     private readonly integrations: IntegrationsService,
     private readonly slack: SlackService,
     private readonly threadMappings: SlackThreadMappingRepository,
+    private readonly chatService: ChatService,
+    private readonly turnPosts: SlackTurnPostRepository,
   ) {}
 
   async onModuleInit() {
@@ -95,7 +101,13 @@ export class SlackEventBridge implements OnModuleInit, OnModuleDestroy {
 
       switch (chunk.type) {
         case 'text-delta':
-          this.accumulateText(sessionId, chunk.textDelta ?? chunk.delta ?? '');
+          this.accumulateText(event.turnId, chunk.textDelta ?? chunk.delta ?? '');
+          break;
+
+        case 'finish':
+          if (typeof chunk.responseText === 'string' && chunk.responseText.length > 0) {
+            this.setFinalText(event.turnId, chunk.responseText);
+          }
           break;
 
         case 'data-turn-status': {
@@ -106,21 +118,24 @@ export class SlackEventBridge implements OnModuleInit, OnModuleDestroy {
           );
 
           if (status === 'completed') {
-            const text = this.responseBuffers.get(sessionId);
+            const text = await this.resolveCompletedText(sessionId, event.turnId);
             if (text?.trim()) {
-              await this.postToThread(sessionId, text);
+              await this.postTurnToThread(sessionId, event.turnId, text);
             }
-          } else if (isTerminal) {
-            const stale = this.responseBuffers.get(sessionId);
-            if (stale) {
+          } else if (status === 'running') {
+            await this.postTurnStatusPlaceholder(sessionId, event.turnId, status);
+          } else if (isTerminal && status) {
+            const stale = this.getBufferedText(event.turnId);
+            if (stale?.length) {
               this.logger.warn(
                 `Turn ${status} for session ${sessionId}, discarding ${stale.length} chars`,
               );
             }
+            await this.postTurnStatusPlaceholder(sessionId, event.turnId, status);
           }
 
           if (isTerminal) {
-            this.responseBuffers.delete(sessionId);
+            this.responseBuffers.delete(event.turnId);
           }
 
           if (status === 'queued') {
@@ -140,9 +155,39 @@ export class SlackEventBridge implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private accumulateText(sessionId: string, delta: string): void {
-    const current = this.responseBuffers.get(sessionId) ?? '';
-    this.responseBuffers.set(sessionId, current + delta);
+  private accumulateText(turnId: string, delta: string): void {
+    if (delta.length === 0) return;
+    const current = this.responseBuffers.get(turnId) ?? { text: '' };
+    current.text += delta;
+    this.responseBuffers.set(turnId, current);
+  }
+
+  private setFinalText(turnId: string, text: string): void {
+    const current = this.responseBuffers.get(turnId) ?? { text: '' };
+    current.finalText = text;
+    this.responseBuffers.set(turnId, current);
+  }
+
+  private getBufferedText(turnId: string): string {
+    const current = this.responseBuffers.get(turnId);
+    return current?.finalText ?? current?.text ?? '';
+  }
+
+  private async resolveCompletedText(sessionId: string, turnId: string): Promise<string> {
+    const retries = [0, 100, 250, 500];
+
+    for (const delayMs of retries) {
+      if (delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+
+      const persisted = await this.chatService.getAssistantTextForTurnInternal(sessionId, turnId);
+      if (persisted?.trim()) {
+        return persisted;
+      }
+    }
+
+    return this.getBufferedText(turnId);
   }
 
   /**
@@ -167,18 +212,23 @@ export class SlackEventBridge implements OnModuleInit, OnModuleDestroy {
 
     const message = isUserEcho ? `_via ShipSec:_ ${text}` : text;
     const isDm = mapping.slackThreadTs.startsWith('dm:');
+    const payloads = renderSlackMessagePayloads(message);
 
-    // Chunk long messages for Slack readability
-    const chunks = this.chunkMessage(message, 3500);
-    for (const chunk of chunks) {
+    for (const payload of payloads) {
       // DMs: post as channel message (no threading). Channels: post as thread reply.
       const result = isDm
-        ? await this.slack.sendMessage(botToken, mapping.slackChannelId, chunk)
+        ? await this.slack.sendMessage(
+            botToken,
+            mapping.slackChannelId,
+            payload.text,
+            payload.blocks,
+          )
         : await this.slack.postThreadMessage(
             botToken,
             mapping.slackChannelId,
-            chunk,
+            payload.text,
             mapping.slackThreadTs,
+            payload.blocks,
           );
       if (!result.ok) {
         this.logger.error(`Failed to post to Slack thread: ${result.error}`);
@@ -187,16 +237,141 @@ export class SlackEventBridge implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private chunkMessage(text: string, maxLength: number): string[] {
-    if (text.length <= maxLength) return [text];
-    const chunks: string[] = [];
-    let remaining = text;
-    while (remaining.length > 0) {
-      let breakAt = remaining.lastIndexOf('\n', maxLength);
-      if (breakAt <= 0) breakAt = maxLength;
-      chunks.push(remaining.slice(0, breakAt));
-      remaining = remaining.slice(breakAt).trimStart();
+  private async postTurnToThread(sessionId: string, turnId: string, text: string): Promise<void> {
+    const mapping = await this.threadMappings.findBySessionId(sessionId);
+    if (!mapping) return;
+
+    let botToken: string;
+    try {
+      const credentials = await this.integrations.resolveConnectionCredentials(
+        mapping.connectionId,
+      );
+      botToken = credentials.data?.accessToken as string;
+      if (!botToken) return;
+    } catch {
+      this.logger.error(`Failed to resolve bot token for connection ${mapping.connectionId}`);
+      return;
     }
-    return chunks;
+
+    const payloads = renderSlackMessagePayloads(text);
+    const contentHash = createHash('sha256').update(JSON.stringify(payloads)).digest('hex');
+    const record = await this.turnPosts.reserve(sessionId, turnId);
+
+    if (record.lastContentHash === contentHash && record.primaryMessageTs) {
+      return;
+    }
+
+    const continuationTs = [...(record.continuationMessageTs ?? [])];
+    let primaryTs = record.primaryMessageTs ?? null;
+
+    const ensurePrimary = async () => {
+      if (!primaryTs) {
+        const created = await this.slack.postThreadMessage(
+          botToken,
+          mapping.slackChannelId,
+          payloads[0].text,
+          mapping.slackThreadTs,
+          payloads[0].blocks,
+        );
+        if (!created.ok || !created.ts) {
+          throw new Error(created.error ?? 'Failed to create primary Slack turn message');
+        }
+        primaryTs = created.ts;
+        this.logger.log(`Created primary Slack message for turn ${turnId}: ${primaryTs}`);
+        return;
+      }
+
+      const updated = await this.slack.updateMessage(
+        botToken,
+        mapping.slackChannelId,
+        primaryTs,
+        payloads[0].text,
+        payloads[0].blocks,
+      );
+      if (!updated.ok) {
+        throw new Error(updated.error ?? 'Failed to update primary Slack turn message');
+      }
+      this.logger.log(`Updated primary Slack message for turn ${turnId}: ${primaryTs}`);
+    };
+
+    try {
+      await ensurePrimary();
+
+      for (let i = 1; i < payloads.length; i++) {
+        const existingTs = continuationTs[i - 1];
+        if (existingTs) {
+          const updated = await this.slack.updateMessage(
+            botToken,
+            mapping.slackChannelId,
+            existingTs,
+            payloads[i].text,
+            payloads[i].blocks,
+          );
+          if (!updated.ok) {
+            throw new Error(updated.error ?? `Failed to update continuation Slack message ${i}`);
+          }
+          continue;
+        }
+
+        const created = await this.slack.postThreadMessage(
+          botToken,
+          mapping.slackChannelId,
+          payloads[i].text,
+          mapping.slackThreadTs,
+          payloads[i].blocks,
+        );
+        if (!created.ok || !created.ts) {
+          throw new Error(created.error ?? `Failed to create continuation Slack message ${i}`);
+        }
+        continuationTs.push(created.ts);
+      }
+
+      while (continuationTs.length > payloads.length - 1) {
+        const extraTs = continuationTs.pop();
+        if (!extraTs) {
+          break;
+        }
+        await this.slack.deleteMessage(botToken, mapping.slackChannelId, extraTs);
+      }
+
+      await this.turnPosts.saveMessages(turnId, {
+        primaryMessageTs: primaryTs!,
+        continuationMessageTs: continuationTs,
+        lastContentHash: contentHash,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to sync Slack turn ${turnId} for session ${sessionId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  private getTurnStatusText(status: string): string | null {
+    switch (status) {
+      case 'running':
+        return ':mag: ShipSecBot is investigating...';
+      case 'failed':
+        return ':warning: ShipSecBot hit an error before finishing this reply.';
+      case 'interrupted':
+        return ':pause_button: ShipSecBot stopped that reply.';
+      case 'cancelled':
+        return ':no_entry_sign: ShipSecBot cancelled that reply.';
+      default:
+        return null;
+    }
+  }
+
+  private async postTurnStatusPlaceholder(
+    sessionId: string,
+    turnId: string,
+    status: string,
+  ): Promise<void> {
+    const text = this.getTurnStatusText(status);
+    if (!text) {
+      return;
+    }
+    await this.postTurnToThread(sessionId, turnId, text);
   }
 }
