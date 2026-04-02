@@ -44,8 +44,8 @@ const SecretsManager = lazy(() =>
 const ApiKeysManager = lazy(() =>
   import('@/pages/ApiKeysManager').then((m) => ({ default: m.ApiKeysManager })),
 );
-const IntegrationsManager = lazy(() =>
-  import('@/pages/IntegrationsManager').then((m) => ({ default: m.IntegrationsManager })),
+const IntegrationsPage = lazy(() =>
+  import('@/pages/IntegrationsPage').then((m) => ({ default: m.IntegrationsPage })),
 );
 const ArtifactLibrary = lazy(() =>
   import('@/pages/ArtifactLibrary').then((m) => ({ default: m.ArtifactLibrary })),
@@ -323,7 +323,7 @@ function App() {
                                 <Route path="/api-keys" element={<ApiKeysManager />} />
                               </Route>
                               <Route element={<FeatureFlagRoute flag="INTEGRATIONS" />}>
-                                <Route path="/integrations" element={<IntegrationsManager />} />
+                                <Route path="/integrations" element={<IntegrationsPage />} />
                                 <Route
                                   path="/integrations/github"
                                   element={<GitHubIntegrationPage />}

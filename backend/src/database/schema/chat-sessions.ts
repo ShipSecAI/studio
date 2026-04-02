@@ -16,6 +16,7 @@ export const chatSessionsTable = pgTable(
     steerTargetTurnId: uuid('steer_target_turn_id'),
     steerRequestedAt: timestamp('steer_requested_at', { withTimezone: true }),
     temporalWorkflowId: text('temporal_workflow_id'),
+    origin: text('origin').notNull().default('web'), // web | slack
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

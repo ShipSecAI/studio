@@ -26,6 +26,6 @@ import { AwsAssetSyncAction } from './listeners/actions/aws-asset-sync.action';
     IntegrationConnectedListener,
     AwsAssetSyncAction,
   ],
-  exports: [IntegrationsService],
+  exports: [IntegrationsService, SlackService],
 })
 export class IntegrationsModule {}

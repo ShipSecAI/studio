@@ -44,6 +44,7 @@ import { BillingModule } from './billing/billing.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { AgentSkillsModule } from './agent-skills/agent-skills.module';
 import { HotplugModule } from './hotplug/hotplug.module';
+import { SlackBotModule } from './slack-bot/slack-bot.module';
 
 const coreModules = [
   AgentsModule,
@@ -73,6 +74,7 @@ const coreModules = [
   ChatModule,
   AgentSkillsModule,
   HotplugModule,
+  SlackBotModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];

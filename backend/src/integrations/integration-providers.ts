@@ -45,10 +45,11 @@ export function loadIntegrationProviders(): Record<string, IntegrationProviderCo
     .map((scope) => scope.trim())
     .filter(Boolean) ?? [
     'channels:read',
+    'channels:history',
     'chat:write',
     'chat:write.public',
     'commands',
-    'im:write',
+    'app_mentions:read',
     'team:read',
   ];
 

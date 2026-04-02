@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, desc, eq, lt, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, lt, or, sql, type SQL } from 'drizzle-orm';
 
 import { DRIZZLE_TOKEN } from '../database/database.module';
 import { chatSessionsTable, type ChatSession } from '../database/schema';
@@ -34,10 +34,18 @@ export class ChatSessionRepository {
   }
 
   async listSessions(options: ChatSessionQueryOptions): Promise<ChatSession[]> {
-    const conditions: SQL[] = [
-      eq(chatSessionsTable.userId, options.userId),
-      eq(chatSessionsTable.status, 'active'),
-    ];
+    // Show user's own sessions + Slack-originated sessions from the same org
+    const ownershipCondition = options.organizationId
+      ? or(
+          eq(chatSessionsTable.userId, options.userId),
+          and(
+            eq(chatSessionsTable.origin, 'slack'),
+            eq(chatSessionsTable.organizationId, options.organizationId),
+          ),
+        )
+      : eq(chatSessionsTable.userId, options.userId);
+
+    const conditions: SQL[] = [ownershipCondition!, eq(chatSessionsTable.status, 'active')];
     if (options.organizationId) {
       conditions.push(eq(chatSessionsTable.organizationId, options.organizationId));
     }
@@ -50,10 +58,18 @@ export class ChatSessionRepository {
   }
 
   async getSession(id: string, options: ChatSessionQueryOptions): Promise<ChatSession> {
-    const conditions: SQL[] = [
-      eq(chatSessionsTable.id, id),
-      eq(chatSessionsTable.userId, options.userId),
-    ];
+    // Allow access to own sessions + Slack-originated sessions from the same org
+    const ownershipCondition = options.organizationId
+      ? or(
+          eq(chatSessionsTable.userId, options.userId),
+          and(
+            eq(chatSessionsTable.origin, 'slack'),
+            eq(chatSessionsTable.organizationId, options.organizationId),
+          ),
+        )
+      : eq(chatSessionsTable.userId, options.userId);
+
+    const conditions: SQL[] = [eq(chatSessionsTable.id, id), ownershipCondition!];
     if (options.organizationId) {
       conditions.push(eq(chatSessionsTable.organizationId, options.organizationId));
     }

@@ -71,6 +71,13 @@
       "when": 1772882400000,
       "tag": "0023_add_onboarding_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1743382800000,
+      "tag": "0024_add_slack_thread_mappings",
+      "breakpoints": true
     }
   ]
 }

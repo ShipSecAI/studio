@@ -122,6 +122,10 @@ export const backendEnvSchema = z
     SLACK_OAUTH_CLIENT_SECRET: z.string().optional(),
     SLACK_OAUTH_SCOPES: z.string().optional(),
 
+    // --- Slack Bot ---
+    SLACK_BOT_ENABLED: z.enum(['true', 'false']).optional().default('false'),
+    SLACK_SIGNING_SECRET: z.string().optional(),
+
     // --- AWS ---
     SHIPSEC_AWS_REGION: z.string().optional(),
     SHIPSEC_AWS_ACCESS_KEY_ID: z.string().optional(),

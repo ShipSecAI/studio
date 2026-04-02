@@ -42,6 +42,7 @@
     "@shipsec/component-sdk": "workspace:*",
     "@shipsec/shared": "workspace:*",
     "@shipsec/studio-worker": "workspace:*",
+    "@slack/web-api": "^7.15.0",
     "@temporalio/client": "^1.14.1",
     "@temporalio/worker": "^1.14.1",
     "@temporalio/workflow": "^1.14.1",

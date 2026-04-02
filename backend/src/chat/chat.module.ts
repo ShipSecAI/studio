@@ -22,5 +22,6 @@ import { TerminalModule } from '../terminal/terminal.module';
     ChatStreamService,
     ChatStreamIngestService,
   ],
+  exports: [ChatService],
 })
 export class ChatModule {}
