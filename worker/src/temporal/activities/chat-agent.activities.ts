@@ -1034,7 +1034,13 @@ export async function runChatAgentStepActivity(
 
       const result = streamText({
         model: orgModel,
+        // Split system prompt for provider-level prompt caching. The stable
+        // prefix (behavioral instructions) is marked cacheable; the dynamic
+        // suffix (session context, date) is appended without cache hints.
         system: systemPrompt,
+        providerOptions: {
+          anthropic: { cacheControl: { type: 'ephemeral' } },
+        },
         messages: aiMessages as any,
         tools: taskAwareTools as any,
         stopWhen: stepCountIs(maxSteps),
