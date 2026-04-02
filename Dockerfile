@@ -23,7 +23,7 @@ WORKDIR /app
 RUN groupadd -g 1001 shipsec && useradd -u 1001 -g shipsec -m shipsec
 
 # Copy all files
-COPY --chown=shipsec:shipsec bun.lock package.json bunfig.toml ./
+COPY --chown=shipsec:shipsec bun.lock package.json bunfig.toml .npmrc ./
 COPY --chown=shipsec:shipsec packages/ packages/
 COPY --chown=shipsec:shipsec scripts/ scripts/
 COPY --chown=shipsec:shipsec backend/ backend/
@@ -31,7 +31,10 @@ COPY --chown=shipsec:shipsec frontend/ frontend/
 COPY --chown=shipsec:shipsec worker/ worker/
 
 # Install ALL dependencies (no filtering)
-RUN bun install --frozen-lockfile
+# Mount GH_PACKAGES_TOKEN as a secret and expose as NODE_AUTH_TOKEN so bun
+# resolves the ${NODE_AUTH_TOKEN} placeholder in .npmrc for private @shipsecai packages.
+RUN --mount=type=secret,id=npmrc \
+    NODE_AUTH_TOKEN=$(cat /run/secrets/npmrc) bun install --frozen-lockfile
 
 # ============================================================================
 # BACKEND SERVICE
