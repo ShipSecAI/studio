@@ -44,14 +44,14 @@ export function loadIntegrationProviders(): Record<string, IntegrationProviderCo
   const slackScopes = process.env.SLACK_OAUTH_SCOPES?.split(',')
     .map((scope) => scope.trim())
     .filter(Boolean) ?? [
-      'channels:read',
-      'channels:history',
-      'chat:write',
-      'chat:write.public',
-      'commands',
-      'app_mentions:read',
-      'team:read',
-    ];
+    'channels:read',
+    'channels:history',
+    'chat:write',
+    'chat:write.public',
+    'commands',
+    'app_mentions:read',
+    'team:read',
+  ];
 
   return {
     github: {
