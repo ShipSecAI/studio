@@ -75,6 +75,28 @@ function upsertToolPart(
   return next;
 }
 
+function upsertTaskPlanPart(
+  parts: UIMessage['parts'],
+  update: { planId: string; title: string; tasks: unknown[] },
+): UIMessage['parts'] {
+  const idx = parts.findIndex((part) => {
+    const typed = part as Record<string, unknown>;
+    return typed?.type === 'task-plan' && typed?.planId === update.planId;
+  });
+
+  const merged = {
+    type: 'task-plan' as const,
+    planId: update.planId,
+    title: update.title,
+    tasks: update.tasks,
+  } as unknown as UIMessage['parts'][number];
+
+  if (idx < 0) return [...parts, merged];
+  const next = [...parts];
+  next[idx] = merged;
+  return next;
+}
+
 function normalizeChunk(rawChunk: unknown): Record<string, unknown> | null {
   if (!rawChunk || typeof rawChunk !== 'object') return null;
   const outer = rawChunk as Record<string, unknown>;
@@ -301,6 +323,30 @@ export function useDurableChat(options: UseDurableChatOptions): UseDurableChatRe
           next[idx] = { ...next[idx], parts: upsertToolPart(next[idx].parts, update) };
         } else {
           next.push({ id: turnMessageId, role: 'assistant', parts: upsertToolPart([], update) });
+        }
+        commitMessages(next);
+        setStatus('streaming');
+        return;
+      }
+
+      if (type === 'task-plan-update') {
+        const planId = typeof chunk.planId === 'string' ? chunk.planId : null;
+        if (!planId) return;
+        const title = typeof chunk.title === 'string' ? chunk.title : '';
+        const tasks = Array.isArray(chunk.tasks) ? chunk.tasks : [];
+
+        const next = [...current];
+        if (idx >= 0) {
+          next[idx] = {
+            ...next[idx],
+            parts: upsertTaskPlanPart(next[idx].parts, { planId, title, tasks }),
+          };
+        } else {
+          next.push({
+            id: turnMessageId,
+            role: 'assistant',
+            parts: upsertTaskPlanPart([], { planId, title, tasks }),
+          });
         }
         commitMessages(next);
         setStatus('streaming');

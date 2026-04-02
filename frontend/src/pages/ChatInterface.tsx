@@ -49,6 +49,7 @@ import { WorkflowRunStatusCard } from '@/components/ai-elements/workflow-run-sta
 import { parseWorkflowRunOutput } from '@/utils/workflowRunParsing';
 
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
+import { TaskPlan, type TaskPlanPart } from '@/components/ai-elements/task-plan';
 import {
   PromptInput,
   PromptInputTextarea,
@@ -193,7 +194,10 @@ const ChatMessageItem = memo(
   function ChatMessageItem({ message, isStreaming, userImageUrl }: ChatMessageProps) {
     const isAssistant = message.role === 'assistant';
     const hasContent = message.parts.some(
-      (p) => (p.type === 'text' && p.text) || isToolOrDynamicToolUIPart(p),
+      (p) =>
+        (p.type === 'text' && p.text) ||
+        (p as Record<string, unknown>).type === 'task-plan' ||
+        isToolOrDynamicToolUIPart(p),
     );
     const isEmptyAssistant = isAssistant && !hasContent;
 
@@ -249,6 +253,11 @@ const ChatMessageItem = memo(
                           <ReasoningContent>{part.text}</ReasoningContent>
                         </Reasoning>
                       );
+                    }
+
+                    if ((part as Record<string, unknown>).type === 'task-plan') {
+                      const plan = part as unknown as TaskPlanPart;
+                      return <TaskPlan key={`plan-${plan.planId}`} plan={plan} />;
                     }
 
                     if (isToolOrDynamicToolUIPart(part)) {

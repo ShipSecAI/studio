@@ -1196,8 +1196,77 @@ export async function runChatAgentStepActivity(
       };
     }
 
+    // Register the update_task_plan local tool for structured task tracking.
+    // This tool emits a task-plan-update chunk that the frontend renders as
+    // a live-updating plan card in the chat UI.
+    taskAwareTools.update_task_plan = {
+      description:
+        'Create or update a visible task plan. Use this when performing multi-step work (3+ steps) to show the user your plan and progress. Update task statuses as you complete each step. Do not create a plan for simple single-step requests.',
+      parameters: {
+        type: 'object',
+        properties: {
+          planId: {
+            type: 'string',
+            description: 'Stable ID for this plan. Reuse to update an existing plan.',
+          },
+          title: { type: 'string', description: 'Short title for the plan.' },
+          tasks: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Unique task ID within this plan.' },
+                label: { type: 'string', description: 'Short description of the task.' },
+                status: {
+                  type: 'string',
+                  enum: ['pending', 'in_progress', 'done', 'failed', 'skipped'],
+                },
+                detail: { type: 'string', description: 'Optional extra context.' },
+              },
+              required: ['id', 'label', 'status'],
+            },
+          },
+        },
+        required: ['planId', 'title', 'tasks'],
+      },
+      execute: async (input: unknown) => {
+        const plan = input as {
+          planId: string;
+          title: string;
+          tasks: { id: string; label: string; status: string; detail?: string }[];
+        };
+
+        // Emit the task-plan-update chunk through the same streaming pipeline
+        await appendChunk({
+          type: 'task-plan-update',
+          planId: plan.planId,
+          title: plan.title,
+          tasks: plan.tasks,
+        } as unknown as UIMessageChunk);
+
+        // Upsert the task-plan part in accumulated parts for checkpoint persistence
+        const existingIdx = accumulatedParts.findIndex(
+          (p: any) => p.type === 'task-plan' && p.planId === plan.planId,
+        );
+        const planPart = {
+          type: 'task-plan',
+          planId: plan.planId,
+          title: plan.title,
+          tasks: plan.tasks,
+        };
+        if (existingIdx >= 0) {
+          accumulatedParts[existingIdx] = planPart;
+        } else {
+          accumulatedParts.push(planPart);
+        }
+
+        const done = plan.tasks.filter((t) => t.status === 'done').length;
+        return { success: true, planId: plan.planId, progress: `${done}/${plan.tasks.length}` };
+      },
+    };
+
     console.log(
-      `[chat-agent] Discovered ${Object.keys(tools).length} MCP tools for session ${sessionId}`,
+      `[chat-agent] Discovered ${Object.keys(tools).length} MCP tools + update_task_plan for session ${sessionId}`,
     );
 
     // Heartbeat before LLM call — use checkpoint if we have accumulated state

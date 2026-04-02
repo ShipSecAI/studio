@@ -85,6 +85,27 @@ interface ThreadHistoryState {
   activeGenerationId: number;
 }
 
+function upsertTaskPlanPart(
+  parts: UIMessage['parts'],
+  update: { planId: string; title: string; tasks: unknown[] },
+): UIMessage['parts'] {
+  const next = [...parts];
+  const idx = next.findIndex((part) => {
+    const typed = part as Record<string, unknown>;
+    return typed?.type === 'task-plan' && typed?.planId === update.planId;
+  });
+  const merged = {
+    type: 'task-plan',
+    planId: update.planId,
+    title: update.title,
+    tasks: update.tasks,
+  } as unknown as UIMessage['parts'][number];
+
+  if (idx < 0) return [...next, merged];
+  next[idx] = merged;
+  return next;
+}
+
 function appendTextDelta(parts: UIMessage['parts'], delta: string): UIMessage['parts'] {
   const next = [...parts];
   const last = next[next.length - 1] as Record<string, unknown> | undefined;
@@ -645,6 +666,20 @@ export class ChatService {
                     errorText: typeof chunk.errorText === 'string' ? chunk.errorText : undefined,
                   };
         messages[idx] = { ...message, parts: upsertToolPart(message.parts, update) };
+        continue;
+      }
+
+      if (type === 'task-plan-update') {
+        const planId = typeof chunk.planId === 'string' ? chunk.planId : null;
+        if (!planId) continue;
+        const title = typeof chunk.title === 'string' ? chunk.title : '';
+        const tasks = Array.isArray(chunk.tasks) ? chunk.tasks : [];
+        const idx = ensureAssistantMessage(row.turnId);
+        const message = messages[idx];
+        messages[idx] = {
+          ...message,
+          parts: upsertTaskPlanPart(message.parts, { planId, title, tasks }),
+        };
       }
     }
 
