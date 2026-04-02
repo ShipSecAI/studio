@@ -564,6 +564,56 @@ async function compactMessages(
 }
 
 // ---------------------------------------------------------------------------
+// Stale tool output truncation (token savings)
+// ---------------------------------------------------------------------------
+
+/**
+ * Truncate tool outputs on older assistant messages before sending to the LLM.
+ * This is a read-only transform — DB and UI keep full outputs.
+ *
+ * Strategy: keep the last `recentAssistantCount` assistant messages with full
+ * tool outputs. Everything older gets outputs truncated to a short summary.
+ */
+function truncateStaleToolOutputs(
+  messages: ChatUIMessage[],
+  recentAssistantCount = 4,
+): ChatUIMessage[] {
+  // Find indices of assistant messages (walking backwards)
+  const assistantIndices: number[] = [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'assistant') {
+      assistantIndices.push(i);
+    }
+  }
+
+  // If we have fewer assistant messages than the threshold, nothing to truncate
+  if (assistantIndices.length <= recentAssistantCount) {
+    return messages;
+  }
+
+  // Indices of assistant messages that are "stale" (older than the recent window)
+  const staleIndices = new Set(assistantIndices.slice(recentAssistantCount));
+
+  return messages.map((msg, idx) => {
+    if (!staleIndices.has(idx)) return msg;
+
+    const truncatedParts = msg.parts.map((part) => {
+      if (part.type !== 'tool-invocation' || part.output == null) return part;
+
+      const raw = JSON.stringify(part.output);
+      if (raw.length <= 500) return part;
+
+      return {
+        ...part,
+        output: `[Tool output: ${raw.length} chars truncated. First 200: ${raw.slice(0, 200)}...]`,
+      };
+    });
+
+    return { ...msg, parts: truncatedParts };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Activities
 // ---------------------------------------------------------------------------
 
@@ -950,9 +1000,13 @@ export async function runChatAgentStepActivity(
     );
     const llmMessages = compactionResult.messages;
 
+    // Truncate stale tool outputs to save tokens — only recent assistant messages
+    // keep full tool outputs. DB and UI are unaffected (this is read-only).
+    const llmMessagesWithTruncatedTools = truncateStaleToolOutputs(llmMessages);
+
     // On retry with checkpoint, append recovered partial to conversation history
     // so the model sees what it already said and can continue seamlessly
-    let llmInputMessages = llmMessages;
+    let llmInputMessages = llmMessagesWithTruncatedTools;
     if (isRetry && accumulatedParts.length > 0) {
       llmInputMessages = [
         ...llmMessages,
