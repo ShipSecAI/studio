@@ -74,7 +74,7 @@ export class AgentStreamRecorder {
   }
 
   emitTextDelta(textDelta: string): void {
-    if (!textDelta.trim()) {
+    if (textDelta.length === 0) {
       return;
     }
     this.ensureTextStream();

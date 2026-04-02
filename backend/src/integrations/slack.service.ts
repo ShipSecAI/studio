@@ -135,6 +135,25 @@ export class SlackService {
     }
   }
 
+  private messageOptions(
+    text: string,
+    blocks?: Record<string, unknown>[],
+  ): {
+    text: string;
+    blocks?: Record<string, unknown>[];
+    mrkdwn: boolean;
+    unfurl_links: boolean;
+    unfurl_media: boolean;
+  } {
+    return {
+      text,
+      blocks,
+      mrkdwn: true,
+      unfurl_links: false,
+      unfurl_media: false,
+    };
+  }
+
   /**
    * Send a message to a channel.
    */
@@ -142,9 +161,13 @@ export class SlackService {
     botToken: string,
     channel: string,
     text: string,
+    blocks?: Record<string, unknown>[],
   ): Promise<{ ok: boolean; error?: string; ts?: string }> {
     try {
-      const result = await this.client(botToken).chat.postMessage({ channel, text });
+      const result = await this.client(botToken).chat.postMessage({
+        channel,
+        ...this.messageOptions(text, blocks),
+      });
       return { ok: true, ts: result.ts };
     } catch (error: any) {
       this.logger.error(`Failed to send message: ${error.message}`);
@@ -160,12 +183,13 @@ export class SlackService {
     channel: string,
     text: string,
     threadTs: string,
+    blocks?: Record<string, unknown>[],
   ): Promise<{ ok: boolean; error?: string; ts?: string }> {
     try {
       const result = await this.client(botToken).chat.postMessage({
         channel,
-        text,
         thread_ts: threadTs,
+        ...this.messageOptions(text, blocks),
       });
       return { ok: true, ts: result.ts };
     } catch (error: any) {
