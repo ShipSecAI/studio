@@ -51,6 +51,8 @@ interface ChatAgentStepInput {
     summary: string;
     compactedUpToIndex: number;
   };
+  /** Hotplug session for org MCP server access (created by workflow) */
+  hotplugSession?: HotplugSessionResult | null;
 }
 
 interface ChatAgentStepOutput {
@@ -242,6 +244,196 @@ async function notifySessionComplete(sessionId: string, runId: string): Promise<
   } catch {
     // Best-effort
   }
+}
+
+// ---------------------------------------------------------------------------
+// Hotplug integration — attach org MCP servers to chat via Hotplug sessions
+// ---------------------------------------------------------------------------
+
+interface HotplugSessionResult {
+  sessionId: string;
+  mcpUrl: string;
+  mcpToken: string;
+}
+
+/**
+ * Fetch enabled MCP servers from backend and create a Hotplug session with
+ * them as attachments. Returns the merged MCP endpoint + token, or null if
+ * Hotplug is unavailable or no servers are configured.
+ */
+export async function createHotplugChatSessionActivity(input: {
+  chatSessionId: string;
+  organizationId?: string;
+}): Promise<HotplugSessionResult | null> {
+  const hotplugBaseUrl = process.env.HOTPLUG_BASE_URL?.trim();
+  const hotplugToken = process.env.HOTPLUG_API_TOKEN?.trim();
+  if (!hotplugBaseUrl) {
+    console.log('[chat-agent] HOTPLUG_BASE_URL not set, skipping Hotplug integration');
+    return null;
+  }
+
+  const backendUrl = globalBackendUrl;
+  if (!backendUrl) return null;
+
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
+
+  try {
+    // Fetch enabled MCP servers from backend
+    const headers: Record<string, string> = { 'x-internal-token': internalToken };
+    if (input.organizationId) headers['x-organization-id'] = input.organizationId;
+
+    const serversResp = await fetch(`${backendUrl}/api/v1/mcp-servers/enabled`, { headers });
+    if (!serversResp.ok) {
+      console.warn(`[chat-agent] Failed to fetch enabled MCP servers: ${serversResp.status}`);
+      return null;
+    }
+
+    const servers = (await serversResp.json()) as {
+      id: string;
+      name: string;
+      transportType: string;
+      endpoint?: string | null;
+      command?: string | null;
+      args?: string[] | null;
+      enabled: boolean;
+    }[];
+
+    // Filter to HTTP servers for now (stdio would need managed attachments)
+    const httpServers = servers.filter((s) => s.transportType === 'http' && s.endpoint);
+
+    if (httpServers.length === 0) {
+      console.log('[chat-agent] No enabled HTTP MCP servers found for Hotplug session');
+      return null;
+    }
+
+    // Build attachments map: alias -> AttachmentInput
+    const attachments: Record<
+      string,
+      { remote_http: { url: string; headers?: Record<string, string> } }
+    > = {};
+    for (const server of httpServers) {
+      // Resolve server config to get decrypted headers
+      const resolveResp = await fetch(`${backendUrl}/api/v1/mcp-servers/${server.id}/resolve`, {
+        headers,
+      });
+
+      let resolvedHeaders: Record<string, string> = {};
+      if (resolveResp.ok) {
+        const resolved = (await resolveResp.json()) as { headers?: Record<string, string> };
+        resolvedHeaders = resolved.headers ?? {};
+      }
+
+      const alias = server.name
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+      attachments[alias] = {
+        remote_http: {
+          url: server.endpoint!,
+          ...(Object.keys(resolvedHeaders).length > 0 ? { headers: resolvedHeaders } : {}),
+        },
+      };
+    }
+
+    // Create Hotplug session with all attachments (one-call create + activate)
+    const hotplugHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (hotplugToken) hotplugHeaders['Authorization'] = `Bearer ${hotplugToken}`;
+
+    const createResp = await fetch(`${hotplugBaseUrl}/sessions`, {
+      method: 'POST',
+      headers: hotplugHeaders,
+      body: JSON.stringify({
+        identity: {
+          tenant_id: input.organizationId ?? 'default',
+          user_id: 'chat-agent',
+          run_id: input.chatSessionId,
+          labels: { source: 'chat', session: input.chatSessionId },
+        },
+        attachments,
+        lifecycle: {
+          idle_ttl_ms: 600_000, // 10 minutes idle
+          max_duration_ms: 3_600_000, // 1 hour max
+        },
+      }),
+    });
+
+    if (!createResp.ok) {
+      const body = await createResp.text();
+      console.warn(`[chat-agent] Failed to create Hotplug session: ${createResp.status} ${body}`);
+      return null;
+    }
+
+    const activation = (await createResp.json()) as {
+      session_id: string;
+      mcp_url: string;
+      mcp_token: string;
+    };
+
+    console.log(
+      `[chat-agent] Created Hotplug session ${activation.session_id} with ${Object.keys(attachments).length} servers for chat ${input.chatSessionId}`,
+    );
+
+    return {
+      sessionId: activation.session_id,
+      mcpUrl: activation.mcp_url,
+      mcpToken: activation.mcp_token,
+    };
+  } catch (error) {
+    console.warn(
+      '[chat-agent] Hotplug session creation failed, continuing without org tools:',
+      error,
+    );
+    return null;
+  }
+}
+
+/**
+ * Terminate a Hotplug session. Best-effort — failures are logged but not thrown.
+ */
+export async function terminateHotplugChatSessionActivity(input: {
+  hotplugSessionId: string;
+}): Promise<void> {
+  const hotplugBaseUrl = process.env.HOTPLUG_BASE_URL?.trim();
+  const hotplugToken = process.env.HOTPLUG_API_TOKEN?.trim();
+  if (!hotplugBaseUrl) return;
+
+  try {
+    const headers: Record<string, string> = {};
+    if (hotplugToken) headers['Authorization'] = `Bearer ${hotplugToken}`;
+
+    const resp = await fetch(`${hotplugBaseUrl}/sessions/${input.hotplugSessionId}`, {
+      method: 'DELETE',
+      headers,
+    });
+
+    if (resp.ok) {
+      console.log(`[chat-agent] Terminated Hotplug session ${input.hotplugSessionId}`);
+    } else {
+      console.warn(
+        `[chat-agent] Failed to terminate Hotplug session ${input.hotplugSessionId}: ${resp.status}`,
+      );
+    }
+  } catch (error) {
+    console.warn(`[chat-agent] Hotplug termination failed for ${input.hotplugSessionId}:`, error);
+  }
+}
+
+/**
+ * Create an MCP client connected to a Hotplug session's merged endpoint.
+ * Returns null if the session info is not available.
+ */
+async function createHotplugMcpClient(hotplug: HotplugSessionResult) {
+  return createMCPClient({
+    transport: {
+      type: 'http',
+      url: hotplug.mcpUrl,
+      headers: {
+        Authorization: `Bearer ${hotplug.mcpToken}`,
+      },
+    },
+  });
 }
 
 /** Create an MCP client connected to the backend's Studio MCP server */
@@ -797,6 +989,27 @@ export async function runChatAgentStepActivity(
     15000,
     'MCP client connect',
   );
+
+  // Connect to Hotplug merged endpoint for org MCP servers (if session exists)
+  let hotplugMcpClient: Awaited<ReturnType<typeof createHotplugMcpClient>> | undefined;
+  if (input.hotplugSession) {
+    try {
+      hotplugMcpClient = await withTimeout(
+        createHotplugMcpClient(input.hotplugSession),
+        15000,
+        'Hotplug MCP client connect',
+      );
+      console.log(
+        `[chat-agent] Connected to Hotplug session ${input.hotplugSession.sessionId} for org tools`,
+      );
+    } catch (err) {
+      console.warn(
+        '[chat-agent] Failed to connect to Hotplug MCP, continuing with Studio tools only:',
+        err,
+      );
+    }
+  }
+
   let taskClient: Client | undefined;
   try {
     taskClient = await withTimeout(
@@ -804,7 +1017,11 @@ export async function runChatAgentStepActivity(
       15000,
       'MCP task client connect',
     );
-    const tools = await mcpClient.tools();
+
+    // Load tools from Studio MCP + Hotplug (org servers)
+    const studioTools = await mcpClient.tools();
+    const hotplugTools = hotplugMcpClient ? await hotplugMcpClient.tools() : {};
+    const tools = { ...studioTools, ...hotplugTools };
     const pendingTaskEvents = new Map<string, TaskToolEvent[]>();
     const startedToolCalls = new Set<string>();
     const emittedTaskInvocationChunks = new Set<string>();

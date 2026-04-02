@@ -26,6 +26,12 @@ export interface ChatUIMessage {
   parts: ChatMessagePart[];
 }
 
+interface HotplugSessionResult {
+  sessionId: string;
+  mcpUrl: string;
+  mcpToken: string;
+}
+
 interface ChatAgentStepInput {
   sessionId: string;
   turnId: string;
@@ -40,6 +46,7 @@ interface ChatAgentStepInput {
     summary: string;
     compactedUpToIndex: number;
   };
+  hotplugSession?: HotplugSessionResult | null;
 }
 
 interface ChatAgentStepOutput {
@@ -97,6 +104,21 @@ const { generateSessionTitleActivity } = proxyActivities<{
   },
 });
 
+const { createHotplugChatSessionActivity, terminateHotplugChatSessionActivity } = proxyActivities<{
+  createHotplugChatSessionActivity(input: {
+    chatSessionId: string;
+    organizationId?: string;
+  }): Promise<HotplugSessionResult | null>;
+  terminateHotplugChatSessionActivity(input: { hotplugSessionId: string }): Promise<void>;
+}>({
+  startToCloseTimeout: '30 seconds',
+  retry: {
+    initialInterval: '1 second',
+    backoffCoefficient: 2,
+    maximumAttempts: 2,
+  },
+});
+
 interface ChatUserTurn {
   turnId: string;
   message: ChatUIMessage;
@@ -140,6 +162,8 @@ export interface ChatAgentWorkflowInput {
   initialGenerationId?: number;
   /** Active run while queued turns drain, forwarded across continue-as-new */
   activeRunId?: string;
+  /** Hotplug session for org MCP servers, forwarded across continue-as-new */
+  hotplugSession?: HotplugSessionResult | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,6 +199,19 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
   let generationId: number = input.initialGenerationId ?? 0;
   let activeRunId: string | null = input.activeRunId ?? null;
   let activeScope: CancellationScope | null = null;
+
+  // Create or reuse Hotplug session for org MCP server access
+  let hotplugSession: HotplugSessionResult | null = input.hotplugSession ?? null;
+  if (!hotplugSession) {
+    try {
+      hotplugSession = await createHotplugChatSessionActivity({
+        chatSessionId: sessionId,
+        organizationId: organizationId ?? undefined,
+      });
+    } catch {
+      // Non-critical — chat continues with Studio tools only
+    }
+  }
 
   const seenUserMessageIds = new Set(
     messages
@@ -292,6 +329,7 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
           maxSteps: 60,
           queuedAt: primaryTurn.queuedAt,
           compactionState,
+          hotplugSession,
         });
       });
 
@@ -388,8 +426,18 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
         compactionState,
         initialGenerationId: generationId,
         activeRunId: activeRunId ?? undefined,
+        hotplugSession,
       });
     }
+  }
+
+  // Clean up Hotplug session on chat end
+  if (hotplugSession) {
+    terminateHotplugChatSessionActivity({
+      hotplugSessionId: hotplugSession.sessionId,
+    }).catch(() => {
+      // Best-effort cleanup
+    });
   }
 
   status = 'done';
