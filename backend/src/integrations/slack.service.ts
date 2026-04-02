@@ -1,12 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { WebClient } from '@slack/web-api';
 
-export interface SlackPostedMessage {
-  ok: boolean;
-  error?: string;
-  ts?: string;
-}
-
 /** Allowed webhook URL hostnames to prevent SSRF. */
 const ALLOWED_WEBHOOK_HOSTS = new Set(['hooks.slack.com', 'hooks.slack-gov.com']);
 
@@ -168,7 +162,7 @@ export class SlackService {
     channel: string,
     text: string,
     blocks?: Record<string, unknown>[],
-  ): Promise<SlackPostedMessage> {
+  ): Promise<{ ok: boolean; error?: string; ts?: string }> {
     try {
       const result = await this.client(botToken).chat.postMessage({
         channel,
@@ -190,7 +184,7 @@ export class SlackService {
     text: string,
     threadTs: string,
     blocks?: Record<string, unknown>[],
-  ): Promise<SlackPostedMessage> {
+  ): Promise<{ ok: boolean; error?: string; ts?: string }> {
     try {
       const result = await this.client(botToken).chat.postMessage({
         channel,
@@ -200,36 +194,6 @@ export class SlackService {
       return { ok: true, ts: result.ts };
     } catch (error: any) {
       this.logger.error(`Failed to post thread message: ${error.message}`);
-      return { ok: false, error: error.data?.error ?? error.message };
-    }
-  }
-
-  async updateMessage(
-    botToken: string,
-    channel: string,
-    ts: string,
-    text: string,
-    blocks?: Record<string, unknown>[],
-  ): Promise<SlackPostedMessage> {
-    try {
-      const result = await this.client(botToken).chat.update({
-        channel,
-        ts,
-        ...this.messageOptions(text, blocks),
-      });
-      return { ok: true, ts: result.ts };
-    } catch (error: any) {
-      this.logger.error(`Failed to update Slack message: ${error.message}`);
-      return { ok: false, error: error.data?.error ?? error.message };
-    }
-  }
-
-  async deleteMessage(botToken: string, channel: string, ts: string): Promise<SlackPostedMessage> {
-    try {
-      await this.client(botToken).chat.delete({ channel, ts });
-      return { ok: true, ts };
-    } catch (error: any) {
-      this.logger.error(`Failed to delete Slack message: ${error.message}`);
       return { ok: false, error: error.data?.error ?? error.message };
     }
   }
