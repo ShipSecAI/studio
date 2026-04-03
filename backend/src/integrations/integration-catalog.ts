@@ -137,7 +137,7 @@ export const SLACK_PROVIDER: IntegrationProviderDefinition = {
       type: 'oauth',
       label: 'Slack App (OAuth)',
       description:
-        'Full Slack app with OAuth for sending messages, slash commands, and DMs. Requires a Slack app with channels:read, chat:write, chat:write.public, commands, and im:write scopes.',
+        'Full Slack app with OAuth for channel messaging, slash commands, and thread-based agent chat. Requires a Slack app with channels:read, channels:history, chat:write, chat:write.public, commands, app_mentions:read, and team:read scopes.',
       fields: [],
     },
   ],

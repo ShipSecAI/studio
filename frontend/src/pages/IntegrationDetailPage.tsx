@@ -833,10 +833,22 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
                   desc: 'Respond to /shipsec commands',
                 },
                 {
+                  icon: MessageSquare,
+                  scope: 'channels:history',
+                  label: 'Read thread context',
+                  desc: 'Read channel history so ShipSec can continue threaded conversations',
+                },
+                {
                   icon: Send,
-                  scope: 'im:write',
-                  label: 'Direct messages',
-                  desc: 'Send DMs to users for alerts and notifications',
+                  scope: 'app_mentions:read',
+                  label: 'Mentions',
+                  desc: 'Listen for @shipsec mentions that should start or resume a thread',
+                },
+                {
+                  icon: Info,
+                  scope: 'team:read',
+                  label: 'Workspace details',
+                  desc: 'Read basic workspace info needed to label and validate the connection',
                 },
               ].map(({ icon: Icon, scope, label, desc }) => (
                 <div key={scope} className="flex items-start gap-3 px-3 py-2.5">
