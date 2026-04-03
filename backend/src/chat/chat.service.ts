@@ -370,6 +370,28 @@ export class ChatService {
     };
   }
 
+  async getLatestAssistantTextInternal(sessionId: string): Promise<string | null> {
+    const rows = await this.sessionEventRepository.listAfter(sessionId, 0, 100000);
+    const projected = this.projectThreadHistory(rows);
+    const latestAssistant = [...projected.messages]
+      .reverse()
+      .find((message) => message.role === 'assistant');
+
+    if (!latestAssistant) {
+      return null;
+    }
+
+    const lastTextPart = [...latestAssistant.parts]
+      .reverse()
+      .find(
+        (part): part is Extract<(typeof latestAssistant.parts)[number], { type: 'text' }> =>
+          (part as Record<string, unknown>)?.type === 'text' &&
+          typeof (part as Record<string, unknown>)?.text === 'string',
+      );
+
+    return lastTextPart?.text ?? null;
+  }
+
   private projectThreadHistory(
     rows: {
       seq: number;
