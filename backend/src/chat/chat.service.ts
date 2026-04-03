@@ -253,6 +253,18 @@ export class ChatService {
       session.activeRunId != null;
     let runId = hasLiveRun ? (runningTurn?.runId ?? session.activeRunId ?? null) : null;
 
+    if (!runningTurn) {
+      const workflowStatus = await this.temporalService
+        .queryChatStatus(sessionId)
+        .catch(() => null);
+      if (workflowStatus === 'done') {
+        this.logger.warn(
+          `Detected completed chat workflow for active session ${sessionId}; restarting workflow before signaling queued turn ${queued.turn.id}`,
+        );
+        runId = await this.restartCompletedChatWorkflow(sessionId, auth, session.activeRunId);
+      }
+    }
+
     if (!runId) {
       runId = randomUUID();
       await this.sessionRepository.startRun(sessionId, runId);
@@ -309,6 +321,34 @@ export class ChatService {
       generationId,
       acceptedAtSeq,
     };
+  }
+
+  private async restartCompletedChatWorkflow(
+    sessionId: string,
+    auth: AuthContext,
+    staleRunId: string | null,
+  ): Promise<string> {
+    const rows = await this.sessionEventRepository.listAfter(sessionId, 0, 100000);
+    const projected = this.projectThreadHistory(rows);
+    const initialMessages = projected.messages.map((message) => ({
+      id: message.id,
+      role: message.role,
+      parts: message.parts,
+    }));
+
+    await this.sessionRepository.completeRun(sessionId, staleRunId ?? undefined);
+
+    const restarted = await this.temporalService.startChatWorkflow({
+      sessionId,
+      organizationId: auth.organizationId,
+      systemPrompt: SYSTEM_PROMPT,
+      initialMessages,
+    });
+
+    await this.sessionRepository.setTemporalWorkflowId(sessionId, restarted.workflowId);
+    await this.sessionRepository.startRun(sessionId, restarted.runId);
+
+    return restarted.runId;
   }
 
   async interruptGeneration(

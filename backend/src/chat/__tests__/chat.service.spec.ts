@@ -124,6 +124,7 @@ describe('ChatService Unit Tests', () => {
       signalChatWorkflow: jest.fn(),
       signalChatInterrupt: jest.fn(),
       signalChatSteerTurn: jest.fn(),
+      queryChatStatus: jest.fn().mockResolvedValue('idle'),
     } as unknown as TemporalService;
 
     service = new ChatService(
@@ -173,6 +174,87 @@ describe('ChatService Unit Tests', () => {
         operation: 'UserTurn',
         turnId: 'turn-1',
         generationId: 1,
+      }),
+    );
+  });
+
+  it('restarts a completed chat workflow before signaling a queued turn', async () => {
+    (sessionRepository.getSession as jest.Mock).mockResolvedValue({
+      id: 'session-1',
+      title: 'Session',
+      status: 'active',
+      processingStatus: 'processing',
+      activeRunId: 'stale-run-1',
+      activeTurnId: null,
+      activeGenerationId: 1,
+      steerTargetTurnId: null,
+      nextEventSeq: 42,
+      organizationId: 'test-org-id',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    (temporalService.queryChatStatus as jest.Mock).mockResolvedValue('done');
+    (sessionEventRepository.listAfter as jest.Mock).mockResolvedValue([
+      {
+        seq: 1,
+        turnId: 'turn-old',
+        runId: 'run-old',
+        generationId: '1',
+        eventId: 'turn-old:queued',
+        chunk: {
+          type: 'data-turn-status',
+          data: {
+            turnId: 'turn-old',
+            status: 'queued',
+            text: 'previous question',
+            preview: 'previous question',
+            queuedAt: '2026-03-04T10:01:00.000Z',
+          },
+        },
+      },
+    ]);
+    (sessionEventRepository.getLastSeq as jest.Mock).mockResolvedValue(8);
+    (temporalService.startChatWorkflow as jest.Mock).mockResolvedValue({
+      workflowId: 'chat-session-1',
+      runId: 'run-restarted',
+    });
+
+    await service.submitOperation(
+      'session-1',
+      {
+        op: 'UserTurn',
+        text: 'hello again',
+        clientSubmissionId: 'client-2',
+      },
+      mockAuthContext,
+    );
+
+    expect(sessionRepository.completeRun).toHaveBeenCalledWith('session-1', 'stale-run-1');
+    expect(temporalService.startChatWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        organizationId: 'test-org-id',
+        initialMessages: [
+          {
+            id: 'user-turn-old',
+            role: 'user',
+            parts: [{ type: 'text', text: 'previous question' }],
+          },
+        ],
+      }),
+    );
+    expect(sessionRepository.startRun).toHaveBeenCalledWith('session-1', 'run-restarted');
+    expect(temporalService.signalChatWorkflow).toHaveBeenCalledWith(
+      'session-1',
+      {
+        id: 'client-2',
+        role: 'user',
+        parts: [{ type: 'text', text: 'hello again' }],
+      },
+      'run-restarted',
+      expect.objectContaining({
+        turnId: 'turn-1',
+        submissionId: 'client-2',
       }),
     );
   });
