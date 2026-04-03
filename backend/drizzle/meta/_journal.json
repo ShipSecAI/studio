@@ -78,6 +78,13 @@
       "when": 1743382800000,
       "tag": "0024_add_slack_thread_mappings",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1775188200000,
+      "tag": "0025_add_slack_turn_posts",
+      "breakpoints": true
     }
   ]
 }

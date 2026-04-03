@@ -432,6 +432,26 @@ export class ChatService {
     return lastTextPart?.text ?? null;
   }
 
+  async getAssistantTextForTurnInternal(sessionId: string, turnId: string): Promise<string | null> {
+    const rows = await this.sessionEventRepository.listAfter(sessionId, 0, 100000);
+    const projected = this.projectThreadHistory(rows);
+    const message = projected.messages.find((item) => item.id === `turn-${turnId}`);
+
+    if (!message) {
+      return null;
+    }
+
+    const lastTextPart = [...message.parts]
+      .reverse()
+      .find(
+        (part): part is Extract<(typeof message.parts)[number], { type: 'text' }> =>
+          (part as Record<string, unknown>)?.type === 'text' &&
+          typeof (part as Record<string, unknown>)?.text === 'string',
+      );
+
+    return lastTextPart?.text ?? null;
+  }
+
   private projectThreadHistory(
     rows: {
       seq: number;
