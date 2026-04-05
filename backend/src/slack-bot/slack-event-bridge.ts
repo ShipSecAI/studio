@@ -21,6 +21,8 @@ export class SlackEventBridge implements OnModuleInit, OnModuleDestroy {
   private subscriber: Redis | null = null;
   private readonly subscribedSessions = new Set<string>();
   private readonly responseBuffers = new Map<string, { text: string; finalText?: string }>();
+  // Serializes concurrent postTurnToThread calls for the same turnId (P1: race condition fix)
+  private readonly turnLocks = new Map<string, Promise<void>>();
 
   constructor(
     private readonly integrations: IntegrationsService,
@@ -238,6 +240,16 @@ export class SlackEventBridge implements OnModuleInit, OnModuleDestroy {
   }
 
   private async postTurnToThread(sessionId: string, turnId: string, text: string): Promise<void> {
+    const prev = this.turnLocks.get(turnId) ?? Promise.resolve();
+    const next = prev.then(() => this.doPostTurnToThread(sessionId, turnId, text));
+    this.turnLocks.set(
+      turnId,
+      next.catch(() => {}),
+    );
+    return next;
+  }
+
+  private async doPostTurnToThread(sessionId: string, turnId: string, text: string): Promise<void> {
     const mapping = await this.threadMappings.findBySessionId(sessionId);
     if (!mapping) return;
 
@@ -327,11 +339,14 @@ export class SlackEventBridge implements OnModuleInit, OnModuleDestroy {
       }
 
       while (continuationTs.length > payloads.length - 1) {
-        const extraTs = continuationTs.pop();
-        if (!extraTs) {
+        const extraTs = continuationTs[continuationTs.length - 1];
+        if (!extraTs) break;
+        const deleted = await this.slack.deleteMessage(botToken, mapping.slackChannelId, extraTs);
+        if (!deleted.ok) {
+          this.logger.warn(`Failed to delete orphaned Slack message ${extraTs}: ${deleted.error}`);
           break;
         }
-        await this.slack.deleteMessage(botToken, mapping.slackChannelId, extraTs);
+        continuationTs.pop();
       }
 
       await this.turnPosts.saveMessages(turnId, {
