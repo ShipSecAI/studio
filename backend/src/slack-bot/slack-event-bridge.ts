@@ -242,10 +242,13 @@ export class SlackEventBridge implements OnModuleInit, OnModuleDestroy {
   private async postTurnToThread(sessionId: string, turnId: string, text: string): Promise<void> {
     const prev = this.turnLocks.get(turnId) ?? Promise.resolve();
     const next = prev.then(() => this.doPostTurnToThread(sessionId, turnId, text));
-    this.turnLocks.set(
-      turnId,
-      next.catch(() => {}),
-    );
+    const settled = next.catch(() => {});
+    this.turnLocks.set(turnId, settled);
+    settled.then(() => {
+      if (this.turnLocks.get(turnId) === settled) {
+        this.turnLocks.delete(turnId);
+      }
+    });
     return next;
   }
 
