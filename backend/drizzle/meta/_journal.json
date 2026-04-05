@@ -85,6 +85,13 @@
       "when": 1775188200000,
       "tag": "0025_add_slack_turn_posts",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1775199600000,
+      "tag": "0026_add_mcp_server_templates",
+      "breakpoints": true
     }
   ]
 }

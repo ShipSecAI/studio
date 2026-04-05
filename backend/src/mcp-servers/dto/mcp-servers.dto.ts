@@ -5,6 +5,7 @@ import { mcpServers } from '../../database/schema/mcp-servers';
 
 export type TransportType = 'http' | 'stdio';
 export type HealthStatus = 'healthy' | 'unhealthy' | 'unknown';
+export type RuntimeType = 'docker' | 'host';
 
 export const CreateMcpServerSchema = z.object({
   name: z.string().min(1),
@@ -41,6 +42,7 @@ export const McpServerResponseSchema = z.object({
   name: z.string(),
   description: z.string().nullable(),
   transportType: z.enum(['http', 'stdio']),
+  runtimeType: z.enum(['docker', 'host']),
   endpoint: z.string().nullable(),
   command: z.string().nullable(),
   args: z.array(z.string()).nullable(),
@@ -53,6 +55,9 @@ export const McpServerResponseSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   groupId: z.string().nullable(),
+  templateSlug: z.string().nullable(),
+  templateHash: z.string().nullable(),
+  templateConfig: z.record(z.string(), z.unknown()).nullable(),
 });
 
 export class McpServerResponseDto extends createZodDto(McpServerResponseSchema) {
@@ -65,6 +70,8 @@ export class McpServerResponseDto extends createZodDto(McpServerResponseSchema) 
       name: server.name,
       description: server.description,
       transportType: server.transportType as TransportType,
+      runtimeType: ((server as typeof mcpServers.$inferSelect & { runtimeType?: RuntimeType })
+        .runtimeType ?? 'docker') as RuntimeType,
       endpoint: server.endpoint,
       command: server.command,
       args: server.args,
@@ -77,6 +84,9 @@ export class McpServerResponseDto extends createZodDto(McpServerResponseSchema) 
       createdAt: server.createdAt.toISOString(),
       updatedAt: server.updatedAt.toISOString(),
       groupId: server.groupId ?? null,
+      templateSlug: (server as any).templateSlug ?? null,
+      templateHash: (server as any).templateHash ?? null,
+      templateConfig: ((server as any).templateConfig as Record<string, unknown> | null) ?? null,
     };
   }
 }
@@ -130,14 +140,80 @@ export const HealthStatusResponseSchema = z.object({
 
 export class HealthStatusResponseDto extends createZodDto(HealthStatusResponseSchema) {}
 
+export const GitHubMcpTemplateConfigSchema = z.object({
+  installationId: z.number().int().positive(),
+  readOnly: z.boolean().optional(),
+  toolsets: z.array(z.string()).optional(),
+  tools: z.array(z.string()).optional(),
+  dynamicToolsets: z.boolean().optional(),
+  githubHost: z.string().url().optional(),
+});
+
+export class GitHubMcpTemplateConfigDto extends createZodDto(GitHubMcpTemplateConfigSchema) {}
+
+export const ImportMcpServerTemplateSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  github: GitHubMcpTemplateConfigSchema.optional(),
+});
+
+export class ImportMcpServerTemplateDto extends createZodDto(ImportMcpServerTemplateSchema) {}
+
+export const McpServerTemplateSchema = z.object({
+  slug: z.string(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  transportType: z.enum(['http', 'stdio']),
+  runtimeType: z.enum(['docker', 'host']),
+  authSource: z.enum(['none', 'github_app']),
+  docsUrl: z.string().nullable().optional(),
+  icon: z.string().nullable().optional(),
+  supportsReadOnly: z.boolean().optional(),
+  supportsDynamicToolsets: z.boolean().optional(),
+  availableToolsets: z.array(z.string()).optional(),
+  defaultToolsets: z.array(z.string()).optional(),
+  defaultTools: z.array(z.string()).optional(),
+  importedServerId: z.string().nullable().optional(),
+  version: z.object({
+    major: z.number(),
+    minor: z.number(),
+    patch: z.number(),
+  }),
+});
+
+export class McpServerTemplateDto extends createZodDto(McpServerTemplateSchema) {}
+
+export const ImportMcpServerTemplateResponseSchema = z.object({
+  action: z.enum(['created', 'updated']),
+  server: McpServerResponseSchema,
+});
+
+export class ImportMcpServerTemplateResponseDto extends createZodDto(
+  ImportMcpServerTemplateResponseSchema,
+) {}
+
+export const ResolvedMcpConfigSchema = z.object({
+  headers: z.record(z.string(), z.string()).optional(),
+  args: z.array(z.string()).optional(),
+  envVars: z.record(z.string(), z.string()).optional(),
+});
+
+export class ResolvedMcpConfigDto extends createZodDto(ResolvedMcpConfigSchema) {}
+
 // Export classes with both names for backward compatibility (as values)
 export const McpServerResponse = McpServerResponseDto;
 export const McpToolResponse = McpToolResponseDto;
 export const TestConnectionResponse = TestConnectionResponseDto;
 export const HealthStatusResponse = HealthStatusResponseDto;
+export const McpServerTemplateResponse = McpServerTemplateDto;
+export const ImportMcpServerTemplateResponse = ImportMcpServerTemplateResponseDto;
+export const ResolvedMcpConfigResponse = ResolvedMcpConfigDto;
 
 // Type aliases for use in type annotations
 export type McpServerResponse = McpServerResponseDto;
 export type McpToolResponse = McpToolResponseDto;
 export type TestConnectionResponse = TestConnectionResponseDto;
 export type HealthStatusResponse = HealthStatusResponseDto;
+export type McpServerTemplateResponse = McpServerTemplateDto;
+export type ImportMcpServerTemplateResponse = ImportMcpServerTemplateResponseDto;
+export type ResolvedMcpConfigResponse = ResolvedMcpConfigDto;

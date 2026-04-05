@@ -87,6 +87,11 @@ export const mcpServers = pgTable(
     // Group association (nullable - servers can exist independently)
     groupId: uuid('group_id').references(() => mcpGroups.id, { onDelete: 'set null' }),
 
+    // Curated template tracking for imported individual MCP servers
+    templateSlug: varchar('template_slug', { length: 191 }),
+    templateHash: varchar('template_hash', { length: 64 }),
+    templateConfig: jsonb('template_config').$type<Record<string, unknown> | null>().default(null),
+
     // Multi-tenancy
     organizationId: varchar('organization_id', { length: 191 }),
     createdBy: varchar('created_by', { length: 191 }),
@@ -99,6 +104,7 @@ export const mcpServers = pgTable(
     orgIdx: index('mcp_servers_org_idx').on(table.organizationId),
     enabledIdx: index('mcp_servers_enabled_idx').on(table.enabled),
     groupIdx: index('mcp_servers_group_idx').on(table.groupId),
+    templateSlugIdx: index('mcp_servers_template_slug_idx').on(table.templateSlug),
     nameOrgUnique: uniqueIndex('mcp_servers_name_org_uidx').on(table.name, table.organizationId),
   }),
 );

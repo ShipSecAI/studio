@@ -7,7 +7,6 @@ import {
   useIntegrationCatalog,
   useIntegrationConnections,
 } from '@/hooks/queries/useIntegrationQueries';
-import { useGitHubInstallations } from '@/hooks/queries/useGithubQueries';
 import { cn } from '@/lib/utils';
 
 /** Static metadata for the active providers. */
@@ -40,18 +39,6 @@ const PROVIDER_META: Record<
     category: 'Cloud Security',
     hoverGradient: 'linear-gradient(to right, #f97316, #f59e0b)',
   },
-  github: {
-    name: 'GitHub',
-    description:
-      'Connect GitHub to scan repositories, manage triggers, and run security workflows.',
-    logo: '/icons/github.svg',
-    route: '/integrations/github',
-    gradient: 'from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800',
-    borderAccent: 'hover:border-gray-400 dark:hover:border-gray-600',
-    badgeClass: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400',
-    category: 'Code Security',
-    hoverGradient: 'linear-gradient(to right, #333, #666)',
-  },
   slack: {
     name: 'Slack',
     description:
@@ -67,7 +54,7 @@ const PROVIDER_META: Record<
 };
 
 /** IDs of the providers shown on this page, in display order. */
-const VISIBLE_PROVIDERS = ['aws', 'github', 'slack'] as const;
+const VISIBLE_PROVIDERS = ['aws', 'slack'] as const;
 
 export function IntegrationsManager() {
   const navigate = useNavigate();
@@ -75,8 +62,6 @@ export function IntegrationsManager() {
   const { data: catalog = [], isLoading: loadingCatalog } = useIntegrationCatalog();
   const { data: orgConnections = [], isLoading: loadingOrgConnections } =
     useIntegrationConnections();
-  // GitHub uses the GitHub App installation system, not the integration catalog
-  const { data: githubInstallations = [], isLoading: loadingGithub } = useGitHubInstallations();
 
   /** Map provider id -> number of org-scoped connections. */
   const connectionCounts = useMemo(() => {
@@ -84,19 +69,15 @@ export function IntegrationsManager() {
     for (const conn of orgConnections) {
       counts.set(conn.provider, (counts.get(conn.provider) ?? 0) + 1);
     }
-    // GitHub: count installations as connections
-    if (githubInstallations.length > 0) {
-      counts.set('github', githubInstallations.length);
-    }
     return counts;
-  }, [orgConnections, githubInstallations]);
+  }, [orgConnections]);
 
   /** Catalog entries keyed by id for quick lookup. */
   const catalogById = useMemo(() => {
     return new Map(catalog.map((entry) => [entry.id, entry]));
   }, [catalog]);
 
-  const isLoading = loadingCatalog || loadingOrgConnections || loadingGithub;
+  const isLoading = loadingCatalog || loadingOrgConnections;
 
   return (
     <div className="flex-1 bg-background">

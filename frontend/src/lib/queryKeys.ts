@@ -24,6 +24,7 @@ export const queryKeys = {
   mcpServers: {
     all: () => ['mcpServers', getOrgScope()] as const,
     tools: () => ['mcpServers', getOrgScope(), 'tools'] as const,
+    templates: () => ['mcpServers', getOrgScope(), 'templates'] as const,
   },
   agentSkills: {
     all: () => ['agentSkills', getOrgScope()] as const,

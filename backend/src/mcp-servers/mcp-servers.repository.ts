@@ -25,6 +25,9 @@ export interface McpServerUpdateData {
   endpoint?: string | null;
   command?: string | null;
   args?: string[] | null;
+  templateSlug?: string | null;
+  templateHash?: string | null;
+  templateConfig?: Record<string, unknown> | null;
   headers?: {
     ciphertext: string;
     iv: string;
@@ -127,6 +130,29 @@ export class McpServersRepository {
     options: McpServerQueryOptions = {},
   ): Promise<McpServerRecord | null> {
     const conditions: (SQL | undefined)[] = [eq(mcpServers.name, name)];
+    if (options.organizationId) {
+      conditions.push(
+        or(
+          eq(mcpServers.organizationId, options.organizationId),
+          isNull(mcpServers.organizationId),
+        ),
+      );
+    }
+
+    const rows = await this.db
+      .select()
+      .from(mcpServers)
+      .where(and(...conditions.filter((c): c is SQL => c !== undefined)))
+      .limit(1);
+
+    return rows[0] ?? null;
+  }
+
+  async findByTemplateSlug(
+    templateSlug: string,
+    options: McpServerQueryOptions = {},
+  ): Promise<McpServerRecord | null> {
+    const conditions: (SQL | undefined)[] = [eq(mcpServers.templateSlug, templateSlug)];
     if (options.organizationId) {
       conditions.push(
         or(

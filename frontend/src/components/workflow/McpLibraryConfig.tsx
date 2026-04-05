@@ -17,11 +17,10 @@ interface McpLibraryConfigProps {
 }
 
 /**
- * Custom MCPs Configuration Panel
+ * MCP Tool Sources Configuration Panel
  *
- * Provides a multi-select interface for choosing custom MCP servers.
- * Displays server name, description, health status, and tool count for each server.
- * Fetches available servers from /api/v1/mcp-servers.
+ * Provides a multi-select interface for choosing MCP servers from curated imports,
+ * imported groups, and custom servers.
  */
 export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibraryConfigProps) {
   const { data: servers = [], isLoading, error: serversError } = useMcpServers();
@@ -29,8 +28,9 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
   const queryClient = useQueryClient();
   const error = serversError?.message ?? null;
 
-  // Filter out servers that belong to MCP groups - only show custom/individual servers
-  const customServers = servers.filter((s) => !s.groupId);
+  const curatedServers = servers.filter((s) => s.templateSlug);
+  const importedGroupServers = servers.filter((s) => s.groupId && !s.templateSlug);
+  const customServers = servers.filter((s) => !s.groupId && !s.templateSlug);
 
   const [selectedServers, setSelectedServers] = useState<Set<string>>(new Set(value));
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -109,13 +109,33 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
     return tools.filter((t) => t.serverId === serverId && t.enabled);
   };
 
-  const enabledServers = customServers.filter((s) => s.enabled);
+  const enabledServers = servers.filter((s) => s.enabled);
+  const sections = [
+    {
+      key: 'curated',
+      label: 'Curated Imports',
+      description: 'Imported catalog MCPs like GitHub MCP.',
+      servers: curatedServers.filter((s) => s.enabled),
+    },
+    {
+      key: 'groups',
+      label: 'Imported Groups',
+      description: 'Servers that were brought in through curated MCP groups.',
+      servers: importedGroupServers.filter((s) => s.enabled),
+    },
+    {
+      key: 'custom',
+      label: 'Custom Servers',
+      description: 'Manually configured MCP servers for this organization.',
+      servers: customServers.filter((s) => s.enabled),
+    },
+  ].filter((section) => section.servers.length > 0);
 
-  if (isLoading && customServers.length === 0) {
+  if (isLoading && servers.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">Loading MCP servers...</span>
+        <span className="ml-2 text-sm text-muted-foreground">Loading MCP sources...</span>
       </div>
     );
   }
@@ -143,9 +163,9 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
         <Server className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
         <p className="text-sm text-muted-foreground mb-1">No MCP servers configured</p>
         <p className="text-xs text-muted-foreground/70 mb-4">
-          Add servers in the{' '}
+          Import curated MCPs or add servers in the{' '}
           <a href="/mcp-library" className="text-primary hover:underline">
-            Custom MCPs
+            MCP Library
           </a>{' '}
           to use them in your workflows.
         </p>
@@ -187,7 +207,7 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
           <CheckCircle2 className="h-4 w-4 text-primary" />
           <div className="flex-1">
             <p className="text-sm font-medium text-primary">
-              {selectedCount} server{selectedCount !== 1 ? 's' : ''} selected
+              {selectedCount} source{selectedCount !== 1 ? 's' : ''} selected
             </p>
             {totalTools > 0 && (
               <p className="text-xs text-muted-foreground">
@@ -199,119 +219,137 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
       )}
 
       {/* Server list */}
-      <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-        {enabledServers.map((server) => {
-          const serverTools = getServerTools(server.id);
-          const isSelected = selectedServers.has(server.id);
-          const status = server.lastHealthStatus ?? 'unknown';
-          const isUnhealthy = status === 'unhealthy';
-
-          return (
-            <div
-              key={server.id}
-              className={cn(
-                'rounded-lg border transition-all',
-                'hover:shadow-sm',
-                isSelected
-                  ? 'border-primary/50 bg-primary/5 shadow-sm'
-                  : 'border-border bg-background hover:border-primary/30',
-                isUnhealthy && 'border-red-200 dark:border-red-900/50',
-                disabled && 'opacity-50 cursor-not-allowed',
-              )}
-            >
-              <div
-                className={cn('flex items-start gap-3 p-3', !disabled && 'cursor-pointer')}
-                onClick={() => toggleServer(server.id)}
-              >
-                {/* Checkbox */}
-                <Checkbox
-                  id={`server-${server.id}`}
-                  checked={isSelected}
-                  disabled={disabled}
-                  className="mt-0.5"
-                  onCheckedChange={() => toggleServer(server.id)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-
-                {/* Server info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    {/* Health indicator */}
-                    {getHealthIndicator(server.id)}
-
-                    {/* Server name */}
-                    <label
-                      htmlFor={`server-${server.id}`}
-                      className={cn(
-                        'text-sm font-medium cursor-pointer truncate',
-                        isSelected && 'text-primary',
-                      )}
-                      title={server.name}
-                    >
-                      {server.name}
-                    </label>
-
-                    {/* Transport type badge */}
-                    <Badge
-                      variant="outline"
-                      className="text-[9px] px-1.5 py-0 font-normal flex-shrink-0"
-                    >
-                      {server.transportType}
-                    </Badge>
-                  </div>
-
-                  {/* Description */}
-                  {server.description && (
-                    <p
-                      className="text-xs text-muted-foreground line-clamp-2 mb-2"
-                      title={server.description}
-                    >
-                      {server.description}
-                    </p>
-                  )}
-
-                  {/* Metadata */}
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    {/* Tool count */}
-                    <div className="flex items-center gap-1">
-                      <Wrench className="h-3 w-3" />
-                      <span>
-                        {serverTools.length} tool{serverTools.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-
-                    {/* Health status text */}
-                    <div className="flex items-center gap-1">
-                      {status === 'healthy' && <CheckCircle2 className="h-3 w-3 text-green-500" />}
-                      {status === 'unhealthy' && <AlertCircle className="h-3 w-3 text-red-500" />}
-                      {status === 'unknown' && <HelpCircle className="h-3 w-3 text-gray-400" />}
-                      <span className="capitalize">{status}</span>
-                    </div>
-
-                    {/* Endpoint (for HTTP servers) */}
-                    {server.transportType === 'http' && server.endpoint && (
-                      <div className="flex items-center gap-1 truncate" title={server.endpoint}>
-                        <span className="font-mono text-[10px] opacity-70">
-                          {new URL(server.endpoint).hostname}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Warning for unhealthy servers */}
-              {isUnhealthy && (
-                <div className="px-3 pb-2">
-                  <div className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 rounded px-2 py-1.5">
-                    <AlertCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                    <span>Server is not responding. Tools may not be available.</span>
-                  </div>
-                </div>
-              )}
+      <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
+        {sections.map((section) => (
+          <div key={section.key} className="space-y-2">
+            <div className="px-1">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {section.label}
+              </p>
+              <p className="text-xs text-muted-foreground/70">{section.description}</p>
             </div>
-          );
-        })}
+            {section.servers.map((server) => {
+              const serverTools = getServerTools(server.id);
+              const isSelected = selectedServers.has(server.id);
+              const status = server.lastHealthStatus ?? 'unknown';
+              const isUnhealthy = status === 'unhealthy';
+
+              return (
+                <div
+                  key={server.id}
+                  className={cn(
+                    'rounded-lg border transition-all',
+                    'hover:shadow-sm',
+                    isSelected
+                      ? 'border-primary/50 bg-primary/5 shadow-sm'
+                      : 'border-border bg-background hover:border-primary/30',
+                    isUnhealthy && 'border-red-200 dark:border-red-900/50',
+                    disabled && 'opacity-50 cursor-not-allowed',
+                  )}
+                >
+                  <div
+                    className={cn('flex items-start gap-3 p-3', !disabled && 'cursor-pointer')}
+                    onClick={() => toggleServer(server.id)}
+                  >
+                    {/* Checkbox */}
+                    <Checkbox
+                      id={`server-${server.id}`}
+                      checked={isSelected}
+                      disabled={disabled}
+                      className="mt-0.5"
+                      onCheckedChange={() => toggleServer(server.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+
+                    {/* Server info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        {/* Health indicator */}
+                        {getHealthIndicator(server.id)}
+
+                        {/* Server name */}
+                        <label
+                          htmlFor={`server-${server.id}`}
+                          className={cn(
+                            'text-sm font-medium cursor-pointer truncate',
+                            isSelected && 'text-primary',
+                          )}
+                          title={server.name}
+                        >
+                          {server.name}
+                        </label>
+
+                        {/* Transport type badge */}
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] px-1.5 py-0 font-normal flex-shrink-0"
+                        >
+                          {server.templateSlug
+                            ? `${server.templateSlug}`
+                            : server.groupId
+                              ? 'group'
+                              : server.transportType}
+                        </Badge>
+                      </div>
+
+                      {/* Description */}
+                      {server.description && (
+                        <p
+                          className="text-xs text-muted-foreground line-clamp-2 mb-2"
+                          title={server.description}
+                        >
+                          {server.description}
+                        </p>
+                      )}
+
+                      {/* Metadata */}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        {/* Tool count */}
+                        <div className="flex items-center gap-1">
+                          <Wrench className="h-3 w-3" />
+                          <span>
+                            {serverTools.length} tool{serverTools.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+
+                        {/* Health status text */}
+                        <div className="flex items-center gap-1">
+                          {status === 'healthy' && (
+                            <CheckCircle2 className="h-3 w-3 text-green-500" />
+                          )}
+                          {status === 'unhealthy' && (
+                            <AlertCircle className="h-3 w-3 text-red-500" />
+                          )}
+                          {status === 'unknown' && <HelpCircle className="h-3 w-3 text-gray-400" />}
+                          <span className="capitalize">{status}</span>
+                        </div>
+
+                        {/* Endpoint (for HTTP servers) */}
+                        {server.transportType === 'http' && server.endpoint && (
+                          <div className="flex items-center gap-1 truncate" title={server.endpoint}>
+                            <span className="font-mono text-[10px] opacity-70">
+                              {new URL(server.endpoint).hostname}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Warning for unhealthy servers */}
+                  {isUnhealthy && (
+                    <div className="px-3 pb-2">
+                      <div className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 rounded px-2 py-1.5">
+                        <AlertCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                        <span>Server is not responding. Tools may not be available.</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {/* Footer hint */}

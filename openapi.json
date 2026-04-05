@@ -1965,46 +1965,6 @@
         ]
       }
     },
-    "/api/v1/analytics/ensure-tenant": {
-      "post": {
-        "operationId": "AnalyticsController_ensureTenant",
-        "parameters": [
-          {
-            "name": "x-internal-token",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EnsureTenantRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Ensure analytics schema exists for organization",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EnsureTenantResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "analytics"
-        ]
-      }
-    },
     "/api/v1/audit-logs": {
       "get": {
         "operationId": "AuditLogsController_list",
@@ -4321,6 +4281,31 @@
         ]
       }
     },
+    "/api/v1/mcp-servers/templates": {
+      "get": {
+        "operationId": "McpServersController_listTemplates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpServerTemplateDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List available curated MCP server templates",
+        "tags": [
+          "mcp-servers"
+        ]
+      }
+    },
     "/api/v1/mcp-servers/health": {
       "get": {
         "operationId": "McpServersController_getHealthStatuses",
@@ -4472,6 +4457,47 @@
         ]
       }
     },
+    "/api/v1/mcp-servers/templates/{slug}/import": {
+      "post": {
+        "operationId": "McpServersController_importTemplate",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportMcpServerTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportMcpServerTemplateResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Import or update a curated MCP server template",
+        "tags": [
+          "mcp-servers"
+        ]
+      }
+    },
     "/api/v1/mcp-servers/{id}/toggle": {
       "post": {
         "operationId": "McpServersController_toggleServer",
@@ -4592,7 +4618,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/ResolvedMcpConfigDto"
                 }
               }
             }
@@ -5045,112 +5071,6 @@
         ]
       }
     },
-    "/api/v1/mcp/gateway": {
-      "get": {
-        "operationId": "McpGatewayController_handleGateway_get",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
-        "tags": [
-          "mcp"
-        ]
-      },
-      "post": {
-        "operationId": "McpGatewayController_handleGateway_post",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
-        "tags": [
-          "mcp"
-        ]
-      },
-      "put": {
-        "operationId": "McpGatewayController_handleGateway_put",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
-        "tags": [
-          "mcp"
-        ]
-      },
-      "delete": {
-        "operationId": "McpGatewayController_handleGateway_delete",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
-        "tags": [
-          "mcp"
-        ]
-      },
-      "patch": {
-        "operationId": "McpGatewayController_handleGateway_patch",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
-        "tags": [
-          "mcp"
-        ]
-      },
-      "options": {
-        "operationId": "McpGatewayController_handleGateway_options",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
-        "tags": [
-          "mcp"
-        ]
-      },
-      "head": {
-        "operationId": "McpGatewayController_handleGateway_head",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
-        "tags": [
-          "mcp"
-        ]
-      },
-      "search": {
-        "operationId": "McpGatewayController_handleGateway_search",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
-        "tags": [
-          "mcp"
-        ]
-      }
-    },
     "/api/v1/internal/mcp/generate-token": {
       "post": {
         "operationId": "InternalMcpController_generateToken",
@@ -5468,6 +5388,112 @@
           }
         },
         "summary": "Get MCP group discovery status",
+        "tags": [
+          "mcp"
+        ]
+      }
+    },
+    "/api/v1/mcp/run-tools/{runId}": {
+      "get": {
+        "operationId": "ComponentToolMcpController_handleMcp_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Component tool MCP endpoint (Streamable HTTP) for Hotplug gateway",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "post": {
+        "operationId": "ComponentToolMcpController_handleMcp_post",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Component tool MCP endpoint (Streamable HTTP) for Hotplug gateway",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "put": {
+        "operationId": "ComponentToolMcpController_handleMcp_put",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Component tool MCP endpoint (Streamable HTTP) for Hotplug gateway",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "delete": {
+        "operationId": "ComponentToolMcpController_handleMcp_delete",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Component tool MCP endpoint (Streamable HTTP) for Hotplug gateway",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "patch": {
+        "operationId": "ComponentToolMcpController_handleMcp_patch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Component tool MCP endpoint (Streamable HTTP) for Hotplug gateway",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "options": {
+        "operationId": "ComponentToolMcpController_handleMcp_options",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Component tool MCP endpoint (Streamable HTTP) for Hotplug gateway",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "head": {
+        "operationId": "ComponentToolMcpController_handleMcp_head",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Component tool MCP endpoint (Streamable HTTP) for Hotplug gateway",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "search": {
+        "operationId": "ComponentToolMcpController_handleMcp_search",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Component tool MCP endpoint (Streamable HTTP) for Hotplug gateway",
         "tags": [
           "mcp"
         ]
@@ -6205,621 +6231,6 @@
         ]
       }
     },
-    "/api/v1/workflow-templates": {
-      "get": {
-        "operationId": "WorkflowTemplatesController_list",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WorkflowTemplateResponseDto"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "workflow-templates"
-        ]
-      },
-      "post": {
-        "operationId": "WorkflowTemplatesController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateWorkflowTemplateRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowTemplateResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "workflow-templates"
-        ]
-      }
-    },
-    "/api/v1/workflow-templates/{id}": {
-      "get": {
-        "operationId": "WorkflowTemplatesController_getById",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowTemplateResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "workflow-templates"
-        ]
-      },
-      "delete": {
-        "operationId": "WorkflowTemplatesController_delete",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeleteWorkflowTemplateResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "workflow-templates"
-        ]
-      }
-    },
-    "/api/v1/workflow-templates/{id}/instantiate": {
-      "post": {
-        "operationId": "WorkflowTemplatesController_instantiate",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InstantiateWorkflowTemplateRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Creates a new workflow from the template",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "workflow-templates"
-        ]
-      }
-    },
-    "/api/v1/asm/domains": {
-      "get": {
-        "operationId": "AsmController_listDomains",
-        "parameters": [
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "description": "Max items to return (default 50)",
-            "schema": {
-              "pattern": "^\\d+$",
-              "default": "50",
-              "type": "number"
-            }
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "in": "query",
-            "description": "Items to skip (default 0)",
-            "schema": {
-              "pattern": "^\\d+$",
-              "default": "0",
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of ASM domains",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AsmDomainWithStatsDto"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "asm"
-        ]
-      },
-      "post": {
-        "operationId": "AsmController_createDomain",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateDomainDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Newly created ASM domain",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AsmDomainCreateResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "asm"
-        ]
-      }
-    },
-    "/api/v1/asm/domains/{id}": {
-      "get": {
-        "operationId": "AsmController_getDomain",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Single ASM domain",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AsmDomainDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "asm"
-        ]
-      },
-      "patch": {
-        "operationId": "AsmController_updateDomain",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateDomainDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated ASM domain",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AsmDomainDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "asm"
-        ]
-      },
-      "delete": {
-        "operationId": "AsmController_deleteDomain",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Domain deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AsmDeleteResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "asm"
-        ]
-      }
-    },
-    "/api/v1/asm/domains/{id}/scan": {
-      "post": {
-        "operationId": "AsmController_triggerScan",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TriggerScanDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Scan triggered",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AsmScanTriggerResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "asm"
-        ]
-      }
-    },
-    "/api/v1/asm/assets": {
-      "get": {
-        "operationId": "AsmController_listAssets",
-        "parameters": [
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "pattern": "^\\d+$",
-              "default": "25",
-              "type": "number"
-            }
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "pattern": "^\\d+$",
-              "default": "0",
-              "type": "number"
-            }
-          },
-          {
-            "name": "domainId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "type",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "search",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "sortBy",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "enum": [
-                "hostname",
-                "type",
-                "riskScore",
-                "firstSeen",
-                "lastSeen"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "name": "sortOrder",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "enum": [
-                "asc",
-                "desc"
-              ],
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of ASM assets",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AsmAssetListResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "asm"
-        ]
-      }
-    },
-    "/api/v1/asm/assets/{id}": {
-      "get": {
-        "operationId": "AsmController_getAsset",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Single ASM asset",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AsmAssetDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "asm"
-        ]
-      }
-    },
-    "/api/v1/asm/assets/{id}/scan": {
-      "post": {
-        "operationId": "AsmController_triggerAssetScan",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TriggerScanDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Asset scan triggered",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AsmScanTriggerResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "asm"
-        ]
-      }
-    },
-    "/api/v1/asm/scans": {
-      "get": {
-        "operationId": "AsmController_listScans",
-        "parameters": [
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "pattern": "^\\d+$",
-              "default": "25",
-              "type": "number"
-            }
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "pattern": "^\\d+$",
-              "default": "0",
-              "type": "number"
-            }
-          },
-          {
-            "name": "status",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "enum": [
-                "running",
-                "completed",
-                "failed",
-                "timed_out"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "name": "domainId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of ASM scans",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AsmScanListResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "asm"
-        ]
-      }
-    },
-    "/api/v1/asm/stats": {
-      "get": {
-        "operationId": "AsmController_getDashboardStats",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "ASM dashboard statistics",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AsmDashboardStatsDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "asm"
-        ]
-      }
-    },
     "/api/v1/asset-discovery/assets": {
       "get": {
         "operationId": "AssetDiscoveryController_listAssets",
@@ -7319,6 +6730,621 @@
         },
         "tags": [
           "asset-discovery"
+        ]
+      }
+    },
+    "/api/v1/asm/domains": {
+      "get": {
+        "operationId": "AsmController_listDomains",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Max items to return (default 50)",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "50",
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Items to skip (default 0)",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "0",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of ASM domains",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AsmDomainWithStatsDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      },
+      "post": {
+        "operationId": "AsmController_createDomain",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDomainDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Newly created ASM domain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsmDomainCreateResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/asm/domains/{id}": {
+      "get": {
+        "operationId": "AsmController_getDomain",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Single ASM domain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsmDomainDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      },
+      "patch": {
+        "operationId": "AsmController_updateDomain",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDomainDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated ASM domain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsmDomainDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      },
+      "delete": {
+        "operationId": "AsmController_deleteDomain",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Domain deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsmDeleteResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/asm/domains/{id}/scan": {
+      "post": {
+        "operationId": "AsmController_triggerScan",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerScanDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Scan triggered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsmScanTriggerResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/asm/assets": {
+      "get": {
+        "operationId": "AsmController_listAssets",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "25",
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "0",
+              "type": "number"
+            }
+          },
+          {
+            "name": "domainId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "hostname",
+                "type",
+                "riskScore",
+                "firstSeen",
+                "lastSeen"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of ASM assets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsmAssetListResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/asm/assets/{id}": {
+      "get": {
+        "operationId": "AsmController_getAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Single ASM asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsmAssetDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/asm/assets/{id}/scan": {
+      "post": {
+        "operationId": "AsmController_triggerAssetScan",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerScanDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Asset scan triggered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsmScanTriggerResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/asm/scans": {
+      "get": {
+        "operationId": "AsmController_listScans",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "25",
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "0",
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "running",
+                "completed",
+                "failed",
+                "timed_out"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "domainId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of ASM scans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsmScanListResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/asm/stats": {
+      "get": {
+        "operationId": "AsmController_getDashboardStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ASM dashboard statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsmDashboardStatsDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "asm"
+        ]
+      }
+    },
+    "/api/v1/workflow-templates": {
+      "get": {
+        "operationId": "WorkflowTemplatesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowTemplateResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      },
+      "post": {
+        "operationId": "WorkflowTemplatesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowTemplateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTemplateResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      }
+    },
+    "/api/v1/workflow-templates/{id}": {
+      "get": {
+        "operationId": "WorkflowTemplatesController_getById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTemplateResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      },
+      "delete": {
+        "operationId": "WorkflowTemplatesController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteWorkflowTemplateResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      }
+    },
+    "/api/v1/workflow-templates/{id}/instantiate": {
+      "post": {
+        "operationId": "WorkflowTemplatesController_instantiate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstantiateWorkflowTemplateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Creates a new workflow from the template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflow-templates"
         ]
       }
     },
@@ -7926,6 +7952,20 @@
         "summary": "Preview the SKILL.md content for an agent skill",
         "tags": [
           "agent-skills"
+        ]
+      }
+    },
+    "/api/v1/slack/events": {
+      "post": {
+        "operationId": "SlackEventsController_handleEvent",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "slack-bot"
         ]
       }
     },
@@ -11305,6 +11345,10 @@
             "description": "Field to deduplicate results on",
             "type": "string"
           },
+          "countDistinct": {
+            "description": "Field to count distinct values for (returns distinctCount in response)",
+            "type": "string"
+          },
           "size": {
             "description": "Number of results to return",
             "type": "number"
@@ -11360,6 +11404,10 @@
                 ]
               }
             }
+          },
+          "distinctCount": {
+            "description": "Count of distinct values for countDistinct field",
+            "type": "number"
           }
         },
         "required": [
@@ -11699,7 +11747,7 @@
           "documentCount": {
             "type": "number"
           },
-          "indexCount": {
+          "partCount": {
             "type": "number"
           },
           "analyticsEnabled": {
@@ -11709,19 +11757,19 @@
         "required": [
           "usedBytes",
           "documentCount",
-          "indexCount",
+          "partCount",
           "analyticsEnabled"
         ]
       },
       "PurgeDataResponseDto": {
         "type": "object",
         "properties": {
-          "deletedIndices": {
+          "tablesCleared": {
             "type": "number"
           }
         },
         "required": [
-          "deletedIndices"
+          "tablesCleared"
         ]
       },
       "ProwlerChecksMetadataResponseDto": {
@@ -11771,37 +11819,6 @@
             "other"
           ]
         }
-      },
-      "EnsureTenantRequestDto": {
-        "type": "object",
-        "properties": {
-          "organizationId": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": [
-          "organizationId"
-        ]
-      },
-      "EnsureTenantResponseDto": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "securityEnabled": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "success",
-          "securityEnabled",
-          "message"
-        ]
       },
       "ListAuditLogsResponseDto": {
         "type": "object",
@@ -15680,6 +15697,13 @@
               "stdio"
             ]
           },
+          "runtimeType": {
+            "type": "string",
+            "enum": [
+              "docker",
+              "host"
+            ]
+          },
           "endpoint": {
             "type": "string",
             "nullable": true
@@ -15740,6 +15764,22 @@
           "groupId": {
             "type": "string",
             "nullable": true
+          },
+          "templateSlug": {
+            "type": "string",
+            "nullable": true
+          },
+          "templateHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "templateConfig": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "nullable": true
           }
         },
         "required": [
@@ -15747,6 +15787,7 @@
           "name",
           "description",
           "transportType",
+          "runtimeType",
           "endpoint",
           "command",
           "args",
@@ -15758,7 +15799,10 @@
           "lastHealthStatus",
           "createdAt",
           "updatedAt",
-          "groupId"
+          "groupId",
+          "templateSlug",
+          "templateHash",
+          "templateConfig"
         ]
       },
       "McpToolResponseDto": {
@@ -15806,6 +15850,105 @@
           "serverName",
           "enabled",
           "discoveredAt"
+        ]
+      },
+      "McpServerTemplateDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "transportType": {
+            "type": "string",
+            "enum": [
+              "http",
+              "stdio"
+            ]
+          },
+          "runtimeType": {
+            "type": "string",
+            "enum": [
+              "docker",
+              "host"
+            ]
+          },
+          "authSource": {
+            "type": "string",
+            "enum": [
+              "none",
+              "github_app"
+            ]
+          },
+          "docsUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "supportsReadOnly": {
+            "type": "boolean"
+          },
+          "supportsDynamicToolsets": {
+            "type": "boolean"
+          },
+          "availableToolsets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultToolsets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultTools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "importedServerId": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "object",
+            "properties": {
+              "major": {
+                "type": "number"
+              },
+              "minor": {
+                "type": "number"
+              },
+              "patch": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "major",
+              "minor",
+              "patch"
+            ]
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "transportType",
+          "runtimeType",
+          "authSource",
+          "version"
         ]
       },
       "HealthStatusResponseDto": {
@@ -15894,6 +16037,197 @@
           "transportType"
         ]
       },
+      "ImportMcpServerTemplateDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "github": {
+            "type": "object",
+            "properties": {
+              "installationId": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "readOnly": {
+                "type": "boolean"
+              },
+              "toolsets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "dynamicToolsets": {
+                "type": "boolean"
+              },
+              "githubHost": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": [
+              "installationId"
+            ]
+          }
+        }
+      },
+      "ImportMcpServerTemplateResponseDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "created",
+              "updated"
+            ]
+          },
+          "server": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string",
+                "nullable": true
+              },
+              "transportType": {
+                "type": "string",
+                "enum": [
+                  "http",
+                  "stdio"
+                ]
+              },
+              "runtimeType": {
+                "type": "string",
+                "enum": [
+                  "docker",
+                  "host"
+                ]
+              },
+              "endpoint": {
+                "type": "string",
+                "nullable": true
+              },
+              "command": {
+                "type": "string",
+                "nullable": true
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "nullable": true
+              },
+              "hasHeaders": {
+                "type": "boolean"
+              },
+              "headerKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "nullable": true
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "healthCheckUrl": {
+                "type": "string",
+                "nullable": true
+              },
+              "lastHealthCheck": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "nullable": true
+              },
+              "lastHealthStatus": {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "unhealthy",
+                  "unknown"
+                ],
+                "nullable": true
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "groupId": {
+                "type": "string",
+                "nullable": true
+              },
+              "templateSlug": {
+                "type": "string",
+                "nullable": true
+              },
+              "templateHash": {
+                "type": "string",
+                "nullable": true
+              },
+              "templateConfig": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {},
+                "nullable": true
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "description",
+              "transportType",
+              "runtimeType",
+              "endpoint",
+              "command",
+              "args",
+              "hasHeaders",
+              "headerKeys",
+              "enabled",
+              "healthCheckUrl",
+              "lastHealthCheck",
+              "lastHealthStatus",
+              "createdAt",
+              "updatedAt",
+              "groupId",
+              "templateSlug",
+              "templateHash",
+              "templateConfig"
+            ]
+          }
+        },
+        "required": [
+          "action",
+          "server"
+        ]
+      },
       "UpdateMcpServerDto": {
         "type": "object",
         "properties": {
@@ -15971,6 +16305,35 @@
         "required": [
           "success"
         ]
+      },
+      "ResolvedMcpConfigDto": {
+        "type": "object",
+        "properties": {
+          "headers": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "envVars": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
       },
       "McpGroupResponseDto": {
         "type": "object",
@@ -16541,7 +16904,7 @@
       "CleanupRunResponseDto": {
         "type": "object",
         "properties": {
-          "containerIds": {
+          "sessionIds": {
             "type": "array",
             "items": {
               "type": "string"
@@ -16549,7 +16912,7 @@
           }
         },
         "required": [
-          "containerIds"
+          "sessionIds"
         ]
       },
       "ToolsReadyRequestDto": {
@@ -17765,1309 +18128,6 @@
           "workflowVersion"
         ]
       },
-      "WorkflowTemplateResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "name": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string",
-            "nullable": true
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "category": {
-            "type": "string",
-            "enum": [
-              "code-security",
-              "cloud-security",
-              "attack-surface",
-              "notification"
-            ]
-          },
-          "graph": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "description": {
-                "type": "string"
-              },
-              "nodes": {
-                "minItems": 1,
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string"
-                    },
-                    "position": {
-                      "type": "object",
-                      "properties": {
-                        "x": {
-                          "type": "number"
-                        },
-                        "y": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "x",
-                        "y"
-                      ]
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "label": {
-                          "type": "string"
-                        },
-                        "config": {
-                          "default": {
-                            "params": {},
-                            "inputOverrides": {}
-                          },
-                          "type": "object",
-                          "properties": {
-                            "params": {
-                              "default": {},
-                              "type": "object",
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "additionalProperties": {}
-                            },
-                            "inputOverrides": {
-                              "default": {},
-                              "type": "object",
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "additionalProperties": {}
-                            },
-                            "joinStrategy": {
-                              "type": "string",
-                              "enum": [
-                                "all",
-                                "any",
-                                "first"
-                              ]
-                            },
-                            "streamId": {
-                              "type": "string"
-                            },
-                            "groupId": {
-                              "type": "string"
-                            },
-                            "maxConcurrency": {
-                              "type": "integer",
-                              "exclusiveMinimum": 0,
-                              "maximum": 9007199254740991
-                            },
-                            "mode": {
-                              "type": "string",
-                              "enum": [
-                                "normal",
-                                "tool"
-                              ]
-                            },
-                            "toolConfig": {
-                              "type": "object",
-                              "properties": {
-                                "boundInputIds": {
-                                  "default": [],
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                },
-                                "exposedInputIds": {
-                                  "default": [],
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                }
-                              }
-                            },
-                            "connectedToolNodeIds": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
-                            }
-                          }
-                        },
-                        "dynamicInputs": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "additionalProperties": {}
-                          }
-                        },
-                        "dynamicOutputs": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "additionalProperties": {}
-                          }
-                        }
-                      },
-                      "required": [
-                        "label"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "position",
-                    "data"
-                  ]
-                }
-              },
-              "edges": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": "string"
-                    },
-                    "target": {
-                      "type": "string"
-                    },
-                    "sourceHandle": {
-                      "type": "string"
-                    },
-                    "targetHandle": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "default",
-                        "smoothstep",
-                        "step",
-                        "straight",
-                        "bezier"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "source",
-                    "target"
-                  ]
-                }
-              },
-              "viewport": {
-                "default": {
-                  "x": 0,
-                  "y": 0,
-                  "zoom": 1
-                },
-                "type": "object",
-                "properties": {
-                  "x": {
-                    "type": "number"
-                  },
-                  "y": {
-                    "type": "number"
-                  },
-                  "zoom": {
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "x",
-                  "y",
-                  "zoom"
-                ]
-              }
-            },
-            "required": [
-              "name",
-              "nodes",
-              "edges"
-            ]
-          },
-          "icon": {
-            "type": "string",
-            "nullable": true
-          },
-          "screenshotUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "isFeatured": {
-            "type": "boolean"
-          },
-          "runCount": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
-          },
-          "isDefault": {
-            "type": "boolean"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "description",
-          "category",
-          "graph",
-          "icon",
-          "isDefault",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "CreateWorkflowTemplateRequestDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1
-          },
-          "description": {
-            "type": "string"
-          },
-          "category": {
-            "type": "string",
-            "enum": [
-              "code-security",
-              "cloud-security",
-              "attack-surface",
-              "notification"
-            ]
-          },
-          "graph": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "description": {
-                "type": "string"
-              },
-              "nodes": {
-                "minItems": 1,
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string"
-                    },
-                    "position": {
-                      "type": "object",
-                      "properties": {
-                        "x": {
-                          "type": "number"
-                        },
-                        "y": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "x",
-                        "y"
-                      ]
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "label": {
-                          "type": "string"
-                        },
-                        "config": {
-                          "default": {
-                            "params": {},
-                            "inputOverrides": {}
-                          },
-                          "type": "object",
-                          "properties": {
-                            "params": {
-                              "default": {},
-                              "type": "object",
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "additionalProperties": {}
-                            },
-                            "inputOverrides": {
-                              "default": {},
-                              "type": "object",
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "additionalProperties": {}
-                            },
-                            "joinStrategy": {
-                              "type": "string",
-                              "enum": [
-                                "all",
-                                "any",
-                                "first"
-                              ]
-                            },
-                            "streamId": {
-                              "type": "string"
-                            },
-                            "groupId": {
-                              "type": "string"
-                            },
-                            "maxConcurrency": {
-                              "type": "integer",
-                              "exclusiveMinimum": 0,
-                              "maximum": 9007199254740991
-                            },
-                            "mode": {
-                              "type": "string",
-                              "enum": [
-                                "normal",
-                                "tool"
-                              ]
-                            },
-                            "toolConfig": {
-                              "type": "object",
-                              "properties": {
-                                "boundInputIds": {
-                                  "default": [],
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                },
-                                "exposedInputIds": {
-                                  "default": [],
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                }
-                              }
-                            },
-                            "connectedToolNodeIds": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
-                            }
-                          }
-                        },
-                        "dynamicInputs": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "additionalProperties": {}
-                          }
-                        },
-                        "dynamicOutputs": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "additionalProperties": {}
-                          }
-                        }
-                      },
-                      "required": [
-                        "label"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "type",
-                    "position",
-                    "data"
-                  ]
-                }
-              },
-              "edges": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": "string"
-                    },
-                    "target": {
-                      "type": "string"
-                    },
-                    "sourceHandle": {
-                      "type": "string"
-                    },
-                    "targetHandle": {
-                      "type": "string"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": [
-                        "default",
-                        "smoothstep",
-                        "step",
-                        "straight",
-                        "bezier"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "source",
-                    "target"
-                  ]
-                }
-              },
-              "viewport": {
-                "default": {
-                  "x": 0,
-                  "y": 0,
-                  "zoom": 1
-                },
-                "type": "object",
-                "properties": {
-                  "x": {
-                    "type": "number"
-                  },
-                  "y": {
-                    "type": "number"
-                  },
-                  "zoom": {
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "x",
-                  "y",
-                  "zoom"
-                ]
-              }
-            },
-            "required": [
-              "name",
-              "nodes",
-              "edges"
-            ]
-          },
-          "icon": {
-            "type": "string"
-          },
-          "isDefault": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "name",
-          "category",
-          "graph"
-        ]
-      },
-      "InstantiateWorkflowTemplateRequestDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      },
-      "DeleteWorkflowTemplateResponseDto": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          }
-        },
-        "required": [
-          "success"
-        ]
-      },
-      "AsmDomainWithStatsDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "organizationId": {
-            "type": "string"
-          },
-          "domain": {
-            "type": "string"
-          },
-          "scopeInclude": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "scopeExclude": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "monitoringEnabled": {
-            "type": "boolean"
-          },
-          "frequency": {
-            "type": "string",
-            "nullable": true
-          },
-          "lastScanAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-            "nullable": true
-          },
-          "deletedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-            "nullable": true
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-          },
-          "assetCount": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "id",
-          "organizationId",
-          "domain",
-          "scopeInclude",
-          "scopeExclude",
-          "monitoringEnabled",
-          "frequency",
-          "lastScanAt",
-          "deletedAt",
-          "createdAt",
-          "updatedAt",
-          "assetCount"
-        ]
-      },
-      "AsmDomainDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "organizationId": {
-            "type": "string"
-          },
-          "domain": {
-            "type": "string"
-          },
-          "scopeInclude": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "scopeExclude": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "monitoringEnabled": {
-            "type": "boolean"
-          },
-          "frequency": {
-            "type": "string",
-            "nullable": true
-          },
-          "lastScanAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-            "nullable": true
-          },
-          "deletedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-            "nullable": true
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-          }
-        },
-        "required": [
-          "id",
-          "organizationId",
-          "domain",
-          "scopeInclude",
-          "scopeExclude",
-          "monitoringEnabled",
-          "frequency",
-          "lastScanAt",
-          "deletedAt",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "CreateDomainDto": {
-        "type": "object",
-        "properties": {
-          "domain": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255
-          },
-          "scopeInclude": {
-            "maxItems": 100,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "maxLength": 500
-            }
-          },
-          "scopeExclude": {
-            "maxItems": 100,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "maxLength": 500
-            }
-          },
-          "scanNow": {
-            "default": false,
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "domain"
-        ]
-      },
-      "AsmDomainCreateResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "organizationId": {
-            "type": "string"
-          },
-          "domain": {
-            "type": "string"
-          },
-          "scopeInclude": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "scopeExclude": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "monitoringEnabled": {
-            "type": "boolean"
-          },
-          "frequency": {
-            "type": "string",
-            "nullable": true
-          },
-          "lastScanAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-            "nullable": true
-          },
-          "deletedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-            "nullable": true
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-          },
-          "assetCount": {
-            "type": "number"
-          },
-          "scanTriggered": {
-            "type": "boolean"
-          },
-          "runId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "organizationId",
-          "domain",
-          "scopeInclude",
-          "scopeExclude",
-          "monitoringEnabled",
-          "frequency",
-          "lastScanAt",
-          "deletedAt",
-          "createdAt",
-          "updatedAt",
-          "assetCount",
-          "scanTriggered",
-          "runId"
-        ]
-      },
-      "UpdateDomainDto": {
-        "type": "object",
-        "properties": {
-          "scopeInclude": {
-            "maxItems": 100,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "maxLength": 500
-            }
-          },
-          "scopeExclude": {
-            "maxItems": 100,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "maxLength": 500
-            }
-          }
-        }
-      },
-      "AsmDeleteResponseDto": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "success"
-        ]
-      },
-      "TriggerScanDto": {
-        "type": "object",
-        "properties": {
-          "templateSlug": {
-            "default": "sys-attack-surface-recon",
-            "type": "string"
-          }
-        }
-      },
-      "AsmScanTriggerResponseDto": {
-        "type": "object",
-        "properties": {
-          "runId": {
-            "type": "string"
-          },
-          "domain": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "runId",
-          "domain"
-        ]
-      },
-      "AsmAssetListResponseDto": {
-        "type": "object",
-        "properties": {
-          "assets": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "organizationId": {
-                  "type": "string"
-                },
-                "domainId": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "hostname": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string"
-                },
-                "ipAddresses": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "nullable": true
-                },
-                "techStack": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "nullable": true
-                },
-                "ports": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "port": {
-                        "type": "number"
-                      },
-                      "protocol": {
-                        "type": "string"
-                      },
-                      "service": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "port",
-                      "protocol",
-                      "service"
-                    ]
-                  },
-                  "nullable": true
-                },
-                "riskScore": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "dnsRecords": {
-                  "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {},
-                  "nullable": true
-                },
-                "tlsInfo": {
-                  "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {},
-                  "nullable": true
-                },
-                "firstSeen": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-                },
-                "lastSeen": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-                },
-                "metadata": {
-                  "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {},
-                  "nullable": true
-                }
-              },
-              "required": [
-                "id",
-                "organizationId",
-                "domainId",
-                "hostname",
-                "type",
-                "ipAddresses",
-                "techStack",
-                "ports",
-                "riskScore",
-                "dnsRecords",
-                "tlsInfo",
-                "firstSeen",
-                "lastSeen",
-                "metadata"
-              ]
-            }
-          },
-          "total": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "assets",
-          "total"
-        ]
-      },
-      "AsmAssetDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "organizationId": {
-            "type": "string"
-          },
-          "domainId": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "hostname": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          },
-          "ipAddresses": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "techStack": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "ports": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "port": {
-                  "type": "number"
-                },
-                "protocol": {
-                  "type": "string"
-                },
-                "service": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "port",
-                "protocol",
-                "service"
-              ]
-            },
-            "nullable": true
-          },
-          "riskScore": {
-            "type": "string",
-            "nullable": true
-          },
-          "dnsRecords": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {},
-            "nullable": true
-          },
-          "tlsInfo": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {},
-            "nullable": true
-          },
-          "firstSeen": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-          },
-          "lastSeen": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-          },
-          "metadata": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {},
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "organizationId",
-          "domainId",
-          "hostname",
-          "type",
-          "ipAddresses",
-          "techStack",
-          "ports",
-          "riskScore",
-          "dnsRecords",
-          "tlsInfo",
-          "firstSeen",
-          "lastSeen",
-          "metadata"
-        ]
-      },
-      "AsmScanListResponseDto": {
-        "type": "object",
-        "properties": {
-          "runs": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "workflowId": {
-                  "type": "string"
-                },
-                "organizationId": {
-                  "type": "string"
-                },
-                "status": {
-                  "type": "string",
-                  "enum": [
-                    "RUNNING",
-                    "COMPLETED",
-                    "FAILED",
-                    "CANCELLED",
-                    "TERMINATED",
-                    "CONTINUED_AS_NEW",
-                    "TIMED_OUT",
-                    "UNKNOWN"
-                  ]
-                },
-                "startTime": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-                },
-                "endTime": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                  "nullable": true
-                },
-                "temporalRunId": {
-                  "type": "string"
-                },
-                "workflowVersionId": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "workflowVersion": {
-                  "type": "number",
-                  "nullable": true
-                },
-                "workflowName": {
-                  "type": "string"
-                },
-                "eventCount": {
-                  "type": "number"
-                },
-                "nodeCount": {
-                  "type": "number"
-                },
-                "duration": {
-                  "type": "number"
-                },
-                "triggerType": {
-                  "type": "string",
-                  "enum": [
-                    "manual",
-                    "schedule",
-                    "api"
-                  ]
-                },
-                "triggerSource": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "triggerLabel": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "inputPreview": {
-                  "type": "object",
-                  "properties": {
-                    "runtimeInputs": {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {}
-                    },
-                    "nodeOverrides": {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                          "params": {
-                            "default": {},
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "additionalProperties": {}
-                          },
-                          "inputOverrides": {
-                            "default": {},
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "additionalProperties": {}
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-              "required": [
-                "id",
-                "workflowId",
-                "organizationId",
-                "status",
-                "startTime",
-                "endTime",
-                "temporalRunId",
-                "workflowVersionId",
-                "workflowVersion",
-                "workflowName",
-                "eventCount",
-                "nodeCount",
-                "duration",
-                "triggerType",
-                "triggerSource",
-                "triggerLabel"
-              ]
-            }
-          },
-          "total": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "runs",
-          "total"
-        ]
-      },
-      "AsmDashboardStatsDto": {
-        "type": "object",
-        "properties": {
-          "domains": {
-            "type": "number"
-          },
-          "assets": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "domains",
-          "assets"
-        ]
-      },
       "CloudAssetListResponseDto": {
         "type": "object",
         "properties": {
@@ -20252,6 +19312,1309 @@
           "startedAt",
           "completedAt",
           "createdAt"
+        ]
+      },
+      "AsmDomainWithStatsDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "scopeInclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "scopeExclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "monitoringEnabled": {
+            "type": "boolean"
+          },
+          "frequency": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastScanAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "assetCount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "organizationId",
+          "domain",
+          "scopeInclude",
+          "scopeExclude",
+          "monitoringEnabled",
+          "frequency",
+          "lastScanAt",
+          "deletedAt",
+          "createdAt",
+          "updatedAt",
+          "assetCount"
+        ]
+      },
+      "AsmDomainDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "scopeInclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "scopeExclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "monitoringEnabled": {
+            "type": "boolean"
+          },
+          "frequency": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastScanAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "organizationId",
+          "domain",
+          "scopeInclude",
+          "scopeExclude",
+          "monitoringEnabled",
+          "frequency",
+          "lastScanAt",
+          "deletedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateDomainDto": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "scopeInclude": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "scopeExclude": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "scanNow": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "AsmDomainCreateResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "scopeInclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "scopeExclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "monitoringEnabled": {
+            "type": "boolean"
+          },
+          "frequency": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastScanAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "assetCount": {
+            "type": "number"
+          },
+          "scanTriggered": {
+            "type": "boolean"
+          },
+          "runId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "organizationId",
+          "domain",
+          "scopeInclude",
+          "scopeExclude",
+          "monitoringEnabled",
+          "frequency",
+          "lastScanAt",
+          "deletedAt",
+          "createdAt",
+          "updatedAt",
+          "assetCount",
+          "scanTriggered",
+          "runId"
+        ]
+      },
+      "UpdateDomainDto": {
+        "type": "object",
+        "properties": {
+          "scopeInclude": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "scopeExclude": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        }
+      },
+      "AsmDeleteResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      },
+      "TriggerScanDto": {
+        "type": "object",
+        "properties": {
+          "templateSlug": {
+            "default": "sys-attack-surface-recon",
+            "type": "string"
+          }
+        }
+      },
+      "AsmScanTriggerResponseDto": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "domain"
+        ]
+      },
+      "AsmAssetListResponseDto": {
+        "type": "object",
+        "properties": {
+          "assets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "organizationId": {
+                  "type": "string"
+                },
+                "domainId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "hostname": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "ipAddresses": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "nullable": true
+                },
+                "techStack": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "nullable": true
+                },
+                "ports": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "port": {
+                        "type": "number"
+                      },
+                      "protocol": {
+                        "type": "string"
+                      },
+                      "service": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "port",
+                      "protocol",
+                      "service"
+                    ]
+                  },
+                  "nullable": true
+                },
+                "riskScore": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "dnsRecords": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "nullable": true
+                },
+                "tlsInfo": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "nullable": true
+                },
+                "firstSeen": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "lastSeen": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "metadata": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "nullable": true
+                }
+              },
+              "required": [
+                "id",
+                "organizationId",
+                "domainId",
+                "hostname",
+                "type",
+                "ipAddresses",
+                "techStack",
+                "ports",
+                "riskScore",
+                "dnsRecords",
+                "tlsInfo",
+                "firstSeen",
+                "lastSeen",
+                "metadata"
+              ]
+            }
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "assets",
+          "total"
+        ]
+      },
+      "AsmAssetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "domainId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "ipAddresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "techStack": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "ports": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "port": {
+                  "type": "number"
+                },
+                "protocol": {
+                  "type": "string"
+                },
+                "service": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "port",
+                "protocol",
+                "service"
+              ]
+            },
+            "nullable": true
+          },
+          "riskScore": {
+            "type": "string",
+            "nullable": true
+          },
+          "dnsRecords": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "tlsInfo": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "firstSeen": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "lastSeen": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "organizationId",
+          "domainId",
+          "hostname",
+          "type",
+          "ipAddresses",
+          "techStack",
+          "ports",
+          "riskScore",
+          "dnsRecords",
+          "tlsInfo",
+          "firstSeen",
+          "lastSeen",
+          "metadata"
+        ]
+      },
+      "AsmScanListResponseDto": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "workflowId": {
+                  "type": "string"
+                },
+                "organizationId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "RUNNING",
+                    "COMPLETED",
+                    "FAILED",
+                    "CANCELLED",
+                    "TERMINATED",
+                    "CONTINUED_AS_NEW",
+                    "TIMED_OUT",
+                    "UNKNOWN"
+                  ]
+                },
+                "startTime": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "endTime": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "nullable": true
+                },
+                "temporalRunId": {
+                  "type": "string"
+                },
+                "workflowVersionId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "workflowVersion": {
+                  "type": "number",
+                  "nullable": true
+                },
+                "workflowName": {
+                  "type": "string"
+                },
+                "eventCount": {
+                  "type": "number"
+                },
+                "nodeCount": {
+                  "type": "number"
+                },
+                "duration": {
+                  "type": "number"
+                },
+                "triggerType": {
+                  "type": "string",
+                  "enum": [
+                    "manual",
+                    "schedule",
+                    "api"
+                  ]
+                },
+                "triggerSource": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "triggerLabel": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "inputPreview": {
+                  "type": "object",
+                  "properties": {
+                    "runtimeInputs": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "nodeOverrides": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "params": {
+                            "default": {},
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "inputOverrides": {
+                            "default": {},
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "workflowId",
+                "organizationId",
+                "status",
+                "startTime",
+                "endTime",
+                "temporalRunId",
+                "workflowVersionId",
+                "workflowVersion",
+                "workflowName",
+                "eventCount",
+                "nodeCount",
+                "duration",
+                "triggerType",
+                "triggerSource",
+                "triggerLabel"
+              ]
+            }
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "runs",
+          "total"
+        ]
+      },
+      "AsmDashboardStatsDto": {
+        "type": "object",
+        "properties": {
+          "domains": {
+            "type": "number"
+          },
+          "assets": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "domains",
+          "assets"
+        ]
+      },
+      "WorkflowTemplateResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "code-security",
+              "cloud-security",
+              "attack-surface",
+              "notification"
+            ]
+          },
+          "graph": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "nodes": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y"
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "config": {
+                          "default": {
+                            "params": {},
+                            "inputOverrides": {}
+                          },
+                          "type": "object",
+                          "properties": {
+                            "params": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "inputOverrides": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "joinStrategy": {
+                              "type": "string",
+                              "enum": [
+                                "all",
+                                "any",
+                                "first"
+                              ]
+                            },
+                            "streamId": {
+                              "type": "string"
+                            },
+                            "groupId": {
+                              "type": "string"
+                            },
+                            "maxConcurrency": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "normal",
+                                "tool"
+                              ]
+                            },
+                            "toolConfig": {
+                              "type": "object",
+                              "properties": {
+                                "boundInputIds": {
+                                  "default": [],
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "exposedInputIds": {
+                                  "default": [],
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "connectedToolNodeIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "dynamicInputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "dynamicOutputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        }
+                      },
+                      "required": [
+                        "label"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "position",
+                    "data"
+                  ]
+                }
+              },
+              "edges": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "sourceHandle": {
+                      "type": "string"
+                    },
+                    "targetHandle": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "smoothstep",
+                        "step",
+                        "straight",
+                        "bezier"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "source",
+                    "target"
+                  ]
+                }
+              },
+              "viewport": {
+                "default": {
+                  "x": 0,
+                  "y": 0,
+                  "zoom": 1
+                },
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "zoom": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "zoom"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "nodes",
+              "edges"
+            ]
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "screenshotUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "isFeatured": {
+            "type": "boolean"
+          },
+          "runCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "category",
+          "graph",
+          "icon",
+          "isDefault",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateWorkflowTemplateRequestDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "code-security",
+              "cloud-security",
+              "attack-surface",
+              "notification"
+            ]
+          },
+          "graph": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "nodes": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y"
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "config": {
+                          "default": {
+                            "params": {},
+                            "inputOverrides": {}
+                          },
+                          "type": "object",
+                          "properties": {
+                            "params": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "inputOverrides": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "joinStrategy": {
+                              "type": "string",
+                              "enum": [
+                                "all",
+                                "any",
+                                "first"
+                              ]
+                            },
+                            "streamId": {
+                              "type": "string"
+                            },
+                            "groupId": {
+                              "type": "string"
+                            },
+                            "maxConcurrency": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "normal",
+                                "tool"
+                              ]
+                            },
+                            "toolConfig": {
+                              "type": "object",
+                              "properties": {
+                                "boundInputIds": {
+                                  "default": [],
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "exposedInputIds": {
+                                  "default": [],
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "connectedToolNodeIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "dynamicInputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "dynamicOutputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        }
+                      },
+                      "required": [
+                        "label"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "position",
+                    "data"
+                  ]
+                }
+              },
+              "edges": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "sourceHandle": {
+                      "type": "string"
+                    },
+                    "targetHandle": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "smoothstep",
+                        "step",
+                        "straight",
+                        "bezier"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "source",
+                    "target"
+                  ]
+                }
+              },
+              "viewport": {
+                "default": {
+                  "x": 0,
+                  "y": 0,
+                  "zoom": 1
+                },
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "zoom": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "zoom"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "nodes",
+              "edges"
+            ]
+          },
+          "icon": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "category",
+          "graph"
+        ]
+      },
+      "InstantiateWorkflowTemplateRequestDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "DeleteWorkflowTemplateResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "success"
         ]
       },
       "CreateSessionDto": {

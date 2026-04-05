@@ -107,11 +107,6 @@ export const backendEnvSchema = z
     GITHUB_API_URL: z.string().optional().default('https://api.github.com'),
     GITHUB_URL: z.string().optional().default('https://github.com'),
 
-    // --- GitHub OAuth ---
-    GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
-    GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
-    GITHUB_OAUTH_SCOPES: z.string().optional(),
-
     // --- Zoom OAuth ---
     ZOOM_OAUTH_CLIENT_ID: z.string().optional(),
     ZOOM_OAUTH_CLIENT_SECRET: z.string().optional(),

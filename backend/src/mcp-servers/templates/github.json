@@ -1,0 +1,63 @@
+{
+  "slug": "github",
+  "name": "GitHub MCP",
+  "description": "Official GitHub MCP server using your connected GitHub App installation.",
+  "transportType": "stdio",
+  "runtimeType": "host",
+  "authSource": "github_app",
+  "command": "docker",
+  "args": [
+    "run",
+    "-i",
+    "--rm",
+    "-e",
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "-e",
+    "GITHUB_TOOLSETS",
+    "-e",
+    "GITHUB_TOOLS",
+    "-e",
+    "GITHUB_DYNAMIC_TOOLSETS",
+    "-e",
+    "GITHUB_READ_ONLY",
+    "-e",
+    "GITHUB_HOST",
+    "ghcr.io/github/github-mcp-server"
+  ],
+  "docsUrl": "https://github.com/github/github-mcp-server",
+  "icon": "GitBranch",
+  "supportsReadOnly": true,
+  "supportsDynamicToolsets": true,
+  "availableToolsets": [
+    "context",
+    "actions",
+    "code_security",
+    "copilot",
+    "dependabot",
+    "discussions",
+    "gists",
+    "git",
+    "issues",
+    "labels",
+    "notifications",
+    "orgs",
+    "projects",
+    "pull_requests",
+    "repos",
+    "secret_protection",
+    "security_advisories",
+    "stargazers",
+    "users"
+  ],
+  "defaultToolsets": ["context", "repos", "issues", "pull_requests", "users"],
+  "version": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0
+  },
+  "github": {
+    "readOnly": false,
+    "toolsets": ["context", "repos", "issues", "pull_requests", "users"],
+    "dynamicToolsets": false
+  }
+}

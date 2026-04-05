@@ -10,6 +10,7 @@ export interface McpServerResponse {
   name: string;
   description?: string | null;
   transportType: 'http' | 'stdio';
+  runtimeType: 'docker' | 'host';
   endpoint?: string | null;
   command?: string | null;
   args?: string[] | null;
@@ -22,6 +23,49 @@ export interface McpServerResponse {
   createdAt: string;
   updatedAt: string;
   groupId?: string | null;
+  templateSlug?: string | null;
+  templateHash?: string | null;
+  templateConfig?: Record<string, unknown> | null;
+}
+
+export interface McpServerTemplateResponse {
+  slug: string;
+  name: string;
+  description?: string | null;
+  transportType: 'http' | 'stdio';
+  runtimeType: 'docker' | 'host';
+  authSource: 'none' | 'github_app';
+  docsUrl?: string | null;
+  icon?: string | null;
+  supportsReadOnly?: boolean;
+  supportsDynamicToolsets?: boolean;
+  availableToolsets?: string[];
+  defaultToolsets?: string[];
+  defaultTools?: string[];
+  importedServerId?: string | null;
+  version: {
+    major: number;
+    minor: number;
+    patch: number;
+  };
+}
+
+export interface ImportMcpServerTemplateInput {
+  name?: string;
+  description?: string;
+  github?: {
+    installationId: number;
+    readOnly?: boolean;
+    toolsets?: string[];
+    tools?: string[];
+    dynamicToolsets?: boolean;
+    githubHost?: string;
+  };
+}
+
+export interface ImportMcpServerTemplateResponse {
+  action: 'created' | 'updated';
+  server: McpServerResponse;
 }
 
 export interface McpToolResponse {
@@ -63,6 +107,15 @@ export function useMcpServers() {
   });
 }
 
+export function useMcpServerTemplates() {
+  return useQuery({
+    queryKey: queryKeys.mcpServers.templates(),
+    queryFn: () => apiRequest<McpServerTemplateResponse[]>('/api/v1/mcp-servers/templates'),
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+}
+
 export function useMcpAllTools() {
   return useQuery({
     queryKey: queryKeys.mcpServers.tools(),
@@ -81,6 +134,22 @@ export function useCreateMcpServer() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
+    },
+  });
+}
+
+export function useImportMcpServerTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ slug, input }: { slug: string; input: ImportMcpServerTemplateInput }) =>
+      apiRequest<ImportMcpServerTemplateResponse>(`/api/v1/mcp-servers/templates/${slug}/import`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
+      qc.invalidateQueries({ queryKey: queryKeys.mcpServers.templates() });
+      qc.invalidateQueries({ queryKey: queryKeys.mcpServers.tools() });
     },
   });
 }

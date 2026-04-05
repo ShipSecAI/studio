@@ -66,10 +66,7 @@ export function IntegrationCallback() {
         setStatus('success');
         setMessage(`Connected to ${connection.providerName}. Redirecting…`);
         setTimeout(() => {
-          const dest =
-            connection.provider === 'github'
-              ? '/github/repositories'
-              : `/integrations/${connection.provider}`;
+          const dest = `/integrations/${connection.provider}`;
           navigate(dest, { replace: true });
         }, 1200);
       } catch (error) {
@@ -97,12 +94,7 @@ export function IntegrationCallback() {
         <p className="text-sm text-muted-foreground mb-6">{message}</p>
 
         {status !== 'pending' && (
-          <Button
-            variant="outline"
-            onClick={() =>
-              navigate(provider === 'github' ? '/github/repositories' : `/integrations/${provider}`)
-            }
-          >
+          <Button variant="outline" onClick={() => navigate(`/integrations/${provider}`)}>
             Return to connections
           </Button>
         )}

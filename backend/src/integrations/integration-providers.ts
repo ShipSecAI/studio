@@ -33,10 +33,6 @@ export interface IntegrationProviderSummary {
 }
 
 export function loadIntegrationProviders(): Record<string, IntegrationProviderConfig> {
-  const githubScopes = process.env.GITHUB_OAUTH_SCOPES?.split(',')
-    .map((scope) => scope.trim())
-    .filter(Boolean) ?? ['repo', 'read:user'];
-
   const zoomScopes = process.env.ZOOM_OAUTH_SCOPES?.split(',')
     .map((scope) => scope.trim())
     .filter(Boolean) ?? ['user:read:admin'];
@@ -54,26 +50,6 @@ export function loadIntegrationProviders(): Record<string, IntegrationProviderCo
   ];
 
   return {
-    github: {
-      id: 'github',
-      name: 'GitHub',
-      description: 'Connect to GitHub APIs on behalf of this user/workspace.',
-      docsUrl:
-        'https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps',
-      authorizeUrl: 'https://github.com/login/oauth/authorize',
-      tokenUrl: 'https://github.com/login/oauth/access_token',
-      defaultScopes: githubScopes,
-      scopeSeparator: ' ',
-      supportsRefresh: true,
-      usesPkce: false,
-      tokenRequestEncoding: 'json',
-      tokenAuthMethod: 'client_secret_post',
-      extraAuthorizeParams: {
-        allow_signup: 'false',
-      },
-      clientId: process.env.GITHUB_OAUTH_CLIENT_ID ?? null,
-      clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET ?? null,
-    },
     zoom: {
       id: 'zoom',
       name: 'Zoom',

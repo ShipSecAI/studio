@@ -4,7 +4,6 @@ import { ArrowRight, CheckCircle2, Circle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries';
-import { useGitHubInstallations } from '@/hooks/queries/useGithubQueries';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -40,18 +39,6 @@ const PROVIDERS: ProviderMeta[] = [
     route: '/integrations/aws',
   },
   {
-    id: 'github',
-    name: 'GitHub',
-    description:
-      'Connect GitHub to scan repositories, manage triggers, and run security workflows.',
-    logo: '/icons/github.svg',
-    gradient: 'from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800',
-    borderAccent: 'hover:border-gray-400 dark:hover:border-gray-600',
-    hoverGradient: 'linear-gradient(to right, #333, #666)',
-    category: 'Code Security',
-    route: '/integrations/github',
-  },
-  {
     id: 'slack',
     name: 'Slack',
     description:
@@ -79,20 +66,16 @@ export function IntegrationsPage() {
 
   const { data: orgConnections = [], isLoading: loadingOrgConnections } =
     useIntegrationConnections();
-  const { data: githubInstallations = [], isLoading: loadingGithub } = useGitHubInstallations();
 
   const connectionCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const conn of orgConnections) {
       counts.set(conn.provider, (counts.get(conn.provider) ?? 0) + 1);
     }
-    if (githubInstallations.length > 0) {
-      counts.set('github', githubInstallations.length);
-    }
     return counts;
-  }, [orgConnections, githubInstallations]);
+  }, [orgConnections]);
 
-  const isLoading = loadingOrgConnections || loadingGithub;
+  const isLoading = loadingOrgConnections;
 
   return (
     <div className="flex-1 bg-background">

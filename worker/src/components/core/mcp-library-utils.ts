@@ -10,6 +10,7 @@ const McpServerSchema = z.object({
   name: z.string(),
   description: z.string().nullable().optional(),
   transportType: z.enum(['http', 'stdio', 'sse', 'websocket']),
+  runtimeType: z.enum(['docker', 'host']).optional(),
   endpoint: z.string().nullable().optional(),
   command: z.string().nullable().optional(),
   args: z.array(z.string()).nullable().optional(),
@@ -21,6 +22,9 @@ const McpServerSchema = z.object({
   lastHealthStatus: z.enum(['healthy', 'unhealthy', 'unknown']).nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  templateSlug: z.string().nullable().optional(),
+  templateHash: z.string().nullable().optional(),
+  templateConfig: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 export type McpServer = z.infer<typeof McpServerSchema>;
@@ -29,6 +33,7 @@ export type McpServer = z.infer<typeof McpServerSchema>;
 const ResolvedConfigSchema = z.object({
   headers: z.record(z.string(), z.string()).optional(),
   args: z.array(z.string()).optional(),
+  envVars: z.record(z.string(), z.string()).optional(),
 });
 
 // Schema for discovered MCP tools
@@ -72,7 +77,11 @@ export async function fetchEnabledServers(
 export async function fetchResolvedConfig(
   serverId: string,
   context: ExecutionContext,
-): Promise<{ headers?: Record<string, string>; args?: string[] }> {
+): Promise<{
+  headers?: Record<string, string>;
+  args?: string[];
+  envVars?: Record<string, string>;
+}> {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:3211';
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
   const orgId = context.metadata.organizationId;
@@ -183,12 +192,13 @@ export async function registerServerTools(
       attachments: {
         server: {
           managed: {
-            runtime: 'docker',
+            runtime: server.runtimeType ?? 'docker',
             launch: {
               type: 'stdio',
               command: args[0] || server.command || '',
               args: args.slice(1),
             },
+            ...(resolvedConfig.envVars ? { secrets: { env_vars: resolvedConfig.envVars } } : {}),
           },
         },
       },

@@ -692,6 +692,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/scanner-severity-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AnalyticsController_scannerSeverityCounts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/time-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AnalyticsController_timeSeries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/lifecycle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AnalyticsController_lifecycle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/settings": {
         parameters: {
             query?: never;
@@ -3995,42 +4043,100 @@ export interface components {
             }[];
         };
         AnalyticsQueryRequestDto: {
-            /** @description OpenSearch DSL query object */
-            query?: {
-                [key: string]: unknown;
-            };
+            /** @description Filter conditions */
+            filters?: {
+                field: string;
+                /** @enum {string} */
+                op: "eq" | "in" | "gte" | "lte" | "like" | "prefix" | "not_eq" | "exists" | "not_exists";
+                value?: unknown;
+            }[];
+            /** @description Free-text search across key fields */
+            search?: string;
+            /** @description Named aggregations */
+            aggs?: {
+                name: string;
+                field: string;
+                size?: number;
+            }[];
+            /** @description Sort specification */
+            sort?: {
+                field: string;
+                /** @enum {string} */
+                direction: "asc" | "desc";
+            }[];
+            /** @description Field to deduplicate results on */
+            distinct?: string;
             /** @description Number of results to return */
             size?: number;
             /** @description Offset for pagination */
             from?: number;
-            /** @description OpenSearch aggregations object */
-            aggs?: {
-                [key: string]: unknown;
-            };
-            /** @description Sort specification */
-            sort?: {
-                [key: string]: unknown;
-            }[];
-            /** @description Field collapsing specification for deduplication */
-            collapse?: {
-                [key: string]: unknown;
-            };
             /** @description Query the deduplicated latest-state index instead of the event log */
             useLatest?: boolean;
         };
         AnalyticsQueryResponseDto: {
             /** @description Total number of matching documents */
             total: number;
-            hits: {
-                _id: string;
-                _source: {
-                    [key: string]: unknown;
-                };
-                _score?: number;
+            results: {
+                [key: string]: unknown;
             }[];
             /** @description Aggregation results */
             aggregations?: {
-                [key: string]: unknown;
+                [key: string]: {
+                    key: string;
+                    count: number;
+                }[];
+            };
+        };
+        ScannerSeverityCountsRequestDto: {
+            filters?: {
+                field: string;
+                /** @enum {string} */
+                op: "eq" | "in" | "gte" | "lte" | "like" | "prefix" | "not_eq" | "exists" | "not_exists";
+                value?: unknown;
+            }[];
+            useLatest?: boolean;
+        };
+        ScannerSeverityCountsResponseDto: {
+            buckets: {
+                scanner: string;
+                severity: string;
+                count: number;
+            }[];
+        };
+        TimeSeriesRequestDto: {
+            filters?: {
+                field: string;
+                /** @enum {string} */
+                op: "eq" | "in" | "gte" | "lte" | "like" | "prefix" | "not_eq" | "exists" | "not_exists";
+                value?: unknown;
+            }[];
+            /**
+             * @default day
+             * @enum {string}
+             */
+            interval: "day" | "week" | "month";
+            /** @default 30 */
+            days: number;
+            timezone?: string;
+        };
+        TimeSeriesResponseDto: {
+            buckets: {
+                date: string;
+                severity: string;
+                count: number;
+            }[];
+        };
+        LifecycleRequestDto: {
+            hash?: string;
+            hashes?: string[];
+        };
+        LifecycleResponseDto: {
+            lifecycles: {
+                [key: string]: {
+                    firstSeen: string;
+                    lastSeen: string;
+                    occurrences: number;
+                };
             };
         };
         AnalyticsSettingsResponseDto: {
@@ -4067,7 +4173,7 @@ export interface components {
             usedBytes: number;
             documentCount: number;
             indexCount: number;
-            opensearchEnabled: boolean;
+            analyticsEnabled: boolean;
         };
         PurgeDataResponseDto: {
             deletedIndices: number;
@@ -7694,6 +7800,78 @@ export interface operations {
             };
         };
     };
+    AnalyticsController_scannerSeverityCounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScannerSeverityCountsRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Get severity counts grouped by scanner for security findings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScannerSeverityCountsResponseDto"];
+                };
+            };
+        };
+    };
+    AnalyticsController_timeSeries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TimeSeriesRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Get time-series data for security findings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeSeriesResponseDto"];
+                };
+            };
+        };
+    };
+    AnalyticsController_lifecycle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LifecycleRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Get lifecycle data (first seen, last seen, occurrences) for findings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleResponseDto"];
+                };
+            };
+        };
+    };
     AnalyticsController_getAnalyticsSettings: {
         parameters: {
             query?: never;
@@ -7771,7 +7949,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Get OpenSearch storage usage for the authenticated organization */
+            /** @description Get analytics storage usage for the authenticated organization */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7837,7 +8015,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Ensure tenant resources exist for organization */
+            /** @description Ensure analytics schema exists for organization */
             200: {
                 headers: {
                     [name: string]: unknown;

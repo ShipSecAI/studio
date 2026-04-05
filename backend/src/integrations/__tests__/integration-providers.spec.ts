@@ -2,11 +2,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 
 import { loadIntegrationProviders } from '../integration-providers';
 
-const DEFAULT_SCOPE_KEYS = [
-  'SLACK_OAUTH_SCOPES',
-  'GITHUB_OAUTH_SCOPES',
-  'ZOOM_OAUTH_SCOPES',
-] as const;
+const DEFAULT_SCOPE_KEYS = ['SLACK_OAUTH_SCOPES', 'ZOOM_OAUTH_SCOPES'] as const;
 
 function restoreEnv(savedEnv: Record<(typeof DEFAULT_SCOPE_KEYS)[number], string | undefined>) {
   for (const key of DEFAULT_SCOPE_KEYS) {
@@ -22,7 +18,6 @@ function restoreEnv(savedEnv: Record<(typeof DEFAULT_SCOPE_KEYS)[number], string
 describe('loadIntegrationProviders slack defaults', () => {
   const savedEnv = {
     SLACK_OAUTH_SCOPES: process.env.SLACK_OAUTH_SCOPES,
-    GITHUB_OAUTH_SCOPES: process.env.GITHUB_OAUTH_SCOPES,
     ZOOM_OAUTH_SCOPES: process.env.ZOOM_OAUTH_SCOPES,
   };
 

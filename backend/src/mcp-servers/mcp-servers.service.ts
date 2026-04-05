@@ -3,7 +3,6 @@ import Redis from 'ioredis';
 
 import { McpServersEncryptionService } from './mcp-servers.encryption';
 import { McpServersRepository, type McpServerUpdateData } from './mcp-servers.repository';
-import { TemporalService } from '../temporal/temporal.service';
 import type { AuthContext } from '../auth/types';
 import { AuditLogService } from '../audit/audit-log.service';
 import { DEFAULT_ORGANIZATION_ID } from '../auth/constants';
@@ -11,12 +10,24 @@ import type {
   CreateMcpServerDto,
   UpdateMcpServerDto,
   McpServerResponse,
+  McpServerTemplateResponse,
   McpToolResponse,
   TransportType,
   HealthStatus,
+  RuntimeType,
+  ImportMcpServerTemplateDto,
+  ImportMcpServerTemplateResponse,
 } from './dto/mcp-servers.dto';
 import type { McpServerRecord, McpServerToolRecord } from '../database/schema';
 import { SecretResolver } from '../secrets/secret-resolver';
+import {
+  computeTemplateHash,
+  getAllServerTemplates,
+  getServerTemplateBySlug,
+  type McpServerTemplate,
+} from './mcp-server-templates';
+import { GitHubAppService } from '../github-app/github-app.service';
+import { HotplugService } from '../hotplug/hotplug.service';
 
 // Redis injection token - defined as const to avoid circular dependency
 const MCP_SERVERS_REDIS = 'MCP_SERVERS_REDIS';
@@ -29,8 +40,9 @@ export class McpServersService {
     private readonly repository: McpServersRepository,
     private readonly encryption: McpServersEncryptionService,
     private readonly secretResolver: SecretResolver,
+    private readonly githubAppService: GitHubAppService,
+    @Optional() private readonly hotplugService: HotplugService | null,
     @Optional() @Inject(MCP_SERVERS_REDIS) private readonly redis: Redis | null,
-    @Optional() private readonly temporalService: TemporalService | null,
     private readonly auditLogService: AuditLogService,
   ) {}
 
@@ -46,6 +58,13 @@ export class McpServersService {
     return organizationId;
   }
 
+  private getRuntimeType(record: Pick<McpServerRecord, 'templateSlug'>): RuntimeType {
+    if (record.templateSlug) {
+      return getServerTemplateBySlug(record.templateSlug)?.runtimeType ?? 'docker';
+    }
+    return 'docker';
+  }
+
   private mapServerToResponse(
     record: McpServerRecord,
     headerKeys?: string[] | null,
@@ -55,6 +74,7 @@ export class McpServersService {
       name: record.name,
       description: record.description,
       transportType: record.transportType as TransportType,
+      runtimeType: this.getRuntimeType(record),
       endpoint: record.endpoint,
       command: record.command,
       args: record.args,
@@ -67,6 +87,87 @@ export class McpServersService {
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
       groupId: record.groupId ?? null,
+      templateSlug: record.templateSlug ?? null,
+      templateHash: record.templateHash ?? null,
+      templateConfig: (record.templateConfig as Record<string, unknown> | null) ?? null,
+    };
+  }
+
+  private normalizeStringList(value: unknown): string[] | undefined {
+    if (!Array.isArray(value)) return undefined;
+    const cleaned = value.map((item) => String(item).trim()).filter((item) => item.length > 0);
+    return cleaned.length > 0 ? cleaned : undefined;
+  }
+
+  private buildTemplateConfig(
+    template: McpServerTemplate,
+    input: ImportMcpServerTemplateDto,
+  ): Record<string, unknown> {
+    if (template.slug === 'github') {
+      if (!input.github) {
+        throw new BadRequestException('GitHub MCP requires GitHub App installation settings');
+      }
+      const defaults = template.github ?? {};
+      return {
+        installationId: input.github.installationId,
+        readOnly: input.github.readOnly ?? defaults.readOnly ?? false,
+        toolsets: input.github.toolsets ?? defaults.toolsets ?? template.defaultToolsets ?? [],
+        tools: input.github.tools ?? defaults.tools ?? template.defaultTools ?? [],
+        dynamicToolsets: input.github.dynamicToolsets ?? defaults.dynamicToolsets ?? false,
+        githubHost: input.github.githubHost ?? defaults.githubHost ?? undefined,
+      };
+    }
+
+    return {};
+  }
+
+  private async validateTemplateConfig(
+    template: McpServerTemplate,
+    config: Record<string, unknown>,
+    auth: AuthContext | null,
+  ): Promise<void> {
+    if (template.slug === 'github') {
+      const installationId = Number(config.installationId);
+      if (!Number.isFinite(installationId) || installationId <= 0) {
+        throw new BadRequestException('GitHub MCP requires a valid installationId');
+      }
+      if (!auth) {
+        throw new BadRequestException('Auth context is required for GitHub MCP');
+      }
+      const installations = await this.githubAppService.listInstallations(auth);
+      const installation = installations.find((item) => item.installationId === installationId);
+      if (!installation) {
+        throw new BadRequestException('GitHub installation is not available for this organization');
+      }
+    }
+  }
+
+  private buildTemplateServerData(
+    template: McpServerTemplate,
+    config: Record<string, unknown>,
+    input: ImportMcpServerTemplateDto,
+    organizationId: string,
+    createdBy: string | null | undefined,
+  ): Omit<McpServerRecord, 'id' | 'createdAt' | 'updatedAt'> {
+    const templateHash = computeTemplateHash(template);
+    return {
+      name: input.name?.trim() || template.name,
+      description: input.description?.trim() || template.description || null,
+      transportType: template.transportType,
+      endpoint: template.endpoint ?? null,
+      command: template.command ?? null,
+      args: template.args ?? null,
+      headers: null,
+      enabled: true,
+      healthCheckUrl: null,
+      lastHealthCheck: null,
+      lastHealthStatus: null,
+      groupId: null,
+      templateSlug: template.slug,
+      templateHash,
+      templateConfig: config,
+      organizationId,
+      createdBy: createdBy ?? null,
     };
   }
 
@@ -127,6 +228,95 @@ export class McpServersService {
       groupId: options?.groupId ?? undefined,
     });
     return servers.map((s) => this.mapServerToResponse(s));
+  }
+
+  async listTemplates(auth: AuthContext | null): Promise<McpServerTemplateResponse[]> {
+    const organizationId = this.assertOrganizationId(auth);
+    const existingServers = await this.repository.list({ organizationId });
+    const importedBySlug = new Map(
+      existingServers
+        .filter((server) => server.templateSlug)
+        .map((server) => [server.templateSlug as string, server.id]),
+    );
+
+    return getAllServerTemplates().map((template) => ({
+      slug: template.slug,
+      name: template.name,
+      description: template.description ?? null,
+      transportType: template.transportType,
+      runtimeType: template.runtimeType,
+      authSource: template.authSource,
+      docsUrl: template.docsUrl ?? null,
+      icon: template.icon ?? null,
+      supportsReadOnly: template.supportsReadOnly,
+      supportsDynamicToolsets: template.supportsDynamicToolsets,
+      availableToolsets: template.availableToolsets,
+      defaultToolsets: template.defaultToolsets,
+      defaultTools: template.defaultTools,
+      importedServerId: importedBySlug.get(template.slug) ?? null,
+      version: template.version,
+    }));
+  }
+
+  async importTemplate(
+    auth: AuthContext | null,
+    slug: string,
+    input: ImportMcpServerTemplateDto,
+  ): Promise<ImportMcpServerTemplateResponse> {
+    const organizationId = this.assertOrganizationId(auth);
+    const template = getServerTemplateBySlug(slug);
+    if (!template) {
+      throw new BadRequestException(`MCP server template '${slug}' not found`);
+    }
+
+    const templateConfig = this.buildTemplateConfig(template, input);
+    await this.validateTemplateConfig(template, templateConfig, auth);
+
+    const existing = await this.repository.findByTemplateSlug(slug, { organizationId });
+    const serverData = this.buildTemplateServerData(
+      template,
+      templateConfig,
+      input,
+      organizationId,
+      auth?.userId,
+    );
+
+    const server = existing
+      ? await this.repository.update(
+          existing.id,
+          {
+            name: serverData.name,
+            description: serverData.description,
+            transportType: serverData.transportType,
+            endpoint: serverData.endpoint,
+            command: serverData.command,
+            args: serverData.args,
+            headers: serverData.headers,
+            healthCheckUrl: serverData.healthCheckUrl,
+            templateSlug: serverData.templateSlug,
+            templateHash: serverData.templateHash,
+            templateConfig: serverData.templateConfig,
+            enabled: true,
+          },
+          { organizationId },
+        )
+      : await this.repository.create(serverData);
+
+    this.auditLogService.record(auth, {
+      action: existing ? 'mcp_server.import_template.update' : 'mcp_server.import_template.create',
+      resourceType: 'mcp_server',
+      resourceId: server.id,
+      resourceName: server.name,
+      metadata: {
+        slug,
+        templateHash: server.templateHash,
+      },
+    });
+
+    return {
+      action: existing ? 'updated' : 'created',
+      server: this.mapServerToResponse(server),
+    };
   }
 
   async getServer(auth: AuthContext | null, id: string): Promise<McpServerResponse> {
@@ -511,74 +701,39 @@ export class McpServersService {
         return await this.testHttpConnectionDirect(server);
       }
 
-      // For STDIO: use Temporal workflow to properly test via worker
-      if (!this.temporalService) {
-        throw new Error('TemporalService not available - cannot test stdio servers');
+      if (!this.hotplugService) {
+        throw new Error('HotplugService not available - cannot test stdio servers');
       }
 
-      this.logger.log(`Testing stdio server ${server.id} via Temporal workflow`);
-
-      // Start discovery workflow
-      const workflowResult = await this.temporalService.startWorkflow({
-        workflowType: 'mcpDiscoveryWorkflow',
-        taskQueue: process.env.TEMPORAL_TASK_QUEUE ?? 'shipsec-dev',
-        args: [
-          {
-            transport: 'stdio',
-            name: server.name,
-            command: server.command,
-            args: server.args,
-          } as const,
-        ],
+      this.logger.log(`Testing stdio server ${server.id} via Hotplug discovery`);
+      const resolvedConfig = await this.getResolvedConfig(auth, server.id);
+      const discovery = await this.hotplugService.discover({
+        managed: {
+          runtime: this.getRuntimeType(server),
+          launch: {
+            type: 'stdio',
+            command: server.command ?? '',
+            args: resolvedConfig.args ?? server.args ?? [],
+          },
+          ...(resolvedConfig.envVars ? { secrets: { env_vars: resolvedConfig.envVars } } : {}),
+        },
       });
 
-      // Wait for workflow to complete (with timeout)
-      const maxWaitTime = 60_000; // 60 seconds
-      const startTime = Date.now();
+      await this.repository.upsertTools(
+        id,
+        discovery.tools.map((tool) => ({
+          toolName: tool.name,
+          description: tool.description ?? null,
+          inputSchema: tool.inputSchema ?? null,
+        })),
+      );
+      await this.repository.updateHealthStatus(id, 'healthy', { organizationId });
+      const tools = await this.repository.listTools(id);
 
-      while (Date.now() - startTime < maxWaitTime) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        const status = await this.temporalService.describeWorkflow({
-          workflowId: workflowResult.workflowId,
-        });
-        const statusValue = status.status.toLowerCase();
-        if (statusValue === 'completed') {
-          // Discovery succeeded - tools are already saved by the workflow
-          await this.repository.updateHealthStatus(id, 'healthy', {});
-          const tools = await this.repository.listTools(id);
-          return {
-            success: true,
-            message: `Connection successful (${tools.length} tools discovered)`,
-            toolCount: tools.length,
-          };
-        }
-        if (statusValue === 'failed') {
-          await this.repository.updateHealthStatus(id, 'unhealthy', {});
-          return {
-            success: false,
-            message: 'Connection test failed - check server configuration',
-          };
-        }
-        if (
-          statusValue === 'terminated' ||
-          statusValue === 'canceled' ||
-          statusValue === 'timed out'
-        ) {
-          await this.repository.updateHealthStatus(id, 'unhealthy', {});
-          return {
-            success: false,
-            message: 'Connection test was canceled or timed out',
-          };
-        }
-        // Continue polling for 'running' status
-      }
-
-      // Timeout
-      await this.repository.updateHealthStatus(id, 'unhealthy', {});
       return {
-        success: false,
-        message: 'Connection test timed out after 60 seconds',
+        success: true,
+        message: `Connection successful (${tools.length} tools discovered)`,
+        toolCount: tools.length,
       };
     } catch (error) {
       // Update health status to unhealthy (configuration is invalid or test failed)
@@ -641,7 +796,7 @@ export class McpServersService {
         throw new Error(initData.error.message);
       }
 
-      // Try to get tool count
+      // Try to get tool count + cache discovered tools
       const toolsResponse = await fetch(server.endpoint, {
         method: 'POST',
         headers: {
@@ -659,11 +814,44 @@ export class McpServersService {
       });
 
       let toolCount = 0;
+      let discoveredTools:
+        | {
+            toolName: string;
+            description: string | null;
+            inputSchema: Record<string, unknown> | null;
+          }[]
+        | undefined;
       if (toolsResponse.ok) {
         const toolsData = (await toolsResponse.json()) as {
-          result?: { tools?: unknown[] };
+          result?: {
+            tools?: {
+              name?: string;
+              description?: string;
+              inputSchema?: Record<string, unknown>;
+            }[];
+          };
         };
-        toolCount = toolsData.result?.tools?.length ?? 0;
+        const tools = toolsData.result?.tools ?? [];
+        toolCount = tools.length;
+        discoveredTools = tools
+          .filter(
+            (
+              tool,
+            ): tool is {
+              name: string;
+              description?: string;
+              inputSchema?: Record<string, unknown>;
+            } => typeof tool.name === 'string' && tool.name.length > 0,
+          )
+          .map((tool) => ({
+            toolName: tool.name,
+            description: tool.description ?? null,
+            inputSchema: tool.inputSchema ?? null,
+          }));
+      }
+
+      if (discoveredTools && discoveredTools.length > 0) {
+        await this.repository.upsertTools(server.id, discoveredTools);
       }
 
       // Update health status to healthy
@@ -710,7 +898,11 @@ export class McpServersService {
   async getResolvedConfig(
     auth: AuthContext | null,
     serverId: string,
-  ): Promise<{ headers?: Record<string, string>; args?: string[] }> {
+  ): Promise<{
+    headers?: Record<string, string>;
+    args?: string[];
+    envVars?: Record<string, string>;
+  }> {
     const organizationId = this.assertOrganizationId(auth);
     const record = await this.repository.findById(serverId, { organizationId });
 
@@ -731,10 +923,46 @@ export class McpServersService {
     // Use SecretResolver to resolve secret references
     const resolved = await this.secretResolver.resolveMcpConfig(headers, args, { auth });
 
+    const envVars: Record<string, string> = {};
+    if (record.templateSlug === 'github') {
+      if (!auth) {
+        throw new BadRequestException('Auth context is required for GitHub MCP');
+      }
+      const config = (record.templateConfig ?? {}) as Record<string, unknown>;
+      const installationId = Number(config.installationId);
+      if (!Number.isFinite(installationId) || installationId <= 0) {
+        throw new BadRequestException('GitHub MCP server is missing installation configuration');
+      }
+
+      const token = await this.githubAppService.getInstallationTokenForOrg(installationId, auth);
+      envVars.GITHUB_PERSONAL_ACCESS_TOKEN = token;
+
+      const toolsets = this.normalizeStringList(config.toolsets);
+      if (toolsets) {
+        envVars.GITHUB_TOOLSETS = toolsets.join(',');
+      }
+
+      const tools = this.normalizeStringList(config.tools);
+      if (tools) {
+        envVars.GITHUB_TOOLS = tools.join(',');
+      }
+
+      if (config.dynamicToolsets === true) {
+        envVars.GITHUB_DYNAMIC_TOOLSETS = 'true';
+      }
+
+      envVars.GITHUB_READ_ONLY = config.readOnly === true ? 'true' : 'false';
+
+      if (typeof config.githubHost === 'string' && config.githubHost.length > 0) {
+        envVars.GITHUB_HOST = config.githubHost;
+      }
+    }
+
     // Convert null to undefined for return type
     return {
       headers: resolved.headers ?? undefined,
       args: resolved.args ?? undefined,
+      envVars: Object.keys(envVars).length > 0 ? envVars : undefined,
     };
   }
 }

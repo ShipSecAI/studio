@@ -40,7 +40,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SecretSelect } from '@/components/inputs/SecretSelect';
 import { KeyRound } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+// Card components removed from render — kept in file for future use
 import { McpDiscoveryPreview } from '@/components/mcp/McpDiscoveryPreview';
 import {
   Accordion,
@@ -52,7 +52,6 @@ import {
   Search,
   Plus,
   ArrowDownToLine,
-  ChevronDown,
   Trash2,
   Edit3,
   RefreshCw,
@@ -65,7 +64,6 @@ import {
   Layers,
   Cloud,
   Package,
-  GitBranch,
   Globe,
   Loader,
   Loader2,
@@ -74,6 +72,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useMcpServers,
+  useMcpServerTemplates,
   useMcpAllTools,
   useCreateMcpServer,
   useUpdateMcpServer,
@@ -83,8 +82,11 @@ import {
   useFetchServerTools,
   useToggleMcpTool,
   useDiscoverMcpTools,
+  useImportMcpServerTemplate,
+  type McpServerTemplateResponse,
 } from '@/hooks/queries/useMcpServerQueries';
 import { useMcpGroupsWithServers, useMcpGroupTemplates } from '@/hooks/queries/useMcpGroupQueries';
+import { useGitHubInstallations } from '@/hooks/queries/useGithubQueries';
 import { queryKeys } from '@/lib/queryKeys';
 import { useToast } from '@/components/ui/use-toast';
 import {
@@ -111,27 +113,58 @@ function getGroupIcon(groupSlug: string, groupName: string) {
   const name = groupName.toLowerCase();
 
   if (slug === 'aws' || name.includes('aws') || name.includes('amazon')) return Cloud;
-  if (slug.includes('github') || name.includes('github') || name.includes('git')) return GitBranch;
+  if (slug.includes('github') || name.includes('github')) return Package;
   if (slug.includes('gcp') || name.includes('gcp') || name.includes('google')) return Globe;
   return Package;
 }
 
 function getGroupLogoUrl(groupSlug: string) {
+  const slug = groupSlug.toLowerCase();
+
+  // Use reliable first-party CDNs for well-known providers
+  const directLogoMap: Record<string, string> = {
+    github: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
+  };
+  if (directLogoMap[slug]) return directLogoMap[slug];
+
+  // Fall back to logo.dev for everything else
   const domainMap: Record<string, string> = {
     aws: 'aws.amazon.com',
   };
-
-  const domain = domainMap[groupSlug.toLowerCase()];
+  const domain = domainMap[slug];
   if (!domain || !env.VITE_LOGO_DEV_PUBLIC_KEY) return null;
 
   return `https://img.logo.dev/${domain}?token=${env.VITE_LOGO_DEV_PUBLIC_KEY}`;
 }
 
-function GroupLogo({ slug, name, className }: { slug: string; name: string; className?: string }) {
-  const logoUrl = getGroupLogoUrl(slug);
-  const FallbackIcon = getGroupIcon(slug, name);
+function GitHubMark({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 98 96"
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn('h-5 w-5', className)}
+      aria-hidden="true"
+      fill="currentColor"
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"
+      />
+    </svg>
+  );
+}
 
+function GroupLogo({ slug, name, className }: { slug: string; name: string; className?: string }) {
+  const s = slug.toLowerCase();
+  const isGitHub = s === 'github' || name.toLowerCase().includes('github');
+  const logoUrl = isGitHub ? null : getGroupLogoUrl(slug);
+  const FallbackIcon = getGroupIcon(slug, name);
   const [showFallback, setShowFallback] = useState(!logoUrl);
+
+  if (isGitHub) {
+    return <GitHubMark className={className} />;
+  }
 
   if (showFallback) {
     return <FallbackIcon className={className} aria-hidden="true" />;
@@ -141,11 +174,8 @@ function GroupLogo({ slug, name, className }: { slug: string; name: string; clas
     <img
       src={logoUrl ?? undefined}
       alt={`${name} logo`}
-      className={cn('h-5 w-5 object-contain', className)}
-      onError={(event) => {
-        event.currentTarget.style.display = 'none';
-        setShowFallback(true);
-      }}
+      className={cn('h-5 w-5 object-contain dark:invert')}
+      onError={() => setShowFallback(true)}
     />
   );
 }
@@ -310,8 +340,8 @@ export function McpLibraryPage() {
   const [discoveringServerIds, setDiscoveringServerIds] = useState<Set<string>>(new Set());
   const { data: groupTemplates = [], isLoading: isLoadingTemplates } = useMcpGroupTemplates();
   const [importingTemplates, setImportingTemplates] = useState<Set<string>>(new Set());
-  const [templatesOpen, setTemplatesOpen] = useState(true);
-  const [templatesManuallyToggled, setTemplatesManuallyToggled] = useState(false);
+  const [_templatesOpen, setTemplatesOpen] = useState(true);
+  const [templatesManuallyToggled, _setTemplatesManuallyToggled] = useState(false);
   // Group template discovery preview state - keyed by template slug
   const [groupDiscoveryPreview, setGroupDiscoveryPreview] = useState<
     Record<
@@ -328,6 +358,10 @@ export function McpLibraryPage() {
     >
   >({});
   const [discoveringGroups, setDiscoveringGroups] = useState<Set<string>>(new Set());
+  const [serverTemplateInstallationIds, setServerTemplateInstallationIds] = useState<
+    Record<string, string>
+  >({});
+  const [serverTemplateReadOnly, setServerTemplateReadOnly] = useState<Record<string, boolean>>({});
   const [discoveryStatus, setDiscoveryStatus] = useState<{
     workflowId?: string;
     status?: 'running' | 'completed' | 'failed';
@@ -338,7 +372,10 @@ export function McpLibraryPage() {
 
   const queryClient = useQueryClient();
   const { data: servers = [], isLoading, error: serversError } = useMcpServers();
+  const { data: serverTemplates = [], isLoading: isLoadingServerTemplates } =
+    useMcpServerTemplates();
   const { data: tools = [] } = useMcpAllTools();
+  const { data: githubInstallations = [] } = useGitHubInstallations();
   const error = serversError?.message ?? null;
   const { data: groups = [] } = useMcpGroupsWithServers();
 
@@ -351,6 +388,7 @@ export function McpLibraryPage() {
   const fetchServerToolsMutation = useFetchServerTools();
   const toggleToolMutation = useToggleMcpTool();
   const discoverToolsMutation = useDiscoverMcpTools();
+  const importServerTemplateMutation = useImportMcpServerTemplate();
 
   const getGroupServers = useCallback(
     (groupId: string): McpGroupServerResponse[] => {
@@ -430,7 +468,9 @@ export function McpLibraryPage() {
 
   const filteredCustomServers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    const customServers = servers.filter((server) => !groupedServerIds.has(server.id));
+    const customServers = servers.filter(
+      (server) => !groupedServerIds.has(server.id) && !server.templateSlug,
+    );
 
     if (!query) return customServers;
 
@@ -455,6 +495,18 @@ export function McpLibraryPage() {
         template.description?.toLowerCase().includes(query),
     );
   }, [groupTemplates, searchQuery]);
+
+  const filteredServerTemplates = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return serverTemplates;
+
+    return serverTemplates.filter(
+      (template) =>
+        template.name.toLowerCase().includes(query) ||
+        template.slug.toLowerCase().includes(query) ||
+        template.description?.toLowerCase().includes(query),
+    );
+  }, [serverTemplates, searchQuery]);
 
   const filteredGroups = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -911,6 +963,17 @@ export function McpLibraryPage() {
 
     setDiscoveringServerIds((prev) => new Set(prev).add(serverId));
     try {
+      const server = servers.find((item) => item.id === serverId);
+      if (server?.templateSlug) {
+        const result = await testConnectionMutation.mutateAsync(serverId);
+        toast({
+          title: result.success ? 'Tool discovery complete' : 'Discovery failed',
+          description: result.message,
+          variant: result.success ? 'default' : 'destructive',
+        });
+        return;
+      }
+
       const tools = await discoverToolsMutation.mutateAsync({ serverId, servers, image });
       toast({
         title: 'Tool discovery complete',
@@ -1123,6 +1186,60 @@ export function McpLibraryPage() {
       toast({
         title: 'Import failed',
         description: err instanceof Error ? err.message : 'Failed to import group',
+        variant: 'destructive',
+      });
+    } finally {
+      setImportingTemplates((prev) => {
+        const next = new Set(prev);
+        next.delete(template.slug);
+        return next;
+      });
+    }
+  };
+
+  const handleImportServerTemplate = async (template: McpServerTemplateResponse) => {
+    if (importingTemplates.has(template.slug)) return;
+
+    if (template.slug === 'github') {
+      const installationValue = serverTemplateInstallationIds[template.slug];
+      const installationId = Number(installationValue);
+      if (!Number.isFinite(installationId) || installationId <= 0) {
+        toast({
+          title: 'Select a GitHub installation',
+          description: 'Choose a connected GitHub App installation before importing GitHub MCP.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    setImportingTemplates((prev) => new Set(prev).add(template.slug));
+    try {
+      const result = await importServerTemplateMutation.mutateAsync({
+        slug: template.slug,
+        input:
+          template.slug === 'github'
+            ? {
+                github: {
+                  installationId: Number(serverTemplateInstallationIds[template.slug]),
+                  readOnly: serverTemplateReadOnly[template.slug] ?? false,
+                  toolsets: template.defaultToolsets,
+                },
+              }
+            : {},
+      });
+
+      await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.templates() });
+
+      toast({
+        title: result.action === 'created' ? 'Server imported' : 'Server updated',
+        description: `${result.server.name} is now available in the MCP library.`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Import failed',
+        description: err instanceof Error ? err.message : 'Failed to import server template',
         variant: 'destructive',
       });
     } finally {
@@ -1651,620 +1768,746 @@ export function McpLibraryPage() {
         </Button>
       </div>
 
-      {/* Group Templates */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Layers className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">Group templates</h2>
-          <Badge variant="secondary" className="text-xs">
-            {filteredTemplates.length} {filteredTemplates.length === 1 ? 'group' : 'groups'}
-          </Badge>
-          <div className="ml-auto">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setTemplatesManuallyToggled(true);
-                setTemplatesOpen((v) => !v);
-              }}
-            >
-              {templatesOpen ? (
-                <>
-                  Hide
-                  <ChevronDown className="h-4 w-4 ml-2 rotate-180" />
-                </>
-              ) : (
-                <>
-                  Show
-                  <ChevronDown className="h-4 w-4 ml-2" />
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
+      {/* Curated Section */}
+      <div className="mb-8">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          Curated
+        </p>
+        <div className="rounded-lg border overflow-hidden">
+          {isLoadingTemplates && groups.length === 0 && isLoadingServerTemplates ? (
+            <div className="divide-y">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3">
+                  <Skeleton className="h-9 w-9 rounded-lg shrink-0" />
+                  <div className="flex-1 space-y-1">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-48" />
+                  </div>
+                  <Skeleton className="h-7 w-16 shrink-0" />
+                </div>
+              ))}
+            </div>
+          ) : filteredGroups.length === 0 &&
+            filteredTemplates.filter((t) => !importedGroupSlugs.has(t.slug)).length === 0 &&
+            filteredServerTemplates.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <Layers className="h-10 w-10 text-muted-foreground mb-3" />
+              <p className="text-sm text-muted-foreground">
+                {searchQuery
+                  ? 'No curated servers match your search.'
+                  : 'No curated servers available.'}
+              </p>
+            </div>
+          ) : (
+            <Accordion type="multiple" className="divide-y">
+              {/* Imported groups */}
+              {filteredGroups.map((group) => {
+                const theme = getGroupTheme(group.slug);
+                const groupServerList = getGroupServers(group.id);
+                const serverCount = groupServerList.length;
+                const totalTools = groupServerList.reduce((sum, server) => {
+                  const counts = getGroupServerToolCounts(server);
+                  return sum + (counts?.total ?? 0);
+                }, 0);
 
-        {templatesOpen && (
-          <>
-            {isLoadingTemplates ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {Array.from({ length: 2 }).map((_, i) => (
-                  <Card key={i} className="overflow-hidden">
-                    <CardHeader className="pb-4">
-                      <Skeleton className="h-5 w-40 mb-2" />
-                      <Skeleton className="h-4 w-64" />
-                    </CardHeader>
-                    <CardContent>
-                      <Skeleton className="h-12 w-full" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : filteredTemplates.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-8">
-                  <Cloud className="h-10 w-10 text-muted-foreground mb-3" />
-                  <p className="text-muted-foreground text-sm">
-                    {searchQuery ? 'No groups match your search.' : 'No group templates available.'}
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                {filteredTemplates.map((template) => {
+                return (
+                  <AccordionItem key={group.id} value={group.id} className="border-0">
+                    <div className="flex items-center gap-4 px-4 py-3 hover:bg-muted/30 transition-colors">
+                      <div className={cn('p-2 rounded-lg border shrink-0', theme.iconWrapper)}>
+                        <GroupLogo
+                          slug={group.slug}
+                          name={group.name}
+                          className={cn('h-5 w-5', theme.iconText)}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm">{group.name}</span>
+                          <Badge
+                            variant="outline"
+                            className="text-xs bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800"
+                          >
+                            Installed
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {serverCount} {serverCount === 1 ? 'server' : 'servers'}
+                          </Badge>
+                        </div>
+                        {group.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {group.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {totalTools > 0 && (
+                          <span className="text-xs text-muted-foreground">{totalTools} tools</span>
+                        )}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                void handleRemoveGroup(group.id, group.name);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Remove group</TooltipContent>
+                        </Tooltip>
+                        <AccordionTrigger className="hover:no-underline py-0 [&>svg]:h-4 [&>svg]:w-4" />
+                      </div>
+                    </div>
+                    <AccordionContent className="px-4 pb-4 pt-0 border-t">
+                      {serverCount === 0 ? (
+                        <div className="border rounded-lg">
+                          <Table>
+                            {renderServerTableHeader()}
+                            <TableBody>
+                              <TableRow>
+                                <TableCell colSpan={7} className="text-center py-8 text-sm">
+                                  <span className="text-muted-foreground">
+                                    No servers in this group
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <div className="border rounded-lg">
+                          <Table>
+                            {renderServerTableHeader()}
+                            <TableBody>
+                              {groupServerList.map((server) => {
+                                const groupServerId = server.serverId || server.id;
+                                const toolCounts = getGroupServerToolCounts(server);
+                                const healthStatus = getGroupServerHealthStatus(server);
+
+                                return (
+                                  <TableRow key={groupServerId}>
+                                    <TableCell>
+                                      <div>
+                                        <div className="font-medium">{server.serverName}</div>
+                                        {server.description && (
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <div className="text-xs text-muted-foreground truncate max-w-[180px]">
+                                                {server.description}
+                                              </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom" className="max-w-xs">
+                                              {server.description}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <TransportBadge type={server.transportType} />
+                                    </TableCell>
+                                    <TableCell>
+                                      {renderConnectionCell({
+                                        endpoint: server.endpoint,
+                                        command: server.command,
+                                        args: server.args,
+                                      })}
+                                    </TableCell>
+                                    <TableCell>
+                                      <HealthIndicator
+                                        status={healthStatus}
+                                        checking={checkingServers.has(groupServerId)}
+                                      />
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      {toolCounts && toolCounts.total > 0 ? (
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="h-7 px-2 font-mono text-xs"
+                                              onClick={() => handleViewTools(groupServerId)}
+                                            >
+                                              {toolCounts.enabled}/{toolCounts.total}
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>
+                                              {toolCounts.enabled} enabled out of {toolCounts.total}{' '}
+                                              tools
+                                            </p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      ) : (
+                                        <span className="text-muted-foreground text-xs">—</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      <Switch
+                                        checked={server.enabled}
+                                        onCheckedChange={() => handleToggle(groupServerId)}
+                                      />
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => handleViewTools(groupServerId)}
+                                            >
+                                              <Wrench className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>View tools</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() =>
+                                                handleDiscoverServerTools(
+                                                  groupServerId,
+                                                  group.defaultDockerImage ?? undefined,
+                                                )
+                                              }
+                                              disabled={discoveringServerIds.has(groupServerId)}
+                                            >
+                                              {discoveringServerIds.has(groupServerId) ? (
+                                                <Loader className="h-4 w-4 animate-spin" />
+                                              ) : (
+                                                <RefreshCw className="h-4 w-4" />
+                                              )}
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>Rediscover tools</TooltipContent>
+                                        </Tooltip>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+
+              {/* Available group templates (not yet imported) */}
+              {filteredTemplates
+                .filter((template) => !importedGroupSlugs.has(template.slug))
+                .map((template) => {
                   const theme = getGroupTheme(template.slug);
-                  const isImported = importedGroupSlugs.has(template.slug);
 
                   return (
-                    <Card
+                    <AccordionItem
                       key={template.slug}
-                      className={cn('overflow-hidden border', theme.container)}
+                      value={`template-${template.slug}`}
+                      className="border-0"
                     >
-                      <CardHeader
-                        className={cn(
-                          'flex flex-row items-center gap-3 py-3 border-b',
-                          theme.headerBorder,
-                        )}
-                      >
-                        <div className={cn('p-2.5 rounded-lg border', theme.iconWrapper)}>
+                      <div className="flex items-center gap-4 px-4 py-3 hover:bg-muted/30 transition-colors">
+                        <div className={cn('p-2 rounded-lg border shrink-0', theme.iconWrapper)}>
                           <GroupLogo
                             slug={template.slug}
                             name={template.name}
-                            className={theme.iconText}
+                            className={cn('h-5 w-5', theme.iconText)}
                           />
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-base">{template.name}</h3>
-                            <Badge variant="secondary" className="text-xs">
-                              {template.servers.length} servers
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm">{template.name}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {template.servers.length}{' '}
+                              {template.servers.length === 1 ? 'server' : 'servers'}
                             </Badge>
                           </div>
                           {template.description && (
-                            <p className="text-sm text-muted-foreground mt-1">
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate">
                               {template.description}
                             </p>
                           )}
                         </div>
-                        {isImported && (
-                          <Badge variant="secondary" className="text-xs">
-                            Imported
-                          </Badge>
-                        )}
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {/* Discovery Preview */}
-                        {groupDiscoveryPreview[template.slug] && (
-                          <McpDiscoveryPreview
-                            results={groupDiscoveryPreview[template.slug]}
-                            onClear={() => {
-                              setGroupDiscoveryPreview((prev) => {
-                                const { [template.slug]: _, ...rest } = prev;
-                                return rest;
-                              });
-                            }}
-                          />
-                        )}
-
-                        {/* Discovery summary when available */}
-                        {groupDiscoveryPreview[template.slug] && (
-                          <div className="flex items-center justify-between text-sm bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md px-3 py-2">
-                            <span className="text-green-700 dark:text-green-300">
-                              {
-                                groupDiscoveryPreview[template.slug].filter(
-                                  (r) => r.status === 'completed',
-                                ).length
-                              }{' '}
-                              of {template.servers.length} servers ready
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Action buttons */}
-                        <div className="flex justify-end gap-2 pt-2">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <AccordionTrigger className="hover:no-underline py-0 [&>svg]:h-4 [&>svg]:w-4" />
+                        </div>
+                      </div>
+                      <AccordionContent className="px-4 pb-4 pt-0 border-t">
+                        <div className="space-y-3 pt-3">
                           {groupDiscoveryPreview[template.slug] && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
+                            <McpDiscoveryPreview
+                              results={groupDiscoveryPreview[template.slug]}
+                              onClear={() => {
                                 setGroupDiscoveryPreview((prev) => {
                                   const { [template.slug]: _, ...rest } = prev;
                                   return rest;
                                 });
                               }}
-                            >
-                              Clear
-                            </Button>
+                            />
                           )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleGroupTestAndDiscover(template)}
-                            disabled={discoveringGroups.has(template.slug)}
-                          >
-                            {discoveringGroups.has(template.slug) ? (
-                              <>
-                                <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                                Discovering...
-                              </>
-                            ) : (
-                              <>
-                                <Search className="h-3 w-3 mr-2" />
-                                Test & Discover
-                              </>
+
+                          {groupDiscoveryPreview[template.slug] && (
+                            <div className="flex items-center justify-between text-sm bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md px-3 py-2">
+                              <span className="text-green-700 dark:text-green-300">
+                                {
+                                  groupDiscoveryPreview[template.slug].filter(
+                                    (r) => r.status === 'completed',
+                                  ).length
+                                }{' '}
+                                of {template.servers.length} servers ready
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="flex justify-end gap-2">
+                            {groupDiscoveryPreview[template.slug] && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setGroupDiscoveryPreview((prev) => {
+                                    const { [template.slug]: _, ...rest } = prev;
+                                    return rest;
+                                  });
+                                }}
+                              >
+                                Clear
+                              </Button>
                             )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            disabled={
-                              isImported ||
-                              importingTemplates.has(template.slug) ||
-                              !groupDiscoveryPreview[template.slug] ||
-                              groupDiscoveryPreview[template.slug].some(
-                                (r) => r.status !== 'completed',
-                              )
-                            }
-                            onClick={() => handleImportDiscoveredTemplate(template)}
-                          >
-                            {importingTemplates.has(template.slug) ? (
-                              <>
-                                <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
-                                Importing...
-                              </>
-                            ) : (
-                              <>
-                                <ArrowDownToLine className="h-3 w-3 mr-2" />
-                                Import
-                              </>
-                            )}
-                          </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleGroupTestAndDiscover(template)}
+                              disabled={discoveringGroups.has(template.slug)}
+                            >
+                              {discoveringGroups.has(template.slug) ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                                  Discovering...
+                                </>
+                              ) : (
+                                <>
+                                  <Search className="h-3 w-3 mr-2" />
+                                  Test & Discover
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={
+                                importingTemplates.has(template.slug) ||
+                                !groupDiscoveryPreview[template.slug] ||
+                                groupDiscoveryPreview[template.slug].some(
+                                  (r) => r.status !== 'completed',
+                                )
+                              }
+                              onClick={() => handleImportDiscoveredTemplate(template)}
+                            >
+                              {importingTemplates.has(template.slug) ? (
+                                <>
+                                  <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
+                                  Importing...
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowDownToLine className="h-3 w-3 mr-2" />
+                                  Import
+                                </>
+                              )}
+                            </Button>
+                          </div>
                         </div>
-                      </CardContent>
-                    </Card>
+                      </AccordionContent>
+                    </AccordionItem>
                   );
                 })}
-              </div>
-            )}
-          </>
-        )}
-      </div>
 
-      {/* Imported Groups Section */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <Package className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">MCP groups</h2>
-          <Badge variant="secondary" className="text-xs">
-            {filteredGroups.length} {filteredGroups.length === 1 ? 'group' : 'groups'}
-          </Badge>
-          <div className="ml-auto flex items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <HelpCircle className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                Import curated MCP groups to auto-register servers and discover tools.
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
+              {/* Server templates */}
+              {filteredServerTemplates.map((template) => {
+                const githubInstallationValue = serverTemplateInstallationIds[template.slug] ?? '';
+                const githubReadOnly = serverTemplateReadOnly[template.slug] ?? false;
+                const isImported = Boolean(template.importedServerId);
 
-        {isLoading && groups.length === 0 ? (
-          <div className="space-y-3">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <Card key={i} className="overflow-hidden">
-                <CardHeader className="pb-4">
-                  <Skeleton className="h-5 w-40 mb-2" />
-                  <Skeleton className="h-4 w-64" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-14 w-full" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : filteredGroups.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-8">
-              <Cloud className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-muted-foreground text-sm">
-                {searchQuery ? 'No imported groups match your search.' : 'No groups imported yet.'}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Accordion type="multiple" className="space-y-3">
-            {filteredGroups.map((group) => {
-              const theme = getGroupTheme(group.slug);
-              const groupServerList = getGroupServers(group.id);
-              const serverCount = groupServerList.length;
-
-              return (
-                <AccordionItem
-                  key={group.id}
-                  value={group.id}
-                  className={cn('rounded-lg border overflow-hidden', theme.container)}
-                >
-                  <div className={cn('flex items-center px-4 py-3', theme.headerBorder)}>
-                    <div className="flex-1 min-w-0">
-                      <AccordionTrigger className="hover:no-underline py-0 w-full">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className={cn('p-2 rounded-lg border', theme.iconWrapper)}>
-                            <GroupLogo
-                              slug={group.slug}
-                              name={group.name}
-                              className={theme.iconText}
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0 text-left">
-                            <div className="flex items-center gap-3">
-                              <h3 className="font-semibold">{group.name}</h3>
-                              <Badge variant="secondary" className="text-xs font-medium">
-                                {serverCount} {serverCount === 1 ? 'server' : 'servers'}
-                              </Badge>
-                            </div>
-                            {group.description && (
-                              <p className="text-sm text-muted-foreground mt-0.5">
-                                {group.description}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </AccordionTrigger>
-                    </div>
-                    <div className="ml-2 shrink-0">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          void handleRemoveGroup(group.id, group.name);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-                  <AccordionContent className="px-4 pb-4">
-                    {serverCount === 0 ? (
-                      <div className="border rounded-lg">
-                        <Table>
-                          {renderServerTableHeader()}
-                          <TableBody>
-                            <TableRow>
-                              <TableCell colSpan={7} className="text-center py-8 text-sm">
-                                <span className="text-muted-foreground">
-                                  No servers in this group
-                                </span>
-                              </TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
+                return (
+                  <AccordionItem
+                    key={template.slug}
+                    value={`server-template-${template.slug}`}
+                    className="border-0"
+                  >
+                    <div className="flex items-center gap-4 px-4 py-3 hover:bg-muted/30 transition-colors">
+                      <div className="p-2 rounded-lg border bg-muted shrink-0">
+                        <GroupLogo
+                          slug={template.slug}
+                          name={template.name}
+                          className="h-5 w-5 text-muted-foreground"
+                        />
                       </div>
-                    ) : (
-                      <div className="border rounded-lg">
-                        <Table>
-                          {renderServerTableHeader()}
-                          <TableBody>
-                            {groupServerList.map((server) => {
-                              const groupServerId = server.serverId || server.id;
-                              const toolCounts = getGroupServerToolCounts(server);
-                              const healthStatus = getGroupServerHealthStatus(server);
-
-                              return (
-                                <TableRow key={groupServerId}>
-                                  <TableCell>
-                                    <div>
-                                      <div className="font-medium">{server.serverName}</div>
-                                      {server.description && (
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <div className="text-xs text-muted-foreground truncate max-w-[180px]">
-                                              {server.description}
-                                            </div>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="bottom" className="max-w-xs">
-                                            {server.description}
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <TransportBadge type={server.transportType} />
-                                  </TableCell>
-                                  <TableCell>
-                                    {renderConnectionCell({
-                                      endpoint: server.endpoint,
-                                      command: server.command,
-                                      args: server.args,
-                                    })}
-                                  </TableCell>
-                                  <TableCell>
-                                    <HealthIndicator
-                                      status={healthStatus}
-                                      checking={checkingServers.has(groupServerId)}
-                                    />
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    {toolCounts && toolCounts.total > 0 ? (
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-7 px-2 font-mono text-xs"
-                                            onClick={() => handleViewTools(groupServerId)}
-                                          >
-                                            {toolCounts.enabled}/{toolCounts.total}
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p>
-                                            {toolCounts.enabled} enabled out of {toolCounts.total}{' '}
-                                            tools
-                                          </p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    ) : (
-                                      <span className="text-muted-foreground text-xs">—</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    <Switch
-                                      checked={server.enabled}
-                                      onCheckedChange={() => handleToggle(groupServerId)}
-                                    />
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <div className="flex items-center justify-end gap-1">
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => handleViewTools(groupServerId)}
-                                          >
-                                            <Wrench className="h-4 w-4" />
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>View tools</TooltipContent>
-                                      </Tooltip>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() =>
-                                              handleDiscoverServerTools(
-                                                groupServerId,
-                                                group.defaultDockerImage ?? undefined,
-                                              )
-                                            }
-                                            disabled={discoveringServerIds.has(groupServerId)}
-                                          >
-                                            {discoveringServerIds.has(groupServerId) ? (
-                                              <Loader className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                              <RefreshCw className="h-4 w-4" />
-                                            )}
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Rediscover tools</TooltipContent>
-                                      </Tooltip>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </AccordionContent>
-                </AccordionItem>
-              );
-            })}
-          </Accordion>
-        )}
-      </div>
-
-      {/* Custom Servers */}
-      <div className="flex items-center gap-3 mb-4">
-        <Package className="h-5 w-5 text-primary" />
-        <h2 className="text-lg font-semibold">Custom MCP Servers</h2>
-        <Badge variant="secondary" className="text-xs">
-          {filteredCustomServers.length} {filteredCustomServers.length === 1 ? 'server' : 'servers'}
-        </Badge>
-      </div>
-      <div className="border rounded-lg">
-        <Table>
-          {renderServerTableHeader()}
-          <TableBody>
-            {isLoading && servers.length === 0 ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell>
-                    <Skeleton className="h-5 w-32" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-16" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-32" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-20" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-10 mx-auto" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-10 mx-auto" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-8 w-24 ml-auto" />
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : filteredCustomServers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-12">
-                  <Plug className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">
-                    {searchQuery ? 'No servers match your search' : 'No custom servers configured'}
-                  </p>
-                  {!searchQuery && (
-                    <Button variant="outline" className="mt-4" onClick={handleCreateNew}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add your first custom server
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredCustomServers.map((server) => (
-                <TableRow key={server.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{server.name}</div>
-                      {server.description && (
-                        <div className="text-xs text-muted-foreground truncate max-w-[180px]">
-                          {server.description}
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <TransportBadge type={server.transportType} />
-                  </TableCell>
-                  <TableCell>
-                    {renderConnectionCell({
-                      endpoint: server.endpoint,
-                      command: server.command,
-                      args: server.args,
-                    })}
-                  </TableCell>
-                  <TableCell>
-                    <HealthIndicator
-                      status={server.lastHealthStatus ?? null}
-                      checking={checkingServers.has(server.id)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {toolCountsByServer[server.id]?.total > 0 ? (
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Badge variant="outline" className="font-mono text-xs">
-                            {toolCountsByServer[server.id].enabled}/
-                            {toolCountsByServer[server.id].total}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm">{template.name}</span>
+                          {isImported && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800"
+                            >
+                              Installed
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs uppercase">
+                            {template.runtimeType}
                           </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>
-                            {toolCountsByServer[server.id].enabled} enabled out of{' '}
-                            {toolCountsByServer[server.id].total} tools
+                        </div>
+                        {template.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {template.description}
                           </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <AccordionTrigger className="hover:no-underline py-0 [&>svg]:h-4 [&>svg]:w-4" />
+                      </div>
+                    </div>
+                    <AccordionContent className="px-4 pb-4 pt-0 border-t">
+                      <div className="space-y-4 pt-3">
+                        {template.slug === 'github' && (
+                          <>
+                            <div className="space-y-2">
+                              <Label htmlFor={`template-installation-${template.slug}`}>
+                                GitHub App installation
+                              </Label>
+                              {githubInstallations.length === 0 ? (
+                                <div className="flex items-center justify-between rounded-md border border-dashed px-3 py-2.5 text-sm text-muted-foreground">
+                                  <span>No installation found</span>
+                                  <a
+                                    href="/integrations/github"
+                                    className="text-primary hover:underline font-medium text-xs"
+                                  >
+                                    Connect GitHub App →
+                                  </a>
+                                </div>
+                              ) : (
+                                <Select
+                                  value={githubInstallationValue}
+                                  onValueChange={(value) =>
+                                    setServerTemplateInstallationIds((prev) => ({
+                                      ...prev,
+                                      [template.slug]: value,
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger id={`template-installation-${template.slug}`}>
+                                    <SelectValue placeholder="Select an installation" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {githubInstallations.map((installation) => (
+                                      <SelectItem
+                                        key={installation.id}
+                                        value={String(installation.installationId)}
+                                      >
+                                        {installation.accountLogin}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                              <div>
+                                <p className="text-sm font-medium">Read-only mode</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Skip write tools and keep the MCP server investigation-focused.
+                                </p>
+                              </div>
+                              <Switch
+                                checked={githubReadOnly}
+                                onCheckedChange={(checked) =>
+                                  setServerTemplateReadOnly((prev) => ({
+                                    ...prev,
+                                    [template.slug]: checked,
+                                  }))
+                                }
+                              />
+                            </div>
+
+                            {template.defaultToolsets && template.defaultToolsets.length > 0 && (
+                              <div className="space-y-2">
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  Default toolsets
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {template.defaultToolsets.map((toolset) => (
+                                    <Badge
+                                      key={toolset}
+                                      variant="secondary"
+                                      className="text-[10px]"
+                                    >
+                                      {toolset}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs text-muted-foreground">
+                            Imported servers become available in workflow MCP tool-source pickers.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            {isImported && template.importedServerId && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleDiscoverServerTools(template.importedServerId!)
+                                    }
+                                    disabled={discoveringServerIds.has(template.importedServerId)}
+                                  >
+                                    {discoveringServerIds.has(template.importedServerId) ? (
+                                      <Loader className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <RefreshCw className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Rediscover tools via Hotplug</TooltipContent>
+                              </Tooltip>
+                            )}
+                            <Button
+                              size="sm"
+                              onClick={() => handleImportServerTemplate(template)}
+                              disabled={
+                                importingTemplates.has(template.slug) ||
+                                (template.slug === 'github' && githubInstallations.length === 0)
+                              }
+                            >
+                              {importingTemplates.has(template.slug) ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                                  Importing...
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowDownToLine className="h-3 w-3 mr-2" />
+                                  {isImported ? 'Update import' : 'Import'}
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
+          )}
+        </div>
+      </div>
+
+      {/* Custom Section */}
+      <div className="mb-8">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          Custom
+        </p>
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            {renderServerTableHeader()}
+            <TableBody>
+              {isLoading && servers.length === 0 ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Skeleton className="h-5 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-20" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-10 mx-auto" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-10 mx-auto" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-8 w-24 ml-auto" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : filteredCustomServers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12">
+                    <Plug className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">
+                      {searchQuery
+                        ? 'No servers match your search'
+                        : 'No standalone servers configured'}
+                    </p>
+                    {!searchQuery && (
+                      <Button variant="outline" className="mt-4" onClick={handleCreateNew}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add your first server
+                      </Button>
                     )}
                   </TableCell>
-                  <TableCell className="text-center">
-                    <Switch
-                      checked={server.enabled}
-                      onCheckedChange={() => handleToggle(server.id)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleViewTools(server.id)}
-                          >
-                            <Wrench className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>View tools</TooltipContent>
-                      </Tooltip>
-
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleTestConnection(server.id)}
-                            disabled={testingServer === server.id}
-                          >
-                            <Plug
-                              className={cn(
-                                'h-4 w-4',
-                                testingServer === server.id && 'animate-pulse',
-                              )}
-                            />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Test connection</TooltipContent>
-                      </Tooltip>
-
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(server.id)}>
-                            <Edit3 className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Edit</TooltipContent>
-                      </Tooltip>
-
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setServerToDelete(server.id);
-                              setDeleteDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Delete</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                filteredCustomServers.map((server) => (
+                  <TableRow key={server.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{server.name}</div>
+                        {server.description && (
+                          <div className="text-xs text-muted-foreground truncate max-w-[180px]">
+                            {server.description}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <TransportBadge type={server.transportType} />
+                    </TableCell>
+                    <TableCell>
+                      {renderConnectionCell({
+                        endpoint: server.endpoint,
+                        command: server.command,
+                        args: server.args,
+                      })}
+                    </TableCell>
+                    <TableCell>
+                      <HealthIndicator
+                        status={server.lastHealthStatus ?? null}
+                        checking={checkingServers.has(server.id)}
+                      />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {toolCountsByServer[server.id]?.total > 0 ? (
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {toolCountsByServer[server.id].enabled}/
+                              {toolCountsByServer[server.id].total}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>
+                              {toolCountsByServer[server.id].enabled} enabled out of{' '}
+                              {toolCountsByServer[server.id].total} tools
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Switch
+                        checked={server.enabled}
+                        onCheckedChange={() => handleToggle(server.id)}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleViewTools(server.id)}
+                            >
+                              <Wrench className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>View tools</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleTestConnection(server.id)}
+                              disabled={testingServer === server.id}
+                            >
+                              <Plug
+                                className={cn(
+                                  'h-4 w-4',
+                                  testingServer === server.id && 'animate-pulse',
+                                )}
+                              />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Test connection</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(server.id)}
+                            >
+                              <Edit3 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setServerToDelete(server.id);
+                                setDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          {!searchQuery && filteredCustomServers.length > 0 && (
+            <div className="border-t px-4 py-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCreateNew}
+                className="w-full justify-center text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add custom server
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Server Editor Sheet */}

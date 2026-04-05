@@ -3,7 +3,7 @@ import Redis from 'ioredis';
 
 import { DatabaseModule } from '../database/database.module';
 import { SecretsModule } from '../secrets/secrets.module';
-import { TemporalModule } from '../temporal/temporal.module';
+import { HotplugModule } from '../hotplug/hotplug.module';
 import { McpServersController } from './mcp-servers.controller';
 import { McpServersEncryptionService } from './mcp-servers.encryption';
 import { McpServersRepository } from './mcp-servers.repository';
@@ -13,7 +13,7 @@ import { McpServersService } from './mcp-servers.service';
 const MCP_SERVERS_REDIS = 'MCP_SERVERS_REDIS';
 
 @Module({
-  imports: [DatabaseModule, SecretsModule, TemporalModule],
+  imports: [DatabaseModule, SecretsModule, HotplugModule],
   controllers: [McpServersController],
   providers: [
     McpServersService,

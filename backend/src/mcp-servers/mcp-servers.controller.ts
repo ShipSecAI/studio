@@ -25,9 +25,13 @@ import {
   CreateMcpServerDto,
   UpdateMcpServerDto,
   McpServerResponse,
+  McpServerTemplateResponse,
   McpToolResponse,
   TestConnectionResponse,
   HealthStatusResponse,
+  ImportMcpServerTemplateDto,
+  ImportMcpServerTemplateResponse,
+  ResolvedMcpConfigResponse,
 } from './dto/mcp-servers.dto';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
@@ -64,6 +68,15 @@ export class McpServersController {
   @ApiOkResponse({ type: [McpToolResponse] })
   async getAllTools(@CurrentAuth() auth: AuthContext | null): Promise<McpToolResponse[]> {
     return this.mcpServersService.getAllTools(auth);
+  }
+
+  @Get('templates')
+  @ApiOperation({ summary: 'List available curated MCP server templates' })
+  @ApiOkResponse({ type: [McpServerTemplateResponse] })
+  async listTemplates(
+    @CurrentAuth() auth: AuthContext | null,
+  ): Promise<McpServerTemplateResponse[]> {
+    return this.mcpServersService.listTemplates(auth);
   }
 
   @Get('health')
@@ -103,6 +116,17 @@ export class McpServersController {
     @Body() body: CreateMcpServerDto,
   ): Promise<McpServerResponse> {
     return this.mcpServersService.createServer(auth, body);
+  }
+
+  @Post('templates/:slug/import')
+  @ApiOperation({ summary: 'Import or update a curated MCP server template' })
+  @ApiCreatedResponse({ type: ImportMcpServerTemplateResponse })
+  async importTemplate(
+    @CurrentAuth() auth: AuthContext | null,
+    @Param('slug') slug: string,
+    @Body() body: ImportMcpServerTemplateDto,
+  ): Promise<ImportMcpServerTemplateResponse> {
+    return this.mcpServersService.importTemplate(auth, slug, body);
   }
 
   @Patch(':id')
@@ -160,11 +184,15 @@ export class McpServersController {
 
   @Get(':id/resolve')
   @ApiOperation({ summary: 'Get resolved MCP server configuration (with secrets resolved)' })
-  @ApiOkResponse({ type: Object })
+  @ApiOkResponse({ type: ResolvedMcpConfigResponse })
   async getResolvedConfig(
     @CurrentAuth() auth: AuthContext | null,
     @Param('id', new ParseUUIDPipe()) id: string,
-  ): Promise<{ headers?: Record<string, string>; args?: string[] }> {
+  ): Promise<{
+    headers?: Record<string, string>;
+    args?: string[];
+    envVars?: Record<string, string>;
+  }> {
     return this.mcpServersService.getResolvedConfig(auth, id);
   }
 }
