@@ -29,6 +29,7 @@ export interface McpServerTemplate {
   docsUrl?: string;
   icon?: string;
   supportsReadOnly?: boolean;
+  readOnlyDisabledTools?: string[];
   supportsDynamicToolsets?: boolean;
   availableToolsets?: string[];
   defaultToolsets?: string[];
@@ -49,6 +50,7 @@ export function computeTemplateHash(template: McpServerTemplate): string {
     endpoint: template.endpoint,
     docsUrl: template.docsUrl,
     supportsReadOnly: template.supportsReadOnly,
+    readOnlyDisabledTools: template.readOnlyDisabledTools,
     supportsDynamicToolsets: template.supportsDynamicToolsets,
     availableToolsets: template.availableToolsets,
     defaultToolsets: template.defaultToolsets,

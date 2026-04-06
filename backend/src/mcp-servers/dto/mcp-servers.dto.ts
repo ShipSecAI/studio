@@ -169,6 +169,7 @@ export const McpServerTemplateSchema = z.object({
   docsUrl: z.string().nullable().optional(),
   icon: z.string().nullable().optional(),
   supportsReadOnly: z.boolean().optional(),
+  readOnlyDisabledTools: z.array(z.string()).optional(),
   supportsDynamicToolsets: z.boolean().optional(),
   availableToolsets: z.array(z.string()).optional(),
   defaultToolsets: z.array(z.string()).optional(),

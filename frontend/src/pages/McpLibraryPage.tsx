@@ -1236,7 +1236,12 @@ export function McpLibraryPage() {
 
       toast({
         title: result.action === 'created' ? 'Server imported' : 'Server updated',
-        description: `${result.server.name} is now available in the MCP library.`,
+        description:
+          result.server.lastHealthStatus === 'healthy'
+            ? `${result.server.name} was imported and tool discovery completed.`
+            : result.server.lastHealthStatus === 'unhealthy'
+              ? `${result.server.name} was imported, but discovery failed. Check the connection details.`
+              : `${result.server.name} is now available in the MCP library.`,
       });
     } catch (err) {
       toast({
@@ -1696,6 +1701,47 @@ export function McpLibraryPage() {
     return tools.filter((t) => t.serverId === selectedServerForTools);
   }, [tools, selectedServerForTools]);
 
+  const selectedServerRecord = useMemo(() => {
+    if (!selectedServerForTools) return null;
+    return servers.find((server) => server.id === selectedServerForTools) ?? null;
+  }, [servers, selectedServerForTools]);
+
+  const githubReadOnlyDisabledTools = useMemo(() => {
+    const githubTemplate = serverTemplates.find((template) => template.slug === 'github');
+    return githubTemplate?.readOnlyDisabledTools ?? [];
+  }, [serverTemplates]);
+
+  const selectedServerReadOnly =
+    selectedServerRecord?.templateSlug === 'github' &&
+    selectedServerRecord.templateConfig &&
+    typeof selectedServerRecord.templateConfig === 'object' &&
+    (selectedServerRecord.templateConfig as Record<string, unknown>).readOnly === true;
+
+  const selectedServerDialogTools = useMemo(() => {
+    if (!selectedServerReadOnly || selectedServerRecord?.templateSlug !== 'github') {
+      return serverTools.map((tool) => ({ ...tool, disabledByReadOnly: false }));
+    }
+
+    const syntheticDisabledTools = githubReadOnlyDisabledTools
+      .filter((toolName) => !serverTools.some((tool) => tool.toolName === toolName))
+      .map((toolName) => ({
+        id: `readonly-disabled-${toolName}`,
+        toolName,
+        description: 'Disabled because GitHub MCP is in read-only mode.',
+        inputSchema: null,
+        serverId: selectedServerRecord.id,
+        serverName: selectedServerRecord.name,
+        enabled: false,
+        discoveredAt: selectedServerRecord.updatedAt,
+        disabledByReadOnly: true,
+      }));
+
+    return [
+      ...serverTools.map((tool) => ({ ...tool, disabledByReadOnly: false })),
+      ...syntheticDisabledTools,
+    ];
+  }, [githubReadOnlyDisabledTools, selectedServerReadOnly, selectedServerRecord, serverTools]);
+
   const selectedServer = useMemo<{ name?: string; transportType?: TransportType } | null>(() => {
     if (!selectedServerForTools) return null;
     const direct = servers.find((s) => s.id === selectedServerForTools);
@@ -2138,6 +2184,23 @@ export function McpLibraryPage() {
                 const githubInstallationValue = serverTemplateInstallationIds[template.slug] ?? '';
                 const githubReadOnly = serverTemplateReadOnly[template.slug] ?? false;
                 const isImported = Boolean(template.importedServerId);
+                const importedServer = template.importedServerId
+                  ? servers.find((server) => server.id === template.importedServerId)
+                  : null;
+                const importedToolCounts = importedServer
+                  ? toolCountsByServer[importedServer.id]
+                  : undefined;
+                const importedServerReadOnly =
+                  template.slug === 'github' &&
+                  importedServer?.templateConfig &&
+                  typeof importedServer.templateConfig === 'object' &&
+                  (importedServer.templateConfig as Record<string, unknown>).readOnly === true;
+                const readOnlyDisabledTools = template.readOnlyDisabledTools ?? [];
+                const importedDisabledCount = importedServerReadOnly
+                  ? readOnlyDisabledTools.length
+                  : 0;
+                const importedAvailableCount = importedToolCounts?.total ?? 0;
+                const importedTotalCount = importedAvailableCount + importedDisabledCount;
 
                 return (
                   <AccordionItem
@@ -2175,6 +2238,80 @@ export function McpLibraryPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
+                        {importedServer && (
+                          <>
+                            <HealthIndicator
+                              status={importedServer.lastHealthStatus ?? null}
+                              checking={checkingServers.has(importedServer.id)}
+                            />
+                            {importedToolCounts && importedToolCounts.total > 0 ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2 font-mono text-xs"
+                                    onClick={() => handleViewTools(importedServer.id)}
+                                  >
+                                    {importedToolCounts.enabled}/{importedToolCounts.total}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>
+                                    {importedToolCounts.enabled} enabled out of{' '}
+                                    {importedToolCounts.total} tools
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No tools</span>
+                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleViewTools(importedServer.id)}
+                                >
+                                  <Wrench className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>View tools</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDiscoverServerTools(importedServer.id)}
+                                  disabled={discoveringServerIds.has(importedServer.id)}
+                                >
+                                  {discoveringServerIds.has(importedServer.id) ? (
+                                    <Loader className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Rediscover tools</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    setServerToDelete(importedServer.id);
+                                    setDeleteDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Remove server</TooltipContent>
+                            </Tooltip>
+                          </>
+                        )}
                         <AccordionTrigger className="hover:no-underline py-0 [&>svg]:h-4 [&>svg]:w-4" />
                       </div>
                     </div>
@@ -2240,26 +2377,76 @@ export function McpLibraryPage() {
                                 }
                               />
                             </div>
+                          </>
+                        )}
 
-                            {template.defaultToolsets && template.defaultToolsets.length > 0 && (
-                              <div className="space-y-2">
-                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                  Default toolsets
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                  {template.defaultToolsets.map((toolset) => (
-                                    <Badge
-                                      key={toolset}
-                                      variant="secondary"
-                                      className="text-[10px]"
-                                    >
-                                      {toolset}
-                                    </Badge>
-                                  ))}
+                        {importedServer && (
+                          <div className="rounded-lg border bg-muted/30 px-3 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="space-y-1">
+                                <p className="text-sm font-medium">Installed server</p>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <span>{importedServer.name}</span>
+                                  <span>•</span>
+                                  <span>{importedServer.runtimeType.toUpperCase()}</span>
+                                  {importedServerReadOnly && (
+                                    <>
+                                      <span>•</span>
+                                      <span>Read-only</span>
+                                    </>
+                                  )}
+                                  {importedTotalCount > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <span>
+                                        {importedAvailableCount}/{importedTotalCount} tools
+                                      </span>
+                                    </>
+                                  )}
+                                  {importedDisabledCount > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{importedDisabledCount} disabled</span>
+                                    </>
+                                  )}
                                 </div>
                               </div>
-                            )}
-                          </>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewTools(importedServer.id)}
+                                >
+                                  <Wrench className="h-3 w-3 mr-2" />
+                                  View tools
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDiscoverServerTools(importedServer.id)}
+                                  disabled={discoveringServerIds.has(importedServer.id)}
+                                >
+                                  {discoveringServerIds.has(importedServer.id) ? (
+                                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="h-3 w-3 mr-2" />
+                                  )}
+                                  Rediscover
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setServerToDelete(importedServer.id);
+                                    setDeleteDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-3 w-3 mr-2 text-destructive" />
+                                  Remove
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
                         )}
 
                         <div className="flex items-center justify-between gap-3">
@@ -2982,9 +3169,15 @@ export function McpLibraryPage() {
           <DialogHeader>
             <DialogTitle>Tools from {selectedServer?.name ?? 'Server'}</DialogTitle>
             <DialogDescription>
-              {serverTools.length > 0 ? (
+              {selectedServerDialogTools.length > 0 ? (
                 <span className="flex items-center gap-2 mt-1">
-                  Enabled: {serverTools.filter((t) => t.enabled).length} / {serverTools.length}
+                  Enabled: {selectedServerDialogTools.filter((t) => t.enabled).length} /{' '}
+                  {selectedServerDialogTools.length}
+                  {selectedServerReadOnly && githubReadOnlyDisabledTools.length > 0 && (
+                    <span className="text-muted-foreground">
+                      • {githubReadOnlyDisabledTools.length} disabled by read-only
+                    </span>
+                  )}
                 </span>
               ) : (
                 'These are the tools discovered from this MCP server.'
@@ -2992,7 +3185,17 @@ export function McpLibraryPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[65vh] overflow-y-auto">
-            {serverTools.length === 0 ? (
+            {selectedServerReadOnly && githubReadOnlyDisabledTools.length > 0 && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3 dark:border-amber-900 dark:bg-amber-950/20">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                  Read-only mode is enabled
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Write-capable GitHub tools stay disabled here until read-only mode is turned off.
+                </p>
+              </div>
+            )}
+            {selectedServerDialogTools.length === 0 ? (
               <div className="text-center py-8">
                 <Wrench className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
                 <p className="text-sm font-medium mb-1">No tools discovered yet</p>
@@ -3028,7 +3231,7 @@ export function McpLibraryPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {serverTools.map((tool) => (
+                {selectedServerDialogTools.map((tool) => (
                   <div
                     key={tool.id}
                     className={cn(
@@ -3049,10 +3252,15 @@ export function McpLibraryPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Enabled</span>
+                        <span className="text-xs text-muted-foreground">
+                          {tool.disabledByReadOnly ? 'Disabled by read-only' : 'Enabled'}
+                        </span>
                         <Switch
                           checked={tool.enabled}
-                          onCheckedChange={() => handleToggleTool(tool.serverId, tool.id)}
+                          disabled={tool.disabledByReadOnly}
+                          onCheckedChange={() =>
+                            !tool.disabledByReadOnly && handleToggleTool(tool.serverId, tool.id)
+                          }
                         />
                       </div>
                     </div>

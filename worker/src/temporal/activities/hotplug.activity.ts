@@ -1,4 +1,12 @@
 import { HotplugClient, HotplugAttachment } from '../../utils/hotplug-client';
+import { getBackendOrigin } from '../../utils/backend-url';
+
+function getHotplugReachableBackendOrigin(): string {
+  const origin = process.env.BACKEND_ORIGIN ?? getBackendOrigin();
+  return origin
+    .replace('://localhost', '://host.docker.internal')
+    .replace('://127.0.0.1', '://host.docker.internal');
+}
 
 export interface CreateHotplugSessionInput {
   runId: string;
@@ -30,7 +38,7 @@ export async function createHotplugSessionActivity(
 ): Promise<CreateHotplugSessionOutput> {
   const hotplugClient = new HotplugClient();
 
-  const backendOrigin = process.env.BACKEND_ORIGIN ?? 'http://backend:3211';
+  const backendOrigin = getHotplugReachableBackendOrigin();
   const endpoint =
     input.componentToolsEndpoint ?? `${backendOrigin}/api/v1/mcp/run-tools/${input.runId}`;
 

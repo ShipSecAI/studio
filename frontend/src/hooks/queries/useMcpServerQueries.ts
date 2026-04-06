@@ -38,6 +38,7 @@ export interface McpServerTemplateResponse {
   docsUrl?: string | null;
   icon?: string | null;
   supportsReadOnly?: boolean;
+  readOnlyDisabledTools?: string[];
   supportsDynamicToolsets?: boolean;
   availableToolsets?: string[];
   defaultToolsets?: string[];

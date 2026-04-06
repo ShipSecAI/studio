@@ -249,6 +249,7 @@ export class McpServersService {
       docsUrl: template.docsUrl ?? null,
       icon: template.icon ?? null,
       supportsReadOnly: template.supportsReadOnly,
+      readOnlyDisabledTools: template.readOnlyDisabledTools,
       supportsDynamicToolsets: template.supportsDynamicToolsets,
       availableToolsets: template.availableToolsets,
       defaultToolsets: template.defaultToolsets,
@@ -281,7 +282,7 @@ export class McpServersService {
       auth?.userId,
     );
 
-    const server = existing
+    const importedServer = existing
       ? await this.repository.update(
           existing.id,
           {
@@ -301,6 +302,19 @@ export class McpServersService {
           { organizationId },
         )
       : await this.repository.create(serverData);
+
+    try {
+      const discovery = await this.testServerConnection(auth, importedServer.id);
+      if (!discovery.success) {
+        this.logger.warn(
+          `Curated MCP import for '${slug}' completed but discovery failed: ${discovery.message}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(`Curated MCP import for '${slug}' hit an unexpected discovery error`, error);
+    }
+
+    const server = await this.repository.findById(importedServer.id, { organizationId });
 
     this.auditLogService.record(auth, {
       action: existing ? 'mcp_server.import_template.update' : 'mcp_server.import_template.create',
