@@ -45,7 +45,6 @@ type GroupDiscoveryInputPayload = components['schemas']['GroupDiscoveryInputDto'
 type ResolvePortsPayload = components['schemas']['ResolvePortsRequestDto'];
 type BatchRunSummariesPayload = components['schemas']['BatchRunSummariesRequestDto'];
 type PrepareRunPayload = components['schemas']['PrepareRunRequestDto'];
-type EnsureAnalyticsTenantPayload = components['schemas']['EnsureTenantRequestDto'];
 type GenerateMcpTokenPayload = components['schemas']['GenerateMcpTokenRequestDto'];
 type RegisterComponentToolPayload = components['schemas']['RegisterComponentToolInput'];
 type RegisterMcpServerPayload = components['schemas']['RegisterMcpServerInput'];
@@ -973,15 +972,6 @@ export class ShipSecApiClient {
 
   async getAnalyticsProwlerChecksMetadata() {
     return this.client.GET('/api/v1/analytics/prowler-checks-metadata');
-  }
-
-  async ensureAnalyticsTenant(body: EnsureAnalyticsTenantPayload, internalToken: string) {
-    return this.client.POST('/api/v1/analytics/ensure-tenant', {
-      params: {
-        header: { 'x-internal-token': internalToken },
-      },
-      body,
-    });
   }
 
   async getAnalyticsBatchRunSummaries(body: BatchRunSummariesPayload) {
