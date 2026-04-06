@@ -24,6 +24,7 @@ export interface McpServerResponse {
   updatedAt: string;
   groupId?: string | null;
   templateSlug?: string | null;
+  githubInstallationId?: number | null;
   templateHash?: string | null;
   templateConfig?: Record<string, unknown> | null;
 }

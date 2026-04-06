@@ -1,5 +1,9 @@
 import { Injectable, BadRequestException, Logger, Inject, Optional } from '@nestjs/common';
 import Redis from 'ioredis';
+import {
+  GITHUB_MCP_READ_ONLY_DISABLED_TOOLS,
+  isGitHubMcpReadOnlyDisabledTool,
+} from '@shipsec/shared';
 
 import { McpServersEncryptionService } from './mcp-servers.encryption';
 import { McpServersRepository, type McpServerUpdateData } from './mcp-servers.repository';
@@ -27,6 +31,7 @@ import {
   type McpServerTemplate,
 } from './mcp-server-templates';
 import { GitHubAppService } from '../github-app/github-app.service';
+import type { GitHubInstallation } from '../github-app/dto/github-app.dto';
 import { HotplugService } from '../hotplug/hotplug.service';
 
 // Redis injection token - defined as const to avoid circular dependency
@@ -88,6 +93,7 @@ export class McpServersService {
       updatedAt: record.updatedAt.toISOString(),
       groupId: record.groupId ?? null,
       templateSlug: record.templateSlug ?? null,
+      githubInstallationId: record.githubInstallationId ?? null,
       templateHash: record.templateHash ?? null,
       templateConfig: (record.templateConfig as Record<string, unknown> | null) ?? null,
     };
@@ -121,25 +127,27 @@ export class McpServersService {
     return {};
   }
 
-  private async validateTemplateConfig(
+  private async getGitHubInstallation(
     template: McpServerTemplate,
     config: Record<string, unknown>,
     auth: AuthContext | null,
-  ): Promise<void> {
-    if (template.slug === 'github') {
-      const installationId = Number(config.installationId);
-      if (!Number.isFinite(installationId) || installationId <= 0) {
-        throw new BadRequestException('GitHub MCP requires a valid installationId');
-      }
-      if (!auth) {
-        throw new BadRequestException('Auth context is required for GitHub MCP');
-      }
-      const installations = await this.githubAppService.listInstallations(auth);
-      const installation = installations.find((item) => item.installationId === installationId);
-      if (!installation) {
-        throw new BadRequestException('GitHub installation is not available for this organization');
-      }
+  ): Promise<GitHubInstallation | null> {
+    if (template.slug !== 'github') return null;
+
+    const installationId = Number(config.installationId);
+    if (!Number.isFinite(installationId) || installationId <= 0) {
+      throw new BadRequestException('GitHub MCP requires a valid installationId');
     }
+    if (!auth) {
+      throw new BadRequestException('Auth context is required for GitHub MCP');
+    }
+    const installations = await this.githubAppService.listInstallations(auth);
+    const installation = installations.find((item) => item.installationId === installationId);
+    if (!installation) {
+      throw new BadRequestException('GitHub installation is not available for this organization');
+    }
+
+    return installation;
   }
 
   private buildTemplateServerData(
@@ -148,10 +156,16 @@ export class McpServersService {
     input: ImportMcpServerTemplateDto,
     organizationId: string,
     createdBy: string | null | undefined,
+    githubInstallation: GitHubInstallation | null,
   ): Omit<McpServerRecord, 'id' | 'createdAt' | 'updatedAt'> {
     const templateHash = computeTemplateHash(template);
+    const defaultName =
+      template.slug === 'github' && githubInstallation
+        ? `${template.name} · ${githubInstallation.accountLogin}`
+        : template.name;
+
     return {
-      name: input.name?.trim() || template.name,
+      name: input.name?.trim() || defaultName,
       description: input.description?.trim() || template.description || null,
       transportType: template.transportType,
       endpoint: template.endpoint ?? null,
@@ -164,11 +178,36 @@ export class McpServersService {
       lastHealthStatus: null,
       groupId: null,
       templateSlug: template.slug,
+      githubInstallationId:
+        template.slug === 'github' ? Number(config.installationId) || null : null,
       templateHash,
       templateConfig: config,
       organizationId,
       createdBy: createdBy ?? null,
     };
+  }
+
+  private isGitHubReadOnly(
+    record: Pick<McpServerRecord, 'templateSlug' | 'templateConfig'>,
+  ): boolean {
+    if (record.templateSlug !== 'github') return false;
+    return (record.templateConfig as Record<string, unknown> | null)?.readOnly === true;
+  }
+
+  private getGitHubReadOnlyDisabledToolNames(
+    record: Pick<McpServerRecord, 'templateSlug' | 'templateConfig'>,
+  ): string[] {
+    return this.isGitHubReadOnly(record) ? [...GITHUB_MCP_READ_ONLY_DISABLED_TOOLS] : [];
+  }
+
+  private async syncGitHubReadOnlyToolStates(server: McpServerRecord): Promise<void> {
+    if (server.templateSlug !== 'github') return;
+
+    await this.repository.setToolsEnabledByNames(
+      server.id,
+      [...GITHUB_MCP_READ_ONLY_DISABLED_TOOLS],
+      !this.isGitHubReadOnly(server),
+    );
   }
 
   /**
@@ -271,15 +310,22 @@ export class McpServersService {
     }
 
     const templateConfig = this.buildTemplateConfig(template, input);
-    await this.validateTemplateConfig(template, templateConfig, auth);
-
-    const existing = await this.repository.findByTemplateSlug(slug, { organizationId });
+    const githubInstallation = await this.getGitHubInstallation(template, templateConfig, auth);
+    const existing =
+      template.slug === 'github' && githubInstallation
+        ? await this.repository.findByTemplateSlugAndGitHubInstallationId(
+            slug,
+            githubInstallation.installationId,
+            { organizationId },
+          )
+        : await this.repository.findByTemplateSlug(slug, { organizationId });
     const serverData = this.buildTemplateServerData(
       template,
       templateConfig,
       input,
       organizationId,
       auth?.userId,
+      githubInstallation,
     );
 
     const importedServer = existing
@@ -295,6 +341,7 @@ export class McpServersService {
             headers: serverData.headers,
             healthCheckUrl: serverData.healthCheckUrl,
             templateSlug: serverData.templateSlug,
+            githubInstallationId: serverData.githubInstallationId,
             templateHash: serverData.templateHash,
             templateConfig: serverData.templateConfig,
             enabled: true,
@@ -658,6 +705,19 @@ export class McpServersService {
     const organizationId = this.assertOrganizationId(auth);
     // Verify server belongs to organization
     const server = await this.repository.findById(serverId, { organizationId });
+    const currentTool = await this.repository.findToolById(toolId);
+    if (!currentTool || currentTool.serverId !== server.id) {
+      throw new BadRequestException(`Tool ${toolId} not found for server ${serverId}`);
+    }
+    if (
+      !currentTool.enabled &&
+      this.isGitHubReadOnly(server) &&
+      isGitHubMcpReadOnlyDisabledTool(currentTool.toolName)
+    ) {
+      throw new BadRequestException(
+        `${currentTool.toolName} is disabled while GitHub MCP is in read-only mode`,
+      );
+    }
     const tool = await this.repository.toggleToolEnabled(toolId);
     return this.mapToolToResponse(tool, server.name);
   }
@@ -741,6 +801,7 @@ export class McpServersService {
           inputSchema: tool.inputSchema ?? null,
         })),
       );
+      await this.syncGitHubReadOnlyToolStates(server);
       await this.repository.updateHealthStatus(id, 'healthy', { organizationId });
       const tools = await this.repository.listTools(id);
 

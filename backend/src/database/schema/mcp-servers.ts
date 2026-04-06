@@ -6,6 +6,7 @@ import {
   timestamp,
   jsonb,
   boolean,
+  bigint,
   index,
   uniqueIndex,
   primaryKey,
@@ -89,6 +90,7 @@ export const mcpServers = pgTable(
 
     // Curated template tracking for imported individual MCP servers
     templateSlug: varchar('template_slug', { length: 191 }),
+    githubInstallationId: bigint('github_installation_id', { mode: 'number' }),
     templateHash: varchar('template_hash', { length: 64 }),
     templateConfig: jsonb('template_config').$type<Record<string, unknown> | null>().default(null),
 
@@ -105,6 +107,9 @@ export const mcpServers = pgTable(
     enabledIdx: index('mcp_servers_enabled_idx').on(table.enabled),
     groupIdx: index('mcp_servers_group_idx').on(table.groupId),
     templateSlugIdx: index('mcp_servers_template_slug_idx').on(table.templateSlug),
+    githubInstallationIdx: index('mcp_servers_github_installation_idx').on(
+      table.githubInstallationId,
+    ),
     nameOrgUnique: uniqueIndex('mcp_servers_name_org_uidx').on(table.name, table.organizationId),
   }),
 );

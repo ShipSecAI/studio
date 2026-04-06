@@ -56,6 +56,7 @@ export const McpServerResponseSchema = z.object({
   updatedAt: z.string().datetime(),
   groupId: z.string().nullable(),
   templateSlug: z.string().nullable(),
+  githubInstallationId: z.number().nullable().optional(),
   templateHash: z.string().nullable(),
   templateConfig: z.record(z.string(), z.unknown()).nullable(),
 });
@@ -85,6 +86,7 @@ export class McpServerResponseDto extends createZodDto(McpServerResponseSchema) 
       updatedAt: server.updatedAt.toISOString(),
       groupId: server.groupId ?? null,
       templateSlug: (server as any).templateSlug ?? null,
+      githubInstallationId: (server as any).githubInstallationId ?? null,
       templateHash: (server as any).templateHash ?? null,
       templateConfig: ((server as any).templateConfig as Record<string, unknown> | null) ?? null,
     };

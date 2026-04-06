@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Server, Wrench, CheckCircle2, AlertCircle, HelpCircle } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useMcpServers, useMcpAllTools } from '@/hooks/queries/useMcpServerQueries';
+import { useGitHubInstallations } from '@/hooks/queries/useGithubQueries';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface McpLibraryConfigProps {
@@ -25,20 +26,40 @@ interface McpLibraryConfigProps {
 export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibraryConfigProps) {
   const { data: servers = [], isLoading, error: serversError } = useMcpServers();
   const { data: tools = [] } = useMcpAllTools();
+  const { data: githubInstallations = [] } = useGitHubInstallations();
   const queryClient = useQueryClient();
   const error = serversError?.message ?? null;
 
-  const curatedServers = servers.filter((s) => s.templateSlug);
+  const githubServers = servers.filter((s) => s.templateSlug === 'github');
+  const curatedServers = servers.filter((s) => s.templateSlug && s.templateSlug !== 'github');
   const importedGroupServers = servers.filter((s) => s.groupId && !s.templateSlug);
   const customServers = servers.filter((s) => !s.groupId && !s.templateSlug);
+  const githubServerIds = useMemo(
+    () => new Set(githubServers.map((server) => server.id)),
+    [githubServers],
+  );
+  const githubInstallationsById = useMemo(
+    () =>
+      new Map(
+        githubInstallations.map(
+          (installation) => [installation.installationId, installation] as const,
+        ),
+      ),
+    [githubInstallations],
+  );
 
   const [selectedServers, setSelectedServers] = useState<Set<string>>(new Set(value));
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Sync external value changes to local state
   useEffect(() => {
-    setSelectedServers(new Set(value));
-  }, [value]);
+    const githubSelected = value.filter((id) => githubServerIds.has(id));
+    const normalized =
+      githubSelected.length > 1
+        ? value.filter((id) => !githubServerIds.has(id) || id === githubSelected[0])
+        : value;
+    setSelectedServers(new Set(normalized));
+  }, [value, githubServerIds]);
 
   // Notify parent of changes
   useEffect(() => {
@@ -57,6 +78,11 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
       if (newSelected.has(serverId)) {
         newSelected.delete(serverId);
       } else {
+        if (githubServerIds.has(serverId)) {
+          for (const githubServerId of githubServerIds) {
+            newSelected.delete(githubServerId);
+          }
+        }
         newSelected.add(serverId);
       }
       return newSelected;
@@ -105,16 +131,29 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
     }
   };
 
-  const getServerTools = (serverId: string) => {
-    return tools.filter((t) => t.serverId === serverId && t.enabled);
+  const getServerTools = (serverId: string) =>
+    tools.filter((t) => t.serverId === serverId && t.enabled);
+  const getServerToolCounts = (serverId: string) => {
+    const serverTools = tools.filter((t) => t.serverId === serverId);
+    return {
+      enabled: serverTools.filter((tool) => tool.enabled).length,
+      total: serverTools.length,
+    };
   };
+  const hasMultipleGitHubSelections = value.filter((id) => githubServerIds.has(id)).length > 1;
 
   const enabledServers = servers.filter((s) => s.enabled);
   const sections = [
     {
+      key: 'github',
+      label: 'GitHub Installations',
+      description: 'Select exactly one imported GitHub MCP installation for this workflow.',
+      servers: githubServers.filter((s) => s.enabled),
+    },
+    {
       key: 'curated',
       label: 'Curated Imports',
-      description: 'Imported catalog MCPs like GitHub MCP.',
+      description: 'Imported catalog MCPs other than GitHub.',
       servers: curatedServers.filter((s) => s.enabled),
     },
     {
@@ -202,6 +241,15 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
       </div>
 
       {/* Selection summary */}
+      {hasMultipleGitHubSelections && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-900">
+          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <p className="text-xs text-amber-800 dark:text-amber-300">
+            Multiple GitHub MCP installations were configured. Only the first selection will be
+            kept.
+          </p>
+        </div>
+      )}
       {selectedCount > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-primary/5 border border-primary/20">
           <CheckCircle2 className="h-4 w-4 text-primary" />
@@ -229,10 +277,24 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
               <p className="text-xs text-muted-foreground/70">{section.description}</p>
             </div>
             {section.servers.map((server) => {
-              const serverTools = getServerTools(server.id);
+              const serverToolCounts = getServerToolCounts(server.id);
               const isSelected = selectedServers.has(server.id);
               const status = server.lastHealthStatus ?? 'unknown';
               const isUnhealthy = status === 'unhealthy';
+              const githubInstallation =
+                server.templateSlug === 'github' && typeof server.githubInstallationId === 'number'
+                  ? githubInstallationsById.get(server.githubInstallationId)
+                  : undefined;
+              const isReadOnly =
+                server.templateSlug === 'github' &&
+                server.templateConfig &&
+                typeof server.templateConfig === 'object' &&
+                (server.templateConfig as Record<string, unknown>).readOnly === true;
+              const disabledCount = serverToolCounts.total - serverToolCounts.enabled;
+              const displayName =
+                server.templateSlug === 'github' && githubInstallation
+                  ? `GitHub · ${githubInstallation.accountLogin}`
+                  : server.name;
 
               return (
                 <div
@@ -274,9 +336,9 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
                             'text-sm font-medium cursor-pointer truncate',
                             isSelected && 'text-primary',
                           )}
-                          title={server.name}
+                          title={displayName}
                         >
-                          {server.name}
+                          {displayName}
                         </label>
 
                         {/* Transport type badge */}
@@ -308,9 +370,22 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
                         <div className="flex items-center gap-1">
                           <Wrench className="h-3 w-3" />
                           <span>
-                            {serverTools.length} tool{serverTools.length !== 1 ? 's' : ''}
+                            {serverToolCounts.enabled}/{serverToolCounts.total} tool
+                            {serverToolCounts.total !== 1 ? 's' : ''}
                           </span>
                         </div>
+
+                        {server.templateSlug === 'github' && disabledCount > 0 && (
+                          <div className="flex items-center gap-1">
+                            <span>{disabledCount} disabled</span>
+                          </div>
+                        )}
+
+                        {server.templateSlug === 'github' && isReadOnly && (
+                          <Badge variant="outline" className="text-[9px] px-1 py-0">
+                            read-only
+                          </Badge>
+                        )}
 
                         {/* Health status text */}
                         <div className="flex items-center gap-1">

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ExecutionContext } from '@shipsec/component-sdk';
+import { GITHUB_MCP_READ_ONLY_DISABLED_TOOLS } from '@shipsec/shared';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { HotplugClient } from '../../utils/hotplug-client';
@@ -23,6 +24,7 @@ const McpServerSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   templateSlug: z.string().nullable().optional(),
+  githubInstallationId: z.number().nullable().optional(),
   templateHash: z.string().nullable().optional(),
   templateConfig: z.record(z.string(), z.unknown()).nullable().optional(),
 });
@@ -44,6 +46,19 @@ const McpToolSchema = z.object({
 });
 
 export type McpTool = z.infer<typeof McpToolSchema>;
+
+function filterDisabledGitHubReadOnlyTools(server: McpServer, tools: McpTool[]): McpTool[] {
+  const isReadOnly =
+    server.templateSlug === 'github' &&
+    server.templateConfig &&
+    typeof server.templateConfig === 'object' &&
+    server.templateConfig.readOnly === true;
+
+  if (!isReadOnly) return tools;
+
+  const disabledToolNames = new Set(GITHUB_MCP_READ_ONLY_DISABLED_TOOLS);
+  return tools.filter((tool) => !disabledToolNames.has(tool.name as any));
+}
 
 /**
  * Fetch server details from backend API
@@ -212,10 +227,11 @@ export async function registerServerTools(
     const hotplugAuthHeaders = {
       Authorization: `Bearer ${process.env.HOTPLUG_CONTROL_TOKEN || 'hotplug-local-dev-token'}`,
     };
-    const tools = await discoverToolsFromEndpoint(endpoint, {
+    const discoveredTools = await discoverToolsFromEndpoint(endpoint, {
       ...resolvedConfig.headers,
       ...hotplugAuthHeaders,
     });
+    const tools = filterDisabledGitHubReadOnlyTools(server, discoveredTools);
 
     // Register the server with pre-discovered tools
     await registerMcpServer({
@@ -233,7 +249,11 @@ export async function registerServerTools(
   // For HTTP servers, register directly with resolved headers
   else if (server.transportType === 'http' && server.endpoint) {
     // Discover tools from the HTTP endpoint
-    const tools = await discoverToolsFromEndpoint(server.endpoint, resolvedConfig.headers);
+    const discoveredTools = await discoverToolsFromEndpoint(
+      server.endpoint,
+      resolvedConfig.headers,
+    );
+    const tools = filterDisabledGitHubReadOnlyTools(server, discoveredTools);
 
     await registerMcpServer({
       runId: context.runId,

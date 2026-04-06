@@ -26,6 +26,7 @@ export interface McpServerUpdateData {
   command?: string | null;
   args?: string[] | null;
   templateSlug?: string | null;
+  githubInstallationId?: number | null;
   templateHash?: string | null;
   templateConfig?: Record<string, unknown> | null;
   headers?: {
@@ -172,6 +173,34 @@ export class McpServersRepository {
           : sql<number>`0`,
         desc(mcpServers.updatedAt),
       )
+      .limit(1);
+
+    return rows[0] ?? null;
+  }
+
+  async findByTemplateSlugAndGitHubInstallationId(
+    templateSlug: string,
+    githubInstallationId: number,
+    options: McpServerQueryOptions = {},
+  ): Promise<McpServerRecord | null> {
+    const conditions: (SQL | undefined)[] = [
+      eq(mcpServers.templateSlug, templateSlug),
+      eq(mcpServers.githubInstallationId, githubInstallationId),
+    ];
+    if (options.organizationId) {
+      conditions.push(
+        or(
+          eq(mcpServers.organizationId, options.organizationId),
+          isNull(mcpServers.organizationId),
+        ),
+      );
+    }
+
+    const rows = await this.db
+      .select()
+      .from(mcpServers)
+      .where(and(...conditions.filter((c): c is SQL => c !== undefined)))
+      .orderBy(desc(mcpServers.updatedAt))
       .limit(1);
 
     return rows[0] ?? null;
@@ -344,6 +373,31 @@ export class McpServersRepository {
       .returning();
 
     return updated;
+  }
+
+  async findToolById(toolId: string): Promise<McpServerToolRecord | null> {
+    const rows = await this.db
+      .select()
+      .from(mcpServerTools)
+      .where(eq(mcpServerTools.id, toolId))
+      .limit(1);
+
+    return rows[0] ?? null;
+  }
+
+  async setToolsEnabledByNames(
+    serverId: string,
+    toolNames: string[],
+    enabled: boolean,
+  ): Promise<void> {
+    if (toolNames.length === 0) return;
+
+    await this.db
+      .update(mcpServerTools)
+      .set({ enabled })
+      .where(
+        and(eq(mcpServerTools.serverId, serverId), inArray(mcpServerTools.toolName, toolNames)),
+      );
   }
 
   async upsertTools(
