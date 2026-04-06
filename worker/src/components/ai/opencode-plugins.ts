@@ -24,7 +24,7 @@ export function getOpenCodePluginSetupScript(enablePlugins: string[]): string[] 
   for (const plugin of enablePlugins) {
     switch (plugin) {
       case 'oh-my-opencode':
-        lines.push('npx oh-my-opencode install --no-tui --openai=yes 2>&1 | tail -3 >&2 || true');
+        lines.push('npx oh-my-opencode install --no-tui 2>&1 | tail -3 >&2 || true');
         break;
       default:
         lines.push(`echo "[ShipSec] Unknown plugin: ${plugin}" >&2`);

@@ -40,10 +40,12 @@ export function getPluginSetupScript(enablePlugins: string[]): string[] {
     lines.push(`claude plugins marketplace add ${url} 2>&1 | tail -1 >&2 || true`);
   }
 
-  // Install and enable each plugin
+  // Install and enable each plugin (qualified with marketplace URL to avoid ambiguity)
   for (const plugin of enablePlugins) {
-    lines.push(`claude plugins install ${plugin} 2>&1 | tail -1 >&2 || true`);
-    lines.push(`claude plugins enable ${plugin} 2>&1 | tail -1 >&2 || true`);
+    const marketplace = PLUGIN_MARKETPLACE_URLS[plugin];
+    const qualified = marketplace ? `${plugin}@${marketplace}` : plugin;
+    lines.push(`claude plugins install ${qualified} 2>&1 | tail -1 >&2 || true`);
+    lines.push(`claude plugins enable ${qualified} 2>&1 | tail -1 >&2 || true`);
   }
 
   lines.push('echo "[ShipSec] Plugin setup complete." >&2');

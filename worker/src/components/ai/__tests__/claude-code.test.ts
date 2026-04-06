@@ -61,6 +61,8 @@ describe('core.ai.claude-code', () => {
       metadata: {
         connectedToolNodeIds: ['tool-1'],
         organizationId: 'org-1',
+        hotplugMcpUrl: 'http://hotplug:10010/sessions/test-session/mcp',
+        hotplugMcpToken: 'test-token',
       },
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
       emitProgress: vi.fn(),
@@ -89,7 +91,7 @@ describe('core.ai.claude-code', () => {
     const initCall = volumeInstance.initialize.mock.calls[0][0];
 
     expect(initCall['context.json']).toContain('"alertId": "123"');
-    expect(initCall['mcp-config.json']).toContain('shipsec-gateway');
+    expect(initCall['mcp-config.json']).toContain('workflow-tools');
     expect(initCall['run.sh']).toContain('claude -p');
     expect(initCall['run.sh']).toContain('--dangerously-skip-permissions');
 
@@ -139,11 +141,19 @@ describe('core.ai.claude-code', () => {
     expect(runScript).toContain('anthropics/claude-plugins-official');
     expect(runScript).toContain('Yeachan-Heo/oh-my-claudecode');
 
-    // Should contain install and enable commands
-    expect(runScript).toContain('claude plugins install superpowers');
-    expect(runScript).toContain('claude plugins enable superpowers');
-    expect(runScript).toContain('claude plugins install oh-my-claudecode');
-    expect(runScript).toContain('claude plugins enable oh-my-claudecode');
+    // Should contain install and enable commands (qualified with marketplace URL)
+    expect(runScript).toContain(
+      'claude plugins install superpowers@https://github.com/anthropics/claude-plugins-official',
+    );
+    expect(runScript).toContain(
+      'claude plugins enable superpowers@https://github.com/anthropics/claude-plugins-official',
+    );
+    expect(runScript).toContain(
+      'claude plugins install oh-my-claudecode@https://github.com/Yeachan-Heo/oh-my-claudecode',
+    );
+    expect(runScript).toContain(
+      'claude plugins enable oh-my-claudecode@https://github.com/Yeachan-Heo/oh-my-claudecode',
+    );
 
     // Plugin setup should appear BEFORE the claude -p command
     const pluginIdx = runScript.indexOf('claude plugins marketplace add');
