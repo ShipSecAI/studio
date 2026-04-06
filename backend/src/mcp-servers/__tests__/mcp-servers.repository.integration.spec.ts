@@ -99,4 +99,40 @@ describe.if(runIntegration)('McpServersRepository integration', () => {
     expect(tools.find((tool) => tool.toolName === 'beta')?.enabled).toBe(false);
     expect(tools.find((tool) => tool.toolName === 'beta')?.description).toBe('beta tool updated');
   });
+
+  it('findByTemplateSlug prefers an org-scoped row over a legacy unscoped row', async () => {
+    const organizationId = `org-${randomUUID()}`;
+    const templateSlug = `template-${randomUUID().slice(0, 8)}`;
+
+    const [legacyServer] = await db
+      .insert(mcpServers)
+      .values({
+        name: `legacy-template-${randomUUID().slice(0, 8)}`,
+        description: 'legacy shared template row',
+        transportType: 'stdio',
+        command: 'echo',
+        args: ['legacy'],
+        templateSlug,
+        organizationId: null,
+        createdBy: 'integration-test',
+      })
+      .returning();
+    createdServerIds.add(legacyServer.id);
+
+    const orgServer = await repository.create({
+      name: `org-template-${randomUUID().slice(0, 8)}`,
+      description: 'org scoped template row',
+      transportType: 'stdio',
+      command: 'echo',
+      args: ['org'],
+      templateSlug,
+      organizationId,
+      createdBy: 'integration-test',
+    });
+    createdServerIds.add(orgServer.id);
+
+    const result = await repository.findByTemplateSlug(templateSlug, { organizationId });
+
+    expect(result?.id).toBe(orgServer.id);
+  });
 });

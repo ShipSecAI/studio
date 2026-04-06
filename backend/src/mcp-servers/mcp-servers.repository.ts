@@ -1,6 +1,6 @@
 import { Inject, Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, eq, inArray, sql, type SQL, or, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql, type SQL, or, isNull } from 'drizzle-orm';
 
 import { DRIZZLE_TOKEN } from '../database/database.module';
 import {
@@ -166,6 +166,12 @@ export class McpServersRepository {
       .select()
       .from(mcpServers)
       .where(and(...conditions.filter((c): c is SQL => c !== undefined)))
+      .orderBy(
+        options.organizationId
+          ? sql<number>`case when ${mcpServers.organizationId} = ${options.organizationId} then 0 else 1 end`
+          : sql<number>`0`,
+        desc(mcpServers.updatedAt),
+      )
       .limit(1);
 
     return rows[0] ?? null;

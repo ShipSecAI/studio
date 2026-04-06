@@ -966,6 +966,8 @@ export function McpLibraryPage() {
       const server = servers.find((item) => item.id === serverId);
       if (server?.templateSlug) {
         const result = await testConnectionMutation.mutateAsync(serverId);
+        await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.tools() });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
         toast({
           title: result.success ? 'Tool discovery complete' : 'Discovery failed',
           description: result.message,
