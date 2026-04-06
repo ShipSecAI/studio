@@ -28,7 +28,6 @@ describe('core.ai.claude-code', () => {
     delete process.env.LITELLM_BASE_URL;
     delete process.env.LITELLM_API_KEY;
 
-    vi.spyOn(utils, 'getGatewaySessionToken').mockResolvedValue('mock-session-token');
     vi.spyOn(utils, 'getSkillWorkspaceFiles').mockResolvedValue({});
 
     runSpy = vi.spyOn(SDK, 'runComponentWithRunner').mockResolvedValue({

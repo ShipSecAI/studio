@@ -12,13 +12,7 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
-import {
-  DEFAULT_GATEWAY_URL,
-  getGatewaySessionToken,
-  requireOrgVirtualKey,
-  shouldRouteViaLiteLLM,
-  getSkillWorkspaceFiles,
-} from './utils';
+import { requireOrgVirtualKey, shouldRouteViaLiteLLM, getSkillWorkspaceFiles } from './utils';
 import { getOpenCodePluginSetupScript } from './opencode-plugins';
 
 const inputSchema = inputs({
