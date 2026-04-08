@@ -58,6 +58,8 @@ import {
   loadChatMessagesActivity,
   generateSessionTitleActivity,
   markChatRunCompleteActivity,
+  createHotplugChatSessionActivity,
+  terminateHotplugChatSessionActivity,
   initializeChatAgentActivities,
 } from '../activities/chat-agent.activities';
 
@@ -361,6 +363,8 @@ async function main() {
       loadChatMessagesActivity,
       generateSessionTitleActivity,
       markChatRunCompleteActivity,
+      createHotplugChatSessionActivity,
+      terminateHotplugChatSessionActivity,
       createHotplugSessionActivity,
       deleteHotplugSessionActivity,
     },

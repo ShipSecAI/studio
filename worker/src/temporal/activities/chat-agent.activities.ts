@@ -3,7 +3,14 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { streamText, generateText, stepCountIs, convertToModelMessages, smoothStream } from 'ai';
+import {
+  streamText,
+  generateText,
+  stepCountIs,
+  convertToModelMessages,
+  smoothStream,
+  jsonSchema,
+} from 'ai';
 import type { ToolExecutionOptions, UIMessage, UIMessageChunk } from 'ai';
 import type Redis from 'ioredis';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -1199,36 +1206,39 @@ export async function runChatAgentStepActivity(
     // Register the update_task_plan local tool for structured task tracking.
     // This tool emits a task-plan-update chunk that the frontend renders as
     // a live-updating plan card in the chat UI.
-    taskAwareTools.update_task_plan = {
-      description:
-        'Create or update a visible task plan. Use this when performing multi-step work (3+ steps) to show the user your plan and progress. Update task statuses as you complete each step. Do not create a plan for simple single-step requests.',
-      parameters: {
-        type: 'object',
-        properties: {
-          planId: {
-            type: 'string',
-            description: 'Stable ID for this plan. Reuse to update an existing plan.',
-          },
-          title: { type: 'string', description: 'Short title for the plan.' },
-          tasks: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                id: { type: 'string', description: 'Unique task ID within this plan.' },
-                label: { type: 'string', description: 'Short description of the task.' },
-                status: {
-                  type: 'string',
-                  enum: ['pending', 'in_progress', 'done', 'failed', 'skipped'],
-                },
-                detail: { type: 'string', description: 'Optional extra context.' },
+    const taskPlanSchema = jsonSchema({
+      type: 'object',
+      properties: {
+        planId: {
+          type: 'string',
+          description: 'Stable ID for this plan. Reuse to update an existing plan.',
+        },
+        title: { type: 'string', description: 'Short title for the plan.' },
+        tasks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Unique task ID within this plan.' },
+              label: { type: 'string', description: 'Short description of the task.' },
+              status: {
+                type: 'string',
+                enum: ['pending', 'in_progress', 'done', 'failed', 'skipped'],
               },
-              required: ['id', 'label', 'status'],
+              detail: { type: 'string', description: 'Optional extra context.' },
             },
+            required: ['id', 'label', 'status'],
           },
         },
-        required: ['planId', 'title', 'tasks'],
       },
+      required: ['planId', 'title', 'tasks'],
+    });
+    taskAwareTools.update_task_plan = {
+      type: 'dynamic' as const,
+      description:
+        'Create or update a visible task plan. Use this when performing multi-step work (3+ steps) to show the user your plan and progress. Update task statuses as you complete each step. Do not create a plan for simple single-step requests.',
+      inputSchema: taskPlanSchema,
+      parameters: taskPlanSchema,
       execute: async (input: unknown) => {
         const plan = input as {
           planId: string;
