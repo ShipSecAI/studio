@@ -797,6 +797,17 @@ export class ShipSecApiClient {
     });
   }
 
+  async createJiraForgeIntegrationConnection(body: {
+    displayName: string;
+    webTriggerUrl: string;
+    sharedSecret?: string;
+  }) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (this.client as any).POST('/api/v1/integrations/jira/connections', {
+      body,
+    });
+  }
+
   // ===== ASM =====
 
   async listAsmDomains(options?: { limit?: number; offset?: number }) {
@@ -1009,10 +1020,10 @@ export class ShipSecApiClient {
     return this.client.GET('/api/v1/billing/plans');
   }
 
-  async getBifrostVirtualKey(
+  async getLiteLLMVirtualKey(
     organizationId: string,
-  ): Promise<ClientResponse<components['schemas']['BifrostKeyResponseDto']>> {
-    return this.client.GET('/api/v1/internal/billing/bifrost-key', {
+  ): Promise<ClientResponse<components['schemas']['LiteLLMKeyResponseDto']>> {
+    return this.client.GET('/api/v1/internal/billing/litellm-key', {
       params: {
         header: { 'x-organization-id': organizationId },
       },

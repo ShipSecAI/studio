@@ -31,6 +31,7 @@ import {
   useAwsSetupInfo,
   useCreateAwsConnection,
   useCreateSlackWebhookConnection,
+  useCreateJiraForgeConnection,
   useValidateAwsConnection,
   useTestSlackConnection,
   useDisconnectIntegration,
@@ -902,6 +903,163 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Jira Connection Form
+// ---------------------------------------------------------------------------
+
+interface JiraFormProps {
+  onCreated: () => void;
+  onCancel: () => void;
+}
+
+function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
+  const { toast } = useToast();
+  const createJiraMutation = useCreateJiraForgeConnection();
+
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const [displayName, setDisplayName] = useState('');
+  const [webTriggerUrl, setWebTriggerUrl] = useState('');
+  const [sharedSecret, setSharedSecret] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setResult(null);
+
+    try {
+      if (!displayName.trim() || !webTriggerUrl.trim()) {
+        setResult({ ok: false, message: 'Display name and Web Trigger URL are required.' });
+        setSubmitting(false);
+        return;
+      }
+
+      await createJiraMutation.mutateAsync({
+        displayName: displayName.trim(),
+        webTriggerUrl: webTriggerUrl.trim(),
+        sharedSecret: sharedSecret.trim() || undefined,
+      });
+
+      setResult({ ok: true, message: 'Jira connection created and verified.' });
+      toast({ title: 'Jira connection created' });
+      onCreated();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create Jira connection.';
+      setResult({ ok: false, message });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col items-center text-center py-2 space-y-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
+          <img src="/icons/jira.svg" alt="Jira" className="h-7 w-7" />
+        </div>
+        <div>
+          <p className="text-sm font-medium">Connect Jira via ShipSec Forge App</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Install the ShipSec app on your Jira site, then paste the web trigger URL below.
+          </p>
+        </div>
+      </div>
+
+      {/* Install instructions */}
+      <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+        <p className="text-sm font-medium flex items-center gap-2">
+          <Info className="h-4 w-4 text-blue-500" />
+          Setup Steps
+        </p>
+        <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+          <li>
+            Install the ShipSec Forge app on your Jira site using the link provided by your admin.
+          </li>
+          <li>After installation, generate the web trigger URL using the Forge CLI.</li>
+          <li>Paste the URL below to connect.</li>
+        </ol>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="jira-display-name">Display Name *</Label>
+          <Input
+            id="jira-display-name"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="e.g. ShipSec Jira"
+            disabled={submitting}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="jira-trigger-url">Web Trigger URL *</Label>
+          <Input
+            id="jira-trigger-url"
+            value={webTriggerUrl}
+            onChange={(e) => setWebTriggerUrl(e.target.value)}
+            placeholder="https://xxxx.hello.atlassian-dev.net/x1/..."
+            disabled={submitting}
+            type="password"
+          />
+          <p className="text-xs text-muted-foreground">
+            The Forge web trigger URL for your Jira installation.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="jira-secret">Shared Secret (optional)</Label>
+          <Input
+            id="jira-secret"
+            value={sharedSecret}
+            onChange={(e) => setSharedSecret(e.target.value)}
+            placeholder="Optional HMAC secret"
+            disabled={submitting}
+            type="password"
+          />
+        </div>
+
+        {result && (
+          <div
+            className={cn(
+              'rounded-lg border p-3 text-sm',
+              result.ok
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400'
+                : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400',
+            )}
+          >
+            {result.ok ? (
+              <span className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4" /> {result.message}
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <XCircle className="h-4 w-4" /> {result.message}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connecting...
+              </>
+            ) : (
+              'Connect'
+            )}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 
@@ -1130,7 +1288,9 @@ export function IntegrationDetailPage() {
               </DialogTrigger>
               <DialogContent
                 className={cn(
-                  provider === 'aws' || provider === 'slack' ? 'max-w-2xl' : 'max-w-lg',
+                  provider === 'aws' || provider === 'slack' || provider === 'jira'
+                    ? 'max-w-2xl'
+                    : 'max-w-lg',
                 )}
               >
                 <DialogHeader>
@@ -1152,7 +1312,13 @@ export function IntegrationDetailPage() {
                     onCancel={() => setDialogOpen(false)}
                   />
                 )}
-                {provider !== 'aws' && provider !== 'slack' && (
+                {provider === 'jira' && (
+                  <JiraConnectionForm
+                    onCreated={handleConnectionCreated}
+                    onCancel={() => setDialogOpen(false)}
+                  />
+                )}
+                {provider !== 'aws' && provider !== 'slack' && provider !== 'jira' && (
                   <div className="py-6 text-center text-sm text-muted-foreground">
                     No connection form is available for this provider yet.
                   </div>

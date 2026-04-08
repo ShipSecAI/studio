@@ -647,6 +647,76 @@ export class IntegrationsService implements OnModuleInit {
     return this.toConnection(record);
   }
 
+  async createJiraForgeConnection(
+    auth: AuthContext,
+    input: { displayName: string; webTriggerUrl: string; sharedSecret?: string },
+  ): Promise<IntegrationConnection> {
+    const userId = auth.userId!;
+    const organizationId = auth.organizationId!;
+
+    // Test the connection by calling the MCP initialize endpoint
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (input.sharedSecret) {
+        headers['x-shipsec-secret'] = input.sharedSecret;
+      }
+      const testResponse = await fetch(input.webTriggerUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
+      });
+      if (!testResponse.ok) {
+        throw new BadRequestException(
+          `Jira Forge app connection test failed: HTTP ${testResponse.status}`,
+        );
+      }
+      const rpcResult = await testResponse.json();
+      if (rpcResult.error) {
+        throw new BadRequestException(
+          `Jira Forge app connection test failed: ${rpcResult.error.message}`,
+        );
+      }
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(
+        `Could not connect to Jira Forge app: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    // Encrypt the credentials as a JSON payload
+    const encryptedCreds = await this.encryption.encrypt(
+      JSON.stringify({ webTriggerUrl: input.webTriggerUrl, sharedSecret: input.sharedSecret }),
+    );
+
+    const { record, isNew } = await this.repository.insertConnection({
+      userId,
+      provider: 'jira',
+      organizationId,
+      credentialType: 'forge_app',
+      displayName: input.displayName,
+      scopes: [],
+      accessToken: encryptedCreds,
+      refreshToken: null,
+      tokenType: 'Bearer',
+      expiresAt: null,
+      metadata: {
+        webTriggerUrl: input.webTriggerUrl,
+        sharedSecret: input.sharedSecret || undefined,
+      },
+    });
+
+    this.emitConnectionEvent({
+      connectionId: record.id,
+      provider: 'jira',
+      credentialType: 'forge_app',
+      organizationId,
+      userId,
+      isReconnect: !isNew,
+    });
+
+    return this.toConnection(record);
+  }
+
   /* ------------------------------------------------------------------ */
   /*  Connection validation                                             */
   /* ------------------------------------------------------------------ */

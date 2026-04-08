@@ -27,6 +27,7 @@ import {
   ConnectionTokenResponseDto,
   CreateAwsConnectionDto,
   CreateSlackWebhookConnectionDto,
+  CreateJiraForgeConnectionDto,
   DiscoverOrgAccountsResponseDto,
   IntegrationCatalogEntryDto,
   type IntegrationCatalogEntry,
@@ -396,6 +397,24 @@ export class IntegrationsController {
     await this.integrations.assertConnectionOwnership(id, auth);
     const result = await this.integrations.validateConnection(id);
     return { ok: result.valid, error: result.error };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Jira connections                                                   */
+  /* ------------------------------------------------------------------ */
+
+  @Post('jira/connections')
+  @ApiOkResponse({ type: IntegrationConnectionResponse })
+  async createJiraForgeConnection(
+    @CurrentAuth() auth: AuthContext | null,
+    @Body() body: CreateJiraForgeConnectionDto,
+  ): Promise<IntegrationConnectionResponse> {
+    if (!auth?.userId || !auth?.organizationId) {
+      throw new BadRequestException('Authentication with organization context required');
+    }
+
+    const connection = await this.integrations.createJiraForgeConnection(auth, body);
+    return this.toConnectionResponse(connection);
   }
 
   /* ------------------------------------------------------------------ */

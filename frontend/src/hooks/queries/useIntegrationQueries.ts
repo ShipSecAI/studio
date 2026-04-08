@@ -108,6 +108,17 @@ export function useCreateSlackWebhookConnection() {
   });
 }
 
+export function useCreateJiraForgeConnection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { displayName: string; webTriggerUrl: string; sharedSecret?: string }) =>
+      api.integrations.createJiraForgeConnection(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
+    },
+  });
+}
+
 export function useValidateAwsConnection() {
   const qc = useQueryClient();
   return useMutation({

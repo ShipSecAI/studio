@@ -442,6 +442,19 @@ export const api = {
       return response.data;
     },
 
+    // Jira connection management
+    createJiraForgeConnection: async (payload: {
+      displayName: string;
+      webTriggerUrl: string;
+      sharedSecret?: string;
+    }): Promise<IntegrationConnection> => {
+      const response = await apiClient.createJiraForgeIntegrationConnection(payload);
+      if (response.error || !response.data) {
+        throw new Error('Failed to create Jira connection');
+      }
+      return response.data;
+    },
+
     testSlackConnection: async (id: string): Promise<{ ok: boolean; error?: string }> => {
       const response = await apiClient.testSlackIntegrationConnection(id);
       if (response.error || !response.data) throw new Error('Failed to test Slack connection');

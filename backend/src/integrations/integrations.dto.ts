@@ -133,6 +133,15 @@ export class CreateSlackWebhookConnectionDto extends createZodDto(
   CreateSlackWebhookConnectionSchema,
 ) {}
 
+// --- Jira connection DTOs ---
+
+export const CreateJiraForgeConnectionSchema = z.object({
+  displayName: z.string().min(1).describe('Display name for this Jira connection'),
+  webTriggerUrl: z.string().url().describe('Forge web trigger URL for the Jira installation'),
+  sharedSecret: z.string().optional().describe('Optional HMAC shared secret'),
+});
+export class CreateJiraForgeConnectionDto extends createZodDto(CreateJiraForgeConnectionSchema) {}
+
 // --- Response DTOs ---
 
 export const ProviderConfigurationResponseSchema = z.object({
