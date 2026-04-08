@@ -257,6 +257,11 @@ const ChatMessageItem = memo(
 
                     if ((part as Record<string, unknown>).type === 'task-plan') {
                       const plan = part as unknown as TaskPlanPart;
+                      const isActive = plan.tasks.some(
+                        (t) => t.status === 'pending' || t.status === 'in_progress',
+                      );
+                      // Active plans render in the fixed widget above the input box
+                      if (isActive) return null;
                       return <TaskPlan key={`plan-${plan.planId}`} plan={plan} />;
                     }
 
@@ -683,6 +688,23 @@ export function ChatInterface() {
       setIsGraphPanelOpen(false);
     }
   }, [isRunInspectorOpen]);
+
+  // Extract the latest task plan and determine if it's still active
+  const activeTaskPlan = useMemo(() => {
+    let latestPlan: TaskPlanPart | null = null;
+    for (const msg of messages) {
+      for (const part of msg.parts) {
+        if ((part as Record<string, unknown>).type === 'task-plan') {
+          latestPlan = part as unknown as TaskPlanPart;
+        }
+      }
+    }
+    if (!latestPlan) return null;
+    const isActive = latestPlan.tasks.some(
+      (t) => t.status === 'pending' || t.status === 'in_progress',
+    );
+    return isActive ? latestPlan : null;
+  }, [messages]);
 
   // Handle submit from PromptInput — lazily creates a session if needed
   const handleSubmit = useCallback(
@@ -1163,6 +1185,7 @@ export function ChatInterface() {
                   </div>
                 </div>
               )}
+              {activeTaskPlan && <TaskPlan plan={activeTaskPlan} className="mb-2 shadow-sm" />}
               <PromptInput
                 onSubmit={handleSubmit}
                 className="rounded-xl border border-border/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 shadow-sm transition-all duration-200"
