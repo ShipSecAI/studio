@@ -2315,9 +2315,9 @@
         ]
       }
     },
-    "/api/v1/internal/billing/litellm-key": {
+    "/api/v1/internal/billing/bifrost-key": {
       "get": {
-        "operationId": "InternalBillingController_getLiteLLMKey",
+        "operationId": "InternalBillingController_getBifrostKey",
         "parameters": [
           {
             "name": "x-organization-id",
@@ -2334,7 +2334,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LiteLLMKeyResponseDto"
+                  "$ref": "#/components/schemas/BifrostKeyResponseDto"
                 }
               }
             }
@@ -12719,7 +12719,7 @@
             "properties": {
               "spentUsd": {
                 "type": "number",
-                "description": "USD spent via LiteLLM this period"
+                "description": "USD spent via Bifrost this period"
               },
               "budgetUsd": {
                 "type": "number",
@@ -12812,7 +12812,7 @@
           "maxWorkflows"
         ]
       },
-      "LiteLLMKeyResponseDto": {
+      "BifrostKeyResponseDto": {
         "type": "object",
         "properties": {
           "virtualKey": {
@@ -15769,6 +15769,10 @@
             "type": "string",
             "nullable": true
           },
+          "githubInstallationId": {
+            "type": "number",
+            "nullable": true
+          },
           "templateHash": {
             "type": "string",
             "nullable": true
@@ -15896,6 +15900,12 @@
           },
           "supportsReadOnly": {
             "type": "boolean"
+          },
+          "readOnlyDisabledTools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "supportsDynamicToolsets": {
             "type": "boolean"
@@ -16184,6 +16194,10 @@
               },
               "templateSlug": {
                 "type": "string",
+                "nullable": true
+              },
+              "githubInstallationId": {
+                "type": "number",
                 "nullable": true
               },
               "templateHash": {

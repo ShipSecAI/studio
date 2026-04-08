@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test, vi } from 'bun:test';
 
-import { LiteLLMKeyResolverService } from '../litellm-key-resolver.service';
+import { BifrostKeyResolverService } from '../bifrost-key-resolver.service';
 
-describe('LiteLLMKeyResolverService', () => {
+describe('BifrostKeyResolverService', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -23,7 +23,7 @@ describe('LiteLLMKeyResolverService', () => {
       }),
     } as any;
 
-    const litellm = {
+    const bifrost = {
       isConfigured: true,
       ensureTeam: vi.fn(async () => undefined),
       generateKey: vi.fn(async () => 'sk-org-key'),
@@ -37,14 +37,14 @@ describe('LiteLLMKeyResolverService', () => {
       getOrganizationSettings: vi.fn(async () => ({ subscriptionTier: 'pro' })),
     } as any;
 
-    const service = new LiteLLMKeyResolverService(db, litellm, plansService, orgSettingsService);
+    const service = new BifrostKeyResolverService(db, bifrost, plansService, orgSettingsService);
 
     await expect(service.resolveVirtualKey('org-1')).resolves.toBe('sk-org-key');
     (service as any).teamSyncCache.set('org-1', Date.now() - 10 * 60 * 1000);
     await expect(service.resolveVirtualKey('org-1')).resolves.toBe('sk-org-key');
 
-    expect(litellm.generateKey).toHaveBeenCalledTimes(1);
-    expect(litellm.ensureTeam).toHaveBeenCalledTimes(2);
-    expect(litellm.ensureTeam).toHaveBeenLastCalledWith('org-1', 50);
+    expect(bifrost.generateKey).toHaveBeenCalledTimes(1);
+    expect(bifrost.ensureTeam).toHaveBeenCalledTimes(2);
+    expect(bifrost.ensureTeam).toHaveBeenLastCalledWith('org-1', 50);
   });
 });

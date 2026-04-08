@@ -45,9 +45,9 @@ const DEFAULT_STEP_LIMIT = 4;
 const LOG_TRUNCATE_LIMIT = 2000;
 
 import {
-  shouldRouteViaLiteLLM,
-  getLiteLLMBaseUrl,
-  normalizeLiteLLMModel,
+  shouldRouteViaBifrost,
+  getBifrostBaseUrl,
+  normalizeBifrostModel,
   requireOrgVirtualKey,
   isBudgetExceededError,
   BUDGET_EXCEEDED_USER_MESSAGE,
@@ -570,10 +570,10 @@ Loop the Conversation State output back into the next agent invocation to keep m
 
       const effectiveProvider: ModelProvider = chatModel?.provider ?? 'openai';
       const effectiveModel = ensureModelName(effectiveProvider, chatModel?.modelId ?? null);
-      const liteLLMEnabled = shouldRouteViaLiteLLM();
-      const liteLLMBaseUrl = getLiteLLMBaseUrl();
-      const routedModel = liteLLMEnabled
-        ? normalizeLiteLLMModel(effectiveProvider, effectiveModel)
+      const bifrostEnabled = shouldRouteViaBifrost();
+      const bifrostBaseUrl = getBifrostBaseUrl();
+      const routedModel = bifrostEnabled
+        ? normalizeBifrostModel(effectiveProvider, effectiveModel)
         : effectiveModel;
 
       let overrideApiKey = chatModel?.apiKey ?? null;
@@ -581,21 +581,21 @@ Loop the Conversation State output back into the next agent invocation to keep m
         overrideApiKey = modelApiKey.trim();
       }
 
-      // When LiteLLM is enabled and no user-provided key (BYOK), use the org's virtual key
-      let resolvedLiteLLMKey: string | null = null;
-      if (liteLLMEnabled && !overrideApiKey) {
-        resolvedLiteLLMKey = await requireOrgVirtualKey(organizationId ?? null, {
+      // When Bifrost is enabled and no user-provided key (BYOK), use the org's virtual key
+      let resolvedBifrostKey: string | null = null;
+      if (bifrostEnabled && !overrideApiKey) {
+        resolvedBifrostKey = await requireOrgVirtualKey(organizationId ?? null, {
           consumer: 'AI Agent',
         });
       }
 
-      const effectiveApiKey = liteLLMEnabled
-        ? resolveApiKey(effectiveProvider, resolvedLiteLLMKey || overrideApiKey)
+      const effectiveApiKey = bifrostEnabled
+        ? resolveApiKey(effectiveProvider, resolvedBifrostKey || overrideApiKey)
         : resolveApiKey(effectiveProvider, overrideApiKey);
       const explicitBaseUrl = chatModel?.baseUrl?.trim();
       const baseUrl =
-        liteLLMEnabled && liteLLMBaseUrl
-          ? liteLLMBaseUrl
+        bifrostEnabled && bifrostBaseUrl
+          ? bifrostBaseUrl
           : explicitBaseUrl && explicitBaseUrl.length > 0
             ? explicitBaseUrl
             : effectiveProvider === 'gemini'
@@ -641,7 +641,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
           : {}),
       };
       const isOpenRouter =
-        !liteLLMEnabled &&
+        !bifrostEnabled &&
         (effectiveProvider === 'openrouter' ||
           (typeof baseUrl === 'string' && baseUrl.includes('openrouter.ai')));
       const openAIProvider = createOpenAIImpl({
@@ -649,15 +649,15 @@ Loop the Conversation State output back into the next agent invocation to keep m
         ...(isOpenRouter ? { name: 'openrouter' } : {}),
       });
       const model =
-        !liteLLMEnabled && effectiveProvider === 'gemini'
+        !bifrostEnabled && effectiveProvider === 'gemini'
           ? createGoogleGenerativeAIImpl({
               apiKey: effectiveApiKey,
               ...(baseUrl ? { baseURL: baseUrl } : {}),
             })(routedModel)
           : isOpenRouter
             ? openAIProvider.chat(routedModel)
-            : liteLLMEnabled
-              ? openAIProvider.chat(routedModel) // LiteLLM doesn't support Responses API
+            : bifrostEnabled
+              ? openAIProvider.chat(routedModel) // Bifrost doesn't support Responses API
               : openAIProvider(routedModel);
 
       const agentSettings: ToolLoopAgentSettings<never, AgentTools> = {

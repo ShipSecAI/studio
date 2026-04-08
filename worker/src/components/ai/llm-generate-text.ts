@@ -15,9 +15,9 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, type LlmProviderConfig } from '@shipsec/contracts';
 import {
-  shouldRouteViaLiteLLM,
-  getLiteLLMBaseUrl,
-  normalizeLiteLLMModel,
+  shouldRouteViaBifrost,
+  getBifrostBaseUrl,
+  normalizeBifrostModel,
   requireOrgVirtualKey,
   isBudgetExceededError,
   BUDGET_EXCEEDED_USER_MESSAGE,
@@ -158,10 +158,10 @@ const definition = defineComponent({
   async execute({ inputs, params }, context, dependencies?: Dependencies) {
     const { systemPrompt, temperature, maxTokens } = params;
     const { userPrompt, chatModel, modelApiKey } = inputs;
-    const liteLLMEnabled = shouldRouteViaLiteLLM();
-    const liteLLMBaseUrl = getLiteLLMBaseUrl();
-    const routedModel = liteLLMEnabled
-      ? normalizeLiteLLMModel(chatModel.provider, chatModel.modelId)
+    const bifrostEnabled = shouldRouteViaBifrost();
+    const bifrostBaseUrl = getBifrostBaseUrl();
+    const routedModel = bifrostEnabled
+      ? normalizeBifrostModel(chatModel.provider, chatModel.modelId)
       : chatModel.modelId;
 
     const generateText = dependencies?.generateText ?? generateTextImpl;
@@ -171,15 +171,15 @@ const definition = defineComponent({
 
     const userProvidedKey = modelApiKey?.trim() || chatModel.apiKey?.trim();
 
-    // When LiteLLM is enabled and no user-provided key (BYOK), use the org's virtual key
-    let resolvedLiteLLMKey: string | null = null;
-    if (liteLLMEnabled && !userProvidedKey) {
-      resolvedLiteLLMKey = await requireOrgVirtualKey(context.metadata.organizationId ?? null, {
+    // When Bifrost is enabled and no user-provided key (BYOK), use the org's virtual key
+    let resolvedBifrostKey: string | null = null;
+    if (bifrostEnabled && !userProvidedKey) {
+      resolvedBifrostKey = await requireOrgVirtualKey(context.metadata.organizationId ?? null, {
         consumer: 'AI Generate Text',
       });
     }
 
-    const resolvedApiKey = liteLLMEnabled ? resolvedLiteLLMKey || userProvidedKey : userProvidedKey;
+    const resolvedApiKey = bifrostEnabled ? resolvedBifrostKey || userProvidedKey : userProvidedKey;
     if (!resolvedApiKey) {
       throw new ConfigurationError(
         'No API key available. Provide a key via the provider component or connect an override.',
@@ -195,9 +195,9 @@ const definition = defineComponent({
       {
         config: chatModel,
         apiKey: resolvedApiKey,
-        routeViaLiteLLM: liteLLMEnabled,
+        routeViaBifrost: bifrostEnabled,
         routedModel,
-        baseUrl: liteLLMEnabled ? liteLLMBaseUrl : chatModel.baseUrl,
+        baseUrl: bifrostEnabled ? bifrostBaseUrl : chatModel.baseUrl,
         headers: requestHeaders,
       },
       {
@@ -244,7 +244,7 @@ function buildModelFactory(
   params: {
     config: LlmProviderConfig;
     apiKey: string;
-    routeViaLiteLLM: boolean;
+    routeViaBifrost: boolean;
     routedModel: string;
     baseUrl?: string;
     headers?: Record<string, string>;
@@ -254,9 +254,9 @@ function buildModelFactory(
     createGoogleGenerativeAI: typeof createGoogleGenerativeAIImpl;
   },
 ) {
-  const { config, apiKey, routeViaLiteLLM, routedModel, baseUrl, headers } = params;
+  const { config, apiKey, routeViaBifrost, routedModel, baseUrl, headers } = params;
 
-  if (!routeViaLiteLLM && config.provider === 'gemini') {
+  if (!routeViaBifrost && config.provider === 'gemini') {
     const client = factories.createGoogleGenerativeAI({
       apiKey,
       ...(baseUrl ? { baseURL: baseUrl } : {}),

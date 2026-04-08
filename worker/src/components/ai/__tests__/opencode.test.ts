@@ -25,8 +25,8 @@ describe('shipsec.opencode.agent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...envSnapshot };
-    delete process.env.LITELLM_BASE_URL;
-    delete process.env.LITELLM_API_KEY;
+    delete process.env.BIFROST_BASE_URL;
+    delete process.env.BIFROST_API_KEY;
 
     // Spy on runComponentWithRunner
     runSpy = vi.spyOn(SDK, 'runComponentWithRunner').mockResolvedValue({

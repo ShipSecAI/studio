@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-interface LiteLLMTeamSpendReport {
+interface BifrostTeamSpendReport {
   group_by_day: {
     date: string;
     teams: {
@@ -10,31 +10,31 @@ interface LiteLLMTeamSpendReport {
   }[];
 }
 
-interface LiteLLMTeamInfo {
+interface BifrostTeamInfo {
   team_id: string;
   spend: number;
   max_budget: number | null;
 }
 
-interface LiteLLMTeamInfoResponse {
+interface BifrostTeamInfoResponse {
   team_id?: string;
   spend?: number;
   max_budget?: number | null;
-  team_info?: LiteLLMTeamInfo;
+  team_info?: BifrostTeamInfo;
 }
 
 @Injectable()
-export class LiteLLMClientService {
-  private readonly logger = new Logger(LiteLLMClientService.name);
+export class BifrostClientService {
+  private readonly logger = new Logger(BifrostClientService.name);
   private readonly proxyUrl: string | undefined;
   private readonly masterKey: string | undefined;
   private readonly allowTeamInfoSpendFallback: boolean;
 
   constructor() {
-    this.proxyUrl = process.env.LITELLM_PROXY_URL?.trim();
-    this.masterKey = process.env.LITELLM_MASTER_KEY?.trim();
+    this.proxyUrl = process.env.BIFROST_PROXY_URL?.trim();
+    this.masterKey = process.env.BIFROST_MASTER_KEY?.trim();
     this.allowTeamInfoSpendFallback =
-      process.env.LITELLM_ALLOW_TEAM_INFO_SPEND_FALLBACK?.trim().toLowerCase() === 'true';
+      process.env.BIFROST_ALLOW_TEAM_INFO_SPEND_FALLBACK?.trim().toLowerCase() === 'true';
   }
 
   get isConfigured(): boolean {
@@ -43,7 +43,7 @@ export class LiteLLMClientService {
 
   private async request<T>(path: string, options?: RequestInit): Promise<T> {
     if (!this.proxyUrl || !this.masterKey) {
-      throw new Error('LiteLLM proxy not configured');
+      throw new Error('Bifrost proxy not configured');
     }
 
     const url = `${this.proxyUrl}${path}`;
@@ -58,7 +58,7 @@ export class LiteLLMClientService {
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      throw new Error(`LiteLLM ${path} returned ${res.status}: ${body}`);
+      throw new Error(`Bifrost ${path} returned ${res.status}: ${body}`);
     }
 
     return res.json() as Promise<T>;
@@ -66,7 +66,7 @@ export class LiteLLMClientService {
 
   /**
    * Get total USD spend for a team (org) within a date range.
-   * Returns 0 if LiteLLM is not configured.
+   * Returns 0 if Bifrost is not configured.
    */
   async getTeamSpend(teamId: string, startDate: Date, endDate: Date): Promise<number> {
     if (!this.isConfigured) return 0;
@@ -97,7 +97,7 @@ export class LiteLLMClientService {
     const start = startDate.toISOString().split('T')[0];
     const end = endDate.toISOString().split('T')[0];
 
-    const report = await this.request<LiteLLMTeamSpendReport>(
+    const report = await this.request<BifrostTeamSpendReport>(
       `/global/spend/report?group_by=team&start_date=${start}&end_date=${end}`,
     );
 
@@ -134,13 +134,13 @@ export class LiteLLMClientService {
 
   /**
    * Get team info including current spend and budget.
-   * Returns null if LiteLLM is not configured or team doesn't exist.
+   * Returns null if Bifrost is not configured or team doesn't exist.
    */
   async getTeamInfo(teamId: string): Promise<{ spend: number; maxBudget: number | null } | null> {
     if (!this.isConfigured) return null;
 
     try {
-      const info = await this.request<LiteLLMTeamInfoResponse>(
+      const info = await this.request<BifrostTeamInfoResponse>(
         `/team/info?team_id=${encodeURIComponent(teamId)}`,
       );
       const normalized = info.team_info ?? info;
@@ -160,7 +160,7 @@ export class LiteLLMClientService {
    */
   async generateKey(teamId: string): Promise<string> {
     if (!this.isConfigured) {
-      throw new Error('LiteLLM proxy not configured');
+      throw new Error('Bifrost proxy not configured');
     }
 
     const result = await this.request<{ key: string }>('/key/generate', {
@@ -172,14 +172,14 @@ export class LiteLLMClientService {
   }
 
   /**
-   * Create or update a LiteLLM team for an organization.
+   * Create or update a Bifrost team for an organization.
    * Sets the monthly budget to match the subscription plan.
    */
   async ensureTeam(orgId: string, maxBudgetUsd: number): Promise<void> {
     if (!this.isConfigured) return;
 
     try {
-      // Try to create; if it already exists LiteLLM returns 400 with "team already exists"
+      // Try to create; if it already exists Bifrost returns 400 with "team already exists"
       await this.request('/team/new', {
         method: 'POST',
         body: JSON.stringify({
@@ -188,7 +188,7 @@ export class LiteLLMClientService {
           budget_duration: 'monthly',
         }),
       });
-      this.logger.log(`Created LiteLLM team for org ${orgId} with budget $${maxBudgetUsd}`);
+      this.logger.log(`Created Bifrost team for org ${orgId} with budget $${maxBudgetUsd}`);
     } catch (_error) {
       // Team likely already exists — update budget instead
       try {
@@ -200,9 +200,9 @@ export class LiteLLMClientService {
             budget_duration: 'monthly',
           }),
         });
-        this.logger.log(`Updated LiteLLM team budget for org ${orgId} to $${maxBudgetUsd}`);
+        this.logger.log(`Updated Bifrost team budget for org ${orgId} to $${maxBudgetUsd}`);
       } catch (updateError) {
-        this.logger.error(`Failed to ensure LiteLLM team for ${orgId}: ${updateError}`);
+        this.logger.error(`Failed to ensure Bifrost team for ${orgId}: ${updateError}`);
       }
     }
   }

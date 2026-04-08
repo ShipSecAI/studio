@@ -916,14 +916,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/internal/billing/litellm-key": {
+    "/api/v1/internal/billing/bifrost-key": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["InternalBillingController_getLiteLLMKey"];
+        get: operations["InternalBillingController_getBifrostKey"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4482,7 +4482,7 @@ export interface components {
                 remaining: number;
             };
             ai: {
-                /** @description USD spent via LiteLLM this period */
+                /** @description USD spent via Bifrost this period */
                 spentUsd: number;
                 /** @description Budget in USD (-1 = unlimited) */
                 budgetUsd: number;
@@ -4512,7 +4512,7 @@ export interface components {
             /** @description -1 means unlimited */
             maxWorkflows: number;
         };
-        LiteLLMKeyResponseDto: {
+        BifrostKeyResponseDto: {
             virtualKey: string | null;
         };
         OnboardingPreferencesDto: {
@@ -5315,6 +5315,7 @@ export interface components {
             updatedAt: string;
             groupId: string | null;
             templateSlug: string | null;
+            githubInstallationId?: number | null;
             templateHash: string | null;
             templateConfig: {
                 [key: string]: unknown;
@@ -5346,6 +5347,7 @@ export interface components {
             docsUrl?: string | null;
             icon?: string | null;
             supportsReadOnly?: boolean;
+            readOnlyDisabledTools?: string[];
             supportsDynamicToolsets?: boolean;
             availableToolsets?: string[];
             defaultToolsets?: string[];
@@ -5423,6 +5425,7 @@ export interface components {
                 updatedAt: string;
                 groupId: string | null;
                 templateSlug: string | null;
+                githubInstallationId?: number | null;
                 templateHash: string | null;
                 templateConfig: {
                     [key: string]: unknown;
@@ -8318,7 +8321,7 @@ export interface operations {
             };
         };
     };
-    InternalBillingController_getLiteLLMKey: {
+    InternalBillingController_getBifrostKey: {
         parameters: {
             query?: never;
             header: {
@@ -8334,7 +8337,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LiteLLMKeyResponseDto"];
+                    "application/json": components["schemas"]["BifrostKeyResponseDto"];
                 };
             };
         };

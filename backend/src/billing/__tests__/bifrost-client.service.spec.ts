@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
 
-import { LiteLLMClientService } from '../litellm-client.service';
+import { BifrostClientService } from '../bifrost-client.service';
 
-describe('LiteLLMClientService', () => {
+describe('BifrostClientService', () => {
   const envSnapshot = { ...process.env };
 
   beforeEach(() => {
     vi.restoreAllMocks();
     process.env = {
       ...envSnapshot,
-      LITELLM_PROXY_URL: 'http://litellm.local:4000',
-      LITELLM_MASTER_KEY: 'sk-master',
+      BIFROST_PROXY_URL: 'http://bifrost.local:4000',
+      BIFROST_MASTER_KEY: 'sk-master',
     };
   });
 
@@ -55,7 +55,7 @@ describe('LiteLLMClientService', () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const service = new LiteLLMClientService();
+    const service = new BifrostClientService();
     await expect(service.getTeamInfo('org-1')).resolves.toEqual({
       spend: 999.99,
       maxBudget: 50,
@@ -96,7 +96,7 @@ describe('LiteLLMClientService', () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const service = new LiteLLMClientService();
+    const service = new BifrostClientService();
     await expect(
       service.getTeamSpend(
         'org-1',
@@ -113,7 +113,7 @@ describe('LiteLLMClientService', () => {
 
     process.env = {
       ...process.env,
-      LITELLM_ALLOW_TEAM_INFO_SPEND_FALLBACK: 'true',
+      BIFROST_ALLOW_TEAM_INFO_SPEND_FALLBACK: 'true',
     };
 
     const fetchMock = vi.fn(async (input: unknown) => {
@@ -150,7 +150,7 @@ describe('LiteLLMClientService', () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const service = new LiteLLMClientService();
+    const service = new BifrostClientService();
     await expect(service.getTeamSpend('org-1', currentMonthStart, nextMonthStart)).resolves.toBe(
       1.23,
     );

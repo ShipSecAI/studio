@@ -139,8 +139,8 @@ beforeEach(() => {
   createMCPClientMock.mockClear();
   vi.restoreAllMocks();
   process.env.INTERNAL_SERVICE_TOKEN = 'internal-token';
-  delete process.env.LITELLM_BASE_URL;
-  delete process.env.LITELLM_API_KEY;
+  delete process.env.BIFROST_BASE_URL;
+  delete process.env.BIFROST_API_KEY;
 });
 
 beforeAll(async () => {
@@ -327,14 +327,14 @@ describe('core.ai.agent (refactor)', () => {
     });
   });
 
-  test('routes gemini provider through LiteLLM OpenAI-compatible path when enabled', async () => {
-    process.env.LITELLM_BASE_URL = 'http://litellm.local:4000/v1';
+  test('routes gemini provider through Bifrost OpenAI-compatible path when enabled', async () => {
+    process.env.BIFROST_BASE_URL = 'http://bifrost.local:4000/v1';
 
     const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
     expect(component).toBeDefined();
 
     vi.spyOn(MockToolLoopAgent.prototype, 'generate').mockResolvedValue(
-      createGenerationResult({ text: 'LiteLLM route ok' }),
+      createGenerationResult({ text: 'Bifrost route ok' }),
     );
 
     const result = await runComponentWithRunner(
@@ -361,13 +361,13 @@ describe('core.ai.agent (refactor)', () => {
       createTestContext(),
     );
 
-    expect(result.responseText).toBe('LiteLLM route ok');
+    expect(result.responseText).toBe('Bifrost route ok');
     expect(createGoogleGenerativeAIMock).not.toHaveBeenCalled();
     expect(createOpenAIMock).toHaveBeenCalled();
     expect(createOpenAIMock.mock.calls.length).toBeGreaterThan(0);
 
     const openAiCall = (createOpenAIMock as any).mock.calls[0][0] as Record<string, unknown>;
-    expect(openAiCall.baseURL).toBe('http://litellm.local:4000/v1');
+    expect(openAiCall.baseURL).toBe('http://bifrost.local:4000/v1');
     expect(openAiCall.apiKey).toBe('provider-key');
     const modelInvocation = (toolLoopAgentSettings as { model?: Record<string, unknown> })?.model;
     expect(modelInvocation).toMatchObject({

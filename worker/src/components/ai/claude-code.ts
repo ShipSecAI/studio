@@ -12,7 +12,7 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
-import { requireOrgVirtualKey, shouldRouteViaLiteLLM, getSkillWorkspaceFiles } from './utils';
+import { requireOrgVirtualKey, shouldRouteViaBifrost, getSkillWorkspaceFiles } from './utils';
 import { getPluginSetupScript } from './claude-plugins';
 
 const inputSchema = inputs({
@@ -203,13 +203,13 @@ const definition = defineComponent({
           }
         : { mcpServers: {} };
 
-    // 3. Resolve LiteLLM virtual key if needed
+    // 3. Resolve Bifrost virtual key if needed
     let orgVirtualKey: string | undefined;
-    if (shouldRouteViaLiteLLM() && !model?.apiKey && organizationId) {
+    if (shouldRouteViaBifrost() && !model?.apiKey && organizationId) {
       orgVirtualKey = await requireOrgVirtualKey(organizationId, {
         consumer: 'Claude Code agent',
       });
-    } else if (shouldRouteViaLiteLLM() && !model?.apiKey) {
+    } else if (shouldRouteViaBifrost() && !model?.apiKey) {
       orgVirtualKey = await requireOrgVirtualKey(organizationId ?? null, {
         consumer: 'Claude Code agent',
       });
@@ -414,7 +414,7 @@ function cleanReport(raw: string): string {
 /**
  * Build environment variables for Claude Code's Anthropic API auth.
  *
- * - LiteLLM routing: ANTHROPIC_API_KEY=<virtual-key>, ANTHROPIC_BASE_URL=<litellm>/anthropic
+ * - Bifrost routing: ANTHROPIC_API_KEY=<virtual-key>, ANTHROPIC_BASE_URL=<bifrost>/anthropic
  * - Direct Anthropic: ANTHROPIC_API_KEY=<key>
  * - ZAI provider: ANTHROPIC_API_KEY=<key>, ANTHROPIC_BASE_URL=https://api.z.ai/api/coding/paas/v4
  */
@@ -422,14 +422,14 @@ function buildProviderEnv(
   model?: { provider: string; apiKey?: string },
   orgVirtualKey?: string,
 ): Record<string, string> {
-  const liteLLMBaseUrl = process.env.LITELLM_BASE_URL?.trim();
+  const bifrostBaseUrl = process.env.BIFROST_BASE_URL?.trim();
 
-  if (liteLLMBaseUrl) {
+  if (bifrostBaseUrl) {
     const key = model?.apiKey || orgVirtualKey;
     return key
       ? {
           ANTHROPIC_API_KEY: key,
-          ANTHROPIC_BASE_URL: liteLLMBaseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, ''),
+          ANTHROPIC_BASE_URL: bifrostBaseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, ''),
         }
       : {};
   }

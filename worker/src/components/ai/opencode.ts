@@ -12,7 +12,7 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
-import { requireOrgVirtualKey, shouldRouteViaLiteLLM, getSkillWorkspaceFiles } from './utils';
+import { requireOrgVirtualKey, shouldRouteViaBifrost, getSkillWorkspaceFiles } from './utils';
 import { getOpenCodePluginSetupScript } from './opencode-plugins';
 
 const inputSchema = inputs({
@@ -240,13 +240,13 @@ const definition = defineComponent({
       ...providerConfig,
     };
 
-    // When LiteLLM is enabled and no user-provided key, use org's virtual key
+    // When Bifrost is enabled and no user-provided key, use org's virtual key
     let orgVirtualKey: string | undefined;
-    if (shouldRouteViaLiteLLM() && !model?.apiKey && organizationId) {
+    if (shouldRouteViaBifrost() && !model?.apiKey && organizationId) {
       orgVirtualKey = await requireOrgVirtualKey(organizationId, {
         consumer: 'OpenCode agent',
       });
-    } else if (shouldRouteViaLiteLLM() && !model?.apiKey) {
+    } else if (shouldRouteViaBifrost() && !model?.apiKey) {
       orgVirtualKey = await requireOrgVirtualKey(organizationId ?? null, {
         consumer: 'OpenCode agent',
       });
@@ -468,13 +468,13 @@ function buildProviderEnv(
   model?: { provider: string; apiKey?: string },
   orgVirtualKey?: string,
 ): Record<string, string> {
-  const liteLLMBaseUrl = process.env.LITELLM_BASE_URL?.trim();
-  if (liteLLMBaseUrl) {
+  const bifrostBaseUrl = process.env.BIFROST_BASE_URL?.trim();
+  if (bifrostBaseUrl) {
     const key = model?.apiKey || orgVirtualKey;
     return key
       ? {
           OPENAI_API_KEY: key,
-          OPENAI_BASE_URL: liteLLMBaseUrl,
+          OPENAI_BASE_URL: bifrostBaseUrl,
         }
       : {};
   }

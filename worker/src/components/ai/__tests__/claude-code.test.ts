@@ -25,8 +25,8 @@ describe('core.ai.claude-code', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...envSnapshot };
-    delete process.env.LITELLM_BASE_URL;
-    delete process.env.LITELLM_API_KEY;
+    delete process.env.BIFROST_BASE_URL;
+    delete process.env.BIFROST_API_KEY;
 
     vi.spyOn(utils, 'getSkillWorkspaceFiles').mockResolvedValue({});
 

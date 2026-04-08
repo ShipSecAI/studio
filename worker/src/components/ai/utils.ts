@@ -41,19 +41,19 @@ export async function connectToHotplugTools(
 }
 
 // ---------------------------------------------------------------------------
-// Shared LiteLLM helpers (used by ai-agent.ts and llm-generate-text.ts)
+// Shared Bifrost helpers (used by ai-agent.ts and llm-generate-text.ts)
 // ---------------------------------------------------------------------------
 
-export function shouldRouteViaLiteLLM(): boolean {
-  return (process.env.LITELLM_BASE_URL?.trim() ?? '').length > 0;
+export function shouldRouteViaBifrost(): boolean {
+  return (process.env.BIFROST_BASE_URL?.trim() ?? '').length > 0;
 }
 
-export function getLiteLLMBaseUrl(): string {
-  return process.env.LITELLM_BASE_URL?.trim() ?? '';
+export function getBifrostBaseUrl(): string {
+  return process.env.BIFROST_BASE_URL?.trim() ?? '';
 }
 
-export function getLiteLLMApiKey(): string {
-  return process.env.LITELLM_API_KEY?.trim() ?? '';
+export function getBifrostApiKey(): string {
+  return process.env.BIFROST_API_KEY?.trim() ?? '';
 }
 
 function normalizeBackendOrigin(url: string): string {
@@ -63,7 +63,7 @@ function normalizeBackendOrigin(url: string): string {
     .replace(/\/api\/v1$/i, '');
 }
 
-export function normalizeLiteLLMModel(provider: string, model: string): string {
+export function normalizeBifrostModel(provider: string, model: string): string {
   if (model.includes('/')) {
     return model;
   }
@@ -80,22 +80,22 @@ export function normalizeLiteLLMModel(provider: string, model: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// LiteLLM virtual key resolution (calls backend internal API)
+// Bifrost virtual key resolution (calls backend internal API)
 // ---------------------------------------------------------------------------
 
 /** In-memory cache: orgId → virtual key */
 const virtualKeyCache = new Map<string, string>();
 
 /**
- * Fetch the LiteLLM virtual key for an organization from the backend.
+ * Fetch the Bifrost virtual key for an organization from the backend.
  * Caches results in-memory to avoid repeated calls.
- * Returns null if LiteLLM is not configured or the key cannot be resolved.
+ * Returns null if Bifrost is not configured or the key cannot be resolved.
  */
 export async function fetchOrgVirtualKey(
   orgId: string,
   backendUrl?: string,
 ): Promise<string | null> {
-  if (!shouldRouteViaLiteLLM()) return null;
+  if (!shouldRouteViaBifrost()) return null;
 
   const cached = virtualKeyCache.get(orgId);
   if (cached) return cached;
@@ -113,7 +113,7 @@ export async function fetchOrgVirtualKey(
 
   try {
     const client = createInternalBackendClient({ baseUrl });
-    const res: { data?: { virtualKey?: string | null } } = await client.getLiteLLMVirtualKey(orgId);
+    const res: { data?: { virtualKey?: string | null } } = await client.getBifrostVirtualKey(orgId);
     const data = res.data;
     if (!data) return null;
     if (!data.virtualKey) return null;
@@ -129,15 +129,15 @@ export async function requireOrgVirtualKey(
   orgId: string | null | undefined,
   options?: { backendUrl?: string; consumer?: string },
 ): Promise<string> {
-  if (!shouldRouteViaLiteLLM()) {
-    throw new ConfigurationError('LiteLLM routing is not enabled.', {
-      configKey: 'LITELLM_BASE_URL',
+  if (!shouldRouteViaBifrost()) {
+    throw new ConfigurationError('Bifrost routing is not enabled.', {
+      configKey: 'BIFROST_BASE_URL',
     });
   }
 
   if (!orgId?.trim()) {
     throw new ConfigurationError(
-      `${options?.consumer ?? 'AI request'} requires an organization ID when LiteLLM routing is enabled.`,
+      `${options?.consumer ?? 'AI request'} requires an organization ID when Bifrost routing is enabled.`,
       { configKey: 'organizationId' },
     );
   }
@@ -145,9 +145,9 @@ export async function requireOrgVirtualKey(
   const virtualKey = await fetchOrgVirtualKey(orgId.trim(), options?.backendUrl);
   if (!virtualKey) {
     throw new ConfigurationError(
-      `${options?.consumer ?? 'AI request'} could not resolve a LiteLLM virtual key for organization "${orgId}".`,
+      `${options?.consumer ?? 'AI request'} could not resolve a Bifrost virtual key for organization "${orgId}".`,
       {
-        configKey: 'LITELLM_API_KEY',
+        configKey: 'BIFROST_API_KEY',
         details: { organizationId: orgId.trim() },
       },
     );
@@ -242,8 +242,8 @@ const BUDGET_EXCEEDED_PATTERNS = [
 ];
 
 /**
- * Detect if an error is a LiteLLM budget-exceeded rejection.
- * LiteLLM returns HTTP 400 with a message containing "budget exceeded".
+ * Detect if an error is a Bifrost budget-exceeded rejection.
+ * Bifrost returns HTTP 400 with a message containing "budget exceeded".
  */
 export function isBudgetExceededError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';

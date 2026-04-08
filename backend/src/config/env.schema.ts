@@ -132,9 +132,10 @@ export const backendEnvSchema = z
     AWS_REGION: z.string().optional(),
     AWS_DEFAULT_REGION: z.string().optional(),
 
-    // --- LiteLLM ---
-    LITELLM_PROXY_URL: z.string().optional(),
-    LITELLM_MASTER_KEY: z.string().optional(),
+    // --- Bifrost ---
+    BIFROST_PROXY_URL: z.string().optional(),
+    BIFROST_MASTER_KEY: z.string().optional(),
+    BIFROST_ALLOW_TEAM_INFO_SPEND_FALLBACK: z.string().optional(),
 
     // --- Platform ---
     PLATFORM_API_URL: z.string().optional().default(''),

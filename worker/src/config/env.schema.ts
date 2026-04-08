@@ -88,8 +88,8 @@ export const workerEnvSchema = z
     OPENROUTER_BASE_URL: z.string().optional().default('https://openrouter.ai/api/v1'),
     OPENROUTER_HTTP_REFERER: z.string().optional(),
     OPENROUTER_APP_TITLE: z.string().optional().default('ShipSec Studio'),
-    LITELLM_BASE_URL: z.string().optional(),
-    LITELLM_API_KEY: z.string().optional(),
+    BIFROST_BASE_URL: z.string().optional(),
+    BIFROST_API_KEY: z.string().optional(),
 
     // --- AWS ---
     AWS_REGION: z.string().optional(),

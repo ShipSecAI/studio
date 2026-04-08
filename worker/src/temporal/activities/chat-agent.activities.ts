@@ -162,14 +162,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
-  const baseURL = overrides?.baseURL ?? process.env.LITELLM_BASE_URL?.trim();
-  const apiKey = overrides?.apiKey ?? process.env.LITELLM_API_KEY?.trim();
+  const baseURL = overrides?.baseURL ?? process.env.BIFROST_BASE_URL?.trim();
+  const apiKey = overrides?.apiKey ?? process.env.BIFROST_API_KEY?.trim();
   const modelId = process.env.CHAT_AI_MODEL_ID;
   const providerName = process.env.CHAT_AI_PROVIDER ?? 'chat-provider';
 
   if (!baseURL || !apiKey || !modelId) {
     throw new Error(
-      'Chat AI not configured. Set LITELLM_BASE_URL, LITELLM_API_KEY, and CHAT_AI_MODEL_ID.',
+      'Chat AI not configured. Set BIFROST_BASE_URL, BIFROST_API_KEY, and CHAT_AI_MODEL_ID.',
     );
   }
 
@@ -178,7 +178,7 @@ function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
 }
 
 /**
- * Build a model instance with per-org virtual key via LiteLLM.
+ * Build a model instance with per-org virtual key via Bifrost.
  */
 async function getModelForOrg(organizationId?: string) {
   const virtualKey = await requireOrgVirtualKey(organizationId, {

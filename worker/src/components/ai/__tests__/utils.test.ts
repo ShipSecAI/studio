@@ -10,10 +10,10 @@ function headersToObject(headers: Headers): Record<string, string> {
   return result;
 }
 
-describe('LiteLLM org key helpers', () => {
+describe('Bifrost org key helpers', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    process.env.LITELLM_BASE_URL = 'http://litellm.local:4000/v1';
+    process.env.BIFROST_BASE_URL = 'http://bifrost.local:4000/v1';
     process.env.INTERNAL_SERVICE_TOKEN = 'internal-token';
     process.env.API_BASE_URL = 'http://backend.local/api/v1';
     delete process.env.STUDIO_API_BASE_URL;
@@ -25,7 +25,7 @@ describe('LiteLLM org key helpers', () => {
       expect(input).toBeInstanceOf(Request);
       const request = input as Request;
 
-      expect(request.url).toBe('http://backend.local/api/v1/internal/billing/litellm-key');
+      expect(request.url).toBe('http://backend.local/api/v1/internal/billing/bifrost-key');
       expect(headersToObject(request.headers)).toMatchObject({
         'x-internal-token': 'internal-token',
         'x-organization-id': 'org-123',
@@ -49,7 +49,7 @@ describe('LiteLLM org key helpers', () => {
       expect(input).toBeInstanceOf(Request);
       const request = input as Request;
 
-      expect(request.url).toBe('http://backend.local:3711/api/v1/internal/billing/litellm-key');
+      expect(request.url).toBe('http://backend.local:3711/api/v1/internal/billing/bifrost-key');
       return new Response(JSON.stringify({ virtualKey: 'sk-org-123' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -64,7 +64,7 @@ describe('LiteLLM org key helpers', () => {
     );
   });
 
-  test('requireOrgVirtualKey rejects LiteLLM calls without an organization', async () => {
+  test('requireOrgVirtualKey rejects Bifrost calls without an organization', async () => {
     await expect(requireOrgVirtualKey(null, { consumer: 'Chat AI' })).rejects.toThrow(
       'Chat AI requires an organization ID',
     );
@@ -83,7 +83,7 @@ describe('LiteLLM org key helpers', () => {
     globalThis.fetch = typedFetch;
 
     await expect(requireOrgVirtualKey('org-missing', { consumer: 'AI Agent' })).rejects.toThrow(
-      'could not resolve a LiteLLM virtual key',
+      'could not resolve a Bifrost virtual key',
     );
   });
 });
