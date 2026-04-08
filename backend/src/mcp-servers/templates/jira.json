@@ -1,0 +1,17 @@
+{
+  "slug": "jira",
+  "name": "Jira MCP",
+  "description": "Jira integration via ShipSec Forge app. Create, search, and manage Jira issues with bot identity.",
+  "transportType": "http",
+  "runtimeType": "host",
+  "authSource": "none",
+  "docsUrl": "https://developer.atlassian.com/platform/forge/",
+  "icon": "TicketCheck",
+  "supportsReadOnly": false,
+  "supportsDynamicToolsets": false,
+  "version": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0
+  }
+}

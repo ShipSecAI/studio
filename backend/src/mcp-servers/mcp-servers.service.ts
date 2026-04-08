@@ -124,6 +124,16 @@ export class McpServersService {
       };
     }
 
+    if (template.slug === 'jira') {
+      if (!input.jira) {
+        throw new BadRequestException('Jira MCP requires Forge web trigger configuration');
+      }
+      return {
+        webTriggerUrl: input.jira.webTriggerUrl,
+        sharedSecret: input.jira.sharedSecret,
+      };
+    }
+
     return {};
   }
 
@@ -168,7 +178,10 @@ export class McpServersService {
       name: input.name?.trim() || defaultName,
       description: input.description?.trim() || template.description || null,
       transportType: template.transportType,
-      endpoint: template.endpoint ?? null,
+      endpoint:
+        template.slug === 'jira'
+          ? ((config.webTriggerUrl as string) ?? null)
+          : (template.endpoint ?? null),
       command: template.command ?? null,
       args: template.args ?? null,
       headers: null,
@@ -1030,6 +1043,21 @@ export class McpServersService {
 
       if (typeof config.githubHost === 'string' && config.githubHost.length > 0) {
         envVars.GITHUB_HOST = config.githubHost;
+      }
+    }
+
+    if (record.templateSlug === 'jira') {
+      const config = (record.templateConfig ?? {}) as Record<string, unknown>;
+      const webTriggerUrl = config.webTriggerUrl as string;
+      if (!webTriggerUrl) {
+        throw new BadRequestException('Jira MCP server is missing web trigger URL configuration');
+      }
+      // The endpoint IS the web trigger URL — override it in the response
+      // Headers include the shared secret if configured
+      if (config.sharedSecret) {
+        const resolvedHeaders = resolved.headers ?? {};
+        resolvedHeaders['x-shipsec-secret'] = config.sharedSecret as string;
+        resolved.headers = resolvedHeaders;
       }
     }
 

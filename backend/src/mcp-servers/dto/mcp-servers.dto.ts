@@ -153,10 +153,18 @@ export const GitHubMcpTemplateConfigSchema = z.object({
 
 export class GitHubMcpTemplateConfigDto extends createZodDto(GitHubMcpTemplateConfigSchema) {}
 
+export const JiraMcpTemplateConfigSchema = z.object({
+  webTriggerUrl: z.string().url(),
+  sharedSecret: z.string().optional(),
+});
+
+export class JiraMcpTemplateConfigDto extends createZodDto(JiraMcpTemplateConfigSchema) {}
+
 export const ImportMcpServerTemplateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   github: GitHubMcpTemplateConfigSchema.optional(),
+  jira: JiraMcpTemplateConfigSchema.optional(),
 });
 
 export class ImportMcpServerTemplateDto extends createZodDto(ImportMcpServerTemplateSchema) {}
@@ -167,7 +175,7 @@ export const McpServerTemplateSchema = z.object({
   description: z.string().nullable().optional(),
   transportType: z.enum(['http', 'stdio']),
   runtimeType: z.enum(['docker', 'host']),
-  authSource: z.enum(['none', 'github_app']),
+  authSource: z.enum(['none', 'github_app', 'jira_forge']),
   docsUrl: z.string().nullable().optional(),
   icon: z.string().nullable().optional(),
   supportsReadOnly: z.boolean().optional(),

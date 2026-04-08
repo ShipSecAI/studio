@@ -50,12 +50,21 @@ const PROVIDERS: ProviderMeta[] = [
     category: 'Notifications',
     route: '/integrations/slack',
   },
+  {
+    id: 'jira',
+    name: 'Jira',
+    description:
+      'Create and manage vulnerability tickets, assign to maintainers, and track remediation.',
+    logo: '/icons/jira.svg',
+    gradient: 'from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20',
+    borderAccent: 'hover:border-blue-300 dark:hover:border-blue-700',
+    hoverGradient: 'linear-gradient(to right, #3b82f6, #6366f1)',
+    category: 'Ticketing',
+    route: '/integrations/jira',
+  },
 ];
 
-const COMING_SOON: { name: string; icon?: string }[] = [
-  { name: 'Jira', icon: '/icons/jira.svg' },
-  { name: 'Linear' },
-];
+const COMING_SOON: { name: string; icon?: string }[] = [{ name: 'Linear' }];
 
 // ---------------------------------------------------------------------------
 // Main Page

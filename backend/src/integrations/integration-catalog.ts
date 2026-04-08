@@ -168,6 +168,58 @@ export const SLACK_PROVIDER: IntegrationProviderDefinition = {
   },
 };
 
+export const JIRA_PROVIDER: IntegrationProviderDefinition = {
+  id: 'jira',
+  name: 'Jira',
+  description:
+    'Connect Jira for vulnerability ticket management, automated issue creation, and workflow tracking.',
+  docsUrl: 'https://developer.atlassian.com/platform/forge/',
+  iconUrl: '/icons/jira.svg',
+  supportsMultipleConnections: false,
+  authMethods: [
+    {
+      type: 'forge_app',
+      label: 'Forge App',
+      description:
+        'Install the ShipSec Forge app on your Jira site. The app runs with its own identity — no personal credentials needed.',
+      fields: [
+        {
+          id: 'webTriggerUrl',
+          label: 'Web Trigger URL',
+          type: 'password',
+          required: true,
+          placeholder: 'https://xxxx.hello.atlassian-dev.net/x1/...',
+          helpText:
+            'Generated after installing the ShipSec Forge app. Run "forge webtrigger" to get this URL.',
+        },
+        {
+          id: 'sharedSecret',
+          label: 'Shared Secret (optional)',
+          type: 'password',
+          required: false,
+          placeholder: 'Optional HMAC secret for request verification',
+          helpText: 'If configured in the Forge app, enter the matching secret here.',
+        },
+      ],
+    },
+  ],
+  setupInstructions: {
+    sections: [
+      {
+        title: 'Install Forge App',
+        authMethodType: 'forge_app',
+        scenario: 'forge-app',
+        steps: [
+          'Ask your ShipSec admin for the Forge app installation link.',
+          'Click the link and install the ShipSec app on your Jira site.',
+          'Run "forge webtrigger" to generate the web trigger URL for your installation.',
+          'Paste the web trigger URL below and click "Connect".',
+        ],
+      },
+    ],
+  },
+};
+
 export function getCatalog(): IntegrationProviderDefinition[] {
-  return [AWS_PROVIDER, SLACK_PROVIDER];
+  return [AWS_PROVIDER, SLACK_PROVIDER, JIRA_PROVIDER];
 }

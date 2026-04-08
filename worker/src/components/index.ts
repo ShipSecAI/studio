@@ -65,6 +65,9 @@ import './security/aws-mcp-group';
 import './security/findings-normalize';
 import './security/findings-markdown';
 
+// Jira components
+import './jira/create-issue';
+
 // GitHub components
 import './github/connection-provider';
 import './github/remove-org-membership';

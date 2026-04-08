@@ -88,6 +88,11 @@ const PROVIDER_VISUALS: Record<
     gradient: 'from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20',
     borderAccent: 'border-purple-200 dark:border-purple-800',
   },
+  jira: {
+    logo: '/icons/jira.svg',
+    gradient: 'from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20',
+    borderAccent: 'border-blue-200 dark:border-blue-800',
+  },
 };
 
 function credentialTypeBadge(type: string) {
@@ -96,6 +101,7 @@ function credentialTypeBadge(type: string) {
     iam_role: 'IAM Role',
     webhook: 'Webhook',
     oauth: 'OAuth',
+    forge_app: 'Forge App',
   };
   return (
     <Badge variant="outline" className="capitalize">

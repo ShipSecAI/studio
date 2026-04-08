@@ -22,7 +22,7 @@ export interface McpServerTemplate {
   description?: string;
   transportType: 'http' | 'stdio';
   runtimeType: 'docker' | 'host';
-  authSource: 'none' | 'github_app';
+  authSource: 'none' | 'github_app' | 'jira_forge';
   command?: string;
   args?: string[];
   endpoint?: string;
