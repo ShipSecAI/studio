@@ -54,8 +54,10 @@ function buildSystemPromptSuffix(): string {
   return `\n\n# Session Context\n- Current date: ${now}`;
 }
 
-/** Combined system prompt for workflow input. */
-const SYSTEM_PROMPT = SYSTEM_PROMPT_PREFIX + buildSystemPromptSuffix();
+/** Build the combined system prompt at call time so the date stays current. */
+function buildSystemPrompt(): string {
+  return SYSTEM_PROMPT_PREFIX + buildSystemPromptSuffix();
+}
 
 const STREAM_REPLAY_BATCH_SIZE = 500;
 
@@ -177,7 +179,7 @@ export class ChatService {
       const result = await this.temporalService.startChatWorkflow({
         sessionId: session.id,
         organizationId: auth.organizationId,
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt: buildSystemPrompt(),
       });
       await this.sessionRepository.setTemporalWorkflowId(session.id, result.workflowId);
     } catch (error) {
@@ -398,7 +400,7 @@ export class ChatService {
     const restarted = await this.temporalService.startChatWorkflow({
       sessionId,
       organizationId: auth.organizationId,
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt: buildSystemPrompt(),
       initialMessages,
     });
 

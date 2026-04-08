@@ -295,6 +295,19 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
     if (!gotMessage) break;
     if (chatEnded) break;
 
+    // Recreate Hotplug session if it may have expired (idle TTL is 10 min, but
+    // the workflow can wait up to 30 min between turns).
+    if (organizationId) {
+      try {
+        hotplugSession = await createHotplugChatSessionActivity({
+          chatSessionId: sessionId,
+          organizationId,
+        });
+      } catch {
+        // Non-critical — chat continues with Studio tools only
+      }
+    }
+
     // Drain and merge ALL pending user messages into one model turn.
     const drainedTurns = pendingUserMessages.splice(0, pendingUserMessages.length);
     const primaryTurn = drainedTurns[0];

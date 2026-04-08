@@ -1666,6 +1666,9 @@ export async function runChatAgentStepActivity(
     await mcpClient.close().catch(() => {
       // Best-effort cleanup
     });
+    await hotplugMcpClient?.close().catch(() => {
+      // Best-effort cleanup
+    });
   }
 }
 
