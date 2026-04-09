@@ -50,6 +50,7 @@ export const IntegrationCatalogEntrySchema = z.object({
   iconUrl: z.string().optional(),
   authMethods: z.array(IntegrationCatalogAuthMethodSchema),
   supportsMultipleConnections: z.boolean(),
+  installUrl: z.string().nullable().optional(),
   setupInstructions: z.object({
     sections: z.array(IntegrationCatalogInstructionSectionSchema),
   }),
