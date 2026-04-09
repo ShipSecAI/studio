@@ -1120,7 +1120,9 @@ export function IntegrationDetailPage() {
   // ---- Render ----
 
   const hasSetupSections =
-    catalogEntry?.setupInstructions?.sections && catalogEntry.setupInstructions.sections.length > 0;
+    provider !== 'jira' &&
+    catalogEntry?.setupInstructions?.sections &&
+    catalogEntry.setupInstructions.sections.length > 0;
 
   return (
     <div className="flex-1 bg-background">
