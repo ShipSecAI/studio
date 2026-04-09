@@ -438,6 +438,31 @@ export class IntegrationsController {
     return { ok: true, message: 'Jira Forge installation registered' };
   }
 
+  @Post('jira/discover')
+  @ApiOkResponse({ description: 'Discover Jira Forge installation for a site' })
+  async discoverJiraInstallation(
+    @CurrentAuth() auth: AuthContext | null,
+    @Body() body: { siteHostname: string },
+  ): Promise<{ found: boolean; hostname?: string; environment?: string }> {
+    if (!auth?.userId || !auth?.organizationId) {
+      throw new BadRequestException('Authentication required');
+    }
+    return this.integrations.discoverJiraInstallation(body.siteHostname);
+  }
+
+  @Post('jira/connect-site')
+  @ApiOkResponse({ type: IntegrationConnectionResponse })
+  async connectJiraViaSite(
+    @CurrentAuth() auth: AuthContext | null,
+    @Body() body: { siteHostname: string },
+  ): Promise<IntegrationConnectionResponse> {
+    if (!auth?.userId || !auth?.organizationId) {
+      throw new BadRequestException('Authentication required');
+    }
+    const connection = await this.integrations.connectJiraViaSiteDiscovery(auth, body.siteHostname);
+    return this.toConnectionResponse(connection);
+  }
+
   @Post('jira/connections')
   @ApiOkResponse({ type: IntegrationConnectionResponse })
   async createJiraForgeConnection(

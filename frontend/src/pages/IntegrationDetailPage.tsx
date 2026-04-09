@@ -34,6 +34,7 @@ import {
   useValidateAwsConnection,
   useTestSlackConnection,
   useDisconnectIntegration,
+  useConnectJiraSite,
 } from '@/hooks/queries/useIntegrationQueries';
 
 import { Button } from '@/components/ui/button';
@@ -910,13 +911,44 @@ interface JiraFormProps {
   onCancel: () => void;
 }
 
-function JiraConnectionForm({ onCancel }: JiraFormProps) {
+function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
+  const { toast } = useToast();
   const { data: catalog = [] } = useIntegrationCatalog();
+  const connectJiraMutation = useConnectJiraSite();
   const jiraEntry = catalog.find((c) => c.id === 'jira');
   const installUrl = (jiraEntry as Record<string, unknown> | undefined)?.installUrl as
     | string
     | null
     | undefined;
+
+  const [siteHostname, setSiteHostname] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const handleConnect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!siteHostname.trim()) return;
+    setSubmitting(true);
+    setResult(null);
+    try {
+      await connectJiraMutation.mutateAsync(siteHostname.trim());
+      setResult({ ok: true, message: 'Jira connected successfully!' });
+      toast({ title: 'Jira connected' });
+      onCreated();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to connect.';
+      if (message.includes('not found')) {
+        setResult({
+          ok: false,
+          message: `ShipSec.ai app not found on ${siteHostname.trim()}. Install it first using the button above.`,
+        });
+      } else {
+        setResult({ ok: false, message });
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-6 py-2">
@@ -925,42 +957,68 @@ function JiraConnectionForm({ onCancel }: JiraFormProps) {
           <img src="/icons/jira.svg" alt="Jira" className="h-8 w-8" />
         </div>
         <div>
-          <p className="text-base font-semibold">Install ShipSec.ai on Jira</p>
+          <p className="text-base font-semibold">Connect Jira</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-            Click below to install the ShipSec.ai app on your Jira site. The connection will be
-            created automatically after installation.
+            Enter your Jira site to connect. If the ShipSec.ai app is not installed yet, install it
+            first.
           </p>
         </div>
       </div>
 
-      <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-        <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-          <li>
-            Click <strong className="text-foreground">Install on Jira</strong> below.
-          </li>
-          <li>Select your Jira site and approve the permissions.</li>
-          <li>The connection appears here automatically — no configuration needed.</li>
-        </ol>
-      </div>
-
-      <div className="flex flex-col gap-3 pt-2">
-        {installUrl ? (
-          <Button asChild size="lg" className="w-full">
-            <a href={installUrl} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Install on Jira
-            </a>
-          </Button>
-        ) : (
-          <Button size="lg" className="w-full" disabled>
+      {installUrl && (
+        <Button asChild variant="outline" className="w-full">
+          <a href={installUrl} target="_blank" rel="noopener noreferrer">
             <ExternalLink className="mr-2 h-4 w-4" />
-            Install on Jira — coming soon
-          </Button>
-        )}
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Close
+            Install ShipSec.ai on Jira
+          </a>
         </Button>
-      </div>
+      )}
+
+      <form onSubmit={handleConnect} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="jira-site">Jira Site</Label>
+          <div className="flex gap-2">
+            <Input
+              id="jira-site"
+              value={siteHostname}
+              onChange={(e) => setSiteHostname(e.target.value)}
+              placeholder="yourcompany.atlassian.net"
+              disabled={submitting}
+            />
+            <Button type="submit" disabled={submitting || !siteHostname.trim()}>
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Connect'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Automatically detects the ShipSec.ai app on your site and sets up the connection.
+          </p>
+        </div>
+
+        {result && (
+          <div
+            className={cn(
+              'rounded-lg border p-3 text-sm',
+              result.ok
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400'
+                : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400',
+            )}
+          >
+            {result.ok ? (
+              <span className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4" /> {result.message}
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <XCircle className="h-4 w-4" /> {result.message}
+              </span>
+            )}
+          </div>
+        )}
+      </form>
+
+      <Button type="button" variant="outline" className="w-full" onClick={onCancel}>
+        Close
+      </Button>
     </div>
   );
 }

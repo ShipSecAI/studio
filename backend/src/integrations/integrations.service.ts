@@ -27,6 +27,7 @@ import { AwsService } from './aws.service';
 import { SlackService } from './slack.service';
 import { SetupTokenService } from './setup-token.service';
 import { generateExternalId, formatExternalIdForDisplay } from './external-id-generator';
+import { ForgeDiscoveryService } from './forge-discovery.service';
 import type { CreateAwsConnectionDto } from './integrations.dto';
 import type { IntegrationTokenRecord } from '../database/schema';
 import type { AuthContext } from '../auth/types';
@@ -107,6 +108,7 @@ export class IntegrationsService implements OnModuleInit {
     private readonly slackService: SlackService,
     private readonly setupTokenService: SetupTokenService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly forgeDiscovery: ForgeDiscoveryService,
   ) {
     this.providers = loadIntegrationProviders();
   }
@@ -782,6 +784,55 @@ export class IntegrationsService implements OnModuleInit {
       organizationId,
       userId,
       isReconnect: !isNew,
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Jira Forge discovery (zero-config via GraphQL API)               */
+  /* ------------------------------------------------------------------ */
+
+  async discoverJiraInstallation(siteHostname: string): Promise<{
+    found: boolean;
+    hostname?: string;
+    environment?: string;
+    webTriggerUrl?: string;
+  }> {
+    if (!this.forgeDiscovery.isConfigured()) {
+      throw new BadRequestException(
+        'Forge discovery is not configured (FORGE_EMAIL/FORGE_API_TOKEN missing)',
+      );
+    }
+
+    const result = await this.forgeDiscovery.discoverForSite(siteHostname);
+    if (!result) {
+      return { found: false };
+    }
+
+    return {
+      found: true,
+      hostname: result.hostname,
+      environment: result.environment,
+      webTriggerUrl: result.webTriggerUrl ?? undefined,
+    };
+  }
+
+  async connectJiraViaSiteDiscovery(
+    auth: AuthContext,
+    siteHostname: string,
+  ): Promise<IntegrationConnection> {
+    const discovery = await this.discoverJiraInstallation(siteHostname);
+    if (!discovery.found || !discovery.webTriggerUrl) {
+      throw new BadRequestException(
+        discovery.found
+          ? 'App is installed but web trigger URL could not be resolved'
+          : `ShipSec.ai app not found on ${siteHostname}. Please install it first.`,
+      );
+    }
+
+    // Create the connection using the existing method
+    return this.createJiraForgeConnection(auth, {
+      displayName: `Jira · ${discovery.hostname}`,
+      webTriggerUrl: discovery.webTriggerUrl,
     });
   }
 

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { DatabaseModule } from '../database/database.module';
 import { AwsService } from './aws.service';
+import { ForgeDiscoveryService } from './forge-discovery.service';
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationsRepository } from './integrations.repository';
 import { IntegrationsService } from './integrations.service';
@@ -22,6 +23,7 @@ import { AwsAssetSyncAction } from './listeners/actions/aws-asset-sync.action';
     AwsService,
     SlackService,
     SetupTokenService,
+    ForgeDiscoveryService,
     IntegrationActionRegistry,
     IntegrationConnectedListener,
     AwsAssetSyncAction,
