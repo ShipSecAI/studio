@@ -165,7 +165,6 @@ function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
   const baseURL = overrides?.baseURL ?? process.env.BIFROST_BASE_URL?.trim();
   const apiKey = overrides?.apiKey ?? process.env.BIFROST_API_KEY?.trim();
   const modelId = process.env.CHAT_AI_MODEL_ID;
-  const providerName = process.env.CHAT_AI_PROVIDER ?? 'chat-provider';
 
   if (!baseURL || !apiKey || !modelId) {
     throw new Error(
@@ -173,7 +172,7 @@ function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
     );
   }
 
-  const provider = createOpenAI({ baseURL, apiKey, name: providerName });
+  const provider = createOpenAI({ baseURL, apiKey, name: 'bifrost' });
   return provider.chat(modelId);
 }
 

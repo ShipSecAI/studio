@@ -76,10 +76,7 @@ export const workerEnvSchema = z
     // --- AI provider keys (all optional) ---
     OPENAI_API_KEY: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
-    CHAT_AI_BASE_URL: z.string().optional(),
-    CHAT_AI_API_KEY: z.string().optional(),
     CHAT_AI_MODEL_ID: z.string().optional(),
-    CHAT_AI_PROVIDER: z.string().optional(),
 
     // --- AI providers (extended) ---
     GEMINI_API_KEY: z.string().optional(),
