@@ -952,13 +952,10 @@ function JiraConnectionForm({ onCancel }: JiraFormProps) {
             </a>
           </Button>
         ) : (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 text-sm text-amber-700 dark:text-amber-400">
-            Jira install link not configured. Set the{' '}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">
-              JIRA_FORGE_INSTALL_URL
-            </code>{' '}
-            environment variable.
-          </div>
+          <Button size="lg" className="w-full" disabled>
+            <ExternalLink className="mr-2 h-4 w-4" />
+            Install on Jira — coming soon
+          </Button>
         )}
         <Button type="button" variant="outline" onClick={onCancel}>
           Close
