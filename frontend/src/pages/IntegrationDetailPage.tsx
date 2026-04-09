@@ -932,7 +932,8 @@ function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
     setSubmitting(true);
     setStatus('idle');
     try {
-      await connectJiraMutation.mutateAsync(siteHostname.trim());
+      const fullHostname = `${siteHostname.trim()}.atlassian.net`;
+      await connectJiraMutation.mutateAsync(fullHostname);
       setStatus('success');
       toast({ title: 'Jira connected' });
       onCreated();
@@ -966,18 +967,22 @@ function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
       <form onSubmit={handleConnect} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="jira-site">Jira Site</Label>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-0">
             <Input
               id="jira-site"
               value={siteHostname}
               onChange={(e) => {
-                setSiteHostname(e.target.value);
+                setSiteHostname(e.target.value.replace(/\.atlassian\.net$/i, ''));
                 if (status !== 'idle') setStatus('idle');
               }}
-              placeholder="yourcompany.atlassian.net"
+              placeholder="yourcompany"
               disabled={submitting}
+              className="rounded-r-none"
             />
-            <Button type="submit" disabled={submitting || !siteHostname.trim()}>
+            <span className="inline-flex h-9 items-center rounded-r-md border border-l-0 bg-muted px-3 text-sm text-muted-foreground whitespace-nowrap">
+              .atlassian.net
+            </span>
+            <Button type="submit" disabled={submitting || !siteHostname.trim()} className="ml-2">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Connect'}
             </Button>
           </div>
@@ -995,7 +1000,7 @@ function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
           <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 p-4 space-y-3">
             <p className="text-sm font-medium text-blue-800 dark:text-blue-300 flex items-center gap-2">
               <Info className="h-4 w-4" />
-              ShipSec.ai app not found on {siteHostname.trim()}
+              ShipSec.ai app not found on {siteHostname.trim()}.atlassian.net
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-400">
               Install the app on your Jira site first, then click Connect again.
@@ -1262,9 +1267,7 @@ export function IntegrationDetailPage() {
               </DialogTrigger>
               <DialogContent
                 className={cn(
-                  provider === 'aws' || provider === 'slack' || provider === 'jira'
-                    ? 'max-w-2xl'
-                    : 'max-w-lg',
+                  provider === 'aws' || provider === 'slack' ? 'max-w-2xl' : 'max-w-lg',
                 )}
               >
                 <DialogHeader>
