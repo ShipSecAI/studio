@@ -1341,8 +1341,29 @@ export async function runChatAgentStepActivity(
         stopWhen: stepCountIs(maxSteps),
         experimental_transform: smoothStream(),
         abortSignal: cancellationSignal,
-        onStepFinish: () => {
+        onError: ({ error }) => {
+          console.error(
+            `[chat-agent] streamText error for session ${sessionId}:`,
+            error instanceof Error ? error.message : String(error),
+          );
+        },
+        onStepFinish: (event) => {
           heartbeatCheckpoint(accumulatedParts, completedToolCalls, lastFlushedLength);
+          if (event.toolCalls?.length) {
+            console.log(
+              `[chat-agent] Step finished with ${event.toolCalls.length} tool call(s) for session ${sessionId}:`,
+              event.toolCalls.map((tc: any) => `${tc.toolName}(${tc.toolCallId})`).join(', '),
+              `| finishReason=${event.finishReason}`,
+            );
+          }
+          if (event.toolResults?.length) {
+            console.log(
+              `[chat-agent] Step tool results for session ${sessionId}:`,
+              event.toolResults
+                .map((tr: any) => `${tr.toolName}(${tr.toolCallId}): ${tr.type}`)
+                .join(', '),
+            );
+          }
         },
       });
 
@@ -1460,6 +1481,32 @@ export async function runChatAgentStepActivity(
           interrupted: true,
           compactionState: compactionResult.compactionState,
         };
+      }
+
+      // Emit error for any tool calls that started but never got a result.
+      // This happens when the MCP transport fails (e.g. session destroyed) and
+      // streamText silently ends the stream without emitting tool-output-error.
+      for (const toolCallId of startedToolCalls) {
+        if (!completedToolCalls.has(toolCallId)) {
+          console.warn(
+            `[chat-agent] Tool call ${toolCallId} started but never completed for session ${sessionId} — emitting error`,
+          );
+          const errorChunk = {
+            type: 'tool-output-error',
+            toolCallId,
+            errorText:
+              'Tool execution failed — the connection was lost before a result was received.',
+          };
+          await appendChunk(errorChunk as UIMessageChunk);
+          // Update accumulated parts so persisted messages reflect the error
+          const toolPart = accumulatedParts.find(
+            (p: any) => p.type === 'tool-invocation' && p.toolCallId === toolCallId,
+          ) as any;
+          if (toolPart) {
+            toolPart.state = 'output-error';
+            toolPart.errorText = errorChunk.errorText;
+          }
+        }
       }
 
       if (!sawFinishChunk) {

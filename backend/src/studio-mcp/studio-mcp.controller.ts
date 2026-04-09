@@ -99,8 +99,15 @@ export class StudioMcpController {
 
       if (isGet) {
         res.on('close', () => {
-          this.logger.log(`Studio MCP SSE closed for session ${sessionId}`);
-          this.cleanupSession(sessionId, session);
+          // NOTE: Do NOT destroy the session on SSE close.
+          // In K8s/cloud environments, proxies and load balancers close idle SSE
+          // connections after 30-60s. The client will reconnect with a new GET,
+          // but tool-call POSTs must still work in between.
+          // Session cleanup is handled by TTL pruning in pruneExpiredSessions().
+          this.logger.log(
+            `Studio MCP SSE connection closed for session ${sessionId} (session kept alive)`,
+          );
+          session.lastTouchedAtMs = Date.now();
         });
         // Cast: Express Request extends IncomingMessage; handleRequest accepts it at runtime
         void transport.handleRequest(req as any, res as any);
