@@ -1,0 +1,35 @@
+app:
+  id: ari:cloud:ecosystem::app/a03d42c4-96f6-4f75-8dff-8fbc7c419e47
+  runtime:
+    name: nodejs24.x
+
+modules:
+  webtrigger:
+    - key: mcp-endpoint
+      function: mcpHandler
+      response:
+        type: dynamic
+
+  trigger:
+    - key: on-install
+      function: onInstallHandler
+      events:
+        - avi:forge:installed:app
+        - avi:forge:upgraded:app
+
+  function:
+    - key: mcpHandler
+      handler: index.handler
+    - key: onInstallHandler
+      handler: index.onInstall
+
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+    - read:jira-user
+  external:
+    fetch:
+      backend:
+        - 'studio.shipsec.ai'
+        - 'studio-staging.shipsec.ai'

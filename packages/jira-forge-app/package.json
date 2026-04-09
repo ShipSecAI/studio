@@ -1,0 +1,22 @@
+{
+  "name": "@shipsec/jira-forge-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ShipSec Jira Forge MCP Server — exposes Jira tools via MCP protocol using Forge app identity",
+  "main": "src/index.ts",
+  "scripts": {
+    "lint": "forge lint",
+    "deploy": "forge deploy",
+    "deploy:prod": "forge deploy -e production",
+    "install:dev": "forge install -e development",
+    "install:prod": "forge install -e production",
+    "tunnel": "forge tunnel"
+  },
+  "dependencies": {
+    "@forge/api": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "typescript": "^5.5.0"
+  }
+}
