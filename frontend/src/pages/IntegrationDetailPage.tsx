@@ -1011,17 +1011,13 @@ function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
             <p className="text-xs text-blue-700 dark:text-blue-400">
               Install the app on your Jira site first, then click Connect again.
             </p>
-            {installUrl ? (
+            {installUrl && (
               <Button asChild size="sm" variant="outline" className="w-full">
                 <a href={installUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="mr-2 h-3 w-3" />
                   Install ShipSec.ai on Jira
                 </a>
               </Button>
-            ) : (
-              <p className="text-xs text-blue-600 dark:text-blue-500">
-                Contact your ShipSec.ai admin for the installation link.
-              </p>
             )}
           </div>
         )}

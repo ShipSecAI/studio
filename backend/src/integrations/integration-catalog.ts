@@ -177,11 +177,7 @@ export const JIRA_PROVIDER: IntegrationProviderDefinition = {
   docsUrl: 'https://developer.atlassian.com/platform/forge/',
   iconUrl: '/icons/jira.svg',
   supportsMultipleConnections: false,
-  installUrl:
-    process.env.JIRA_FORGE_INSTALL_URL ||
-    (process.env.FORGE_APP_ID
-      ? `https://developer.atlassian.com/console/install/${process.env.FORGE_APP_ID}?product=jira`
-      : null),
+  installUrl: process.env.JIRA_FORGE_INSTALL_URL || null,
   authMethods: [
     {
       type: 'forge_app',
