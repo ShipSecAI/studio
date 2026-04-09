@@ -12,6 +12,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 
@@ -402,6 +403,40 @@ export class IntegrationsController {
   /* ------------------------------------------------------------------ */
   /*  Jira connections                                                   */
   /* ------------------------------------------------------------------ */
+
+  @Public()
+  @Post('jira/auto-register')
+  @ApiOkResponse({ description: 'Auto-register Jira Forge installation' })
+  async autoRegisterJiraForge(
+    @Req() req: any,
+    @Body()
+    body: {
+      installationId: string;
+      appId: string;
+      appVersion: string;
+      environmentId?: string;
+      webTriggerUrl: string;
+      installerAccountId?: string;
+    },
+  ): Promise<{ ok: boolean; message: string }> {
+    // Validate forge secret
+    const expectedSecret = process.env.SHIPSEC_FORGE_SECRET;
+    const providedSecret = req.headers['x-forge-secret'];
+
+    if (!expectedSecret) {
+      throw new BadRequestException('SHIPSEC_FORGE_SECRET not configured on backend');
+    }
+    if (!providedSecret || providedSecret !== expectedSecret) {
+      throw new BadRequestException('Invalid forge secret');
+    }
+
+    if (!body.webTriggerUrl || !body.installationId) {
+      throw new BadRequestException('webTriggerUrl and installationId are required');
+    }
+
+    await this.integrations.autoRegisterJiraForge(body);
+    return { ok: true, message: 'Jira Forge installation registered' };
+  }
 
   @Post('jira/connections')
   @ApiOkResponse({ type: IntegrationConnectionResponse })

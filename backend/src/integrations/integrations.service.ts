@@ -30,6 +30,7 @@ import { generateExternalId, formatExternalIdForDisplay } from './external-id-ge
 import type { CreateAwsConnectionDto } from './integrations.dto';
 import type { IntegrationTokenRecord } from '../database/schema';
 import type { AuthContext } from '../auth/types';
+import { DEFAULT_ORGANIZATION_ID } from '../auth/constants';
 
 export interface OAuthStartResponse {
   provider: string;
@@ -715,6 +716,73 @@ export class IntegrationsService implements OnModuleInit {
     });
 
     return this.toConnection(record);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Jira Forge auto-registration (called by Forge app on install)    */
+  /* ------------------------------------------------------------------ */
+
+  async autoRegisterJiraForge(input: {
+    installationId: string;
+    appId: string;
+    appVersion: string;
+    environmentId?: string;
+    webTriggerUrl: string;
+    installerAccountId?: string;
+  }): Promise<void> {
+    this.logger.log(`Auto-registering Jira Forge installation: ${input.installationId}`);
+
+    // Test the connection
+    try {
+      const testResponse = await fetch(input.webTriggerUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
+      });
+      if (!testResponse.ok) {
+        this.logger.warn(`Jira Forge connection test failed: HTTP ${testResponse.status}`);
+      }
+    } catch (err) {
+      this.logger.warn(`Jira Forge connection test error: ${err}`);
+    }
+
+    // Encrypt the webTriggerUrl as the accessToken (same pattern as createJiraForgeConnection)
+    const encryptedCreds = await this.encryption.encrypt(
+      JSON.stringify({ webTriggerUrl: input.webTriggerUrl }),
+    );
+
+    const organizationId = DEFAULT_ORGANIZATION_ID;
+    const userId = 'system';
+
+    const { isNew } = await this.repository.insertConnection({
+      userId,
+      provider: 'jira',
+      organizationId,
+      credentialType: 'forge_app',
+      displayName: 'Jira (auto-configured)',
+      scopes: [],
+      accessToken: encryptedCreds,
+      refreshToken: null,
+      tokenType: 'Bearer',
+      expiresAt: null,
+      metadata: {
+        webTriggerUrl: input.webTriggerUrl,
+        forgeInstallationId: input.installationId,
+        forgeAppId: input.appId,
+        forgeAppVersion: input.appVersion,
+        forgeEnvironmentId: input.environmentId,
+        autoRegistered: true,
+      },
+    });
+
+    this.emitConnectionEvent({
+      connectionId: input.installationId,
+      provider: 'jira',
+      credentialType: 'forge_app',
+      organizationId,
+      userId,
+      isReconnect: !isNew,
+    });
   }
 
   /* ------------------------------------------------------------------ */
