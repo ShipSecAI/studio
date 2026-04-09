@@ -126,7 +126,7 @@ export class McpServersService {
 
     if (template.slug === 'jira') {
       if (!input.jira) {
-        throw new BadRequestException('Jira MCP requires Forge web trigger configuration');
+        return {};
       }
       return {
         webTriggerUrl: input.jira.webTriggerUrl,
