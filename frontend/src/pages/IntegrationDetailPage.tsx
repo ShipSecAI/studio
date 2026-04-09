@@ -967,7 +967,7 @@ function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
       <form onSubmit={handleConnect} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="jira-site">Jira Site</Label>
-          <div className="flex items-center gap-0">
+          <div className="flex items-stretch">
             <Input
               id="jira-site"
               value={siteHostname}
@@ -977,15 +977,21 @@ function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
               }}
               placeholder="yourcompany"
               disabled={submitting}
-              className="rounded-r-none"
+              className="rounded-r-none border-r-0 focus-visible:z-10"
             />
-            <span className="inline-flex h-9 items-center rounded-r-md border border-l-0 bg-muted px-3 text-sm text-muted-foreground whitespace-nowrap">
+            <div className="flex items-center rounded-r-md border border-input bg-muted px-3 text-sm text-muted-foreground">
               .atlassian.net
-            </span>
-            <Button type="submit" disabled={submitting || !siteHostname.trim()} className="ml-2">
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Connect'}
-            </Button>
+            </div>
           </div>
+          <Button type="submit" disabled={submitting || !siteHostname.trim()} className="w-full">
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connecting...
+              </>
+            ) : (
+              'Connect'
+            )}
+          </Button>
         </div>
 
         {status === 'success' && (
