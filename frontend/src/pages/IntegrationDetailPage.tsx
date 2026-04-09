@@ -31,7 +31,6 @@ import {
   useAwsSetupInfo,
   useCreateAwsConnection,
   useCreateSlackWebhookConnection,
-  useCreateJiraForgeConnection,
   useValidateAwsConnection,
   useTestSlackConnection,
   useDisconnectIntegration,
@@ -911,150 +910,60 @@ interface JiraFormProps {
   onCancel: () => void;
 }
 
-function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
-  const { toast } = useToast();
-  const createJiraMutation = useCreateJiraForgeConnection();
-
-  const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
-
-  const [displayName, setDisplayName] = useState('');
-  const [webTriggerUrl, setWebTriggerUrl] = useState('');
-  const [sharedSecret, setSharedSecret] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setResult(null);
-
-    try {
-      if (!displayName.trim() || !webTriggerUrl.trim()) {
-        setResult({ ok: false, message: 'Display name and Web Trigger URL are required.' });
-        setSubmitting(false);
-        return;
-      }
-
-      await createJiraMutation.mutateAsync({
-        displayName: displayName.trim(),
-        webTriggerUrl: webTriggerUrl.trim(),
-        sharedSecret: sharedSecret.trim() || undefined,
-      });
-
-      setResult({ ok: true, message: 'Jira connection created and verified.' });
-      toast({ title: 'Jira connection created' });
-      onCreated();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create Jira connection.';
-      setResult({ ok: false, message });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+function JiraConnectionForm({ onCancel }: JiraFormProps) {
+  const { data: catalog = [] } = useIntegrationCatalog();
+  const jiraEntry = catalog.find((c) => c.id === 'jira');
+  const installUrl = (jiraEntry as Record<string, unknown> | undefined)?.installUrl as
+    | string
+    | null
+    | undefined;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col items-center text-center py-2 space-y-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
-          <img src="/icons/jira.svg" alt="Jira" className="h-7 w-7" />
+    <div className="space-y-6 py-2">
+      <div className="flex flex-col items-center text-center space-y-3">
+        <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
+          <img src="/icons/jira.svg" alt="Jira" className="h-8 w-8" />
         </div>
         <div>
-          <p className="text-sm font-medium">Connect Jira via ShipSec Forge App</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Install the ShipSec app on your Jira site, then paste the web trigger URL below.
+          <p className="text-base font-semibold">Install ShipSec.ai on Jira</p>
+          <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+            Click below to install the ShipSec.ai app on your Jira site. The connection will be
+            created automatically after installation.
           </p>
         </div>
       </div>
 
-      {/* Install instructions */}
       <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-        <p className="text-sm font-medium flex items-center gap-2">
-          <Info className="h-4 w-4 text-blue-500" />
-          Setup Steps
-        </p>
-        <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+        <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
           <li>
-            Install the ShipSec Forge app on your Jira site using the link provided by your admin.
+            Click <strong className="text-foreground">Install on Jira</strong> below.
           </li>
-          <li>After installation, generate the web trigger URL using the Forge CLI.</li>
-          <li>Paste the URL below to connect.</li>
+          <li>Select your Jira site and approve the permissions.</li>
+          <li>The connection appears here automatically — no configuration needed.</li>
         </ol>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="jira-display-name">Display Name *</Label>
-          <Input
-            id="jira-display-name"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="e.g. ShipSec Jira"
-            disabled={submitting}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="jira-trigger-url">Web Trigger URL *</Label>
-          <Input
-            id="jira-trigger-url"
-            value={webTriggerUrl}
-            onChange={(e) => setWebTriggerUrl(e.target.value)}
-            placeholder="https://xxxx.hello.atlassian-dev.net/x1/..."
-            disabled={submitting}
-            type="password"
-          />
-          <p className="text-xs text-muted-foreground">
-            The Forge web trigger URL for your Jira installation.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="jira-secret">Shared Secret (optional)</Label>
-          <Input
-            id="jira-secret"
-            value={sharedSecret}
-            onChange={(e) => setSharedSecret(e.target.value)}
-            placeholder="Optional HMAC secret"
-            disabled={submitting}
-            type="password"
-          />
-        </div>
-
-        {result && (
-          <div
-            className={cn(
-              'rounded-lg border p-3 text-sm',
-              result.ok
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400'
-                : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400',
-            )}
-          >
-            {result.ok ? (
-              <span className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4" /> {result.message}
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <XCircle className="h-4 w-4" /> {result.message}
-              </span>
-            )}
+      <div className="flex flex-col gap-3 pt-2">
+        {installUrl ? (
+          <Button asChild size="lg" className="w-full">
+            <a href={installUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Install on Jira
+            </a>
+          </Button>
+        ) : (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 text-sm text-amber-700 dark:text-amber-400">
+            Jira install link not configured. Set the{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">
+              JIRA_FORGE_INSTALL_URL
+            </code>{' '}
+            environment variable.
           </div>
         )}
-
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={submitting}>
-            {submitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connecting...
-              </>
-            ) : (
-              'Connect'
-            )}
-          </Button>
-        </div>
-      </form>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Close
+        </Button>
+      </div>
     </div>
   );
 }
