@@ -1,26 +1,48 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-interface BifrostTeamSpendReport {
-  group_by_day: {
-    date: string;
-    teams: {
-      team_name: string;
-      total_spend: number;
-    }[];
-  }[];
+// ---------------------------------------------------------------------------
+// Bifrost Governance API response types
+// ---------------------------------------------------------------------------
+
+interface BifrostBudget {
+  id: string;
+  max_limit: number;
+  reset_duration: string;
+  calendar_aligned?: boolean;
+  current_usage: number;
+  last_reset: string;
 }
 
-interface BifrostTeamInfo {
-  team_id: string;
-  spend: number;
-  max_budget: number | null;
+interface BifrostTeam {
+  id: string;
+  name: string;
+  budget_id?: string;
+  budget?: BifrostBudget;
+  customer_id?: string;
 }
 
-interface BifrostTeamInfoResponse {
+interface BifrostTeamResponse {
+  message?: string;
+  team: BifrostTeam;
+}
+
+interface BifrostTeamsListResponse {
+  teams: BifrostTeam[];
+  count: number;
+  total_count: number;
+}
+
+interface BifrostVirtualKey {
+  id: string;
+  name: string;
+  value: string;
+  is_active: boolean;
   team_id?: string;
-  spend?: number;
-  max_budget?: number | null;
-  team_info?: BifrostTeamInfo;
+}
+
+interface BifrostVirtualKeyResponse {
+  message?: string;
+  virtual_key: BifrostVirtualKey;
 }
 
 @Injectable()
@@ -28,32 +50,38 @@ export class BifrostClientService {
   private readonly logger = new Logger(BifrostClientService.name);
   private readonly proxyUrl: string | undefined;
   private readonly masterKey: string | undefined;
-  private readonly allowTeamInfoSpendFallback: boolean;
+
+  /** Cache: team name → team UUID (Bifrost uses UUIDs internally) */
+  private readonly teamIdCache = new Map<string, string>();
 
   constructor() {
     this.proxyUrl = process.env.BIFROST_PROXY_URL?.trim();
     this.masterKey = process.env.BIFROST_MASTER_KEY?.trim();
-    this.allowTeamInfoSpendFallback =
-      process.env.BIFROST_ALLOW_TEAM_INFO_SPEND_FALLBACK?.trim().toLowerCase() === 'true';
   }
 
   get isConfigured(): boolean {
-    return Boolean(this.proxyUrl && this.masterKey);
+    // Bifrost governance API may not require a master key (open by default).
+    // Require at least the proxy URL to be set.
+    return Boolean(this.proxyUrl);
   }
 
   private async request<T>(path: string, options?: RequestInit): Promise<T> {
-    if (!this.proxyUrl || !this.masterKey) {
+    if (!this.proxyUrl) {
       throw new Error('Bifrost proxy not configured');
     }
 
     const url = `${this.proxyUrl}${path}`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...((options?.headers as Record<string, string>) ?? {}),
+    };
+    if (this.masterKey) {
+      headers['Authorization'] = `Bearer ${this.masterKey}`;
+    }
+
     const res = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.masterKey}`,
-        ...options?.headers,
-      },
+      headers,
     });
 
     if (!res.ok) {
@@ -64,112 +92,9 @@ export class BifrostClientService {
     return res.json() as Promise<T>;
   }
 
-  /**
-   * Get total USD spend for a team (org) within a date range.
-   * Returns 0 if Bifrost is not configured.
-   */
-  async getTeamSpend(teamId: string, startDate: Date, endDate: Date): Promise<number> {
-    if (!this.isConfigured) return 0;
-
-    try {
-      return await this.getPeriodTeamSpend(teamId, startDate, endDate);
-    } catch (error) {
-      if (this.canUseTeamInfoSpendFallback(startDate, endDate, error)) {
-        const teamInfo = await this.getTeamInfo(teamId);
-        if (teamInfo) {
-          this.logger.warn(
-            `Falling back to cumulative /team/info spend for ${teamId} because /global/spend/report is unavailable in this environment`,
-          );
-          return Math.round(teamInfo.spend * 100) / 100;
-        }
-      }
-
-      this.logger.warn(`Failed to get team spend for ${teamId}: ${error}`);
-      return 0;
-    }
-  }
-
-  private async getPeriodTeamSpend(
-    teamId: string,
-    startDate: Date,
-    endDate: Date,
-  ): Promise<number> {
-    const start = startDate.toISOString().split('T')[0];
-    const end = endDate.toISOString().split('T')[0];
-
-    const report = await this.request<BifrostTeamSpendReport>(
-      `/global/spend/report?group_by=team&start_date=${start}&end_date=${end}`,
-    );
-
-    let totalSpend = 0;
-    for (const day of report.group_by_day ?? []) {
-      for (const team of day.teams ?? []) {
-        if (team.team_name === teamId) {
-          totalSpend += team.total_spend;
-        }
-      }
-    }
-
-    return Math.round(totalSpend * 100) / 100; // round to cents
-  }
-
-  private canUseTeamInfoSpendFallback(startDate: Date, endDate: Date, error: unknown): boolean {
-    if (!this.allowTeamInfoSpendFallback) {
-      return false;
-    }
-
-    const message = error instanceof Error ? error.message : String(error ?? '');
-    if (!message.includes('/spend/report endpoint')) {
-      return false;
-    }
-
-    const now = new Date();
-    const currentStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const currentEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-
-    return (
-      startDate.getTime() === currentStart.getTime() && endDate.getTime() === currentEnd.getTime()
-    );
-  }
-
-  /**
-   * Get team info including current spend and budget.
-   * Returns null if Bifrost is not configured or team doesn't exist.
-   */
-  async getTeamInfo(teamId: string): Promise<{ spend: number; maxBudget: number | null } | null> {
-    if (!this.isConfigured) return null;
-
-    try {
-      const info = await this.request<BifrostTeamInfoResponse>(
-        `/team/info?team_id=${encodeURIComponent(teamId)}`,
-      );
-      const normalized = info.team_info ?? info;
-      return {
-        spend: normalized.spend ?? 0,
-        maxBudget: normalized.max_budget ?? null,
-      };
-    } catch (error) {
-      this.logger.warn(`Failed to get team info for ${teamId}: ${error}`);
-      return null;
-    }
-  }
-
-  /**
-   * Generate a virtual key scoped to a team.
-   * Returns the key string (sk-...) that can be used as Authorization bearer.
-   */
-  async generateKey(teamId: string): Promise<string> {
-    if (!this.isConfigured) {
-      throw new Error('Bifrost proxy not configured');
-    }
-
-    const result = await this.request<{ key: string }>('/key/generate', {
-      method: 'POST',
-      body: JSON.stringify({ team_id: teamId }),
-    });
-
-    return result.key;
-  }
+  // ---------------------------------------------------------------------------
+  // Team management — /api/governance/teams
+  // ---------------------------------------------------------------------------
 
   /**
    * Create or update a Bifrost team for an organization.
@@ -179,31 +104,143 @@ export class BifrostClientService {
     if (!this.isConfigured) return;
 
     try {
-      // Try to create; if it already exists Bifrost returns 400 with "team already exists"
-      await this.request('/team/new', {
-        method: 'POST',
-        body: JSON.stringify({
-          team_id: orgId,
-          max_budget: maxBudgetUsd,
-          budget_duration: 'monthly',
-        }),
-      });
-      this.logger.log(`Created Bifrost team for org ${orgId} with budget $${maxBudgetUsd}`);
-    } catch (_error) {
-      // Team likely already exists — update budget instead
-      try {
-        await this.request('/team/update', {
-          method: 'POST',
+      // Check if team already exists by name
+      const existingTeamId = await this.resolveTeamId(orgId);
+
+      if (existingTeamId) {
+        // Update existing team budget
+        await this.request(`/api/governance/teams/${existingTeamId}`, {
+          method: 'PUT',
           body: JSON.stringify({
-            team_id: orgId,
-            max_budget: maxBudgetUsd,
-            budget_duration: 'monthly',
+            name: orgId,
+            budget: {
+              max_limit: maxBudgetUsd,
+              reset_duration: '1M',
+              calendar_aligned: true,
+            },
           }),
         });
         this.logger.log(`Updated Bifrost team budget for org ${orgId} to $${maxBudgetUsd}`);
-      } catch (updateError) {
-        this.logger.error(`Failed to ensure Bifrost team for ${orgId}: ${updateError}`);
+      } else {
+        // Create new team
+        const result = await this.request<BifrostTeamResponse>('/api/governance/teams', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: orgId,
+            budget: {
+              max_limit: maxBudgetUsd,
+              reset_duration: '1M',
+              calendar_aligned: true,
+            },
+          }),
+        });
+        this.teamIdCache.set(orgId, result.team.id);
+        this.logger.log(`Created Bifrost team for org ${orgId} with budget $${maxBudgetUsd}`);
       }
+    } catch (error) {
+      this.logger.error(`Failed to ensure Bifrost team for ${orgId}: ${error}`);
+    }
+  }
+
+  /**
+   * Generate a virtual key scoped to a team.
+   * Returns the key string (sk-bf-...) that can be used as Authorization bearer.
+   */
+  async generateKey(teamId: string): Promise<string> {
+    if (!this.isConfigured) {
+      throw new Error('Bifrost proxy not configured');
+    }
+
+    // Resolve org name → team UUID
+    const bifrostTeamId = await this.resolveTeamId(teamId);
+    if (!bifrostTeamId) {
+      throw new Error(`Bifrost team not found for org ${teamId}`);
+    }
+
+    const result = await this.request<BifrostVirtualKeyResponse>('/api/governance/virtual-keys', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: `${teamId}-key`,
+        team_id: bifrostTeamId,
+      }),
+    });
+
+    return result.virtual_key.value;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Spend tracking
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get total USD spend for a team (org) within a date range.
+   * Returns 0 if Bifrost is not configured.
+   *
+   * Bifrost tracks spend via the budget's `current_usage` field on the team.
+   * For now, we return the current budget period usage (not date-range filtered)
+   * since Bifrost doesn't expose a date-range spend report API.
+   */
+  async getTeamSpend(_teamId: string, _startDate: Date, _endDate: Date): Promise<number> {
+    if (!this.isConfigured) return 0;
+
+    try {
+      const teamInfo = await this.getTeamInfo(_teamId);
+      if (teamInfo) {
+        return Math.round(teamInfo.spend * 100) / 100;
+      }
+      return 0;
+    } catch (error) {
+      this.logger.warn(`Failed to get team spend for ${_teamId}: ${error}`);
+      return 0;
+    }
+  }
+
+  /**
+   * Get team info including current spend and budget.
+   * Returns null if Bifrost is not configured or team doesn't exist.
+   */
+  async getTeamInfo(teamName: string): Promise<{ spend: number; maxBudget: number | null } | null> {
+    if (!this.isConfigured) return null;
+
+    try {
+      const bifrostTeamId = await this.resolveTeamId(teamName);
+      if (!bifrostTeamId) return null;
+
+      const result = await this.request<BifrostTeamResponse>(
+        `/api/governance/teams/${bifrostTeamId}`,
+      );
+      const budget = result.team.budget;
+      return {
+        spend: budget?.current_usage ?? 0,
+        maxBudget: budget?.max_limit ?? null,
+      };
+    } catch (error) {
+      this.logger.warn(`Failed to get team info for ${teamName}: ${error}`);
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internals
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Resolve an org name to a Bifrost team UUID.
+   * Bifrost uses UUIDs internally; we use org names as team names.
+   */
+  private async resolveTeamId(orgName: string): Promise<string | null> {
+    const cached = this.teamIdCache.get(orgName);
+    if (cached) return cached;
+
+    try {
+      const list = await this.request<BifrostTeamsListResponse>(`/api/governance/teams?limit=100`);
+      // Cache all teams and find the matching one
+      for (const team of list.teams) {
+        this.teamIdCache.set(team.name, team.id);
+      }
+      return this.teamIdCache.get(orgName) ?? null;
+    } catch {
+      return null;
     }
   }
 }

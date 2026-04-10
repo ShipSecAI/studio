@@ -26,11 +26,11 @@ describe('BillingService', () => {
       }),
     } as any;
 
-    const litellm = {
+    const bifrost = {
       getTeamSpend: async () => 12.5,
     } as any;
 
-    const service = new BillingService(repository, orgSettingsService, plansService, litellm);
+    const service = new BillingService(repository, orgSettingsService, plansService, bifrost);
 
     const result = await service.getUsage({ organizationId: 'org-1' } as any);
 
@@ -70,11 +70,11 @@ describe('BillingService', () => {
       }),
     } as any;
 
-    const litellm = {
+    const bifrost = {
       getTeamSpend: async () => 500.0,
     } as any;
 
-    const service = new BillingService(repository, orgSettingsService, plansService, litellm);
+    const service = new BillingService(repository, orgSettingsService, plansService, bifrost);
 
     const result = await service.getUsage({ organizationId: 'org-ent' } as any);
 

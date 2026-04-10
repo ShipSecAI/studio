@@ -22,7 +22,7 @@ export const BillingMeterSchema = z.object({
 export class BillingMeterDto extends createZodDto(BillingMeterSchema) {}
 
 export const BillingAiUsageSchema = z.object({
-  spentUsd: z.number().describe('USD spent via LiteLLM this period'),
+  spentUsd: z.number().describe('USD spent via Bifrost this period'),
   budgetUsd: z.number().describe('Budget in USD (-1 = unlimited)'),
   remainingUsd: z.number().describe('Remaining budget (-1 = unlimited)'),
 });

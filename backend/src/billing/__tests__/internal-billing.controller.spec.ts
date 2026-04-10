@@ -9,7 +9,7 @@ describe('InternalBillingController', () => {
       resolveVirtualKey: async () => 'sk-test',
     } as any);
 
-    await expect(controller.getLiteLLMKey(undefined)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.getBifrostKey(undefined)).rejects.toBeInstanceOf(BadRequestException);
   });
 
   test('resolves a key using the request organization header', async () => {
@@ -21,7 +21,7 @@ describe('InternalBillingController', () => {
       },
     } as any);
 
-    await expect(controller.getLiteLLMKey(' org-42 ')).resolves.toEqual({
+    await expect(controller.getBifrostKey(' org-42 ')).resolves.toEqual({
       virtualKey: 'sk-org-key',
     });
     expect(resolvedOrgId as string | null).toBe('org-42');

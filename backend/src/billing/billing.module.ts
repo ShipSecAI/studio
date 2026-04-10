@@ -5,8 +5,8 @@ import { BillingController } from './billing.controller';
 import { InternalBillingController } from './internal-billing.controller';
 import { BillingRepository } from './billing.repository';
 import { BillingService } from './billing.service';
-import { LiteLLMClientService } from './litellm-client.service';
-import { LiteLLMKeyResolverService } from './litellm-key-resolver.service';
+import { BifrostClientService } from './bifrost-client.service';
+import { BifrostKeyResolverService } from './bifrost-key-resolver.service';
 import { SubscriptionPlansService } from './subscription-plans.service';
 
 @Module({
@@ -15,10 +15,10 @@ import { SubscriptionPlansService } from './subscription-plans.service';
   providers: [
     BillingRepository,
     BillingService,
-    LiteLLMClientService,
-    LiteLLMKeyResolverService,
+    BifrostClientService,
+    BifrostKeyResolverService,
     SubscriptionPlansService,
   ],
-  exports: [BillingService, LiteLLMKeyResolverService, SubscriptionPlansService],
+  exports: [BillingService, BifrostKeyResolverService, SubscriptionPlansService],
 })
 export class BillingModule {}

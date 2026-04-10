@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { AuthContext } from '../auth/types';
 import { OrganizationSettingsService } from '../analytics/organization-settings.service';
 import { BillingRepository } from './billing.repository';
-import { LiteLLMClientService } from './litellm-client.service';
+import { BifrostClientService } from './bifrost-client.service';
 import { SubscriptionPlansService } from './subscription-plans.service';
 
 function startOfUtcMonth(date: Date): Date {
@@ -19,7 +19,7 @@ export class BillingService {
     private readonly repository: BillingRepository,
     private readonly orgSettingsService: OrganizationSettingsService,
     private readonly plansService: SubscriptionPlansService,
-    private readonly litellm: LiteLLMClientService,
+    private readonly bifrost: BifrostClientService,
   ) {}
 
   async getUsage(auth: AuthContext) {
@@ -40,7 +40,7 @@ export class BillingService {
         start,
         end,
       }),
-      this.litellm.getTeamSpend(auth.organizationId, start, end),
+      this.bifrost.getTeamSpend(auth.organizationId, start, end),
     ]);
 
     const isUnlimited = plan.workflowRunsPerMonth === -1;

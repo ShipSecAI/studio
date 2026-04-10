@@ -1,8 +1,8 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-export const LiteLLMKeyResponseSchema = z.object({
+export const BifrostKeyResponseSchema = z.object({
   virtualKey: z.string().nullable(),
 });
 
-export class LiteLLMKeyResponseDto extends createZodDto(LiteLLMKeyResponseSchema) {}
+export class BifrostKeyResponseDto extends createZodDto(BifrostKeyResponseSchema) {}

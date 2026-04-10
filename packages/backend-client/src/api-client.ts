@@ -1020,10 +1020,10 @@ export class ShipSecApiClient {
     return this.client.GET('/api/v1/billing/plans');
   }
 
-  async getLiteLLMVirtualKey(
+  async getBifrostVirtualKey(
     organizationId: string,
-  ): Promise<ClientResponse<components['schemas']['LiteLLMKeyResponseDto']>> {
-    return this.client.GET('/api/v1/internal/billing/litellm-key', {
+  ): Promise<ClientResponse<components['schemas']['BifrostKeyResponseDto']>> {
+    return this.client.GET('/api/v1/internal/billing/bifrost-key', {
       params: {
         header: { 'x-organization-id': organizationId },
       },
