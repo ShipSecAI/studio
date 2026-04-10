@@ -85,7 +85,7 @@ const parameterSchema = parameters({
     z.boolean().default(true).describe('Continue sync on partial AWS API failures.'),
     {
       label: 'Best Effort Mode',
-      editor: 'checkbox',
+      editor: 'boolean',
       description:
         'When enabled, Cartography continues even if some AWS API calls fail (e.g., missing permissions).',
     },
