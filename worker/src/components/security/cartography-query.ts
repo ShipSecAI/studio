@@ -87,7 +87,7 @@ const parameterSchema = parameters({
     z.string().optional().describe('Neo4j password (optional if auth is disabled).'),
     {
       label: 'Neo4j Password',
-      editor: 'password',
+      editor: 'secret',
       description: 'Password for Neo4j authentication. Leave empty if NEO4J_AUTH=none.',
     },
   ),
