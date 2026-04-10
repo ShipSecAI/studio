@@ -1,5 +1,6 @@
 import { Context } from '@temporalio/activity';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -154,6 +155,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
+function getAnthropicBaseUrl(baseURL: string): string {
+  const trimmed = baseURL.replace(/\/+$/, '');
+  if (trimmed.endsWith('/anthropic/v1')) return trimmed;
+  if (trimmed.endsWith('/v1')) {
+    return `${trimmed.slice(0, -3)}/anthropic/v1`;
+  }
+  return `${trimmed}/anthropic/v1`;
+}
+
 function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
   const baseURL = overrides?.baseURL ?? process.env.BIFROST_BASE_URL?.trim();
   const apiKey = overrides?.apiKey ?? process.env.BIFROST_API_KEY?.trim();
@@ -165,6 +175,16 @@ function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
     );
   }
 
+  if (modelId.startsWith('vertex/claude-')) {
+    const provider = createAnthropic({
+      baseURL: getAnthropicBaseUrl(baseURL),
+      apiKey,
+      name: 'bifrost-anthropic',
+    });
+    return provider.messages(modelId);
+  }
+
+  // Use OpenAI-compatible API for Bifrost providers that behave correctly on that surface.
   const provider = createOpenAI({ baseURL, apiKey, name: 'bifrost' });
   return provider.chat(modelId);
 }
@@ -173,11 +193,23 @@ function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
  * Build a model instance with per-org virtual key via Bifrost.
  */
 async function getModelForOrg(organizationId?: string) {
-  const virtualKey = await requireOrgVirtualKey(organizationId, {
-    backendUrl: globalBackendUrl,
-    consumer: 'Chat AI',
-  });
-  return getModel({ apiKey: virtualKey });
+  try {
+    const virtualKey = await requireOrgVirtualKey(organizationId, {
+      backendUrl: globalBackendUrl,
+      consumer: 'Chat AI',
+    });
+    return getModel({ apiKey: virtualKey });
+  } catch (error) {
+    const fallbackApiKey = process.env.BIFROST_API_KEY?.trim();
+    if (organizationId === 'local-dev' && fallbackApiKey) {
+      console.warn(
+        '[chat-agent] Falling back to local Bifrost API key for local-dev chat because org virtual key resolution failed.',
+        error,
+      );
+      return getModel({ apiKey: fallbackApiKey });
+    }
+    throw error;
+  }
 }
 
 /** Publish a streaming chunk to Redis pub/sub for real-time relay */

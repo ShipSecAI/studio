@@ -19,6 +19,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.68",
     "@ai-sdk/google": "^3.0.13",
     "@ai-sdk/mcp": "^1.0.13",
     "@ai-sdk/openai": "^3.0.18",
