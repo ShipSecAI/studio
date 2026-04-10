@@ -3,14 +3,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import {
-  streamText,
-  generateText,
-  stepCountIs,
-  convertToModelMessages,
-  smoothStream,
-  jsonSchema,
-} from 'ai';
+import { ToolLoopAgent, generateText, convertToModelMessages, smoothStream, jsonSchema } from 'ai';
 import type { ToolExecutionOptions, UIMessage, UIMessageChunk } from 'ai';
 import type Redis from 'ioredis';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -1327,29 +1320,27 @@ export async function runChatAgentStepActivity(
     const aiMessages = await toAISDKMessages(llmInputMessages);
 
     try {
-      // Run streamText with MCP tools — tool execution happens via MCP protocol
+      // Run ToolLoopAgent with MCP tools — combines streaming with automatic tool execution loop
       const orgModel = await getModelForOrg(organizationId);
 
-      const result = streamText({
+      const agent = new ToolLoopAgent({
+        id: `chat-agent-${sessionId}`,
         model: orgModel,
         // Split system prompt for provider-level prompt caching. The stable
         // prefix (behavioral instructions) is marked cacheable; the dynamic
         // suffix (session context, date) is appended without cache hints.
-        system: systemPrompt,
+        instructions: systemPrompt,
         providerOptions: {
           anthropic: { cacheControl: { type: 'ephemeral' } },
         },
-        messages: aiMessages as any,
         tools: taskAwareTools as any,
-        stopWhen: stepCountIs(maxSteps),
+        maxSteps,
         experimental_transform: smoothStream(),
+      });
+
+      const result = await agent.stream({
+        messages: aiMessages as any,
         abortSignal: cancellationSignal,
-        onError: ({ error }) => {
-          console.error(
-            `[chat-agent] streamText error for session ${sessionId}:`,
-            error instanceof Error ? error.message : String(error),
-          );
-        },
         onStepFinish: (event) => {
           heartbeatCheckpoint(accumulatedParts, completedToolCalls, lastFlushedLength);
           if (event.toolCalls?.length) {
