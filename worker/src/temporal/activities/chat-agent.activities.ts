@@ -1385,6 +1385,11 @@ export async function runChatAgentStepActivity(
           console.error(
             `[chat-agent] Stream onFinish for session ${sessionId}, responseMessage keys=${msg ? Object.keys(msg).join(',') : 'null'}`,
           );
+          if (msg?.parts) {
+            console.error(
+              `[chat-agent] ResponseMessage parts count=${msg.parts.length}, firstFew=${JSON.stringify(msg.parts.slice(0, 3)).substring(0, 200)}`,
+            );
+          }
           responseMessage = msg;
         },
       });
