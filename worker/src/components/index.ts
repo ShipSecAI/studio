@@ -65,6 +65,8 @@ import './security/abuseipdb';
 import './security/aws-mcp-group';
 import './security/findings-normalize';
 import './security/findings-markdown';
+import './security/cartography-sync';
+import './security/cartography-query';
 
 // Jira components
 import './jira/create-issue';
