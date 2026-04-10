@@ -3,7 +3,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { ToolLoopAgent, generateText, convertToModelMessages, smoothStream, jsonSchema } from 'ai';
+import { ToolLoopAgent, generateText, stepCountIs, convertToModelMessages, jsonSchema } from 'ai';
 import type { ToolExecutionOptions, UIMessage, UIMessageChunk } from 'ai';
 import type Redis from 'ioredis';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -1334,8 +1334,7 @@ export async function runChatAgentStepActivity(
           anthropic: { cacheControl: { type: 'ephemeral' } },
         },
         tools: taskAwareTools as any,
-        maxSteps,
-        experimental_transform: smoothStream(),
+        stopWhen: stepCountIs(maxSteps),
       });
 
       const result = await agent.stream({
