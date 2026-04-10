@@ -1277,6 +1277,9 @@ export async function runChatAgentStepActivity(
     console.log(
       `[chat-agent] Discovered ${Object.keys(tools).length} MCP tools + update_task_plan for session ${sessionId}`,
     );
+    console.log(
+      `[chat-agent] Available tools: ${Object.keys(tools).sort().slice(0, 10).join(', ')}${Object.keys(tools).length > 10 ? '...' : ''}`,
+    );
 
     // Heartbeat before LLM call — use checkpoint if we have accumulated state
     if (accumulatedParts.length > 0) {
@@ -1350,14 +1353,14 @@ export async function runChatAgentStepActivity(
         onStepFinish: (event) => {
           heartbeatCheckpoint(accumulatedParts, completedToolCalls, lastFlushedLength);
           if (event.toolCalls?.length) {
-            console.log(
+            console.error(
               `[chat-agent] Step finished with ${event.toolCalls.length} tool call(s) for session ${sessionId}:`,
               event.toolCalls.map((tc: any) => `${tc.toolName}(${tc.toolCallId})`).join(', '),
               `| finishReason=${event.finishReason}`,
             );
           }
           if (event.toolResults?.length) {
-            console.log(
+            console.error(
               `[chat-agent] Step tool results for session ${sessionId}:`,
               event.toolResults
                 .map((tr: any) => `${tr.toolName}(${tr.toolCallId}): ${tr.type}`)
@@ -1371,9 +1374,17 @@ export async function runChatAgentStepActivity(
       // AND the final responseMessage via onFinish — no custom converter needed.
       let responseMessage: UIMessage | null = null;
       let sawFinishChunk = false;
+      let chunkCount = 0;
+
+      console.error(
+        `[chat-agent] Starting stream loop for session ${sessionId}, generation ${generationId}, maxSteps=${maxSteps}`,
+      );
 
       const uiStream = result.toUIMessageStream({
         onFinish: ({ responseMessage: msg }) => {
+          console.error(
+            `[chat-agent] Stream onFinish for session ${sessionId}, responseMessage keys=${msg ? Object.keys(msg).join(',') : 'null'}`,
+          );
           responseMessage = msg;
         },
       });
@@ -1386,10 +1397,28 @@ export async function runChatAgentStepActivity(
         // Check for cooperative cancellation at the top of each iteration
         if (cancellationSignal.aborted) break;
 
+        chunkCount++;
+        const c = chunk as any;
+
+        // Log important chunk types for debugging
+        if (c.type === 'tool-input-start') {
+          console.error(
+            `[chat-agent] Tool input start: ${c.toolName}(${c.toolCallId}) for session ${sessionId}`,
+          );
+        } else if (c.type === 'finish-step') {
+          console.error(
+            `[chat-agent] Finish step: finishReason=${c.finishReason}, chunks=${chunkCount} for session ${sessionId}`,
+          );
+        } else if (c.type === 'finish') {
+          console.error(
+            `[chat-agent] Stream finish: finishReason=${c.finishReason}, totalChunks=${chunkCount} for session ${sessionId}`,
+          );
+        }
+
         // Real checkpoint heartbeat instead of useless string
         heartbeatFlushedLen = lastFlushedLength;
         heartbeatCheckpoint(accumulatedParts, completedToolCalls, lastFlushedLength);
-        const c = chunk as any;
+
         if (c.type === 'finish') {
           sawFinishChunk = true;
         }
