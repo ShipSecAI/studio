@@ -53,6 +53,15 @@ type ToolsReadyPayload = components['schemas']['ToolsReadyRequestDto'];
 type RegisterGroupServerPayload = components['schemas']['RegisterGroupServerRequestDto'];
 type InstantiateWorkflowTemplatePayload =
   components['schemas']['InstantiateWorkflowTemplateRequestDto'];
+type CreateReportTemplateDraftPayload = components['schemas']['CreateReportTemplateDraftRequestDto'];
+type UpdateReportTemplateDraftPayload = components['schemas']['UpdateReportTemplateDraftRequestDto'];
+type PublishReportTemplatePayload = components['schemas']['PublishReportTemplateRequestDto'];
+type RenderReportTemplatePreviewPayload =
+  components['schemas']['RenderReportTemplatePreviewRequestDto'];
+type RenderPublishedReportTemplatePayload = {
+  versionId?: string | null;
+  data: Record<string, unknown>;
+};
 type WorkflowRunTerminalQuery =
   operations['WorkflowsController_terminalChunks']['parameters']['query'];
 type ToggleGitHubRepositoryScansPayload = components['schemas']['ToggleRepoScansDto'];
@@ -163,6 +172,62 @@ export class ShipSecApiClient {
   async getWorkflowTemplate(id: string) {
     return this.client.GET('/api/v1/workflow-templates/{id}', {
       params: { path: { id } },
+    });
+  }
+
+  async listReportTemplates() {
+    return this.client.GET('/api/v1/report-templates');
+  }
+
+  async getReportTemplate(id: string) {
+    return this.client.GET('/api/v1/report-templates/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async getReportTemplateDraft(id: string) {
+    return this.client.GET('/api/v1/report-templates/{id}/draft', {
+      params: { path: { id } },
+    });
+  }
+
+  async getReportTemplateVersion(id: string, versionId: string) {
+    return this.client.GET('/api/v1/report-templates/{id}/versions/{versionId}', {
+      params: { path: { id, versionId } },
+    });
+  }
+
+  async createReportTemplateDraft(body: CreateReportTemplateDraftPayload) {
+    return this.client.POST('/api/v1/report-templates/drafts', {
+      body,
+    });
+  }
+
+  async updateReportTemplateDraft(id: string, body: UpdateReportTemplateDraftPayload) {
+    return this.client.PATCH('/api/v1/report-templates/{id}/draft', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  async publishReportTemplate(id: string, body: PublishReportTemplatePayload = {}) {
+    return this.client.POST('/api/v1/report-templates/{id}/publish', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  async previewReportTemplate(id: string, body: RenderReportTemplatePreviewPayload) {
+    return this.client.POST('/api/v1/report-templates/{id}/preview', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  async renderReportTemplate(id: string, body: RenderPublishedReportTemplatePayload) {
+    return (this.client.POST as any)('/api/v1/report-templates/{id}/render', {
+      params: { path: { id } },
+      body,
     });
   }
 

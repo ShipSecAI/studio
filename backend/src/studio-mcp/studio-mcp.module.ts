@@ -10,6 +10,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
 import { AssetDiscoveryModule } from '../asset-discovery/asset-discovery.module';
 import { AsmModule } from '../asm/asm.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
+import { ReportTemplatesModule } from '../report-templates/report-templates.module';
 import { StudioMcpController } from './studio-mcp.controller';
 import { StudioMcpService } from './studio-mcp.service';
 
@@ -25,6 +26,7 @@ import { StudioMcpService } from './studio-mcp.service';
     AssetDiscoveryModule,
     AsmModule,
     IntegrationsModule,
+    ReportTemplatesModule,
     // TraceModule is @Global() — no import needed
   ],
   controllers: [StudioMcpController],

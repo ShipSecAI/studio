@@ -28,6 +28,8 @@ import { registerHumanInputTools } from './tools/human-input.tools';
 import { registerAnalyticsTools } from './tools/analytics.tools';
 import { registerAssetTools } from './tools/asset.tools';
 import { registerConnectionTools } from './tools/connection.tools';
+import { ReportTemplatesService } from '../report-templates/report-templates.service';
+import { registerReportTemplateTools } from './tools/report-template.tools';
 
 @Injectable()
 export class StudioMcpService {
@@ -47,6 +49,7 @@ export class StudioMcpService {
     @Optional() private readonly assetDiscoveryService?: AssetDiscoveryService,
     @Optional() private readonly asmService?: AsmService,
     @Optional() private readonly integrationsService?: IntegrationsService,
+    @Optional() private readonly reportTemplatesService?: ReportTemplatesService,
   ) {}
 
   /**
@@ -88,6 +91,7 @@ export class StudioMcpService {
       assetDiscoveryService: this.assetDiscoveryService,
       asmService: this.asmService,
       integrationsService: this.integrationsService,
+      reportTemplatesService: this.reportTemplatesService,
     };
 
     registerWorkflowTools(server, auth, deps);
@@ -100,5 +104,6 @@ export class StudioMcpService {
     registerAnalyticsTools(server, auth, deps);
     registerAssetTools(server, auth, deps);
     registerConnectionTools(server, auth, deps);
+    registerReportTemplateTools(server, auth, deps);
   }
 }

@@ -99,6 +99,13 @@
       "when": 1775468400000,
       "tag": "0027_add_github_installation_id_to_mcp_servers",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1775908800000,
+      "tag": "0028_add_report_templates",
+      "breakpoints": true
     }
   ]
 }

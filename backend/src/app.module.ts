@@ -38,6 +38,7 @@ import { McpServersModule } from './mcp-servers/mcp-servers.module';
 import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
 import { GitHubAppModule } from './github-app/github-app.module';
 import { WorkflowTemplatesModule } from './workflow-templates/workflow-templates.module';
+import { ReportTemplatesModule } from './report-templates/report-templates.module';
 import { AsmModule } from './asm/asm.module';
 import { AssetDiscoveryModule } from './asset-discovery/asset-discovery.module';
 import { BillingModule } from './billing/billing.module';
@@ -68,6 +69,7 @@ const coreModules = [
   GitHubAppModule,
   StudioMcpModule,
   WorkflowTemplatesModule,
+  ReportTemplatesModule,
   AsmModule,
   AssetDiscoveryModule,
   AuditModule,

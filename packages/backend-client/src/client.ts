@@ -1332,6 +1332,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/jira/auto-register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_autoRegisterJiraForge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/jira/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_discoverJiraInstallation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/jira/connect-site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_connectJiraViaSite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/jira/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_createJiraForgeConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/schedules": {
         parameters: {
             query?: never;
@@ -2890,6 +2954,134 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["WorkflowTemplatesController_instantiate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReportTemplatesController_listPublished"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-templates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReportTemplatesController_getPublished"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-templates/{id}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReportTemplatesController_getDraft"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["ReportTemplatesController_updateDraft"];
+        trace?: never;
+    };
+    "/api/v1/report-templates/{id}/versions/{versionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReportTemplatesController_getPublishedVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-templates/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReportTemplatesController_createDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-templates/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReportTemplatesController_renderPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-templates/{id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReportTemplatesController_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-templates/{id}/render": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReportTemplatesController_renderPublished"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4853,6 +5045,7 @@ export interface components {
                 }[];
             }[];
             supportsMultipleConnections: boolean;
+            installUrl?: string | null;
             setupInstructions: {
                 sections: {
                     title: string;
@@ -5007,6 +5200,17 @@ export interface components {
             displayName: string;
             /** @description Slack incoming webhook URL */
             webhookUrl: string;
+        };
+        CreateJiraForgeConnectionDto: {
+            /** @description Display name for this Jira connection */
+            displayName: string;
+            /**
+             * Format: uri
+             * @description Forge web trigger URL for the Jira installation
+             */
+            webTriggerUrl: string;
+            /** @description Optional HMAC shared secret */
+            sharedSecret?: string;
         };
         CreateScheduleRequestDto: {
             /** Format: uuid */
@@ -5343,7 +5547,7 @@ export interface components {
             /** @enum {string} */
             runtimeType: "docker" | "host";
             /** @enum {string} */
-            authSource: "none" | "github_app";
+            authSource: "none" | "github_app" | "jira_forge";
             docsUrl?: string | null;
             icon?: string | null;
             supportsReadOnly?: boolean;
@@ -5395,6 +5599,11 @@ export interface components {
                 dynamicToolsets?: boolean;
                 /** Format: uri */
                 githubHost?: string;
+            };
+            jira?: {
+                /** Format: uri */
+                webTriggerUrl: string;
+                sharedSecret?: string;
             };
         };
         ImportMcpServerTemplateResponseDto: {
@@ -6649,6 +6858,157 @@ export interface components {
         DeleteWorkflowTemplateResponseDto: {
             /** @enum {boolean} */
             success: true;
+        };
+        ReportTemplateResponseDto: {
+            /** Format: uuid */
+            id: string;
+            organizationId: string | null;
+            name: string;
+            slug: string;
+            description: string | null;
+            category: string;
+            /** @enum {string} */
+            status: "draft" | "published" | "archived";
+            /** @enum {string} */
+            scope: "builtin" | "organization";
+            /** @enum {string} */
+            visibility: "chat_only" | "library";
+            createdBy: string | null;
+            /** Format: date-time */
+            publishedAt: string | null;
+            /** Format: uuid */
+            publishedVersionId: string | null;
+            /** Format: uuid */
+            draftVersionId: string | null;
+            /** Format: uuid */
+            draftSessionId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            publishedVersion?: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                templateId: string;
+                versionNumber: number;
+                /** @enum {string} */
+                kind: "draft" | "published";
+                name: string;
+                description: string | null;
+                htmlTemplate: string;
+                css: string;
+                inputSchema: {
+                    [key: string]: unknown;
+                };
+                sampleData: {
+                    [key: string]: unknown;
+                };
+                createdBy: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            } | null;
+            draftVersion?: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                templateId: string;
+                versionNumber: number;
+                /** @enum {string} */
+                kind: "draft" | "published";
+                name: string;
+                description: string | null;
+                htmlTemplate: string;
+                css: string;
+                inputSchema: {
+                    [key: string]: unknown;
+                };
+                sampleData: {
+                    [key: string]: unknown;
+                };
+                createdBy: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            } | null;
+        };
+        ReportTemplateVersionResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            templateId: string;
+            versionNumber: number;
+            /** @enum {string} */
+            kind: "draft" | "published";
+            name: string;
+            description: string | null;
+            htmlTemplate: string;
+            css: string;
+            inputSchema: {
+                [key: string]: unknown;
+            };
+            sampleData: {
+                [key: string]: unknown;
+            };
+            createdBy: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CreateReportTemplateDraftRequestDto: {
+            name: string;
+            description?: string;
+            category: string;
+            htmlTemplate: string;
+            /** @default  */
+            css: string;
+            /** @default {} */
+            inputSchema: {
+                [key: string]: unknown;
+            };
+            /** @default {} */
+            sampleData: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            chatSessionId?: string;
+        };
+        UpdateReportTemplateDraftRequestDto: {
+            name?: string;
+            description?: string | null;
+            category?: string;
+            htmlTemplate?: string;
+            css?: string;
+            inputSchema?: {
+                [key: string]: unknown;
+            };
+            sampleData?: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            chatSessionId?: string | null;
+        };
+        RenderReportTemplatePreviewRequestDto: {
+            /** @default {} */
+            data: {
+                [key: string]: unknown;
+            };
+        };
+        RenderReportTemplateResponseDto: {
+            /** Format: uuid */
+            templateId: string;
+            /** Format: uuid */
+            versionId: string;
+            versionNumber: number;
+            /** @enum {string} */
+            kind: "draft" | "published";
+            html: string;
+            css: string;
+            data: {
+                [key: string]: unknown;
+            };
+        };
+        PublishReportTemplateRequestDto: {
+            /** Format: uuid */
+            chatSessionId?: string;
         };
         CreateSessionDto: {
             title?: string;
@@ -9015,6 +9375,84 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    IntegrationsController_autoRegisterJiraForge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Auto-register Jira Forge installation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IntegrationsController_discoverJiraInstallation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Discover Jira Forge installation for a site */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IntegrationsController_connectJiraViaSite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationConnectionResponse"];
+                };
+            };
+        };
+    };
+    IntegrationsController_createJiraForgeConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateJiraForgeConnectionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationConnectionResponse"];
+                };
             };
         };
     };
@@ -11771,6 +12209,208 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkflowResponseDto"];
+                };
+            };
+        };
+    };
+    ReportTemplatesController_listPublished: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplateResponseDto"][];
+                };
+            };
+        };
+    };
+    ReportTemplatesController_getPublished: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplateResponseDto"];
+                };
+            };
+        };
+    };
+    ReportTemplatesController_getDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplateResponseDto"];
+                };
+            };
+        };
+    };
+    ReportTemplatesController_updateDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReportTemplateDraftRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplateResponseDto"];
+                };
+            };
+        };
+    };
+    ReportTemplatesController_getPublishedVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplateVersionResponseDto"];
+                };
+            };
+        };
+    };
+    ReportTemplatesController_createDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReportTemplateDraftRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplateResponseDto"];
+                };
+            };
+        };
+    };
+    ReportTemplatesController_renderPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenderReportTemplatePreviewRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderReportTemplateResponseDto"];
+                };
+            };
+        };
+    };
+    ReportTemplatesController_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishReportTemplateRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplateResponseDto"];
+                };
+            };
+        };
+    };
+    ReportTemplatesController_renderPublished: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderReportTemplateResponseDto"];
                 };
             };
         };

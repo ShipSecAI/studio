@@ -31,6 +31,7 @@ export * from './chat-session-events';
 export * from './chat-turn-drafts';
 export * from './github-app';
 export * from './workflow-templates';
+export * from './report-templates';
 export * from './user-settings';
 export * from './asm';
 export * from './asset-discovery';

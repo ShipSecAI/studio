@@ -48,6 +48,10 @@ export interface ApiKeyPermissions {
     read?: boolean;
     resolve?: boolean;
   };
+  'report-templates'?: {
+    read?: boolean;
+    write?: boolean;
+  };
 }
 
 export const apiKeys = pgTable(

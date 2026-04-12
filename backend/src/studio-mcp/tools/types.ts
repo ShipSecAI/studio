@@ -27,7 +27,9 @@ export type PermissionPath =
   | 'human-inputs.resolve'
   | 'analytics.query'
   | 'assets.list'
-  | 'assets.read';
+  | 'assets.read'
+  | 'report-templates.read'
+  | 'report-templates.write';
 
 export interface ToolResult {
   [x: string]: unknown;
@@ -37,6 +39,15 @@ export interface ToolResult {
 
 export interface StudioMcpDeps {
   workflowsService: WorkflowsService;
+  reportTemplatesService?: {
+    listPublished(auth: any): Promise<any[]>;
+    getPublishedTemplate(id: string, auth: any): Promise<any>;
+    getDraftTemplate(id: string, auth: any): Promise<any>;
+    createDraft(auth: any, input: any): Promise<any>;
+    updateDraft(id: string, auth: any, input: any): Promise<any>;
+    publish(id: string, auth: any): Promise<any>;
+    renderDraftPreview(id: string, auth: any, data: Record<string, unknown>): Promise<any>;
+  };
   traceService?: { list(runId: string, auth?: any): Promise<{ events: any[]; cursor?: string }> };
   nodeIOService?: {
     listSummaries(runId: string, organizationId?: string): Promise<any[]>;
