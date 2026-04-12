@@ -1,18 +1,22 @@
 import { beforeEach, describe, expect, test, vi } from 'bun:test';
 
-import { fetchOrgVirtualKey, requireOrgVirtualKey } from '../utils';
+const getBifrostVirtualKeyMock = vi.fn();
+const createInternalBackendClientMock = vi.fn(() => ({
+  getBifrostVirtualKey: getBifrostVirtualKeyMock,
+}));
 
-function headersToObject(headers: Headers): Record<string, string> {
-  const result: Record<string, string> = {};
-  headers.forEach((value, key) => {
-    result[key] = value;
-  });
-  return result;
-}
+vi.mock('../../../utils/internal-backend-client', () => ({
+  createInternalBackendClient: createInternalBackendClientMock,
+}));
+
+import { fetchOrgVirtualKey, requireOrgVirtualKey } from '../utils';
 
 describe('Bifrost org key helpers', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    getBifrostVirtualKeyMock.mockReset();
+    createInternalBackendClientMock.mockClear();
+
     process.env.BIFROST_BASE_URL = 'http://bifrost.local:4000/v1';
     process.env.INTERNAL_SERVICE_TOKEN = 'internal-token';
     process.env.API_BASE_URL = 'http://backend.local/api/v1';
@@ -20,48 +24,50 @@ describe('Bifrost org key helpers', () => {
     delete process.env.SHIPSEC_API_BASE_URL;
   });
 
-  test('fetchOrgVirtualKey sends the org ID as an internal header', async () => {
-    const fetchMock = vi.fn(async (input: unknown) => {
-      expect(input).toBeInstanceOf(Request);
-      const request = input as Request;
-
-      expect(request.url).toBe('http://backend.local/api/v1/internal/billing/bifrost-key');
-      expect(headersToObject(request.headers)).toMatchObject({
-        'x-internal-token': 'internal-token',
-        'x-organization-id': 'org-123',
-      });
-
-      return new Response(JSON.stringify({ virtualKey: 'sk-org-123' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
+  test('fetchOrgVirtualKey uses the internal backend client with a normalized base URL', async () => {
+    getBifrostVirtualKeyMock.mockResolvedValue({
+      data: { virtualKey: 'sk-org-123' },
     });
-    const typedFetch = fetchMock as unknown as typeof fetch;
-    typedFetch.preconnect = () => {};
-    globalThis.fetch = typedFetch;
 
     await expect(fetchOrgVirtualKey('org-123')).resolves.toBe('sk-org-123');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(createInternalBackendClientMock).toHaveBeenCalledWith({
+      baseUrl: 'http://backend.local',
+    });
+    expect(getBifrostVirtualKeyMock).toHaveBeenCalledWith('org-123');
   });
 
   test('fetchOrgVirtualKey accepts a backend origin and normalizes it to /api/v1', async () => {
-    const fetchMock = vi.fn(async (input: unknown) => {
-      expect(input).toBeInstanceOf(Request);
-      const request = input as Request;
-
-      expect(request.url).toBe('http://backend.local:3711/api/v1/internal/billing/bifrost-key');
-      return new Response(JSON.stringify({ virtualKey: 'sk-org-123' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    getBifrostVirtualKeyMock.mockResolvedValue({
+      data: { virtualKey: 'sk-org-456' },
     });
-    const typedFetch = fetchMock as unknown as typeof fetch;
-    typedFetch.preconnect = () => {};
-    globalThis.fetch = typedFetch;
 
-    await expect(fetchOrgVirtualKey('org-123', 'http://backend.local:3711')).resolves.toBe(
-      'sk-org-123',
+    await expect(fetchOrgVirtualKey('org-456', 'http://backend.local:3711')).resolves.toBe(
+      'sk-org-456',
     );
+    expect(createInternalBackendClientMock).toHaveBeenCalledWith({
+      baseUrl: 'http://backend.local:3711',
+    });
+    expect(getBifrostVirtualKeyMock).toHaveBeenCalledWith('org-456');
+  });
+
+  test('fetchOrgVirtualKey returns null when the backend cannot resolve a key', async () => {
+    getBifrostVirtualKeyMock.mockResolvedValue({
+      data: { virtualKey: null },
+    });
+
+    await expect(fetchOrgVirtualKey('org-null')).resolves.toBeNull();
+  });
+
+  test('fetchOrgVirtualKey caches successful lookups', async () => {
+    getBifrostVirtualKeyMock.mockResolvedValue({
+      data: { virtualKey: 'sk-org-cache' },
+    });
+
+    await expect(fetchOrgVirtualKey('org-cache')).resolves.toBe('sk-org-cache');
+    await expect(fetchOrgVirtualKey('org-cache')).resolves.toBe('sk-org-cache');
+
+    expect(createInternalBackendClientMock).toHaveBeenCalledTimes(1);
+    expect(getBifrostVirtualKeyMock).toHaveBeenCalledTimes(1);
   });
 
   test('requireOrgVirtualKey rejects Bifrost calls without an organization', async () => {
@@ -71,16 +77,9 @@ describe('Bifrost org key helpers', () => {
   });
 
   test('requireOrgVirtualKey rejects when the backend cannot resolve a key', async () => {
-    const fetchMock = vi.fn(
-      async () =>
-        new Response(JSON.stringify({ virtualKey: null }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-    );
-    const typedFetch = fetchMock as unknown as typeof fetch;
-    typedFetch.preconnect = () => {};
-    globalThis.fetch = typedFetch;
+    getBifrostVirtualKeyMock.mockResolvedValue({
+      data: { virtualKey: null },
+    });
 
     await expect(requireOrgVirtualKey('org-missing', { consumer: 'AI Agent' })).rejects.toThrow(
       'could not resolve a Bifrost virtual key',
