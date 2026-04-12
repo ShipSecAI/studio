@@ -332,6 +332,11 @@ module.exports = {
           process.env.AGENT_TRACE_KAFKA_CLIENT_ID || `shipsec-backend-agent-trace-${instanceNum}`,
         AGENT_TRACE_KAFKA_GROUP_ID:
           process.env.AGENT_TRACE_KAFKA_GROUP_ID || `shipsec-agent-trace-ingestor-${instanceNum}`,
+        CHAT_STREAM_KAFKA_TOPIC: process.env.CHAT_STREAM_KAFKA_TOPIC || 'chat.stream.events',
+        CHAT_STREAM_KAFKA_CLIENT_ID:
+          process.env.CHAT_STREAM_KAFKA_CLIENT_ID || `shipsec-backend-chat-stream-${instanceNum}`,
+        CHAT_STREAM_KAFKA_GROUP_ID:
+          process.env.CHAT_STREAM_KAFKA_GROUP_ID || `shipsec-chat-stream-ingestor-${instanceNum}`,
         ENABLE_INGEST_SERVICES: process.env.ENABLE_INGEST_SERVICES || 'true',
         INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
         TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS || 'localhost:7233',
@@ -381,6 +386,9 @@ module.exports = {
           LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
           LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',
           LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || `shipsec-worker-${instanceNum}`,
+          CHAT_STREAM_KAFKA_TOPIC: process.env.CHAT_STREAM_KAFKA_TOPIC || 'chat.stream.events',
+          CHAT_STREAM_KAFKA_CLIENT_ID:
+            process.env.CHAT_STREAM_KAFKA_CLIENT_ID || `shipsec-worker-chat-stream-${instanceNum}`,
           EVENT_KAFKA_TOPIC: process.env.EVENT_KAFKA_TOPIC || 'telemetry.events',
           EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || `shipsec-worker-events-${instanceNum}`,
           TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS || 'localhost:7233',

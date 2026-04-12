@@ -261,12 +261,15 @@ async function main() {
     internalToken: process.env.INTERNAL_SERVICE_TOKEN ?? '',
   });
 
-  // Initialize chat stream Kafka adapter
-  const chatStreamAdapter = new KafkaChatStreamAdapter({
-    brokers: kafkaBrokers,
-    topic: topicResolver.getChatStreamTopic(),
-    clientId: process.env.CHAT_STREAM_KAFKA_CLIENT_ID ?? 'shipsec-worker-chat-stream',
-  });
+  const disableChatStreamKafka = process.env.DISABLE_CHAT_STREAM_KAFKA === 'true';
+  const chatStreamAdapter =
+    disableChatStreamKafka || kafkaBrokers.length === 0
+      ? undefined
+      : new KafkaChatStreamAdapter({
+          brokers: kafkaBrokers,
+          topic: topicResolver.getChatStreamTopic(),
+          clientId: process.env.CHAT_STREAM_KAFKA_CLIENT_ID ?? 'shipsec-worker-chat-stream',
+        });
 
   // Initialize chat agent activities
   initializeChatAgentActivities({
