@@ -28,6 +28,7 @@ import './core/aws-assume-role';
 import './core/destination-artifact';
 import './core/destination-s3';
 import './core/text-block';
+import './core/report-render';
 import './core/workflow-call';
 import './core/mcp-library';
 import './core/analytics-sink';

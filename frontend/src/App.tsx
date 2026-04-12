@@ -102,6 +102,9 @@ const HomePage = lazy(() => import('@/pages/HomePage').then((m) => ({ default: m
 const WorkflowTemplatesPage = lazy(() =>
   import('@/pages/WorkflowTemplatesPage').then((m) => ({ default: m.WorkflowTemplatesPage })),
 );
+const ReportTemplatesPage = lazy(() =>
+  import('@/pages/ReportTemplatesPage').then((m) => ({ default: m.ReportTemplatesPage })),
+);
 const CloudAccountsPage = lazy(() =>
   import('@/pages/CloudAccountsPage').then((m) => ({ default: m.CloudAccountsPage })),
 );
@@ -231,6 +234,7 @@ function App() {
                               </Route>
                               <Route element={<FeatureFlagRoute flag="WORKFLOW_TEMPLATES" />}>
                                 <Route path="/templates" element={<WorkflowTemplatesPage />} />
+                                <Route path="/report-templates" element={<ReportTemplatesPage />} />
                               </Route>
                               <Route element={<FeatureFlagRoute flag="WORKFLOW_SCHEDULES" />}>
                                 <Route path="/schedules" element={<SchedulesPage />} />

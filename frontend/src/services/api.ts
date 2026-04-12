@@ -18,6 +18,8 @@ export type IntegrationConnection = components['schemas']['IntegrationConnection
 export type IntegrationProviderConfiguration =
   components['schemas']['ProviderConfigurationResponse'];
 export type OAuthStartResponse = components['schemas']['OAuthStartResponseDto'];
+export type ReportTemplate = components['schemas']['ReportTemplateResponseDto'];
+export type RenderReportTemplateResponse = components['schemas']['RenderReportTemplateResponseDto'];
 
 export type IntegrationCatalogEntry =
   paths['/api/v1/integrations/catalog']['get']['responses'][200]['content']['application/json'][number];
@@ -253,6 +255,62 @@ export const api = {
       const response = await apiClient.runWorkflow(id, body);
       if (response.error) throw new Error('Failed to run workflow');
       return response.data;
+    },
+  },
+
+  reportTemplates: {
+    list: async (): Promise<ReportTemplate[]> => {
+      const response = await apiClient.listReportTemplates();
+      if (response.error) throw new Error('Failed to fetch report templates');
+      return (response.data ?? []) as ReportTemplate[];
+    },
+
+    get: async (id: string): Promise<ReportTemplate> => {
+      const response = await apiClient.getReportTemplate(id);
+      if (response.error || !response.data) throw new Error('Failed to fetch report template');
+      return response.data as ReportTemplate;
+    },
+
+    getDraft: async (id: string): Promise<ReportTemplate> => {
+      const response = await apiClient.getReportTemplateDraft(id);
+      if (response.error || !response.data)
+        throw new Error('Failed to fetch report template draft');
+      return response.data as ReportTemplate;
+    },
+
+    createDraft: async (
+      body: components['schemas']['CreateReportTemplateDraftRequestDto'],
+    ): Promise<ReportTemplate> => {
+      const response = await apiClient.createReportTemplateDraft(body);
+      if (response.error || !response.data)
+        throw new Error('Failed to create report template draft');
+      return response.data as ReportTemplate;
+    },
+
+    updateDraft: async (
+      id: string,
+      body: components['schemas']['UpdateReportTemplateDraftRequestDto'],
+    ): Promise<ReportTemplate> => {
+      const response = await apiClient.updateReportTemplateDraft(id, body);
+      if (response.error || !response.data)
+        throw new Error('Failed to update report template draft');
+      return response.data as ReportTemplate;
+    },
+
+    preview: async (
+      id: string,
+      body: components['schemas']['RenderReportTemplatePreviewRequestDto'],
+    ): Promise<RenderReportTemplateResponse> => {
+      const response = await apiClient.previewReportTemplate(id, body);
+      if (response.error || !response.data)
+        throw new Error('Failed to render report template preview');
+      return response.data as RenderReportTemplateResponse;
+    },
+
+    publish: async (id: string): Promise<ReportTemplate> => {
+      const response = await apiClient.publishReportTemplate(id, {});
+      if (response.error || !response.data) throw new Error('Failed to publish report template');
+      return response.data as ReportTemplate;
     },
   },
 

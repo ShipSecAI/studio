@@ -46,6 +46,10 @@ import {
   ToolOutput,
 } from '@/components/ai-elements/tool';
 import { WorkflowRunStatusCard } from '@/components/ai-elements/workflow-run-status-card';
+import {
+  ReportTemplatePreviewCard,
+  type ReportTemplatePreviewPayload,
+} from '@/components/ai-elements/report-template-preview-card';
 import { parseWorkflowRunOutput } from '@/utils/workflowRunParsing';
 
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
@@ -136,6 +140,62 @@ function getTurnStatusChunkPayload(chunk: unknown): TurnStatusPayload | null {
   return typed as TurnStatusPayload;
 }
 
+function parseMcpJsonOutput(output: unknown): unknown {
+  if (
+    output &&
+    typeof output === 'object' &&
+    'content' in output &&
+    Array.isArray((output as { content: unknown }).content)
+  ) {
+    const parts = (output as { content: { type: string; text?: string }[] }).content;
+    const firstText = parts.find((part) => part.type === 'text' && typeof part.text === 'string');
+    if (firstText?.text) {
+      try {
+        return JSON.parse(firstText.text);
+      } catch {
+        return firstText.text;
+      }
+    }
+  }
+
+  return output;
+}
+
+function parseReportTemplatePreviewOutput(
+  toolName: string | undefined,
+  output: unknown,
+): ReportTemplatePreviewPayload | null {
+  if (toolName !== 'render_report_template_preview') {
+    return null;
+  }
+
+  const parsed = parseMcpJsonOutput(output);
+  if (!parsed || typeof parsed !== 'object') {
+    return null;
+  }
+
+  const candidate = parsed as Partial<ReportTemplatePreviewPayload>;
+  if (
+    typeof candidate.templateId !== 'string' ||
+    typeof candidate.versionId !== 'string' ||
+    typeof candidate.versionNumber !== 'number' ||
+    typeof candidate.kind !== 'string' ||
+    typeof candidate.html !== 'string'
+  ) {
+    return null;
+  }
+
+  return {
+    templateId: candidate.templateId,
+    versionId: candidate.versionId,
+    versionNumber: candidate.versionNumber,
+    kind: candidate.kind as 'draft' | 'published',
+    html: candidate.html,
+    css: candidate.css,
+    data: candidate.data as Record<string, unknown> | undefined,
+  };
+}
+
 // Memoized tool part — skips re-render when the part object reference hasn't changed.
 // During streaming, text-delta updates create a new message but reuse the same part
 // objects for completed tool calls, so this avoids re-rendering 50+ tool cards on
@@ -152,6 +212,10 @@ const ToolPartRenderer = memo(function ToolPartRenderer({ part, idx }: { part: a
     (part.state === 'output-available' || part.state === 'output-error') && 'output' in part
       ? parseWorkflowRunOutput((part as { output: unknown }).output)
       : null;
+  const parsedReportPreview =
+    (part.state === 'output-available' || part.state === 'output-error') && 'output' in part
+      ? parseReportTemplatePreviewOutput(partToolName, (part as { output: unknown }).output)
+      : null;
   const shouldRenderWorkflowRunCard =
     parsedWorkflowRun !== null &&
     (partToolName === 'run_workflow' ||
@@ -167,7 +231,9 @@ const ToolPartRenderer = memo(function ToolPartRenderer({ part, idx }: { part: a
       />
       <ToolContent>
         {'input' in part && part.input !== undefined && <ToolInput input={part.input} />}
-        {shouldRenderWorkflowRunCard && parsedWorkflowRun ? (
+        {parsedReportPreview ? (
+          <ReportTemplatePreviewCard preview={parsedReportPreview} />
+        ) : shouldRenderWorkflowRunCard && parsedWorkflowRun ? (
           <WorkflowRunStatusCard run={parsedWorkflowRun} />
         ) : (
           (part.state === 'output-available' || part.state === 'output-error') &&

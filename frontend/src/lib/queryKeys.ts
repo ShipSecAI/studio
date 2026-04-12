@@ -80,6 +80,12 @@ export const queryKeys = {
     runtimeInputs: (workflowId: string) =>
       ['workflowRuntimeInputs', getOrgScope(), workflowId] as const,
   },
+  reportTemplates: {
+    list: () => ['reportTemplates', getOrgScope()] as const,
+    detail: (id: string) => ['reportTemplate', getOrgScope(), id] as const,
+    preview: (id: string, data?: Record<string, unknown>) =>
+      ['reportTemplatePreview', getOrgScope(), id, data] as const,
+  },
   security: {
     findings: (filters?: unknown, viewFilter?: unknown) =>
       ['security', getOrgScope(), 'findings', filters, viewFilter] as const,
