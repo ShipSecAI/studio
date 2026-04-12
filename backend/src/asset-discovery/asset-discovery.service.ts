@@ -55,11 +55,11 @@ export class AssetDiscoveryService {
         );
       });
 
-    const sortBy =
+    const sortBy: 'name' | 'firstSeenAt' | 'lastSeenAt' =
       options.sortBy === 'name'
         ? 'name'
         : options.sortBy === 'firstDiscoveredAt'
-          ? 'firstDiscoveredAt'
+          ? 'firstSeenAt'
           : 'lastSeenAt';
     const sortOrder = options.sortOrder === 'asc' ? 'asc' : 'desc';
     filtered.sort((a, b) => compareAssetValues(a[sortBy], b[sortBy], sortOrder));
