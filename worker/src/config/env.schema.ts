@@ -96,6 +96,19 @@ export const workerEnvSchema = z
     AWS_SESSION_TOKEN: z.string().optional(),
     AWS_PROFILE: z.string().optional(),
 
+    // --- Cartography / Neo4j ---
+    NEO4J_URI: z.string().optional().default('bolt://localhost:7687'),
+    NEO4J_DATABASE: z.string().optional().default('neo4j'),
+    CARTOGRAPHY_IMAGE: z.string().optional().default('ghcr.io/cartography-cncf/cartography:0.96.1'),
+    CARTOGRAPHY_NEO4J_URI: z.string().optional().default('bolt://neo4j:7687'),
+    CARTOGRAPHY_DOCKER_NETWORK: z.string().optional().default('shipsec-network'),
+    CARTOGRAPHY_AWS_REQUESTED_SYNCS: z
+      .string()
+      .optional()
+      .default(
+        'iam,s3,ecr,secretsmanager,kms,sqs,dynamodb,ecs,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc',
+      ),
+
     // --- Component I/O paths ---
     SHIPSEC_INPUT_PATH: z.string().optional().default('/shipsec-output/input.json'),
     SHIPSEC_OUTPUT_PATH: z.string().optional().default('/shipsec-output/result.json'),

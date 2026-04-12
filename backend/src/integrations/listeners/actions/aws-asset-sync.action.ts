@@ -5,6 +5,7 @@ import { TemporalService } from '../../../temporal/temporal.service';
 import type { IntegrationConnectedEvent } from '../../events/integration.events';
 import type { IntegrationAutoAction } from '../integration-action.registry';
 import { IntegrationActionRegistry } from '../integration-action.registry';
+import { buildOrgAssetSyncWorkflowId } from '../../../asset-discovery/cartography-utils';
 
 @Injectable()
 export class AwsAssetSyncAction implements IntegrationAutoAction, OnModuleInit {
@@ -30,7 +31,7 @@ export class AwsAssetSyncAction implements IntegrationAutoAction, OnModuleInit {
     try {
       await this.temporalService.startWorkflow({
         workflowType: 'assetSyncWorkflow',
-        workflowId: `asset-sync-${event.connectionId}`,
+        workflowId: buildOrgAssetSyncWorkflowId(event.organizationId),
         args: [
           {
             integrationId: event.connectionId,

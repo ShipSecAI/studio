@@ -1,9 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, eq, sql, desc, asc, count, lt } from 'drizzle-orm';
+import { and, eq, sql, desc, asc, count, lt, inArray } from 'drizzle-orm';
 import { DRIZZLE_TOKEN } from '../database/database.module';
 import * as schema from '../database/schema';
 import { assets, assetSyncRunScopes, assetSyncRuns } from '../database/schema/asset-discovery';
+import type { GraphAssetSnapshot } from './cloud-graph.service';
+import type { CartographySyncConnectionBinding } from './cartography-utils';
 
 @Injectable()
 export class AssetDiscoveryRepository {
@@ -422,4 +424,181 @@ export class AssetDiscoveryRepository {
         and(eq(assets.organizationId, organizationId), eq(assets.integrationId, integrationId)),
       );
   }
+
+  async listAssetsByCompositeKeys(
+    organizationId: string,
+    keys: { assetType: string; externalId: string }[],
+  ) {
+    if (keys.length === 0) return [];
+
+    const assetTypes = Array.from(new Set(keys.map((key) => key.assetType)));
+    const externalIds = Array.from(new Set(keys.map((key) => key.externalId)));
+
+    return this.db
+      .select()
+      .from(assets)
+      .where(
+        and(
+          eq(assets.organizationId, organizationId),
+          eq(assets.provider, 'aws'),
+          eq(assets.status, 'active'),
+          inArray(assets.assetType, assetTypes),
+          inArray(assets.externalId, externalIds),
+        ),
+      );
+  }
+
+  async getHistoricalStatusCounts(organizationId: string) {
+    const rows = await this.db
+      .select({ status: assets.status, count: count() })
+      .from(assets)
+      .where(
+        and(
+          eq(assets.organizationId, organizationId),
+          inArray(assets.status, ['stale', 'removed']),
+        ),
+      )
+      .groupBy(assets.status);
+
+    return rows.map((row) => ({
+      status: row.status ?? 'unknown',
+      count: Number(row.count),
+    }));
+  }
+
+  async refreshFromGraphSnapshot(
+    organizationId: string,
+    integrationId: string,
+    graphAssets: GraphAssetSnapshot[],
+    connectionBindings: CartographySyncConnectionBinding[],
+  ): Promise<{
+    createdCount: number;
+    updatedCount: number;
+    unchangedCount: number;
+    staleCount: number;
+    removedCount: number;
+  }> {
+    const now = new Date();
+    const existingRows = await this.db
+      .select()
+      .from(assets)
+      .where(and(eq(assets.organizationId, organizationId), eq(assets.provider, 'aws')));
+
+    const existingByKey = new Map<string, (typeof existingRows)[number]>(
+      existingRows.map((row) => [`${row.assetType}::${row.externalId}`, row]),
+    );
+    const connectionByAccount = new Map(
+      connectionBindings
+        .filter((binding) => binding.accountIdentifier)
+        .map((binding) => [binding.accountIdentifier as string, binding.connectionId] as const),
+    );
+
+    let createdCount = 0;
+    let updatedCount = 0;
+    let unchangedCount = 0;
+    const activeKeys = new Set<string>();
+
+    for (const asset of graphAssets) {
+      const key = `${asset.assetType}::${asset.externalId}`;
+      activeKeys.add(key);
+
+      const existing = existingByKey.get(key);
+      const mappedIntegrationId =
+        (asset.accountIdentifier && connectionByAccount.get(asset.accountIdentifier)) ||
+        integrationId;
+
+      if (!existing) {
+        await this.db.insert(assets).values({
+          organizationId,
+          integrationId: mappedIntegrationId,
+          provider: 'aws',
+          accountIdentifier: asset.accountIdentifier,
+          assetType: asset.assetType,
+          externalId: asset.externalId,
+          name: asset.name,
+          region: asset.region,
+          metadata: asset.metadata,
+          firstDiscoveredAt: coerceDate(asset.firstSeenAt, now),
+          lastSeenAt: coerceDate(asset.lastSeenAt, now),
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        });
+        createdCount++;
+        continue;
+      }
+
+      const changed =
+        existing.integrationId !== mappedIntegrationId ||
+        existing.accountIdentifier !== asset.accountIdentifier ||
+        existing.name !== asset.name ||
+        existing.region !== asset.region ||
+        existing.status !== 'active' ||
+        JSON.stringify(existing.metadata ?? {}) !== JSON.stringify(asset.metadata ?? {}) ||
+        existing.lastSeenAt.toISOString() !== coerceDate(asset.lastSeenAt, now).toISOString();
+
+      await this.db
+        .update(assets)
+        .set({
+          integrationId: mappedIntegrationId,
+          accountIdentifier: asset.accountIdentifier,
+          name: asset.name,
+          region: asset.region,
+          metadata: asset.metadata,
+          lastSeenAt: coerceDate(asset.lastSeenAt, now),
+          status: 'active',
+          updatedAt: now,
+        })
+        .where(eq(assets.id, existing.id));
+
+      if (changed) {
+        updatedCount++;
+      } else {
+        unchangedCount++;
+      }
+    }
+
+    const activeRowsToStale = existingRows.filter(
+      (row) => row.status === 'active' && !activeKeys.has(`${row.assetType}::${row.externalId}`),
+    );
+
+    let staleCount = 0;
+    if (activeRowsToStale.length > 0) {
+      const staleIds = activeRowsToStale.map((row) => row.id);
+      await this.db
+        .update(assets)
+        .set({ status: 'stale', updatedAt: now })
+        .where(inArray(assets.id, staleIds));
+      staleCount = staleIds.length;
+    }
+
+    const removedRows = await this.db
+      .update(assets)
+      .set({ status: 'removed', updatedAt: now })
+      .where(
+        and(
+          eq(assets.organizationId, organizationId),
+          eq(assets.provider, 'aws'),
+          eq(assets.status, 'stale'),
+          sql`${assets.updatedAt} < (now() - interval '7 days')`,
+        ),
+      )
+      .returning({ id: assets.id });
+
+    return {
+      createdCount,
+      updatedCount,
+      unchangedCount,
+      staleCount,
+      removedCount: removedRows.length,
+    };
+  }
+}
+
+function coerceDate(value: string, fallback: Date): Date {
+  const parsed = Date.parse(value);
+  if (Number.isFinite(parsed)) {
+    return new Date(parsed);
+  }
+  return fallback;
 }

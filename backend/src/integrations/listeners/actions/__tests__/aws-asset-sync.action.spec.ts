@@ -14,7 +14,7 @@ describe('AwsAssetSyncAction', () => {
   beforeEach(() => {
     mockTemporalService = {
       startWorkflow: vi.fn().mockResolvedValue({
-        workflowId: 'asset-sync-conn-123',
+        workflowId: 'asset-sync-org-org-1',
         runId: 'run-1',
         taskQueue: 'default',
       }),
@@ -40,7 +40,7 @@ describe('AwsAssetSyncAction', () => {
 
     expect(mockTemporalService.startWorkflow).toHaveBeenCalledWith({
       workflowType: 'assetSyncWorkflow',
-      workflowId: 'asset-sync-conn-123',
+      workflowId: 'asset-sync-org-org-1',
       args: [
         {
           integrationId: 'conn-123',
@@ -54,7 +54,7 @@ describe('AwsAssetSyncAction', () => {
     mockTemporalService.startWorkflow.mockRejectedValue(
       new WorkflowExecutionAlreadyStartedError(
         'Workflow execution already started',
-        'asset-sync-conn-123',
+        'asset-sync-org-org-1',
         'assetSyncWorkflow',
       ),
     );

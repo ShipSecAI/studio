@@ -15,6 +15,10 @@ import { awsCredentialSchema } from '@shipsec/contracts';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
 const cartographyModules = ['aws', 'github', 'kubernetes'] as const;
+const CARTOGRAPHY_IMAGE =
+  process.env.CARTOGRAPHY_IMAGE?.trim() || 'ghcr.io/cartography-cncf/cartography:0.96.1';
+export const DEFAULT_NEO4J_URI = process.env.NEO4J_URI?.trim() || 'bolt://localhost:7687';
+export const DEFAULT_NEO4J_DATABASE = process.env.NEO4J_DATABASE?.trim() || 'neo4j';
 
 type CartographyModule = (typeof cartographyModules)[number];
 
@@ -63,13 +67,26 @@ const parameterSchema = parameters({
   neo4jUri: param(
     z
       .string()
-      .default('bolt://neo4j:7687')
+      .default(DEFAULT_NEO4J_URI)
       .describe('Neo4j Bolt URI for Cartography to write the infrastructure graph.'),
     {
       label: 'Neo4j URI',
       editor: 'text',
       description:
-        'Bolt protocol URI for the Neo4j instance. Defaults to the platform Neo4j service.',
+        'Bolt protocol URI for the Neo4j instance. Defaults to NEO4J_URI or localhost for host-run dev workers.',
+    },
+  ),
+  neo4jDatabase: param(
+    z
+      .string()
+      .min(1)
+      .default(DEFAULT_NEO4J_DATABASE)
+      .describe('Neo4j database name for the Cartography graph.'),
+    {
+      label: 'Neo4j Database',
+      editor: 'text',
+      description:
+        'Database to sync into. Use the default neo4j database locally, or set an org-scoped database for isolation.',
     },
   ),
   awsRegions: param(
@@ -116,6 +133,10 @@ const outputSchema = outputs({
     label: 'Neo4j URI',
     description: 'The Neo4j URI that was synced to, for passing to query components.',
   }),
+  neo4jDatabase: port(z.string(), {
+    label: 'Neo4j Database',
+    description: 'The Neo4j database that received the sync.',
+  }),
   command: port(z.array(z.string()), {
     label: 'Command',
     description: 'Cartography CLI arguments used during the sync.',
@@ -145,7 +166,7 @@ const definition = defineComponent({
   retryPolicy,
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/cartography-cncf/cartography:latest',
+    image: CARTOGRAPHY_IMAGE,
     platform: 'linux/amd64',
     command: [],
   },
@@ -191,6 +212,7 @@ const definition = defineComponent({
         status: 'failed',
         moduleResults: [],
         neo4jUri: parsedParams.neo4jUri,
+        neo4jDatabase: parsedParams.neo4jDatabase,
         command: [],
         stderr: 'No modules selected.',
         durationMs: Date.now() - startTime,
@@ -213,6 +235,8 @@ const definition = defineComponent({
     const cmd: string[] = [
       '--neo4j-uri',
       parsedParams.neo4jUri,
+      '--neo4j-database',
+      parsedParams.neo4jDatabase,
       '--selected-modules',
       selectedModules.join(','),
     ];
@@ -276,9 +300,11 @@ const definition = defineComponent({
 
     const dockerRunner: DockerRunnerConfig = {
       kind: 'docker',
-      image: 'ghcr.io/cartography-cncf/cartography:latest',
+      image: CARTOGRAPHY_IMAGE,
       platform: 'linux/amd64',
-      network: 'shipsec-network',
+      // The current SDK type only models Docker's built-in network modes, but the
+      // runner passes custom network strings through to `docker run` at runtime.
+      network: 'shipsec-network' as unknown as DockerRunnerConfig['network'],
       timeoutSeconds: 1800, // 30 minutes for full sync
       env,
       command: cmd,
@@ -338,6 +364,7 @@ const definition = defineComponent({
         status: 'success',
         moduleResults,
         neo4jUri: parsedParams.neo4jUri,
+        neo4jDatabase: parsedParams.neo4jDatabase,
         command: cmd,
         stderr: stderrCombined,
         durationMs: Date.now() - startTime,
@@ -359,6 +386,7 @@ const definition = defineComponent({
         status: 'failed',
         moduleResults,
         neo4jUri: parsedParams.neo4jUri,
+        neo4jDatabase: parsedParams.neo4jDatabase,
         command: cmd,
         stderr: stderrCombined,
         durationMs: Date.now() - startTime,

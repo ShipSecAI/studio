@@ -543,6 +543,7 @@ export class IntegrationsService implements OnModuleInit {
   ): Promise<IntegrationConnection> {
     const orgId = auth.organizationId!;
     const userId = auth.userId!;
+    const accountId = input.roleArn.match(/^arn:aws:iam::(\d{12}):role\/.+$/)?.[1];
 
     // Verify setup token — cryptographically binds externalId to this org
     this.setupTokenService.verify(input.setupToken, orgId, input.externalId);
@@ -561,6 +562,15 @@ export class IntegrationsService implements OnModuleInit {
           `Principal {"AWS": "${platformArn}"} and Condition sts:ExternalId: "${input.externalId}". ` +
           `Error: ${error.message}`,
       );
+    }
+
+    if (accountId) {
+      const existing = await this.repository.findAwsConnectionByAccountId(accountId);
+      if (existing && existing.organizationId !== orgId) {
+        throw new BadRequestException(
+          `AWS account ${accountId} is already connected to another organization. Shared-account isolation is not supported in the current Cartography model.`,
+        );
+      }
     }
 
     // Store: roleArn + externalId + region only — no customer secrets
@@ -589,6 +599,7 @@ export class IntegrationsService implements OnModuleInit {
         roleArn: input.roleArn,
         externalId: input.externalId,
         region: input.region ?? null,
+        accountId: accountId ?? null,
       },
     });
 
@@ -603,6 +614,28 @@ export class IntegrationsService implements OnModuleInit {
     });
 
     return this.toConnection(record);
+  }
+
+  async listAwsAccountIdentifiersForOrg(organizationId: string): Promise<string[]> {
+    const records = await this.repository.listConnectionsByOrg(organizationId, 'aws');
+    const accountIds = new Set<string>();
+
+    for (const record of records) {
+      if (record.credentialType !== 'iam_role') continue;
+      const metadata = this.coerceMetadata(record.metadata);
+
+      const accountId =
+        (typeof metadata.accountId === 'string' && metadata.accountId.trim()) ||
+        (typeof metadata.roleArn === 'string'
+          ? metadata.roleArn.match(/^arn:aws:iam::(\d{12}):role\/.+$/)?.[1]
+          : undefined);
+
+      if (accountId) {
+        accountIds.add(accountId);
+      }
+    }
+
+    return Array.from(accountIds);
   }
 
   /* ------------------------------------------------------------------ */

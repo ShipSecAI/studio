@@ -49,7 +49,7 @@ Full details: `docs/MULTI-INSTANCE-DEV.md`
 
 Local development runs as **multiple app instances** (PM2) on top of **one shared Docker infra stack**.
 
-- Shared infra (Docker Compose project `shipsec-infra`): Postgres/Temporal/Redpanda/Redis/MinIO/Loki/LiteLLM on fixed ports.
+- Shared infra (Docker Compose project `shipsec-infra`): Postgres/Temporal/Redpanda/Redis/MinIO/Loki/Bifrost/Neo4j on fixed ports.
 - Per-instance apps: `shipsec-{frontend,backend,worker}-N`.
 - Isolation is via per-instance DB + Temporal namespace/task queue + Kafka topic suffixing + instance-scoped Kafka consumer groups/client IDs (not per-instance infra containers).
 - The workspace can have an **active instance** (stored in `.shipsec-instance`, gitignored).
@@ -68,7 +68,8 @@ Local development runs as **multiple app instances** (PM2) on top of **one share
 
 - Frontend: `5173 + N*100`
 - Backend: `3211 + N*100`
-- LiteLLM (shared): `http://localhost:4001`
+- Bifrost (shared): `http://localhost:4001`
+- Neo4j Bolt/UI (shared): `bolt://localhost:7687`, `http://localhost:7474`
 - Temporal UI (shared): http://localhost:8081
 
 **E2E tests**

@@ -154,13 +154,12 @@ dev action="start":
                 fi
                 echo "   Frontend:    http://localhost:${FRONTEND_PORT}"
                 echo "   Backend:     http://localhost:${BACKEND_PORT}"
-                echo "   Analytics:   http://localhost/analytics (requires login)"
                 echo "   Temporal UI: http://localhost:8081"
                 echo ""
             else
                 echo "🚀  Starting development environment (local auth, instance ${INST})..."
 
-                # Start infrastructure (no security, with dev ports for analytics)
+                # Start infrastructure (no security, shared local dev services)
                 docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml up -d
 
                 # Wait for Postgres to be fully ready (not just accepting connections, but able to execute queries)
@@ -200,7 +199,6 @@ dev action="start":
                 fi
                 echo "   Frontend:    http://localhost:${FRONTEND_PORT}"
                 echo "   Backend:     http://localhost:${BACKEND_PORT}"
-                echo "   Analytics:   http://localhost/analytics"
                 echo "   Temporal UI: http://localhost:8081"
                 echo ""
                 if [ "$INST" != "0" ]; then

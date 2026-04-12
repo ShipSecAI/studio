@@ -10,6 +10,9 @@ import {
   param,
 } from '@shipsec/component-sdk';
 
+export const DEFAULT_NEO4J_URI = process.env.NEO4J_URI?.trim() || 'bolt://localhost:7687';
+export const DEFAULT_NEO4J_DATABASE = process.env.NEO4J_DATABASE?.trim() || 'neo4j';
+
 /**
  * Write-operation keywords that are blocked to enforce read-only access.
  * Cartography query tool is exposed to AI agents and must not allow mutations.
@@ -66,12 +69,21 @@ const inputSchema = inputs({
 
 const parameterSchema = parameters({
   neo4jUri: param(
-    z.string().default('bolt://neo4j:7687').describe('Neo4j Bolt URI for the Cartography graph.'),
+    z.string().default(DEFAULT_NEO4J_URI).describe('Neo4j Bolt URI for the Cartography graph.'),
     {
       label: 'Neo4j URI',
       editor: 'text',
       description:
-        'Bolt protocol URI for the Neo4j instance. Defaults to the platform Neo4j service.',
+        'Bolt protocol URI for the Neo4j instance. Defaults to NEO4J_URI or localhost for host-run dev workers.',
+    },
+  ),
+  neo4jDatabase: param(
+    z.string().min(1).default(DEFAULT_NEO4J_DATABASE).describe('Neo4j database name to query.'),
+    {
+      label: 'Neo4j Database',
+      editor: 'text',
+      description:
+        'Database to query. Use neo4j locally, or point this at an org-scoped Cartography database.',
     },
   ),
   neo4jUser: param(
@@ -132,6 +144,32 @@ const outputSchema = outputs({
   }),
 });
 
+interface Neo4jNodeLike {
+  labels: string[];
+  properties: Record<string, unknown>;
+  elementId: string;
+}
+
+interface Neo4jRelationshipLike {
+  type: string;
+  properties: Record<string, unknown>;
+  startNodeElementId: string;
+  endNodeElementId: string;
+  elementId: string;
+}
+
+interface Neo4jPathSegment {
+  start: unknown;
+  relationship: unknown;
+  end: unknown;
+}
+
+interface Neo4jPathLike {
+  start: unknown;
+  end: unknown;
+  segments: Neo4jPathSegment[];
+}
+
 /**
  * Convert Neo4j driver values to plain JavaScript objects.
  * Neo4j integers, nodes, relationships need special handling.
@@ -148,33 +186,36 @@ function toPlainValue(value: unknown): unknown {
 
   // Neo4j Node
   if (value instanceof neo4j.types.Node) {
+    const nodeValue = value as unknown as Neo4jNodeLike;
     return {
       _type: 'node',
-      labels: value.labels,
-      properties: toPlainValue(value.properties),
-      elementId: value.elementId,
+      labels: nodeValue.labels,
+      properties: toPlainValue(nodeValue.properties),
+      elementId: nodeValue.elementId,
     };
   }
 
   // Neo4j Relationship
   if (value instanceof neo4j.types.Relationship) {
+    const relationshipValue = value as unknown as Neo4jRelationshipLike;
     return {
       _type: 'relationship',
-      type: value.type,
-      properties: toPlainValue(value.properties),
-      startNodeElementId: value.startNodeElementId,
-      endNodeElementId: value.endNodeElementId,
-      elementId: value.elementId,
+      type: relationshipValue.type,
+      properties: toPlainValue(relationshipValue.properties),
+      startNodeElementId: relationshipValue.startNodeElementId,
+      endNodeElementId: relationshipValue.endNodeElementId,
+      elementId: relationshipValue.elementId,
     };
   }
 
   // Neo4j Path
   if (value instanceof neo4j.types.Path) {
+    const pathValue = value as unknown as Neo4jPathLike;
     return {
       _type: 'path',
-      start: toPlainValue(value.start),
-      end: toPlainValue(value.end),
-      segments: value.segments.map((seg) => ({
+      start: toPlainValue(pathValue.start),
+      end: toPlainValue(pathValue.end),
+      segments: pathValue.segments.map((seg) => ({
         start: toPlainValue(seg.start),
         relationship: toPlainValue(seg.relationship),
         end: toPlainValue(seg.end),
@@ -258,7 +299,10 @@ const definition = defineComponent({
         : undefined;
 
     const driver = neo4j.driver(parsedParams.neo4jUri, auth);
-    const session = driver.session({ defaultAccessMode: neo4j.session.READ });
+    const session = driver.session({
+      database: parsedParams.neo4jDatabase,
+      defaultAccessMode: neo4j.session.READ,
+    });
 
     try {
       const startTime = Date.now();
@@ -269,7 +313,7 @@ const definition = defineComponent({
       const truncated = result.records.length > maxRecords;
       const limitedRecords = result.records.slice(0, maxRecords);
 
-      const records = limitedRecords.map((record) => {
+      const records = limitedRecords.map((record: any) => {
         const obj: Record<string, unknown> = {};
         for (const key of record.keys as string[]) {
           obj[key] = toPlainValue(record.get(key));

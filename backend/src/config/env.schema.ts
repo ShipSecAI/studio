@@ -132,6 +132,11 @@ export const backendEnvSchema = z
     AWS_REGION: z.string().optional(),
     AWS_DEFAULT_REGION: z.string().optional(),
 
+    // --- Neo4j / Cartography ---
+    NEO4J_URI: z.string().optional().default('bolt://localhost:7687'),
+    NEO4J_USER: z.string().optional().default(''),
+    NEO4J_PASSWORD: z.string().optional().default(''),
+
     // --- Bifrost ---
     BIFROST_PROXY_URL: z.string().optional(),
     BIFROST_MASTER_KEY: z.string().optional(),

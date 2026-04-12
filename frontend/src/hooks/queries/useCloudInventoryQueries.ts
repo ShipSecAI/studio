@@ -33,7 +33,7 @@ export interface SyncRun {
   id: string;
   organizationId: string;
   integrationId: string;
-  accountIdentifier: string;
+  accountIdentifier: string | null;
   status: string;
   assetsDiscovered: number | null;
   assetsCreated: number | null;

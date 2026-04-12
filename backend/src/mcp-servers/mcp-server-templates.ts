@@ -74,7 +74,9 @@ const TEMPLATE_DIR = join(__dirname, 'templates');
 
 function loadTemplates(): Record<string, McpServerTemplate> {
   const templates: Record<string, McpServerTemplate> = {};
-  const files = readdirSync(TEMPLATE_DIR).filter((file) => file.endsWith('.json'));
+  const files = readdirSync(TEMPLATE_DIR).filter(
+    (file) => file.endsWith('.json') && !file.startsWith('.'),
+  );
 
   for (const file of files) {
     const raw = JSON.parse(readFileSync(join(TEMPLATE_DIR, file), 'utf-8')) as McpServerTemplate;

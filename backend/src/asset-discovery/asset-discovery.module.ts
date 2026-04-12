@@ -9,6 +9,7 @@ import { ApiKeysModule } from '../api-keys/api-keys.module';
 import { AuthModule } from '../auth/auth.module';
 import { TemporalModule } from '../temporal/temporal.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
+import { CloudGraphService } from './cloud-graph.service';
 
 @Module({
   imports: [DatabaseModule, ApiKeysModule, AuthModule, TemporalModule, IntegrationsModule],
@@ -18,6 +19,7 @@ import { IntegrationsModule } from '../integrations/integrations.module';
     AssetDiscoveryRepository,
     AssetSyncService,
     AssetSyncRunsRepository,
+    CloudGraphService,
   ],
   exports: [AssetDiscoveryService, AssetSyncService],
 })

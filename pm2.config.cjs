@@ -1,425 +1,150 @@
 const fs = require('fs');
 const path = require('path');
 
-function isLinuxMusl() {
-  if (process.platform !== 'linux') {
-    return false;
-  }
-
-  try {
-    const report = typeof process.report?.getReport === 'function' ? process.report.getReport() : null;
-    if (report?.header?.glibcVersionRuntime) {
-      return false;
-    }
-    if (Array.isArray(report?.sharedObjects)) {
-      if (report.sharedObjects.some((file) => file.includes('libc.musl-') || file.includes('ld-musl-'))) {
-        return true;
-      }
-    }
-  } catch (_) {
-    // Ignore report inspection errors and continue with filesystem probing.
-  }
-
-  try {
-    const ldd = fs.readFileSync('/usr/bin/ldd', 'utf-8');
-    if (ldd.includes('musl')) {
-      return true;
-    }
-  } catch (_) {
-    // Ignore missing ldd; we'll try the child process fallback.
-  }
-
-  try {
-    const output = require('child_process')
-      .execSync('ldd --version', { encoding: 'utf8' })
-      .toLowerCase();
-    return output.includes('musl');
-  } catch (_) {
-    return false;
-  }
-}
-
-function getSwcTargets() {
-  const { platform, arch } = process;
-
-  if (platform === 'darwin') {
-    if (arch === 'arm64') {
-      return ['darwin-arm64'];
-    }
-    if (arch === 'x64') {
-      return ['darwin-x64'];
-    }
-  }
-
-  if (platform === 'linux') {
-    const musl = isLinuxMusl();
-    if (arch === 'x64') {
-      return musl ? ['linux-x64-musl', 'linux-x64-gnu'] : ['linux-x64-gnu', 'linux-x64-musl'];
-    }
-    if (arch === 'arm64') {
-      return musl ? ['linux-arm64-musl', 'linux-arm64-gnu'] : ['linux-arm64-gnu', 'linux-arm64-musl'];
-    }
-    if (arch === 'arm') {
-      return ['linux-arm-gnueabihf'];
-    }
-    if (arch === 'riscv64') {
-      return musl ? ['linux-riscv64-musl', 'linux-riscv64-gnu'] : ['linux-riscv64-gnu', 'linux-riscv64-musl'];
-    }
-    if (arch === 's390x') {
-      return ['linux-s390x-gnu'];
-    }
-  }
-
-  if (platform === 'win32') {
-    if (arch === 'x64') {
-      return ['win32-x64-msvc'];
-    }
-    if (arch === 'ia32') {
-      return ['win32-ia32-msvc'];
-    }
-    if (arch === 'arm64') {
-      return ['win32-arm64-msvc'];
-    }
-  }
-
-  if (platform === 'freebsd') {
-    if (arch === 'x64') {
-      return ['freebsd-x64'];
-    }
-    if (arch === 'arm64') {
-      return ['freebsd-arm64'];
-    }
-  }
-
-  if (platform === 'android') {
-    if (arch === 'arm64') {
-      return ['android-arm64'];
-    }
-    if (arch === 'arm') {
-      return ['android-arm-eabi'];
-    }
-  }
-
-  return [];
-}
-
-function collectCandidatePaths(target) {
-  const candidates = [];
-  const bunDir = path.join(__dirname, 'node_modules', '.bun');
-  const aggregateDir = path.join(bunDir, 'node_modules', '@swc', `core-${target}`, `swc.${target}.node`);
-
-  if (aggregateDir && fs.existsSync(aggregateDir)) {
-    candidates.push(aggregateDir);
-  }
-
-  try {
-    const entries = fs.readdirSync(bunDir);
-    for (const entry of entries) {
-      if (entry.startsWith(`@swc+core-${target}@`)) {
-        const versionedPath = path.join(
-          bunDir,
-          entry,
-          'node_modules',
-          '@swc',
-          `core-${target}`,
-          `swc.${target}.node`,
-        );
-        candidates.push(versionedPath);
-      }
-    }
-  } catch (_) {
-    // Unable to scan versioned directories; continue with resolver fallback.
-  }
-
-  try {
-    const resolvedPkg = require.resolve(`@swc/core-${target}/package.json`, {
-      paths: [path.join(bunDir, 'node_modules'), __dirname],
-    });
-    const resolvedCandidate = path.join(path.dirname(resolvedPkg), `swc.${target}.node`);
-    candidates.push(resolvedCandidate);
-  } catch (_) {
-    // Optional dependency may not be installed for this platform.
-  }
-
-  return Array.from(new Set(candidates));
-}
-
-function resolveSwcBinaryPath() {
-  const targets = getSwcTargets();
-  for (const target of targets) {
-    const candidates = collectCandidatePaths(target);
-    for (const candidate of candidates) {
-      if (fs.existsSync(candidate)) {
-        return candidate;
-      }
-    }
-  }
-  return undefined;
-}
-
-const swcBinaryPath = resolveSwcBinaryPath();
-if (!swcBinaryPath) {
-  console.warn('Unable to automatically resolve SWC native binary; Temporal workers will use default resolution.');
-}
-
-// Load .env file and extract VITE_* variables for frontend
-function loadFrontendEnv(envFilePath) {
-  const env = { NODE_ENV: 'development' };
-
-  try {
-    if (fs.existsSync(envFilePath)) {
-      const envContent = fs.readFileSync(envFilePath, 'utf-8');
-      envContent.split('\n').forEach((line) => {
-        const trimmed = line.trim();
-        // Skip comments and empty lines
-        if (!trimmed || trimmed.startsWith('#')) {
-          return;
-        }
-        const match = trimmed.match(/^([^=]+)=(.*)$/);
-        if (match) {
-          const key = match[1].trim();
-          let value = match[2].trim();
-          // Remove surrounding quotes if present
-          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.slice(1, -1);
-          } else {
-            // Strip inline comments for unquoted values
-            const commentIndex = value.indexOf(' #');
-            if (commentIndex !== -1) {
-              value = value.substring(0, commentIndex).trimEnd();
-            }
-          }
-          // Only include VITE_* variables for frontend
-          if (key.startsWith('VITE_')) {
-            env[key] = value;
-          }
-        }
-      });
-    }
-  } catch (err) {
-    console.warn('Failed to load frontend .env file:', err.message);
-  }
-
-  return env;
-}
-
-// Load worker .env file for worker-specific variables
-function loadWorkerEnv(envPath) {
-  const env = {};
-
-  try {
-    if (fs.existsSync(envPath)) {
-      const envContent = fs.readFileSync(envPath, 'utf-8');
-      envContent.split('\n').forEach((line) => {
-        const trimmed = line.trim();
-        // Skip comments and empty lines
-        if (!trimmed || trimmed.startsWith('#')) {
-          return;
-        }
-        const match = trimmed.match(/^([^=]+)=(.*)$/);
-        if (match) {
-          const key = match[1].trim();
-          let value = match[2].trim();
-          // Remove surrounding quotes if present
-          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.slice(1, -1);
-          } else {
-            // Strip inline comments for unquoted values
-            const commentIndex = value.indexOf(' #');
-            if (commentIndex !== -1) {
-              value = value.substring(0, commentIndex).trimEnd();
-            }
-          }
-          env[key] = value;
-        }
-      });
-    }
-  } catch (err) {
-    console.warn('Failed to load worker .env file:', err.message);
-  }
-
-  return env;
-}
-
-// Determine environment from NODE_ENV or SHIPSEC_ENV
-const environment = process.env.SHIPSEC_ENV || process.env.NODE_ENV || 'development';
-const isProduction = environment === 'production';
-
-// Get instance number (0-9) for multi-instance support
 const instanceNum = process.env.SHIPSEC_INSTANCE || '0';
-// Instance 0 uses the default 'shipsec' DB (auto-created by POSTGRES_DB in docker-compose),
-// others use 'shipsec_instance_N' (lazily created by `just dev`).
-const instanceDbName = instanceNum === '0' ? 'shipsec' : `shipsec_instance_${instanceNum}`;
-const instanceDatabaseUrl = `postgresql://shipsec:shipsec@localhost:5433/${instanceDbName}`;
-// Only set these defaults for local development. In production, credentials must
-// come from the environment / deployment config.
-const devInstanceEnv = isProduction
-  ? {}
-  : {
-      DATABASE_URL: instanceDatabaseUrl,
-      SECRET_STORE_MASTER_KEY: process.env.SECRET_STORE_MASTER_KEY || 'ShipSecLocalDevKey32Bytes!!!!!!!',
-    };
+const isProduction = process.env.SHIPSEC_ENV === 'production' || process.env.NODE_ENV === 'production';
 
-// Environment-specific configuration
-const envConfig = {
-  development: {
-    TEMPORAL_TASK_QUEUE: 'shipsec-dev',
-    TEMPORAL_NAMESPACE: 'shipsec-dev',
-    NODE_ENV: 'development',
-  },
-  production: {
-    TEMPORAL_TASK_QUEUE: 'shipsec-prod',
-    TEMPORAL_NAMESPACE: 'shipsec-prod',
-    NODE_ENV: 'production',
-  },
-};
+const sharedWatch = isProduction ? false : ['src'];
+const sharedIgnoreWatch = ['node_modules', 'dist', '*.log'];
 
-const currentEnvConfig = envConfig[isProduction ? 'production' : 'development'];
-
-// Helper to get instance-specific env file path
-function getInstanceEnvFile(appName, instance) {
-  return __dirname + `/.instances/instance-${instance}/${appName}.env`;
-}
-
-// Helper to get instance-specific ports
 function getInstancePort(basePort, instance) {
-  return basePort + parseInt(instance) * 100;
+  return basePort + Number(instance) * 100;
 }
 
-// Get env file (use instance-specific if it exists, otherwise fall back to root)
+function getDatabaseName(instance) {
+  return Number(instance) === 0 ? 'shipsec' : `shipsec_instance_${instance}`;
+}
+
+function getTemporalNamespace(instance) {
+  return Number(instance) === 0 ? 'shipsec-dev' : `shipsec-dev-${instance}`;
+}
+
 function resolveEnvFile(appName, instance) {
-  const instancePath = getInstanceEnvFile(appName, instance);
-  const rootPath = __dirname + `/${appName}/.env`;
-  
-  if (fs.existsSync(instancePath)) {
-    return instancePath;
-  }
-  return rootPath;
+  const instancePath = path.join(__dirname, '.instances', `instance-${instance}`, `${appName}.env`);
+  const rootPath = path.join(__dirname, appName, '.env');
+  return fs.existsSync(instancePath) ? instancePath : rootPath;
 }
 
-const workerEnvFile = resolveEnvFile('worker', instanceNum);
-const workerEnv = loadWorkerEnv(workerEnvFile);
+function resolveTsxScriptPath() {
+  const packageCliPath = path.join(__dirname, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+  if (fs.existsSync(packageCliPath)) {
+    return packageCliPath;
+  }
+
+  const directBinPath = path.join(__dirname, 'node_modules', '.bin', 'tsx');
+  if (fs.existsSync(directBinPath)) {
+    return directBinPath;
+  }
+
+  try {
+    return require.resolve('tsx/dist/cli.mjs', { paths: [__dirname] });
+  } catch (_) {
+    return directBinPath;
+  }
+}
+
+function getBackendEnv(instance) {
+  const port = getInstancePort(3211, instance);
+  const databaseUrl = `postgresql://shipsec:shipsec@localhost:5433/${getDatabaseName(instance)}`;
+  const temporalNamespace = getTemporalNamespace(instance);
+  const suffix = String(instance);
+
+  return {
+    NODE_ENV: isProduction ? 'production' : 'development',
+    SHIPSEC_INSTANCE: suffix,
+    PORT: String(port),
+    DATABASE_URL: databaseUrl,
+    TEMPORAL_NAMESPACE: temporalNamespace,
+    TEMPORAL_TASK_QUEUE: temporalNamespace,
+    LOG_KAFKA_CLIENT_ID: `shipsec-backend-${suffix}`,
+    LOG_KAFKA_GROUP_ID: `shipsec-log-ingestor-${suffix}`,
+    EVENT_KAFKA_CLIENT_ID: `shipsec-backend-events-${suffix}`,
+    EVENT_KAFKA_GROUP_ID: `shipsec-event-ingestor-${suffix}`,
+    NODE_IO_KAFKA_CLIENT_ID: `shipsec-backend-node-io-${suffix}`,
+    NODE_IO_KAFKA_GROUP_ID: `shipsec-node-io-ingestor-${suffix}`,
+    AGENT_TRACE_KAFKA_CLIENT_ID: `shipsec-backend-agent-trace-${suffix}`,
+    AGENT_TRACE_KAFKA_GROUP_ID: `shipsec-agent-trace-ingestor-${suffix}`,
+    CHAT_STREAM_KAFKA_CLIENT_ID: `shipsec-backend-chat-stream-${suffix}`,
+    CHAT_STREAM_KAFKA_GROUP_ID: `shipsec-chat-stream-ingestor-${suffix}`,
+  };
+}
+
+function getWorkerEnv(instance) {
+  const backendPort = getInstancePort(3211, instance);
+  const databaseUrl = `postgresql://shipsec:shipsec@localhost:5433/${getDatabaseName(instance)}`;
+  const temporalNamespace = getTemporalNamespace(instance);
+  const suffix = String(instance);
+
+  return {
+    NODE_ENV: isProduction ? 'production' : 'development',
+    SHIPSEC_INSTANCE: suffix,
+    BACKEND_URL: `http://localhost:${backendPort}`,
+    DATABASE_URL: databaseUrl,
+    TEMPORAL_NAMESPACE: temporalNamespace,
+    TEMPORAL_TASK_QUEUE: temporalNamespace,
+    LOG_KAFKA_CLIENT_ID: `shipsec-worker-${suffix}`,
+    EVENT_KAFKA_CLIENT_ID: `shipsec-worker-events-${suffix}`,
+    AGENT_TRACE_KAFKA_CLIENT_ID: `shipsec-worker-agent-trace-${suffix}`,
+    NODE_IO_KAFKA_CLIENT_ID: `shipsec-worker-node-io-${suffix}`,
+    CHAT_STREAM_KAFKA_CLIENT_ID: `shipsec-worker-chat-stream-${suffix}`,
+    NAPI_RS_FORCE_WASI: '1',
+  };
+}
 
 module.exports = {
   apps: [
     {
       name: `shipsec-backend-${instanceNum}`,
-      cwd: __dirname + '/backend',
+      cwd: path.join(__dirname, 'backend'),
       script: 'bun',
-      args: isProduction ? 'src/main.ts' : 'run dev',
+      args: 'run dev',
       interpreter: 'none',
       env_file: resolveEnvFile('backend', instanceNum),
-      env: {
-        ...currentEnvConfig,
-        PORT: getInstancePort(3211, instanceNum),
-        // Ensure instance DB isolation even if dotenv auto-loads a workspace/default `.env`.
-        ...devInstanceEnv,
-        TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
-        LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
-        LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',
-        LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || `shipsec-backend-${instanceNum}`,
-        LOG_KAFKA_GROUP_ID: process.env.LOG_KAFKA_GROUP_ID || `shipsec-backend-log-consumer-${instanceNum}`,
-        EVENT_KAFKA_TOPIC: process.env.EVENT_KAFKA_TOPIC || 'telemetry.events',
-        EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || `shipsec-backend-events-${instanceNum}`,
-        EVENT_KAFKA_GROUP_ID: process.env.EVENT_KAFKA_GROUP_ID || `shipsec-event-ingestor-${instanceNum}`,
-        NODE_IO_KAFKA_TOPIC: process.env.NODE_IO_KAFKA_TOPIC || 'telemetry.node-io',
-        NODE_IO_KAFKA_CLIENT_ID:
-          process.env.NODE_IO_KAFKA_CLIENT_ID || `shipsec-backend-node-io-${instanceNum}`,
-        NODE_IO_KAFKA_GROUP_ID:
-          process.env.NODE_IO_KAFKA_GROUP_ID || `shipsec-node-io-ingestor-${instanceNum}`,
-        AGENT_TRACE_KAFKA_TOPIC: process.env.AGENT_TRACE_KAFKA_TOPIC || 'telemetry.agent-trace',
-        AGENT_TRACE_KAFKA_CLIENT_ID:
-          process.env.AGENT_TRACE_KAFKA_CLIENT_ID || `shipsec-backend-agent-trace-${instanceNum}`,
-        AGENT_TRACE_KAFKA_GROUP_ID:
-          process.env.AGENT_TRACE_KAFKA_GROUP_ID || `shipsec-agent-trace-ingestor-${instanceNum}`,
-        CHAT_STREAM_KAFKA_TOPIC: process.env.CHAT_STREAM_KAFKA_TOPIC || 'chat.stream.events',
-        CHAT_STREAM_KAFKA_CLIENT_ID:
-          process.env.CHAT_STREAM_KAFKA_CLIENT_ID || `shipsec-backend-chat-stream-${instanceNum}`,
-        CHAT_STREAM_KAFKA_GROUP_ID:
-          process.env.CHAT_STREAM_KAFKA_GROUP_ID || `shipsec-chat-stream-ingestor-${instanceNum}`,
-        ENABLE_INGEST_SERVICES: process.env.ENABLE_INGEST_SERVICES || 'true',
-        INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
-        TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS || 'localhost:7233',
-        TEMPORAL_NAMESPACE: `shipsec-dev-${instanceNum}`,
-        TEMPORAL_TASK_QUEUE: `shipsec-dev-${instanceNum}`,
-      },
+      env: getBackendEnv(instanceNum),
       time: true,
-      watch: !isProduction ? ['src'] : false,
-      ignore_watch: ['node_modules', 'dist', '*.log'],
+      watch: sharedWatch,
+      ignore_watch: sharedIgnoreWatch,
       max_memory_restart: '500M',
     },
     {
       name: `shipsec-frontend-${instanceNum}`,
-      cwd: __dirname + '/frontend',
+      cwd: path.join(__dirname, 'frontend'),
       script: 'bun',
       args: 'run dev',
+      interpreter: 'none',
       env_file: resolveEnvFile('frontend', instanceNum),
       env: {
-        ...loadFrontendEnv(resolveEnvFile('frontend', instanceNum)),
-        ...currentEnvConfig,
+        NODE_ENV: isProduction ? 'production' : 'development',
         SHIPSEC_INSTANCE: instanceNum,
       },
       time: true,
-      watch: !isProduction ? ['src'] : false,
-      ignore_watch: ['node_modules', 'dist', '*.log'],
+      watch: sharedWatch,
+      ignore_watch: sharedIgnoreWatch,
     },
     {
       name: `shipsec-worker-${instanceNum}`,
-      cwd: __dirname + '/worker',
-      // Run the worker with Node + tsx to avoid Bun's SWC binding issues
-      script: __dirname + '/node_modules/.bin/tsx',
+      cwd: path.join(__dirname, 'worker'),
+      script: resolveTsxScriptPath(),
       args: 'src/temporal/workers/dev.worker.ts',
       env_file: resolveEnvFile('worker', instanceNum),
-      env: Object.assign(
-        {
-          ...workerEnv, // Load worker .env file
-          ...currentEnvConfig,
-          NAPI_RS_FORCE_WASI: '1',
-          INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
-          BACKEND_URL:
-            process.env.BACKEND_URL ||
-            (process.env.STUDIO_API_BASE_URL
-              ? process.env.STUDIO_API_BASE_URL.replace(/\/api\/v1\/?$/i, '')
-              : `http://localhost:${getInstancePort(3211, instanceNum)}`),
-          ...devInstanceEnv,
-          TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
-          LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
-          LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',
-          LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || `shipsec-worker-${instanceNum}`,
-          CHAT_STREAM_KAFKA_TOPIC: process.env.CHAT_STREAM_KAFKA_TOPIC || 'chat.stream.events',
-          CHAT_STREAM_KAFKA_CLIENT_ID:
-            process.env.CHAT_STREAM_KAFKA_CLIENT_ID || `shipsec-worker-chat-stream-${instanceNum}`,
-          EVENT_KAFKA_TOPIC: process.env.EVENT_KAFKA_TOPIC || 'telemetry.events',
-          EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || `shipsec-worker-events-${instanceNum}`,
-          TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS || 'localhost:7233',
-          TEMPORAL_NAMESPACE: `shipsec-dev-${instanceNum}`,
-          TEMPORAL_TASK_QUEUE: `shipsec-dev-${instanceNum}`,
-          SKIP_CONTAINER_CLEANUP: process.env.SKIP_CONTAINER_CLEANUP || 'false',
-        },
-        swcBinaryPath ? { SWC_BINARY_PATH: swcBinaryPath } : {},
-      ),
+      env: getWorkerEnv(instanceNum),
       time: true,
-      watch: !isProduction ? ['src'] : false,
-      ignore_watch: ['node_modules', 'dist', '*.log'],
+      watch: sharedWatch,
+      ignore_watch: sharedIgnoreWatch,
       max_memory_restart: '1G',
     },
     {
       name: 'shipsec-test-worker',
-      cwd: __dirname + '/worker',
-      // Use Node + tsx here as well
-      script: __dirname + '/node_modules/.bin/tsx',
+      cwd: path.join(__dirname, 'worker'),
+      script: resolveTsxScriptPath(),
       args: 'src/temporal/workers/dev.worker.ts',
-      env_file: __dirname + '/worker/.env',
-      env: Object.assign(
-        {
-          ...workerEnv, // Load worker .env file
-          TEMPORAL_TASK_QUEUE: 'test-worker-integration',
-          TEMPORAL_NAMESPACE: 'shipsec-dev',
-          NODE_ENV: 'development',
-          NAPI_RS_FORCE_WASI: '1',
-        },
-        swcBinaryPath ? { SWC_BINARY_PATH: swcBinaryPath } : {},
-      ),
+      env_file: path.join(__dirname, 'worker', '.env'),
+      env: {
+        NODE_ENV: 'development',
+        TEMPORAL_NAMESPACE: 'shipsec-dev',
+        TEMPORAL_TASK_QUEUE: 'test-worker-integration',
+        NAPI_RS_FORCE_WASI: '1',
+      },
       time: true,
     },
   ],

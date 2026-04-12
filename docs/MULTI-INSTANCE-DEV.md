@@ -5,6 +5,7 @@ ShipSec Studio supports running multiple isolated dev instances (0-9) on one mac
 The key design is:
 
 - **One shared Docker infra stack** (`shipsec-infra`): Postgres, Temporal, Redpanda, Redis, MinIO, Loki, LiteLLM, etc.
+- **One shared Docker infra stack** (`shipsec-infra`): Postgres, Temporal, Redpanda, Redis, MinIO, Loki, Bifrost, Neo4j, etc.
 - **Many app instances** (PM2): `shipsec-{backend,worker,frontend}-N`
 - **Isolation comes from namespacing**, not per-instance infra containers:
   - Postgres database: `shipsec_instance_N`
@@ -32,6 +33,7 @@ just dev stop
 ## How It Works
 
 - **One shared Docker infra stack**: Postgres, Temporal, Redpanda, Redis, MinIO, LiteLLM, etc.
+- **One shared Docker infra stack**: Postgres, Temporal, Redpanda, Redis, MinIO, Bifrost, Neo4j, etc.
 - **Many app instances** via PM2: `shipsec-{backend,worker,frontend}-N`
 - **Isolation via namespacing**, not per-instance containers:
   - Postgres database: `shipsec_instance_N`
@@ -157,11 +159,12 @@ Shared infra (fixed ports, same for all instances):
 | Temporal         | 7233        |
 | Temporal UI      | 8081        |
 | Redis            | 6379        |
-| LiteLLM          | 4001        |
+| Bifrost          | 4001        |
 | Redpanda (Kafka) | 9092        |
 | Redpanda Console | 8082        |
 | MinIO API/UI     | 9000 / 9001 |
 | Loki             | 3100        |
+| Neo4j Bolt/UI    | 7687 / 7474 |
 
 ## Nginx Limitation
 

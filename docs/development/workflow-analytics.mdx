@@ -330,7 +330,7 @@ Findings are written to the `security_findings` table in ClickHouse, partitioned
 
 ### pm2 not loading environment variables
 
-pm2's `env_file` doesn't auto-inject variables. The worker uses a custom `loadWorkerEnv()` function in `pm2.config.cjs`. After changing `worker/.env`:
+PM2 reads the generated instance env files via `env_file`, and `just dev` regenerates those files before starting processes. After changing `worker/.env`:
 
 ```bash
 pm2 delete shipsec-worker

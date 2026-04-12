@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { SecretEncryptionMaterial } from '@shipsec/shared';
 
@@ -288,6 +288,23 @@ export class IntegrationsRepository {
       .update(integrationTokens)
       .set({ lastUsedAt: new Date() })
       .where(eq(integrationTokens.id, id));
+  }
+
+  async findAwsConnectionByAccountId(
+    accountId: string,
+  ): Promise<IntegrationTokenRecord | undefined> {
+    const [record] = await this.db
+      .select()
+      .from(integrationTokens)
+      .where(
+        and(
+          eq(integrationTokens.provider, 'aws'),
+          eq(integrationTokens.credentialType, 'iam_role'),
+          sql`${integrationTokens.metadata}->>'accountId' = ${accountId}`,
+        ),
+      )
+      .limit(1);
+    return record;
   }
 
   async createOAuthState(payload: {

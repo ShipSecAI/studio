@@ -9,13 +9,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import {
-  ApiAcceptedResponse,
-  ApiCreatedResponse,
-  ApiOkResponse,
-  ApiQuery,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiAcceptedResponse, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AssetDiscoveryService } from './asset-discovery.service';
 import { AssetSyncService } from './asset-sync.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
@@ -32,14 +26,10 @@ import {
   CloudSyncRunListResponseDto,
 } from './dto/asset-discovery-response.dto';
 import {
-  CreateSyncRunRequestDto,
-  CreateSyncRunResponseDto,
-  MarkStaleAssetsRequestDto,
-  MarkStaleAssetsResponseDto,
-  PersistSyncRunScopesRequestDto,
-  PersistSyncRunScopesResponseDto,
-  ReconcileAssetsRequestDto,
-  ReconcileAssetsResponseDto,
+  PrepareSyncContextRequestDto,
+  PrepareSyncContextResponseDto,
+  RefreshGraphSnapshotRequestDto,
+  RefreshGraphSnapshotResponseDto,
   TriggerSyncDto,
   UpdateSyncRunStatusRequestDto,
   UpdateSyncRunStatusResponseDto,
@@ -127,67 +117,35 @@ export class AssetDiscoveryController {
 
   // ── Internal endpoints (called by worker activities) ───────────────────────
 
-  @Post('internal/sync-runs')
-  @InternalOnly()
-  @HttpCode(HttpStatus.CREATED)
-  @ApiCreatedResponse({ type: CreateSyncRunResponseDto })
-  async createSyncRun(
-    @Headers('x-organization-id') orgId: string,
-    @Body() body: CreateSyncRunRequestDto,
-  ) {
-    return this.service.createSyncRun(
-      orgId,
-      body.integrationId,
-      body.accountIdentifier,
-      body.regions,
-      body.temporalWorkflowId,
-      body.temporalRunId,
-    );
-  }
-
-  @Post('internal/assets/reconcile')
+  @Post('internal/sync-context')
   @InternalOnly()
   @HttpCode(HttpStatus.OK)
-  @ApiOkResponse({ type: ReconcileAssetsResponseDto })
-  async reconcileAssets(
+  @ApiOkResponse({ type: PrepareSyncContextResponseDto })
+  async prepareSyncContext(
     @Headers('x-organization-id') orgId: string,
-    @Body() body: ReconcileAssetsRequestDto,
+    @Body() body: PrepareSyncContextRequestDto,
   ) {
-    return this.service.reconcileAssets(
+    return this.syncService.prepareSyncContext({
+      organizationId: orgId,
+      integrationId: body.integrationId,
+      temporalWorkflowId: body.temporalWorkflowId,
+      temporalRunId: body.temporalRunId,
+    });
+  }
+
+  @Post('internal/assets/refresh-from-graph')
+  @InternalOnly()
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: RefreshGraphSnapshotResponseDto })
+  async refreshFromGraph(
+    @Headers('x-organization-id') orgId: string,
+    @Body() body: RefreshGraphSnapshotRequestDto,
+  ) {
+    return this.service.refreshFromGraphSnapshot(
       orgId,
       body.integrationId,
-      body.accountIdentifier,
       body.syncRunId,
-      body.assets,
-    );
-  }
-
-  @Post('internal/sync-runs/:id/scopes')
-  @InternalOnly()
-  @HttpCode(HttpStatus.OK)
-  @ApiOkResponse({ type: PersistSyncRunScopesResponseDto })
-  async persistSyncRunScopes(
-    @Param('id') syncRunId: string,
-    @Body() body: PersistSyncRunScopesRequestDto,
-  ) {
-    await this.service.persistSyncRunScopes(syncRunId, body.scopes);
-    return { success: true as const };
-  }
-
-  @Post('internal/assets/mark-stale')
-  @InternalOnly()
-  @HttpCode(HttpStatus.OK)
-  @ApiOkResponse({ type: MarkStaleAssetsResponseDto })
-  async markStaleAssets(
-    @Headers('x-organization-id') orgId: string,
-    @Body() body: MarkStaleAssetsRequestDto,
-  ) {
-    return this.service.markStaleAssets(
-      orgId,
-      body.integrationId,
-      body.accountIdentifier,
-      body.syncRunId,
-      new Date(body.syncStartTime),
+      body.connectionBindings,
     );
   }
 

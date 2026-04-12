@@ -286,12 +286,22 @@ function TypeBreakdown({ onSelectType }: { onSelectType: (type: string | null) =
 
 // ── Sync run history ─────────────────────────────────────────────────────────
 
-function SyncRunHistory() {
+function SyncRunHistory({
+  awsConnections,
+}: {
+  awsConnections: {
+    id: string;
+    displayName: string;
+    metadata?: Record<string, unknown> | null;
+  }[];
+}) {
   const { data, isLoading } = useCloudSyncRuns({ limit: 5 });
 
   if (isLoading) return null;
   const runs = data?.syncRuns ?? [];
   if (runs.length === 0) return null;
+
+  const connectionById = new Map(awsConnections.map((conn) => [conn.id, conn]));
 
   return (
     <div className="border rounded-lg p-4 mb-6">
@@ -303,7 +313,7 @@ function SyncRunHistory() {
         {runs.map((run) => (
           <div
             key={run.id}
-            className="flex items-center gap-3 text-sm py-1.5 px-2 rounded hover:bg-muted/50"
+            className="flex items-start gap-3 text-sm py-2 px-2 rounded hover:bg-muted/50"
           >
             {run.status === 'completed' ? (
               <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
@@ -312,21 +322,88 @@ function SyncRunHistory() {
             ) : (
               <RefreshCw className="h-4 w-4 text-blue-500 animate-spin flex-shrink-0" />
             )}
-            <span className="truncate flex-1 font-mono text-xs">{run.accountIdentifier}</span>
-            <span className="text-muted-foreground text-xs">
-              {run.assetsDiscovered ?? 0} assets
-            </span>
-            <span className="text-muted-foreground text-xs">
-              {run.coveredRegions?.length ?? 0} regions
-            </span>
-            <span className="text-muted-foreground text-xs whitespace-nowrap">
-              {formatRelative(run.startedAt)}
-            </span>
+            <div className="min-w-0 flex-1">
+              <div className="font-medium truncate">
+                {buildSyncRunTitle(run, connectionById.get(run.integrationId))}
+              </div>
+              <div className="text-xs text-muted-foreground truncate mt-0.5">
+                {buildSyncRunSubtitle(run)}
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-muted-foreground text-xs whitespace-nowrap">
+              {run.status === 'completed' && (
+                <>
+                  <span>{run.assetsDiscovered ?? 0} assets</span>
+                  <span>{run.coveredRegions?.length ?? 0} regions</span>
+                </>
+              )}
+              <span>{formatRelative(run.startedAt)}</span>
+            </div>
           </div>
         ))}
       </div>
     </div>
   );
+}
+
+function buildSyncRunTitle(
+  run: {
+    status: string;
+    accountIdentifier: string | null;
+  },
+  connection?: { displayName: string; metadata?: Record<string, unknown> | null },
+): string {
+  const accountId =
+    run.accountIdentifier ??
+    (typeof connection?.metadata?.accountId === 'string' ? connection.metadata.accountId : null) ??
+    (typeof connection?.metadata?.roleArn === 'string'
+      ? connection.metadata.roleArn.split(':')[4] || null
+      : null);
+
+  if (connection?.displayName && accountId) {
+    return `${connection.displayName} · ${accountId}`;
+  }
+  if (connection?.displayName) {
+    return connection.displayName;
+  }
+  if (accountId) {
+    return `AWS Inventory Sync · ${accountId}`;
+  }
+  if (run.status === 'running') {
+    return 'AWS Inventory Sync';
+  }
+  return 'Org-wide AWS Sync';
+}
+
+function buildSyncRunSubtitle(run: {
+  status: string;
+  errors: { message: string; timestamp: string }[] | null;
+  assetsDiscovered: number | null;
+  assetsCreated: number | null;
+  assetsUpdated: number | null;
+  coveredRegions: string[] | null;
+}): string {
+  if (run.status === 'failed') {
+    return run.errors?.[0]?.message || 'Sync failed before final stats were recorded.';
+  }
+  if (run.status === 'running') {
+    return 'Syncing Cartography graph and refreshing inventory...';
+  }
+
+  const parts: string[] = [];
+  if ((run.assetsDiscovered ?? 0) > 0) {
+    parts.push(`${run.assetsDiscovered} assets discovered`);
+  }
+  if ((run.assetsCreated ?? 0) > 0) {
+    parts.push(`${run.assetsCreated} created`);
+  }
+  if ((run.assetsUpdated ?? 0) > 0) {
+    parts.push(`${run.assetsUpdated} updated`);
+  }
+  if ((run.coveredRegions?.length ?? 0) > 0) {
+    parts.push(`${run.coveredRegions?.length} regions`);
+  }
+  return parts.join(' · ') || 'Completed';
 }
 
 // ── Asset detail panel ───────────────────────────────────────────────────────
@@ -548,7 +625,7 @@ export function CloudInventoryPage() {
           <TypeBreakdown onSelectType={(t) => setFilterParam('assetType', t)} />
 
           {/* Sync run history */}
-          <SyncRunHistory />
+          <SyncRunHistory awsConnections={awsConnections} />
 
           {/* Filter bar */}
           <div className="flex flex-wrap gap-3 mb-4">

@@ -80,7 +80,9 @@ const TEMPLATE_DIR = join(__dirname, 'templates');
 function loadTemplates(): Record<string, McpGroupTemplate> {
   try {
     const templates: Record<string, McpGroupTemplate> = {};
-    const files = readdirSync(TEMPLATE_DIR).filter((file) => file.endsWith('.json'));
+    const files = readdirSync(TEMPLATE_DIR).filter(
+      (file) => file.endsWith('.json') && !file.startsWith('.'),
+    );
 
     for (const file of files) {
       try {

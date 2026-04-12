@@ -30,86 +30,53 @@ const AssetSyncRunSchema = z.object({
   createdAt: z.string().datetime(),
 });
 
-const ReconciledAssetSchema = z.object({
-  id: z.string().uuid(),
-  assetType: z.string(),
-  externalId: z.string(),
-  name: z.string().nullable(),
-  provider: z.string(),
-  region: z.string().nullable(),
+const SyncConnectionBindingSchema = z.object({
+  connectionId: z.string().uuid(),
   accountIdentifier: z.string().nullable(),
 });
 
-const UpdatedAssetSchema = ReconciledAssetSchema.extend({
-  changedFields: z.array(z.string()),
-});
-
-const AssetScopeSchema = z.object({
-  assetType: z.string(),
-  region: z.string(),
-});
-
-export const CreateSyncRunRequestSchema = z.object({
+export const PrepareSyncContextRequestSchema = z.object({
   integrationId: z.string().uuid(),
-  accountIdentifier: z.string(),
-  regions: z.array(z.string()),
   temporalWorkflowId: z.string().optional(),
   temporalRunId: z.string().optional(),
 });
-export class CreateSyncRunRequestDto extends createZodDto(CreateSyncRunRequestSchema) {}
+export class PrepareSyncContextRequestDto extends createZodDto(PrepareSyncContextRequestSchema) {}
 
-export class CreateSyncRunResponseDto extends createZodDto(AssetSyncRunSchema) {}
-
-export const ReconcileAssetsRequestSchema = z.object({
-  integrationId: z.string().uuid(),
-  accountIdentifier: z.string(),
+export const PrepareSyncContextResponseSchema = z.object({
   syncRunId: z.string().uuid(),
-  assets: z.array(
+  neo4jDatabase: z.string(),
+  targets: z.array(
     z.object({
-      assetType: z.string(),
-      externalId: z.string(),
-      name: z.string(),
-      region: z.string().optional(),
-      metadata: z.record(z.string(), z.unknown()),
+      connectionId: z.string().uuid(),
+      displayName: z.string(),
+      accountIdentifier: z.string().nullable(),
+      region: z.string().nullable(),
     }),
   ),
+  coveredRegions: z.array(z.string()),
+  connectionBindings: z.array(SyncConnectionBindingSchema),
 });
-export class ReconcileAssetsRequestDto extends createZodDto(ReconcileAssetsRequestSchema) {}
+export class PrepareSyncContextResponseDto extends createZodDto(PrepareSyncContextResponseSchema) {}
 
-export const ReconcileAssetsResponseSchema = z.object({
-  created: z.array(ReconciledAssetSchema),
-  updated: z.array(UpdatedAssetSchema),
-  unchangedCount: z.number().int().nonnegative(),
-});
-export class ReconcileAssetsResponseDto extends createZodDto(ReconcileAssetsResponseSchema) {}
-
-export const PersistSyncRunScopesRequestSchema = z.object({
-  scopes: z.array(AssetScopeSchema),
-});
-export class PersistSyncRunScopesRequestDto extends createZodDto(
-  PersistSyncRunScopesRequestSchema,
-) {}
-
-export const PersistSyncRunScopesResponseSchema = z.object({
-  success: z.literal(true),
-});
-export class PersistSyncRunScopesResponseDto extends createZodDto(
-  PersistSyncRunScopesResponseSchema,
-) {}
-
-export const MarkStaleAssetsRequestSchema = z.object({
+export const RefreshGraphSnapshotRequestSchema = z.object({
   integrationId: z.string().uuid(),
-  accountIdentifier: z.string(),
   syncRunId: z.string().uuid(),
-  syncStartTime: z.string().datetime(),
+  connectionBindings: z.array(SyncConnectionBindingSchema),
 });
-export class MarkStaleAssetsRequestDto extends createZodDto(MarkStaleAssetsRequestSchema) {}
+export class RefreshGraphSnapshotRequestDto extends createZodDto(
+  RefreshGraphSnapshotRequestSchema,
+) {}
 
-export const MarkStaleAssetsResponseSchema = z.object({
-  newlyStale: z.array(ReconciledAssetSchema),
-  newlyRemoved: z.array(ReconciledAssetSchema),
+export const RefreshGraphSnapshotResponseSchema = z.object({
+  assetsDiscovered: z.number().int().nonnegative(),
+  assetsCreated: z.number().int().nonnegative(),
+  assetsUpdated: z.number().int().nonnegative(),
+  assetsStale: z.number().int().nonnegative(),
+  coveredRegions: z.array(z.string()),
 });
-export class MarkStaleAssetsResponseDto extends createZodDto(MarkStaleAssetsResponseSchema) {}
+export class RefreshGraphSnapshotResponseDto extends createZodDto(
+  RefreshGraphSnapshotResponseSchema,
+) {}
 
 export const UpdateSyncRunStatusRequestSchema = z.object({
   status: z.string(),

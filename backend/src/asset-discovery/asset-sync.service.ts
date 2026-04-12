@@ -9,6 +9,9 @@ import * as schema from '../database/schema';
 import { integrationTokens } from '../database/schema/integrations';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { TemporalService } from '../temporal/temporal.service';
+import { AssetDiscoveryService } from './asset-discovery.service';
+import { CloudGraphService } from './cloud-graph.service';
+import { buildOrgAssetSyncWorkflowId } from './cartography-utils';
 
 // In-memory rate limit tracker (per-process; use Redis in production)
 const syncRateMap = new Map<string, number>();
@@ -23,6 +26,8 @@ export class AssetSyncService {
   constructor(
     private readonly temporalService: TemporalService,
     private readonly integrationsService: IntegrationsService,
+    private readonly assetDiscoveryService: AssetDiscoveryService,
+    private readonly cloudGraphService: CloudGraphService,
     @Inject(DRIZZLE_TOKEN)
     private readonly db: NodePgDatabase<typeof schema>,
   ) {}
@@ -64,14 +69,14 @@ export class AssetSyncService {
 
     syncRateMap.set(rateKey, Date.now());
 
-    const workflowId = `asset-sync-${integrationId}`;
+    const workflowId = buildOrgAssetSyncWorkflowId(orgId);
     await this.startSyncWorkflow(integrationId, orgId);
 
     return { workflowId };
   }
 
   async startSyncWorkflow(integrationId: string, organizationId: string): Promise<void> {
-    const workflowId = `asset-sync-${integrationId}`;
+    const workflowId = buildOrgAssetSyncWorkflowId(organizationId);
 
     try {
       await this.temporalService.startWorkflow({
@@ -96,5 +101,86 @@ export class AssetSyncService {
 
       throw error;
     }
+  }
+
+  async prepareSyncContext(input: {
+    organizationId: string;
+    integrationId: string;
+    temporalWorkflowId?: string;
+    temporalRunId?: string;
+  }) {
+    await this.integrationsService.assertConnectionBelongsToOrg(
+      input.integrationId,
+      input.organizationId,
+    );
+
+    const connections = await this.db
+      .select({
+        id: integrationTokens.id,
+        displayName: integrationTokens.displayName,
+      })
+      .from(integrationTokens)
+      .where(
+        and(
+          eq(integrationTokens.organizationId, input.organizationId),
+          eq(integrationTokens.provider, 'aws'),
+          eq(integrationTokens.credentialType, 'iam_role'),
+        ),
+      );
+
+    if (connections.length === 0) {
+      throw new BadRequestException('No AWS IAM role connections available for org sync');
+    }
+
+    const targets = [];
+    const coveredRegions = new Set<string>();
+    const connectionBindings = [];
+
+    for (const connection of connections) {
+      const resolved = await this.integrationsService.resolveConnectionCredentials(connection.id);
+      if (!resolved.accountId) {
+        continue;
+      }
+
+      const region =
+        resolved.region ??
+        (typeof resolved.data?.region === 'string' ? resolved.data.region : null) ??
+        null;
+      if (region) {
+        coveredRegions.add(region);
+      }
+
+      targets.push({
+        connectionId: connection.id,
+        displayName: connection.displayName,
+        accountIdentifier: resolved.accountId ?? null,
+        region,
+      });
+      connectionBindings.push({
+        connectionId: connection.id,
+        accountIdentifier: resolved.accountId ?? null,
+      });
+    }
+
+    if (targets.length === 0) {
+      throw new BadRequestException('Failed to resolve usable AWS credentials for org sync');
+    }
+
+    const run = await this.assetDiscoveryService.createSyncRun(
+      input.organizationId,
+      input.integrationId,
+      null,
+      Array.from(coveredRegions),
+      input.temporalWorkflowId,
+      input.temporalRunId,
+    );
+
+    return {
+      syncRunId: run.id,
+      neo4jDatabase: this.cloudGraphService.getDatabaseName(),
+      targets,
+      coveredRegions: Array.from(coveredRegions),
+      connectionBindings,
+    };
   }
 }
