@@ -14,9 +14,23 @@ export interface GitHubAppConfig {
   baseUrl: string;
 }
 
+function normalizeGitHubAppValue(value: string | undefined): string | null {
+  if (!value) return null;
+
+  const normalized = value.trim();
+  if (!normalized) return null;
+
+  const lowered = normalized.toLowerCase();
+  if (lowered === 'disabled' || lowered === '0' || lowered === 'null') {
+    return null;
+  }
+
+  return normalized;
+}
+
 export const githubAppConfig = registerAs<GitHubAppConfig>('githubApp', () => {
   // Private key can be provided as base64 or raw PEM
-  let privateKey = process.env.GITHUB_APP_PRIVATE_KEY ?? null;
+  let privateKey = normalizeGitHubAppValue(process.env.GITHUB_APP_PRIVATE_KEY);
   if (privateKey && !privateKey.includes('-----BEGIN')) {
     // Assume base64 encoded
     try {
@@ -27,12 +41,12 @@ export const githubAppConfig = registerAs<GitHubAppConfig>('githubApp', () => {
   }
 
   return {
-    appId: process.env.GITHUB_APP_ID ?? null,
+    appId: normalizeGitHubAppValue(process.env.GITHUB_APP_ID),
     privateKey,
-    webhookSecret: process.env.GITHUB_APP_WEBHOOK_SECRET ?? null,
-    clientId: process.env.GITHUB_APP_CLIENT_ID ?? null,
-    clientSecret: process.env.GITHUB_APP_CLIENT_SECRET ?? null,
-    slug: process.env.GITHUB_APP_SLUG ?? null,
+    webhookSecret: normalizeGitHubAppValue(process.env.GITHUB_APP_WEBHOOK_SECRET),
+    clientId: normalizeGitHubAppValue(process.env.GITHUB_APP_CLIENT_ID),
+    clientSecret: normalizeGitHubAppValue(process.env.GITHUB_APP_CLIENT_SECRET),
+    slug: normalizeGitHubAppValue(process.env.GITHUB_APP_SLUG),
     apiBaseUrl: process.env.GITHUB_API_URL ?? 'https://api.github.com',
     baseUrl: process.env.GITHUB_URL ?? 'https://github.com',
   };
@@ -49,7 +63,7 @@ export function isGitHubAppConfigured(config: GitHubAppConfig): boolean {
  * configService.get<GitHubAppConfig>('githubApp').
  */
 export function getGitHubAppConfig(): GitHubAppConfig {
-  let privateKey = process.env.GITHUB_APP_PRIVATE_KEY ?? null;
+  let privateKey = normalizeGitHubAppValue(process.env.GITHUB_APP_PRIVATE_KEY);
   if (privateKey && !privateKey.includes('-----BEGIN')) {
     try {
       privateKey = Buffer.from(privateKey, 'base64').toString('utf-8');
@@ -59,12 +73,12 @@ export function getGitHubAppConfig(): GitHubAppConfig {
   }
 
   return {
-    appId: process.env.GITHUB_APP_ID ?? null,
+    appId: normalizeGitHubAppValue(process.env.GITHUB_APP_ID),
     privateKey,
-    webhookSecret: process.env.GITHUB_APP_WEBHOOK_SECRET ?? null,
-    clientId: process.env.GITHUB_APP_CLIENT_ID ?? null,
-    clientSecret: process.env.GITHUB_APP_CLIENT_SECRET ?? null,
-    slug: process.env.GITHUB_APP_SLUG ?? null,
+    webhookSecret: normalizeGitHubAppValue(process.env.GITHUB_APP_WEBHOOK_SECRET),
+    clientId: normalizeGitHubAppValue(process.env.GITHUB_APP_CLIENT_ID),
+    clientSecret: normalizeGitHubAppValue(process.env.GITHUB_APP_CLIENT_SECRET),
+    slug: normalizeGitHubAppValue(process.env.GITHUB_APP_SLUG),
     apiBaseUrl: process.env.GITHUB_API_URL ?? 'https://api.github.com',
     baseUrl: process.env.GITHUB_URL ?? 'https://github.com',
   };
