@@ -15,7 +15,7 @@ import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 import type { ExecutionContext } from '@shipsec/component-sdk';
 import type { LogEventInput } from '@shipsec/component-sdk';
 import { awsCredentialSchema } from '@shipsec/contracts';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume, type IsolatedVolume } from '../../utils/isolated-volume';
 
 const cartographyModules = ['aws', 'github', 'kubernetes'] as const;
 const CARTOGRAPHY_IMAGE =
@@ -185,7 +185,7 @@ const retryPolicy: ComponentRetryPolicy = {
 };
 
 async function writeAwsProfileVolume(
-  volume: IsolatedContainerVolume,
+  volume: IsolatedVolume,
   profiles: CartographyAwsProfileInput[],
 ): Promise<void> {
   const credentialsBlocks: string[] = [];
@@ -225,7 +225,7 @@ export async function runCartographyWithRunner(
   const tenantId = context.organizationId ?? 'default-tenant';
   const awsCredsVolume =
     awsProfiles.length > 0
-      ? new IsolatedContainerVolume(tenantId, `${context.runId}-cartography-aws`)
+      ? createIsolatedVolume(tenantId, `${context.runId}-cartography-aws`)
       : null;
 
   const command: string[] = [
