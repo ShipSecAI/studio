@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Server,
   Search,
@@ -18,6 +18,7 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
+  ArrowUpRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -337,6 +338,15 @@ function SyncRunHistory({
                   <span>{run.coveredRegions?.length ?? 0} regions</span>
                 </>
               )}
+              {run.temporalRunId ? (
+                <Link
+                  to={`/runs/${run.temporalRunId}`}
+                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                >
+                  View run
+                  <ArrowUpRight className="h-3 w-3" />
+                </Link>
+              ) : null}
               <span>{formatRelative(run.startedAt)}</span>
             </div>
           </div>
@@ -516,6 +526,7 @@ export function CloudInventoryPage() {
   const { data: orgConnections = [] } = useIntegrationConnections();
   const triggerSync = useTriggerCloudSync();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const awsConnections = useMemo(
     () =>
@@ -528,7 +539,13 @@ export function CloudInventoryPage() {
 
   const handleSync = (connectionId: string, displayName: string) => {
     triggerSync.mutate(connectionId, {
-      onSuccess: () => toast({ title: `Sync triggered for ${displayName}` }),
+      onSuccess: (result) => {
+        toast({
+          title: `Sync triggered for ${displayName}`,
+          description: 'Opening workflow run details.',
+        });
+        navigate(`/runs/${result.runId}`);
+      },
       onError: (err: any) =>
         toast({ title: 'Sync failed', description: err.message, variant: 'destructive' }),
     });

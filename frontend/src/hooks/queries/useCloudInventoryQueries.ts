@@ -34,6 +34,8 @@ export interface SyncRun {
   organizationId: string;
   integrationId: string;
   accountIdentifier: string | null;
+  temporalWorkflowId?: string | null;
+  temporalRunId?: string | null;
   status: string;
   assetsDiscovered: number | null;
   assetsCreated: number | null;
@@ -44,6 +46,11 @@ export interface SyncRun {
   completedAt: string | null;
   errors: { message: string; timestamp: string }[] | null;
   createdAt: string;
+}
+
+export interface TriggerCloudSyncResult {
+  workflowId: string;
+  runId: string;
 }
 
 // ── Asset Queries ────────────────────────────────────────────────────────────
@@ -119,8 +126,9 @@ export function useCloudSyncRun(id: string | null) {
 
 export function useTriggerCloudSync() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (integrationId: string) => api.cloudInventory.triggerSync(integrationId),
+  return useMutation<TriggerCloudSyncResult, Error, string>({
+    mutationFn: (integrationId: string) =>
+      api.cloudInventory.triggerSync(integrationId) as Promise<TriggerCloudSyncResult>,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.cloudInventory.syncRuns() });
       queryClient.invalidateQueries({ queryKey: queryKeys.cloudInventory.assets() });
