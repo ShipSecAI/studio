@@ -1,11 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { WorkflowExecutionAlreadyStartedError } from '@temporalio/client';
+import type { AuthContext } from '../../../auth/types';
 
-import { TemporalService } from '../../../temporal/temporal.service';
 import type { IntegrationConnectedEvent } from '../../events/integration.events';
 import type { IntegrationAutoAction } from '../integration-action.registry';
 import { IntegrationActionRegistry } from '../integration-action.registry';
-import { buildOrgAssetSyncWorkflowId } from '../../../asset-discovery/cartography-utils';
+import { IndexInfraService } from '../../../schedules/index-infra.service';
 
 @Injectable()
 export class AwsAssetSyncAction implements IntegrationAutoAction, OnModuleInit {
@@ -15,7 +14,7 @@ export class AwsAssetSyncAction implements IntegrationAutoAction, OnModuleInit {
   private readonly logger = new Logger(AwsAssetSyncAction.name);
 
   constructor(
-    private readonly temporalService: TemporalService,
+    private readonly indexInfraService: IndexInfraService,
     private readonly actionRegistry: IntegrationActionRegistry,
   ) {}
 
@@ -25,35 +24,26 @@ export class AwsAssetSyncAction implements IntegrationAutoAction, OnModuleInit {
 
   async execute(event: IntegrationConnectedEvent): Promise<void> {
     this.logger.log(
-      `Triggering asset sync for AWS connection ${event.connectionId} (org=${event.organizationId})`,
+      `Triggering Index Infra workflow for AWS connection ${event.connectionId} (org=${event.organizationId})`,
     );
 
-    try {
-      await this.temporalService.startWorkflow({
-        workflowType: 'assetSyncWorkflow',
-        workflowId: buildOrgAssetSyncWorkflowId(event.organizationId),
-        args: [
-          {
-            integrationId: event.connectionId,
-            organizationId: event.organizationId,
-          },
-        ],
-      });
-    } catch (error) {
-      if (error instanceof WorkflowExecutionAlreadyStartedError) {
-        this.logger.log(`Asset sync workflow already running for ${event.connectionId}, skipping`);
-        return;
-      }
+    const auth: AuthContext = {
+      userId: event.userId,
+      organizationId: event.organizationId,
+      roles: ['ADMIN'],
+      isAuthenticated: true,
+      provider: 'system',
+    };
 
-      // Fallback: match by error message in case the specific error type isn't available
-      if (error instanceof Error && error.message.includes('already started')) {
-        this.logger.log(
-          `Asset sync workflow already running for ${event.connectionId}, skipping (message match)`,
-        );
-        return;
-      }
-
-      throw error;
-    }
+    await this.indexInfraService.ensureDefaultScheduleForIntegration(auth, event.connectionId);
+    await this.indexInfraService.triggerRun({
+      auth,
+      integrationId: event.connectionId,
+      trigger: {
+        type: 'api',
+        sourceId: event.connectionId,
+        label: event.isReconnect ? 'AWS integration reconnected' : 'AWS integration connected',
+      },
+    });
   }
 }

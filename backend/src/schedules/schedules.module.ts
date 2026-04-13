@@ -4,13 +4,14 @@ import { DatabaseModule } from '../database/database.module';
 import { TemporalModule } from '../temporal/temporal.module';
 import { WorkflowsModule } from '../workflows/workflows.module';
 import { ScheduleRepository } from './repository/schedule.repository';
+import { IndexInfraService } from './index-infra.service';
 import { SchedulesController } from './schedules.controller';
 import { SchedulesService } from './schedules.service';
 
 @Module({
   imports: [DatabaseModule, TemporalModule, WorkflowsModule],
   controllers: [SchedulesController],
-  providers: [SchedulesService, ScheduleRepository],
-  exports: [SchedulesService],
+  providers: [SchedulesService, ScheduleRepository, IndexInfraService],
+  exports: [SchedulesService, IndexInfraService],
 })
 export class SchedulesModule {}

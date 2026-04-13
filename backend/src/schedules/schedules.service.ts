@@ -222,6 +222,10 @@ export class SchedulesService {
 
   async delete(auth: AuthContext | null, id: string): Promise<void> {
     const existing = await this.findOwnedScheduleOrThrow(id, auth);
+    const workflow = await this.workflowsService.findById(existing.workflowId, auth);
+    if (workflow.isSystem) {
+      throw new BadRequestException('System schedules cannot be deleted');
+    }
     await this.workflowsService.ensureWorkflowAdminAccess(existing.workflowId, auth);
     const temporalScheduleId = existing.temporalScheduleId ?? existing.id;
     if (temporalScheduleId) {

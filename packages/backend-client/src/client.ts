@@ -6245,6 +6245,7 @@ export interface components {
         };
         CloudSyncTriggerResponseDto: {
             workflowId: string;
+            runId: string;
         };
         CloudSyncRunListResponseDto: {
             syncRuns: {
@@ -6305,13 +6306,15 @@ export interface components {
         };
         PrepareSyncContextRequestDto: {
             /** Format: uuid */
-            integrationId: string;
+            integrationId?: string;
             temporalWorkflowId?: string;
             temporalRunId?: string;
         };
         PrepareSyncContextResponseDto: {
             /** Format: uuid */
             syncRunId: string;
+            /** Format: uuid */
+            integrationId: string;
             neo4jDatabase: string;
             targets: {
                 /** Format: uuid */
@@ -6319,9 +6322,6 @@ export interface components {
                 displayName: string;
                 accountIdentifier: string | null;
                 region: string | null;
-                accessKeyId: string;
-                secretAccessKey: string;
-                sessionToken?: string;
             }[];
             coveredRegions: string[];
             connectionBindings: {
@@ -6906,6 +6906,14 @@ export interface components {
         PublishReportTemplateRequestDto: {
             /** Format: uuid */
             chatSessionId?: string;
+        };
+        RenderPublishedReportTemplateRequestDto: {
+            /** Format: uuid */
+            versionId?: string | null;
+            /** @default {} */
+            data: {
+                [key: string]: unknown;
+            };
         };
         CreateSessionDto: {
             title?: string;
@@ -12250,7 +12258,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenderPublishedReportTemplateRequestDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {

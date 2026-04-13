@@ -710,6 +710,50 @@ function containerImageScanTemplate(): SeedTemplate {
   };
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Template 10: Index Infra
+// Entry Point → Asset Inventory Sync
+// ──────────────────────────────────────────────────────────────────────────────
+function indexInfraTemplate(): SeedTemplate {
+  resetCounter();
+  const entryPoint = nid('node');
+  const assetSync = nid('node');
+
+  return {
+    name: 'Index Infra',
+    slug: 'sys-index-infra',
+    description:
+      'Index AWS infrastructure into Cartography and update ShipSec cloud inventory state using the connected AWS IAM role integrations.',
+    category: 'cloud-security',
+    icon: 'database-zap',
+    isFeatured: false,
+    isDefault: true,
+    graph: {
+      name: 'Index Infra',
+      description: 'Sync AWS inventory into Cartography and update cloud inventory metadata',
+      nodes: [
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [
+            {
+              id: 'integrationId',
+              label: 'Integration ID',
+              type: 'text',
+              required: false,
+              description:
+                'Optional AWS IAM role connection ID. Leave empty to use the first available AWS IAM role connection for the organization.',
+            },
+          ],
+        }),
+        makeNode(assetSync, 'security.asset-inventory.sync', 'Asset Inventory Sync', 420, 0, {
+          logTailLength: 4000,
+        }),
+      ],
+      edges: [makeEdge('e1', entryPoint, assetSync, 'integrationId', 'integrationId')],
+      viewport: { x: 0, y: 0, zoom: 0.9 },
+    },
+  };
+}
+
 /**
  * All seed templates. Import and use with the WorkflowTemplatesService to seed the database.
  */
@@ -723,4 +767,5 @@ export const SEED_TEMPLATES: SeedTemplate[] = [
   cloudSecurityScanTemplate(),
   attackSurfaceReconTemplate(),
   containerImageScanTemplate(),
+  indexInfraTemplate(),
 ];

@@ -2,12 +2,13 @@ import { proxyActivities, workflowInfo } from '@temporalio/workflow';
 
 interface AssetSyncActivities {
   prepareSyncContextActivity(input: {
-    integrationId: string;
+    integrationId?: string;
     organizationId: string;
     temporalWorkflowId?: string;
     temporalRunId?: string;
   }): Promise<{
     syncRunId: string;
+    integrationId: string;
     neo4jDatabase: string;
     targets: {
       connectionId: string;
@@ -135,7 +136,7 @@ export async function assetSyncWorkflow(
     });
 
     const refreshResult = await refreshInventoryFromGraphActivity({
-      integrationId,
+      integrationId: syncContext.integrationId,
       organizationId,
       syncRunId: syncContext.syncRunId,
       connectionBindings: syncContext.connectionBindings,

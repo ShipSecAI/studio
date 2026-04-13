@@ -42,6 +42,7 @@ export class CloudAssetSummaryDto extends createZodDto(CloudAssetSummarySchema) 
 
 export const CloudSyncTriggerResponseSchema = z.object({
   workflowId: z.string(),
+  runId: z.string(),
 });
 export class CloudSyncTriggerResponseDto extends createZodDto(CloudSyncTriggerResponseSchema) {}
 

@@ -1,5 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
-import { WorkflowExecutionAlreadyStartedError } from '@temporalio/client';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
 
@@ -8,10 +7,9 @@ import { DRIZZLE_TOKEN } from '../database/database.module';
 import * as schema from '../database/schema';
 import { integrationTokens } from '../database/schema/integrations';
 import { IntegrationsService } from '../integrations/integrations.service';
-import { TemporalService } from '../temporal/temporal.service';
 import { AssetDiscoveryService } from './asset-discovery.service';
 import { CloudGraphService } from './cloud-graph.service';
-import { buildOrgAssetSyncWorkflowId } from './cartography-utils';
+import { IndexInfraService } from '../schedules/index-infra.service';
 
 // In-memory rate limit tracker (per-process; use Redis in production)
 const syncRateMap = new Map<string, number>();
@@ -21,13 +19,11 @@ const SYNC_RATE_LIMIT_MS = 5 * 60 * 1000; // 5 minutes
 
 @Injectable()
 export class AssetSyncService {
-  private readonly logger = new Logger(AssetSyncService.name);
-
   constructor(
-    private readonly temporalService: TemporalService,
     private readonly integrationsService: IntegrationsService,
     private readonly assetDiscoveryService: AssetDiscoveryService,
     private readonly cloudGraphService: CloudGraphService,
+    private readonly indexInfraService: IndexInfraService,
     @Inject(DRIZZLE_TOKEN)
     private readonly db: NodePgDatabase<typeof schema>,
   ) {}
@@ -69,50 +65,31 @@ export class AssetSyncService {
 
     syncRateMap.set(rateKey, Date.now());
 
-    const workflowId = buildOrgAssetSyncWorkflowId(orgId);
-    await this.startSyncWorkflow(integrationId, orgId);
+    const run = await this.indexInfraService.triggerRun({
+      auth,
+      integrationId,
+      trigger: {
+        type: 'manual',
+        sourceId: integrationId,
+        label: 'Cloud inventory sync',
+      },
+    });
 
-    return { workflowId };
-  }
-
-  async startSyncWorkflow(integrationId: string, organizationId: string): Promise<void> {
-    const workflowId = buildOrgAssetSyncWorkflowId(organizationId);
-
-    try {
-      await this.temporalService.startWorkflow({
-        workflowType: 'assetSyncWorkflow',
-        workflowId,
-        args: [{ integrationId, organizationId }],
-      });
-      this.logger.log(`Started asset sync workflow ${workflowId}`);
-    } catch (error) {
-      if (error instanceof WorkflowExecutionAlreadyStartedError) {
-        this.logger.log(`Asset sync workflow ${workflowId} already running, skipping`);
-        return;
-      }
-
-      if (
-        error instanceof Error &&
-        (error.message.includes('already started') || error.message.includes('already running'))
-      ) {
-        this.logger.log(`Asset sync workflow ${workflowId} already running, skipping`);
-        return;
-      }
-
-      throw error;
-    }
+    return { workflowId: run.workflowId, runId: run.runId };
   }
 
   async prepareSyncContext(input: {
     organizationId: string;
-    integrationId: string;
+    integrationId?: string;
     temporalWorkflowId?: string;
     temporalRunId?: string;
   }) {
-    await this.integrationsService.assertConnectionBelongsToOrg(
-      input.integrationId,
-      input.organizationId,
-    );
+    if (input.integrationId) {
+      await this.integrationsService.assertConnectionBelongsToOrg(
+        input.integrationId,
+        input.organizationId,
+      );
+    }
 
     const connections = await this.db
       .select({
@@ -131,6 +108,8 @@ export class AssetSyncService {
     if (connections.length === 0) {
       throw new BadRequestException('No AWS IAM role connections available for org sync');
     }
+
+    const effectiveIntegrationId = input.integrationId ?? connections[0]!.id;
 
     const targets = [];
     const coveredRegions = new Set<string>();
@@ -168,7 +147,7 @@ export class AssetSyncService {
 
     const run = await this.assetDiscoveryService.createSyncRun(
       input.organizationId,
-      input.integrationId,
+      effectiveIntegrationId,
       null,
       Array.from(coveredRegions),
       input.temporalWorkflowId,
@@ -177,6 +156,7 @@ export class AssetSyncService {
 
     return {
       syncRunId: run.id,
+      integrationId: effectiveIntegrationId,
       neo4jDatabase: this.cloudGraphService.getDatabaseName(),
       targets,
       coveredRegions: Array.from(coveredRegions),

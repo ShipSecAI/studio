@@ -36,7 +36,7 @@ const SyncConnectionBindingSchema = z.object({
 });
 
 export const PrepareSyncContextRequestSchema = z.object({
-  integrationId: z.string().uuid(),
+  integrationId: z.string().uuid().optional(),
   temporalWorkflowId: z.string().optional(),
   temporalRunId: z.string().optional(),
 });
@@ -44,6 +44,7 @@ export class PrepareSyncContextRequestDto extends createZodDto(PrepareSyncContex
 
 export const PrepareSyncContextResponseSchema = z.object({
   syncRunId: z.string().uuid(),
+  integrationId: z.string().uuid(),
   neo4jDatabase: z.string(),
   targets: z.array(
     z.object({

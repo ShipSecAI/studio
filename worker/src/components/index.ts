@@ -65,6 +65,7 @@ import './security/abuseipdb';
 import './security/aws-mcp-group';
 import './security/findings-normalize';
 import './security/findings-markdown';
+import './security/asset-inventory-sync';
 import './security/cartography-sync';
 import './security/cartography-query';
 

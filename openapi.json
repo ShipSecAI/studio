@@ -18781,10 +18781,14 @@
         "properties": {
           "workflowId": {
             "type": "string"
+          },
+          "runId": {
+            "type": "string"
           }
         },
         "required": [
-          "workflowId"
+          "workflowId",
+          "runId"
         ]
       },
       "CloudSyncRunListResponseDto": {
@@ -19042,15 +19046,17 @@
           "temporalRunId": {
             "type": "string"
           }
-        },
-        "required": [
-          "integrationId"
-        ]
+        }
       },
       "PrepareSyncContextResponseDto": {
         "type": "object",
         "properties": {
           "syncRunId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "integrationId": {
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
@@ -19118,6 +19124,7 @@
         },
         "required": [
           "syncRunId",
+          "integrationId",
           "neo4jDatabase",
           "targets",
           "coveredRegions",

@@ -12,9 +12,10 @@ import { TokenEncryptionService } from './token.encryption';
 import { IntegrationActionRegistry } from './listeners/integration-action.registry';
 import { IntegrationConnectedListener } from './listeners/integration-connected.listener';
 import { AwsAssetSyncAction } from './listeners/actions/aws-asset-sync.action';
+import { SchedulesModule } from '../schedules/schedules.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, SchedulesModule],
   controllers: [IntegrationsController],
   providers: [
     IntegrationsService,

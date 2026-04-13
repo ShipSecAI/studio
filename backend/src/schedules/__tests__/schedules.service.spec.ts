@@ -192,11 +192,31 @@ describe('SchedulesService', () => {
     startPreparedRunCalls.push(args);
   };
 
+  const findById = async (..._args: unknown[]) => ({
+    id: 'workflow-1',
+    name: 'Test workflow',
+    description: null,
+    graph: {} as any,
+    organizationId: 'org-1',
+    isSystem: false,
+    templateId: null,
+    compiledDefinition: null,
+    icon: null,
+    iconColor: null,
+    lastRun: null,
+    runCount: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    currentVersionId: 'version-1',
+    currentVersion: 1,
+  });
+
   const workflowsService = {
     ensureWorkflowAdminAccess,
     getCompiledWorkflowContext,
     prepareRunPayload,
     startPreparedRun,
+    findById,
   } as unknown as WorkflowsService;
 
   const createScheduleCalls: unknown[] = [];
@@ -369,5 +389,44 @@ describe('SchedulesService', () => {
       nodeOverrides: { scanner: { params: { depth: 1 }, inputOverrides: {} } },
     });
     expect(startPreparedRunCalls.length).toBe(1);
+  });
+
+  it('rejects deleting schedules attached to system workflows', async () => {
+    const created = await service.create(authContext, {
+      workflowId: 'workflow-1',
+      workflowVersionId: 'version-1',
+      name: 'System schedule',
+      cronExpression: '0 2 * * *',
+      timezone: 'UTC',
+      overlapPolicy: 'skip',
+      catchupWindowSeconds: 0,
+      inputPayload: {
+        runtimeInputs: { domain: 'acme.com' },
+        nodeOverrides: {},
+      },
+    });
+
+    (workflowsService.findById as any) = async () => ({
+      id: 'workflow-1',
+      name: 'Index Infra',
+      description: null,
+      graph: {} as any,
+      organizationId: 'org-1',
+      isSystem: true,
+      templateId: 'template-1',
+      compiledDefinition: null,
+      icon: null,
+      iconColor: null,
+      lastRun: null,
+      runCount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      currentVersionId: 'version-1',
+      currentVersion: 1,
+    });
+
+    await expect(service.delete(authContext, created.id)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 });
