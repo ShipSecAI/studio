@@ -98,6 +98,8 @@ export const workerEnvSchema = z
 
     // --- Cartography / Neo4j ---
     NEO4J_URI: z.string().optional().default('bolt://localhost:7687'),
+    NEO4J_USER: z.string().optional().default(''),
+    NEO4J_PASSWORD: z.string().optional().default(''),
     NEO4J_DATABASE: z.string().optional().default('neo4j'),
     CARTOGRAPHY_IMAGE: z.string().optional().default('ghcr.io/cartography-cncf/cartography:latest'),
     CARTOGRAPHY_NEO4J_URI: z.string().optional().default('bolt://neo4j:7687'),

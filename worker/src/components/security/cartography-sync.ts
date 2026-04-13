@@ -259,9 +259,18 @@ export async function runCartographyWithRunner(
 
   const env: Record<string, string> = {};
   const primaryAwsProfile = awsProfiles[0];
+  const neo4jUser = process.env.NEO4J_USER?.trim();
+  const neo4jPassword = process.env.NEO4J_PASSWORD?.trim();
   if (primaryAwsProfile) {
     env.AWS_DEFAULT_REGION = primaryAwsProfile.region;
     env.AWS_REGION = primaryAwsProfile.region;
+  }
+  if (neo4jUser) {
+    command.push('--neo4j-user', neo4jUser);
+  }
+  if (neo4jPassword) {
+    env.NEO4J_PASSWORD = neo4jPassword;
+    command.push('--neo4j-password-env-var', 'NEO4J_PASSWORD');
   }
   if (input.githubConfigBase64) {
     env.GITHUB_CONFIG = input.githubConfigBase64;

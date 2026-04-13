@@ -299,16 +299,38 @@ function SyncRunHistory({
   const { data, isLoading } = useCloudSyncRuns({ limit: 5 });
 
   if (isLoading) return null;
-  const runs = data?.syncRuns ?? [];
-  if (runs.length === 0) return null;
-
   const connectionById = new Map(awsConnections.map((conn) => [conn.id, conn]));
+  const runs =
+    data?.syncRuns.reduce<typeof data.syncRuns>((acc, run) => {
+      const connection = connectionById.get(run.integrationId);
+      const accountId =
+        run.accountIdentifier ??
+        (typeof connection?.metadata?.accountId === 'string'
+          ? connection.metadata.accountId
+          : null) ??
+        (typeof connection?.metadata?.roleArn === 'string'
+          ? connection.metadata.roleArn.split(':')[4] || null
+          : null);
+      const dedupeKey = `${run.integrationId}:${accountId ?? 'org'}`;
+      const existing = acc.find(
+        (item) => `${item.integrationId}:${item.accountIdentifier ?? 'org'}` === dedupeKey,
+      );
+      if (!existing) {
+        acc.push({
+          ...run,
+          accountIdentifier: accountId,
+        });
+      }
+      return acc;
+    }, []) ?? [];
+
+  if (runs.length === 0) return null;
 
   return (
     <div className="border rounded-lg p-4 mb-6">
       <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-1.5">
         <Activity className="h-3.5 w-3.5" />
-        Recent Sync Runs
+        Recent Sync Status
       </h3>
       <div className="space-y-2">
         {runs.map((run) => (
