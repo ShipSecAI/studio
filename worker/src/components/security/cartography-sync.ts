@@ -13,6 +13,7 @@ import {
 } from '@shipsec/component-sdk';
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 import type { ExecutionContext } from '@shipsec/component-sdk';
+import type { LogEventInput } from '@shipsec/component-sdk';
 import { awsCredentialSchema } from '@shipsec/contracts';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -279,10 +280,10 @@ export async function runCartographyWithRunner(
 
   let stdout = '';
   let stderr = '';
-  const logCollector = (entry: { stream: 'stdout' | 'stderr'; message: string }) => {
+  const logCollector = (entry: LogEventInput) => {
     if (entry.stream === 'stderr') {
       stderr += entry.message;
-    } else {
+    } else if (entry.stream === 'stdout') {
       stdout += entry.message;
     }
   };
