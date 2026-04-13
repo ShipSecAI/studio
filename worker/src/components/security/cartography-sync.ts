@@ -273,6 +273,7 @@ export async function runCartographyWithRunner(
     platform: 'linux/amd64',
     network: 'shipsec-network' as unknown as DockerRunnerConfig['network'],
     timeoutSeconds: 1800,
+    expectOutputFile: false,
     env,
     command,
     volumes: [],
@@ -313,13 +314,15 @@ export async function runCartographyWithRunner(
       ];
     }
 
-    const runnerStdout = await runComponentWithRunner<Record<string, never>, unknown>(
+    const runnerResult = await runComponentWithRunner<Record<string, never>, unknown>(
       dockerRunner,
       async () => ({}) as unknown,
       {},
       runnerContext,
     );
-    stdout += runnerStdout;
+    if (typeof runnerResult === 'string' && runnerResult.length > 0) {
+      stdout += runnerResult;
+    }
 
     return {
       command,
@@ -364,6 +367,7 @@ const definition = defineComponent({
     image: CARTOGRAPHY_IMAGE,
     platform: 'linux/amd64',
     command: [],
+    expectOutputFile: false,
   },
   inputs: inputSchema,
   outputs: outputSchema,
