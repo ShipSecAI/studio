@@ -19078,24 +19078,13 @@
                 "region": {
                   "type": "string",
                   "nullable": true
-                },
-                "accessKeyId": {
-                  "type": "string"
-                },
-                "secretAccessKey": {
-                  "type": "string"
-                },
-                "sessionToken": {
-                  "type": "string"
                 }
               },
               "required": [
                 "connectionId",
                 "displayName",
                 "accountIdentifier",
-                "region",
-                "accessKeyId",
-                "secretAccessKey"
+                "region"
               ]
             }
           },

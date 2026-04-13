@@ -2704,7 +2704,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/asset-discovery/internal/sync-runs": {
+    "/api/v1/asset-discovery/internal/sync-context": {
         parameters: {
             query?: never;
             header?: never;
@@ -2713,14 +2713,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["AssetDiscoveryController_createSyncRun"];
+        post: operations["AssetDiscoveryController_prepareSyncContext"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/asset-discovery/internal/assets/reconcile": {
+    "/api/v1/asset-discovery/internal/assets/refresh-from-graph": {
         parameters: {
             query?: never;
             header?: never;
@@ -2729,39 +2729,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["AssetDiscoveryController_reconcileAssets"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/internal/sync-runs/{id}/scopes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_persistSyncRunScopes"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/asset-discovery/internal/assets/mark-stale": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AssetDiscoveryController_markStaleAssets"];
+        post: operations["AssetDiscoveryController_refreshFromGraph"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6335,121 +6303,50 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
-        CreateSyncRunRequestDto: {
+        PrepareSyncContextRequestDto: {
             /** Format: uuid */
             integrationId: string;
-            accountIdentifier: string;
-            regions: string[];
             temporalWorkflowId?: string;
             temporalRunId?: string;
         };
-        CreateSyncRunResponseDto: {
-            /** Format: uuid */
-            id: string;
-            organizationId: string;
-            /** Format: uuid */
-            integrationId: string;
-            accountIdentifier: string | null;
-            temporalWorkflowId: string | null;
-            temporalRunId: string | null;
-            status: string;
-            coveredRegions: string[] | null;
-            assetsDiscovered: number | null;
-            assetsCreated: number | null;
-            assetsUpdated: number | null;
-            assetsStale: number | null;
-            errors: {
-                message: string;
-                /** Format: date-time */
-                timestamp: string;
-            }[] | null;
-            /** Format: date-time */
-            startedAt: string;
-            /** Format: date-time */
-            completedAt: string | null;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        ReconcileAssetsRequestDto: {
-            /** Format: uuid */
-            integrationId: string;
-            accountIdentifier: string;
+        PrepareSyncContextResponseDto: {
             /** Format: uuid */
             syncRunId: string;
-            assets: {
-                assetType: string;
-                externalId: string;
-                name: string;
-                region?: string;
-                metadata: {
-                    [key: string]: unknown;
-                };
-            }[];
-        };
-        ReconcileAssetsResponseDto: {
-            created: {
+            neo4jDatabase: string;
+            targets: {
                 /** Format: uuid */
-                id: string;
-                assetType: string;
-                externalId: string;
-                name: string | null;
-                provider: string;
+                connectionId: string;
+                displayName: string;
+                accountIdentifier: string | null;
                 region: string | null;
+                accessKeyId: string;
+                secretAccessKey: string;
+                sessionToken?: string;
+            }[];
+            coveredRegions: string[];
+            connectionBindings: {
+                /** Format: uuid */
+                connectionId: string;
                 accountIdentifier: string | null;
             }[];
-            updated: {
-                /** Format: uuid */
-                id: string;
-                assetType: string;
-                externalId: string;
-                name: string | null;
-                provider: string;
-                region: string | null;
-                accountIdentifier: string | null;
-                changedFields: string[];
-            }[];
-            unchangedCount: number;
         };
-        PersistSyncRunScopesRequestDto: {
-            scopes: {
-                assetType: string;
-                region: string;
-            }[];
-        };
-        PersistSyncRunScopesResponseDto: {
-            /** @enum {boolean} */
-            success: true;
-        };
-        MarkStaleAssetsRequestDto: {
+        RefreshGraphSnapshotRequestDto: {
             /** Format: uuid */
             integrationId: string;
-            accountIdentifier: string;
             /** Format: uuid */
             syncRunId: string;
-            /** Format: date-time */
-            syncStartTime: string;
+            connectionBindings: {
+                /** Format: uuid */
+                connectionId: string;
+                accountIdentifier: string | null;
+            }[];
         };
-        MarkStaleAssetsResponseDto: {
-            newlyStale: {
-                /** Format: uuid */
-                id: string;
-                assetType: string;
-                externalId: string;
-                name: string | null;
-                provider: string;
-                region: string | null;
-                accountIdentifier: string | null;
-            }[];
-            newlyRemoved: {
-                /** Format: uuid */
-                id: string;
-                assetType: string;
-                externalId: string;
-                name: string | null;
-                provider: string;
-                region: string | null;
-                accountIdentifier: string | null;
-            }[];
+        RefreshGraphSnapshotResponseDto: {
+            assetsDiscovered: number;
+            assetsCreated: number;
+            assetsUpdated: number;
+            assetsStale: number;
+            coveredRegions: string[];
         };
         UpdateSyncRunStatusRequestDto: {
             status: string;
@@ -11712,7 +11609,7 @@ export interface operations {
             };
         };
     };
-    AssetDiscoveryController_createSyncRun: {
+    AssetDiscoveryController_prepareSyncContext: {
         parameters: {
             query?: never;
             header: {
@@ -11723,21 +11620,21 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateSyncRunRequestDto"];
+                "application/json": components["schemas"]["PrepareSyncContextRequestDto"];
             };
         };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CreateSyncRunResponseDto"];
+                    "application/json": components["schemas"]["PrepareSyncContextResponseDto"];
                 };
             };
         };
     };
-    AssetDiscoveryController_reconcileAssets: {
+    AssetDiscoveryController_refreshFromGraph: {
         parameters: {
             query?: never;
             header: {
@@ -11748,7 +11645,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ReconcileAssetsRequestDto"];
+                "application/json": components["schemas"]["RefreshGraphSnapshotRequestDto"];
             };
         };
         responses: {
@@ -11757,57 +11654,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ReconcileAssetsResponseDto"];
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_persistSyncRunScopes: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PersistSyncRunScopesRequestDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PersistSyncRunScopesResponseDto"];
-                };
-            };
-        };
-    };
-    AssetDiscoveryController_markStaleAssets: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-organization-id": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MarkStaleAssetsRequestDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MarkStaleAssetsResponseDto"];
+                    "application/json": components["schemas"]["RefreshGraphSnapshotResponseDto"];
                 };
             };
         };

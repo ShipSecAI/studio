@@ -168,48 +168,6 @@ export class AssetDiscoveryService {
     });
   }
 
-  async reconcileAssets(
-    organizationId: string,
-    integrationId: string,
-    accountIdentifier: string,
-    syncRunId: string,
-    assets: {
-      assetType: string;
-      externalId: string;
-      name: string;
-      region?: string;
-      metadata: Record<string, unknown>;
-    }[],
-  ) {
-    return this.assetRepo.reconcileAssets(
-      organizationId,
-      integrationId,
-      accountIdentifier,
-      syncRunId,
-      assets,
-    );
-  }
-
-  async persistSyncRunScopes(syncRunId: string, scopes: { assetType: string; region: string }[]) {
-    return this.assetRepo.persistSyncRunScopes(syncRunId, scopes);
-  }
-
-  async markStaleAssets(
-    organizationId: string,
-    integrationId: string,
-    accountIdentifier: string,
-    syncRunId: string,
-    syncStartTime: Date,
-  ) {
-    return this.assetRepo.markStaleAssets(
-      organizationId,
-      integrationId,
-      accountIdentifier,
-      syncRunId,
-      syncStartTime,
-    );
-  }
-
   async updateSyncRunStatus(
     syncRunId: string,
     status: string,

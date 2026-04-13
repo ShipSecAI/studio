@@ -33,10 +33,6 @@ type UpdateApiKeyPayload = components['schemas']['UpdateApiKeyDto'];
 type CreateAsmDomainPayload = components['schemas']['CreateDomainDto'];
 type UpdateAsmDomainPayload = components['schemas']['UpdateDomainDto'];
 type TriggerCloudSyncPayload = components['schemas']['TriggerSyncDto'];
-type CreateSyncRunPayload = components['schemas']['CreateSyncRunRequestDto'];
-type ReconcileAssetsPayload = components['schemas']['ReconcileAssetsRequestDto'];
-type PersistSyncRunScopesPayload = components['schemas']['PersistSyncRunScopesRequestDto'];
-type MarkStaleAssetsPayload = components['schemas']['MarkStaleAssetsRequestDto'];
 type UpdateSyncRunStatusPayload = components['schemas']['UpdateSyncRunStatusRequestDto'];
 type UpdateOnboardingPreferencesPayload = components['schemas']['UpdateOnboardingPreferencesDto'];
 type AnalyticsQueryPayload = components['schemas']['AnalyticsQueryRequestDto'];
@@ -1000,34 +996,6 @@ export class ShipSecApiClient {
   async getCloudSyncRun(id: string) {
     return this.client.GET('/api/v1/asset-discovery/sync-runs/{id}', {
       params: { path: { id } },
-    });
-  }
-
-  async createCloudSyncRun(organizationId: string, body: CreateSyncRunPayload) {
-    return this.client.POST('/api/v1/asset-discovery/internal/sync-runs', {
-      params: { header: { 'x-organization-id': organizationId } },
-      body,
-    });
-  }
-
-  async reconcileCloudAssets(organizationId: string, body: ReconcileAssetsPayload) {
-    return this.client.POST('/api/v1/asset-discovery/internal/assets/reconcile', {
-      params: { header: { 'x-organization-id': organizationId } },
-      body,
-    });
-  }
-
-  async persistCloudSyncRunScopes(id: string, body: PersistSyncRunScopesPayload) {
-    return this.client.POST('/api/v1/asset-discovery/internal/sync-runs/{id}/scopes', {
-      params: { path: { id } },
-      body,
-    });
-  }
-
-  async markCloudAssetsStale(organizationId: string, body: MarkStaleAssetsPayload) {
-    return this.client.POST('/api/v1/asset-discovery/internal/assets/mark-stale', {
-      params: { header: { 'x-organization-id': organizationId } },
-      body,
     });
   }
 

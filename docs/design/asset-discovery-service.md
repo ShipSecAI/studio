@@ -270,32 +270,25 @@ All AWS providers reuse the same integration credentials. Adding a provider is: 
 
 ## Sync Engine
 
-Discovery runs as **Temporal workflows**, reusing the existing infrastructure.
+Discovery runs as a **Temporal workflow** that orchestrates Cartography.
 
 ### Sync Workflow
 
 ```
-assetDiscoverySyncWorkflow
-  ├── Input: { integrationId, organizationId, providerFilter?: string[] }
+assetSyncWorkflow
+  ├── Input: { integrationId, organizationId }
   │
-  ├── Activity: resolveCredentials(integrationId)
-  │   └── Returns temporary AWS creds (same as Prowler/Trivy use)
+  ├── Activity: prepareSyncContext()
+  │   └── Resolves org-scoped AWS connection bindings + sync run
   │
-  ├── Activity: runDiscovery(credentials, providerFilter)
-  │   └── Iterates all registered providers for this integration type
-  │   └── Collects DiscoveredAsset[] (batched, not held in memory)
+  ├── Activity: runCartographySync()
+  │   └── Runs Cartography against Neo4j using resolved AWS credentials
   │
-  ├── Activity: reconcileAssets(organizationId, integrationId, discoveredAssets)
-  │   ├── UPSERT into assets table (update lastSeenAt for existing, insert new)
-  │   ├── Mark assets not seen in this sync as stale (if lastSeenAt < syncStartTime)
-  │   ├── Detect changes:
-  │   │   ├── NEW: asset didn't exist before
-  │   │   ├── UPDATED: metadata changed
-  │   │   └── REMOVED: was active, now stale for > staleness threshold
-  │   └── Return { created: Asset[], updated: Asset[], stale: Asset[] }
+  ├── Activity: refreshInventoryFromGraph()
+  │   └── Reads active inventory from the Cartography graph
   │
-  └── Activity: emitChangeEvents(changes)
-      └── Publish to Kafka: asset.created, asset.updated, asset.removed
+  └── Activity: updateSyncRunStatus()
+      └── Persists sync run completion/error stats
 ```
 
 ### Scheduling
@@ -437,13 +430,6 @@ backend/src/assets/
   ├── assets.service.ts             # Core asset CRUD + sync orchestration
   ├── assets.repository.ts          # Drizzle queries for assets table
   ├── asset-trigger-rules.service.ts # Trigger rule evaluation
-  ├── discovery/
-  │   ├── discovery-engine.ts       # Coordinates providers, runs sync
-  │   ├── discovery-provider.ts     # Provider interface
-  │   └── providers/
-  │       ├── ecr.provider.ts       # ECR discovery (first)
-  │       ├── s3.provider.ts        # S3 discovery (future)
-  │       └── iam.provider.ts       # IAM discovery (future)
   └── __tests__/
       ├── assets.service.spec.ts
       └── ecr.provider.spec.ts
