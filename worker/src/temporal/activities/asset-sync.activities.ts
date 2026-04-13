@@ -124,12 +124,12 @@ export async function runCartographySyncActivity(input: {
     await writeAwsProfiles(awsDir, targetsWithCreds);
 
     const image =
-      process.env.CARTOGRAPHY_IMAGE?.trim() || 'ghcr.io/cartography-cncf/cartography:0.96.1';
+      process.env.CARTOGRAPHY_IMAGE?.trim() || 'ghcr.io/cartography-cncf/cartography:latest';
     const neo4jUri = process.env.CARTOGRAPHY_NEO4J_URI?.trim() || 'bolt://neo4j:7687';
     const dockerNetwork = process.env.CARTOGRAPHY_DOCKER_NETWORK?.trim() || 'shipsec-network';
     const requestedSyncs =
       process.env.CARTOGRAPHY_AWS_REQUESTED_SYNCS?.trim() ||
-      'iam,s3,dynamodb,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc,ec2:volumes,ec2:load_balancer,ec2:load_balancer_v2,ecr,ecs,eks,elasticache,lambda_function,kms,rds,route53,apigateway,secretsmanager,sqs';
+      'iam,s3,dynamodb,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc,ec2:volumes,ec2:load_balancer,ec2:load_balancer_v2,ecr,ecs,eks,elasticache,lambda_function,kms,rds,route53,apigateway,secretsmanager,sqs,acm:certificate,cloudfront,cloudtrail,guardduty,sns';
 
     const args = [
       'run',

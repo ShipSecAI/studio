@@ -99,14 +99,14 @@ export const workerEnvSchema = z
     // --- Cartography / Neo4j ---
     NEO4J_URI: z.string().optional().default('bolt://localhost:7687'),
     NEO4J_DATABASE: z.string().optional().default('neo4j'),
-    CARTOGRAPHY_IMAGE: z.string().optional().default('ghcr.io/cartography-cncf/cartography:0.96.1'),
+    CARTOGRAPHY_IMAGE: z.string().optional().default('ghcr.io/cartography-cncf/cartography:latest'),
     CARTOGRAPHY_NEO4J_URI: z.string().optional().default('bolt://neo4j:7687'),
     CARTOGRAPHY_DOCKER_NETWORK: z.string().optional().default('shipsec-network'),
     CARTOGRAPHY_AWS_REQUESTED_SYNCS: z
       .string()
       .optional()
       .default(
-        'iam,s3,dynamodb,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc,ec2:volumes,ec2:load_balancer,ec2:load_balancer_v2,ecr,ecs,eks,elasticache,lambda_function,kms,rds,route53,apigateway,secretsmanager,sqs',
+        'iam,s3,dynamodb,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc,ec2:volumes,ec2:load_balancer,ec2:load_balancer_v2,ecr,ecs,eks,elasticache,lambda_function,kms,rds,route53,apigateway,secretsmanager,sqs,acm:certificate,cloudfront,cloudtrail,guardduty,sns',
       ),
 
     // --- Component I/O paths ---
