@@ -253,7 +253,7 @@ const definition = defineComponent({
         if (regions.length > 0) {
           cmd.push(
             '--aws-requested-syncs',
-            'ec2,s3,iam,lambda,rds,dynamodb,eks,kms,secretsmanager,guardduty',
+            'iam,s3,dynamodb,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc,ec2:volumes,ec2:load_balancer,ec2:load_balancer_v2,ecr,ecs,eks,elasticache,lambda_function,kms,rds,route53,apigateway,secretsmanager,sqs',
           );
         }
       }

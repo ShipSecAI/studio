@@ -106,7 +106,7 @@ export const workerEnvSchema = z
       .string()
       .optional()
       .default(
-        'iam,s3,ecr,secretsmanager,kms,sqs,dynamodb,ecs,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc',
+        'iam,s3,dynamodb,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc,ec2:volumes,ec2:load_balancer,ec2:load_balancer_v2,ecr,ecs,eks,elasticache,lambda_function,kms,rds,route53,apigateway,secretsmanager,sqs',
       ),
 
     // --- Component I/O paths ---
