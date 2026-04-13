@@ -16,6 +16,7 @@
     "migration:migrate": "bun x drizzle-kit migrate",
     "migration:deploy": "bun scripts/migrate-deploy.ts",
     "migration:push": "bun x drizzle-kit push",
+    "migration:verify": "bun scripts/migration-verify.ts",
     "stamp-baseline": "bun scripts/stamp-baseline.ts",
     "migration:smoke": "bun scripts/migration-smoke.ts",
     "delete:runs": "bun scripts/delete-all-workflow-runs.ts",

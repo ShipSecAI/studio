@@ -14,11 +14,6 @@ const REQUIRED_TABLES = [
   'litellm_virtual_keys',
 ];
 
-const REQUIRED_COLUMNS: Record<string, string[]> = {
-  workflows: ['is_system', 'template_id', 'icon', 'icon_color'],
-  github_repositories: ['stars_count', 'forks_count'],
-};
-
 @Injectable()
 export class MigrationGuard implements OnModuleInit {
   private readonly logger = new Logger(MigrationGuard.name);
@@ -51,28 +46,6 @@ export class MigrationGuard implements OnModuleInit {
           'Run `bun run migrate` to apply pending migrations.';
         this.logger.error(message);
         throw new Error(message);
-      }
-
-      for (const [table, columns] of Object.entries(REQUIRED_COLUMNS)) {
-        const { rows: columnRows } = await client.query<{ column_name: string }>(
-          `select column_name
-             from information_schema.columns
-            where table_schema = 'public'
-              and table_name = $1
-              and column_name = any($2::text[])`,
-          [table, columns],
-        );
-
-        const presentColumns = new Set(columnRows.map((row) => row.column_name));
-        const missingColumns = columns.filter((column) => !presentColumns.has(column));
-
-        if (missingColumns.length > 0) {
-          const message =
-            `Database schema drift detected for ${table}: missing columns [${missingColumns.join(', ')}]. ` +
-            'Run `bun run migrate` or the reconciliation migration before serving traffic.';
-          this.logger.error(message);
-          throw new Error(message);
-        }
       }
 
       this.logger.log('Database schema check passed – required tables are present.');
