@@ -52,6 +52,7 @@ function getBackendEnv(instance) {
   return {
     NODE_ENV: isProduction ? 'production' : 'development',
     SHIPSEC_INSTANCE: suffix,
+    INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
     PORT: String(port),
     DATABASE_URL: databaseUrl,
     TEMPORAL_NAMESPACE: temporalNamespace,
@@ -78,6 +79,7 @@ function getWorkerEnv(instance) {
   return {
     NODE_ENV: isProduction ? 'production' : 'development',
     SHIPSEC_INSTANCE: suffix,
+    INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
     BACKEND_URL: `http://localhost:${backendPort}`,
     DATABASE_URL: databaseUrl,
     TEMPORAL_NAMESPACE: temporalNamespace,

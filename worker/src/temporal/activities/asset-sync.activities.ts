@@ -5,10 +5,13 @@
  * but owns the Cartography execution lifecycle.
  */
 
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { spawn } from 'node:child_process';
+import '../../components';
+import { createExecutionContext, componentRegistry } from '@shipsec/component-sdk';
+import {
+  DEFAULT_AWS_REQUESTED_SYNCS,
+  DEFAULT_NEO4J_DATABASE,
+  runCartographyWithRunner,
+} from '../../components/security/cartography-sync';
 
 let backendBaseUrl: string;
 let internalToken: string;
@@ -107,86 +110,68 @@ export async function runCartographySyncActivity(input: {
   coveredRegions: string[];
 }> {
   const start = Date.now();
-  const tempDir = await mkdtemp(join(tmpdir(), 'shipsec-cartography-'));
-  const awsDir = join(tempDir, '.aws');
   console.log(
     `[CartographySync] Starting syncRunId=${input.syncRunId} targets=${input.targets.length} neo4jDatabase=${input.neo4jDatabase}`,
   );
 
   try {
-    await mkdir(awsDir, { recursive: true });
     const targetsWithCreds = await Promise.all(
       input.targets.map(async (target) => ({
         ...target,
         ...(await resolveAwsCredentials(input.organizationId, target.connectionId)),
       })),
     );
-    await writeAwsProfiles(awsDir, targetsWithCreds);
-
-    const image =
-      process.env.CARTOGRAPHY_IMAGE?.trim() || 'ghcr.io/cartography-cncf/cartography:latest';
-    const neo4jUri = process.env.CARTOGRAPHY_NEO4J_URI?.trim() || 'bolt://neo4j:7687';
-    const dockerNetwork = process.env.CARTOGRAPHY_DOCKER_NETWORK?.trim() || 'shipsec-network';
-    const requestedSyncs =
-      process.env.CARTOGRAPHY_AWS_REQUESTED_SYNCS?.trim() ||
-      'iam,s3,dynamodb,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc,ec2:volumes,ec2:load_balancer,ec2:load_balancer_v2,ecr,ecs,eks,elasticache,lambda_function,kms,rds,route53,apigateway,secretsmanager,sqs,acm:certificate,cloudfront,cloudtrail,guardduty,sns';
-
-    const args = [
-      'run',
-      '--rm',
-      '--network',
-      dockerNetwork,
-      '--platform',
-      'linux/amd64',
-      '-e',
-      'HOME=/var/cartography',
-      '-e',
-      'AWS_CONFIG_FILE=/var/cartography/.aws/config',
-      '-e',
-      'AWS_SHARED_CREDENTIALS_FILE=/var/cartography/.aws/credentials',
-      '-e',
-      'AWS_STS_REGIONAL_ENDPOINTS=regional',
-      '-e',
-      `AWS_DEFAULT_REGION=${input.coveredRegions[0] || 'us-east-1'}`,
-      '-e',
-      `AWS_REGION=${input.coveredRegions[0] || 'us-east-1'}`,
-      '-v',
-      `${awsDir}:/var/cartography/.aws:ro`,
-      image,
-      '--neo4j-uri',
-      neo4jUri,
-      '--neo4j-database',
-      input.neo4jDatabase,
-      '--selected-modules',
-      'aws',
-      '--aws-requested-syncs',
-      requestedSyncs,
-      '--aws-best-effort-mode',
-    ];
-
-    const { code, stdout, stderr } = await runCommand('docker', args);
-    if (code !== 0) {
-      throw new Error(stderr || stdout || `Cartography exited with code ${code}`);
+    const component = componentRegistry.get('security.cartography.sync');
+    if (!component) {
+      throw new Error('Cartography component is not registered');
     }
+    const context = createExecutionContext({
+      runId: input.syncRunId,
+      componentRef: 'asset-sync.cartography',
+      organizationId: input.organizationId,
+      workflowId: `asset-sync:${input.organizationId}`,
+      workflowName: 'assetSyncWorkflow',
+    });
 
-    if (stdout.trim().length > 0) {
-      console.log(`[CartographySync] stdout:\n${truncateForLogs(stdout)}`);
+    const result = await runCartographyWithRunner(
+      {
+        selectedModules: ['aws'],
+        neo4jUri: process.env.CARTOGRAPHY_NEO4J_URI?.trim() || 'bolt://neo4j:7687',
+        neo4jDatabase:
+          input.neo4jDatabase || process.env.NEO4J_DATABASE?.trim() || DEFAULT_NEO4J_DATABASE,
+        awsProfiles: targetsWithCreds.map((target, index) => ({
+          profileName: buildProfileName(target.connectionId, index),
+          region: target.region?.trim() || input.coveredRegions[0] || 'us-east-1',
+          accessKeyId: target.accessKeyId,
+          secretAccessKey: target.secretAccessKey,
+          sessionToken: target.sessionToken,
+        })),
+        awsRegions: input.coveredRegions,
+        awsRequestedSyncs:
+          process.env.CARTOGRAPHY_AWS_REQUESTED_SYNCS?.trim() || DEFAULT_AWS_REQUESTED_SYNCS,
+        awsBestEffort: true,
+        image: process.env.CARTOGRAPHY_IMAGE?.trim(),
+      },
+      context,
+    );
+
+    if (result.stdout.trim().length > 0) {
+      console.log(`[CartographySync] stdout:\n${truncateForLogs(result.stdout)}`);
     }
-    if (stderr.trim().length > 0) {
-      console.warn(`[CartographySync] stderr:\n${truncateForLogs(stderr)}`);
+    if (result.stderr.trim().length > 0) {
+      console.warn(`[CartographySync] stderr:\n${truncateForLogs(result.stderr)}`);
     }
 
     return {
-      stderr,
-      stdout,
-      durationMs: Date.now() - start,
+      stderr: result.stderr,
+      stdout: result.stdout,
+      durationMs: result.durationMs,
       coveredRegions: input.coveredRegions,
     };
   } finally {
     console.log(
       `[CartographySync] Finished syncRunId=${input.syncRunId} durationMs=${Date.now() - start}`,
     );
-    await rm(tempDir, { recursive: true, force: true });
   }
 }
 
@@ -231,36 +216,6 @@ export async function updateSyncRunStatusActivity(input: {
   });
 }
 
-async function writeAwsProfiles(
-  awsDir: string,
-  targets: (SyncContextTarget & ResolvedAwsCredentials)[],
-): Promise<void> {
-  const credentialsBlocks: string[] = [];
-  const configBlocks: string[] = [];
-
-  for (const [index, target] of targets.entries()) {
-    const profileName = buildProfileName(target.connectionId, index);
-    const region = target.region?.trim() || 'us-east-1';
-    const header = index === 0 ? 'default' : profileName;
-    const configHeader = index === 0 ? '[default]' : `[profile ${profileName}]`;
-
-    credentialsBlocks.push(
-      `[${header}]`,
-      `aws_access_key_id = ${target.accessKeyId}`,
-      `aws_secret_access_key = ${target.secretAccessKey}`,
-    );
-    if (target.sessionToken) {
-      credentialsBlocks.push(`aws_session_token = ${target.sessionToken}`);
-    }
-    credentialsBlocks.push('');
-
-    configBlocks.push(configHeader, `region = ${region}`, 'output = json', '');
-  }
-
-  await writeFile(join(awsDir, 'credentials'), credentialsBlocks.join('\n'));
-  await writeFile(join(awsDir, 'config'), configBlocks.join('\n'));
-}
-
 async function resolveAwsCredentials(
   organizationId: string,
   connectionId: string,
@@ -291,29 +246,6 @@ async function resolveAwsCredentials(
 function buildProfileName(connectionId: string, index: number): string {
   const normalized = connectionId.replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 32);
   return normalized.length > 0 ? normalized : `profile_${index + 1}`;
-}
-
-async function runCommand(
-  command: string,
-  args: string[],
-): Promise<{ code: number | null; stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk.toString();
-    });
-    child.on('error', reject);
-    child.on('close', (code) => resolve({ code, stdout, stderr }));
-  });
 }
 
 function truncateForLogs(value: string, maxLength = 4000): string {

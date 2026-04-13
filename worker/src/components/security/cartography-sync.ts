@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   componentRegistry,
   ComponentRetryPolicy,
+  createExecutionContext,
   defineComponent,
   inputs,
   outputs,
@@ -11,6 +12,7 @@ import {
   runComponentWithRunner,
 } from '@shipsec/component-sdk';
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
+import type { ExecutionContext } from '@shipsec/component-sdk';
 import { awsCredentialSchema } from '@shipsec/contracts';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -19,8 +21,30 @@ const CARTOGRAPHY_IMAGE =
   process.env.CARTOGRAPHY_IMAGE?.trim() || 'ghcr.io/cartography-cncf/cartography:latest';
 export const DEFAULT_NEO4J_URI = process.env.NEO4J_URI?.trim() || 'bolt://localhost:7687';
 export const DEFAULT_NEO4J_DATABASE = process.env.NEO4J_DATABASE?.trim() || 'neo4j';
+export const DEFAULT_AWS_REQUESTED_SYNCS =
+  'iam,s3,dynamodb,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc,ec2:volumes,ec2:load_balancer,ec2:load_balancer_v2,ecr,ecs,eks,elasticache,lambda_function,kms,rds,route53,apigateway,secretsmanager,sqs,acm:certificate,cloudfront,cloudtrail,guardduty,sns';
 
 type CartographyModule = (typeof cartographyModules)[number];
+
+export interface CartographyAwsProfileInput {
+  profileName: string;
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+}
+
+export interface CartographyRunnerInput {
+  selectedModules: CartographyModule[];
+  neo4jUri: string;
+  neo4jDatabase: string;
+  awsProfiles?: CartographyAwsProfileInput[];
+  awsRegions?: string[];
+  awsRequestedSyncs?: string;
+  awsBestEffort?: boolean;
+  githubConfigBase64?: string;
+  image?: string;
+}
 
 const inputSchema = inputs({
   credentials: port(
@@ -159,6 +183,176 @@ const retryPolicy: ComponentRetryPolicy = {
   nonRetryableErrorTypes: ['ConfigurationError', 'ValidationError'],
 };
 
+async function writeAwsProfileVolume(
+  volume: IsolatedContainerVolume,
+  profiles: CartographyAwsProfileInput[],
+): Promise<void> {
+  const credentialsBlocks: string[] = [];
+  const configBlocks: string[] = [];
+
+  for (const [index, profile] of profiles.entries()) {
+    const credentialsHeader = index === 0 ? 'default' : profile.profileName;
+    const configHeader = index === 0 ? '[default]' : `[profile ${profile.profileName}]`;
+
+    credentialsBlocks.push(
+      `[${credentialsHeader}]`,
+      `aws_access_key_id = ${profile.accessKeyId}`,
+      `aws_secret_access_key = ${profile.secretAccessKey}`,
+    );
+    if (profile.sessionToken) {
+      credentialsBlocks.push(`aws_session_token = ${profile.sessionToken}`);
+    }
+    credentialsBlocks.push('');
+
+    configBlocks.push(configHeader, `region = ${profile.region}`, 'output = json', '');
+  }
+
+  await volume.initialize({
+    credentials: credentialsBlocks.join('\n'),
+    config: configBlocks.join('\n'),
+  });
+}
+
+export async function runCartographyWithRunner(
+  input: CartographyRunnerInput,
+  context: ExecutionContext,
+): Promise<{ command: string[]; stdout: string; stderr: string; durationMs: number }> {
+  const startTime = Date.now();
+  const selectedModules = input.selectedModules;
+  const image = input.image?.trim() || CARTOGRAPHY_IMAGE;
+  const awsProfiles = input.awsProfiles ?? [];
+  const tenantId = context.organizationId ?? 'default-tenant';
+  const awsCredsVolume =
+    awsProfiles.length > 0
+      ? new IsolatedContainerVolume(tenantId, `${context.runId}-cartography-aws`)
+      : null;
+
+  const command: string[] = [
+    '--neo4j-uri',
+    input.neo4jUri,
+    '--neo4j-database',
+    input.neo4jDatabase,
+    '--selected-modules',
+    selectedModules.join(','),
+  ];
+
+  if (selectedModules.includes('aws')) {
+    if (input.awsBestEffort ?? true) {
+      command.push('--aws-best-effort-mode');
+    }
+    if (input.awsRegions && input.awsRegions.length > 0) {
+      command.push('--aws-regions', input.awsRegions.join(','));
+    }
+    command.push(
+      '--aws-requested-syncs',
+      input.awsRequestedSyncs?.trim() || DEFAULT_AWS_REQUESTED_SYNCS,
+    );
+    if (awsProfiles.length > 1) {
+      command.push('--aws-sync-all-profiles');
+    }
+  }
+
+  if (selectedModules.includes('github') && input.githubConfigBase64) {
+    command.push('--github-config-env-var', 'GITHUB_CONFIG');
+  }
+
+  const env: Record<string, string> = {};
+  const primaryAwsProfile = awsProfiles[0];
+  if (primaryAwsProfile) {
+    env.AWS_DEFAULT_REGION = primaryAwsProfile.region;
+    env.AWS_REGION = primaryAwsProfile.region;
+  }
+  if (input.githubConfigBase64) {
+    env.GITHUB_CONFIG = input.githubConfigBase64;
+  }
+
+  const dockerRunner: DockerRunnerConfig = {
+    kind: 'docker',
+    image,
+    platform: 'linux/amd64',
+    network: 'shipsec-network' as unknown as DockerRunnerConfig['network'],
+    timeoutSeconds: 1800,
+    env,
+    command,
+    volumes: [],
+  };
+
+  let stdout = '';
+  let stderr = '';
+  const logCollector = (entry: { stream: 'stdout' | 'stderr'; message: string }) => {
+    if (entry.stream === 'stderr') {
+      stderr += entry.message;
+    } else {
+      stdout += entry.message;
+    }
+  };
+
+  const runnerContext = createExecutionContext({
+    runId: context.runId,
+    componentRef: context.componentRef,
+    organizationId: context.organizationId ?? null,
+    workflowId: context.workflowId,
+    workflowName: context.workflowName,
+    triggerSource: context.triggerSource ?? null,
+    triggerType: context.triggerType ?? null,
+    metadata: context.metadata,
+    trace: context.trace,
+    logCollector,
+    terminalCollector: context.terminalCollector,
+    agentTracePublisher: context.agentTracePublisher,
+    runContext: context.runContext,
+  });
+
+  try {
+    if (awsCredsVolume) {
+      await writeAwsProfileVolume(awsCredsVolume, awsProfiles);
+      dockerRunner.volumes = [
+        ...(dockerRunner.volumes ?? []),
+        awsCredsVolume.getVolumeConfig('/var/cartography/.aws', true),
+      ];
+    }
+
+    const runnerStdout = await runComponentWithRunner<Record<string, never>, unknown>(
+      dockerRunner,
+      async () => ({}) as unknown,
+      {},
+      runnerContext,
+    );
+    stdout += runnerStdout;
+
+    return {
+      command,
+      stdout,
+      stderr,
+      durationMs: Date.now() - startTime,
+    };
+  } catch (error) {
+    const details =
+      error && typeof error === 'object' && 'details' in error
+        ? ((error as any).details as { stdout?: string; stderr?: string } | undefined)
+        : undefined;
+
+    if (details?.stdout) {
+      stdout += details.stdout;
+    }
+    if (details?.stderr) {
+      stderr += details.stderr;
+    }
+
+    throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+      stdout,
+      stderr,
+      command,
+      durationMs: Date.now() - startTime,
+    });
+  } finally {
+    if (awsCredsVolume) {
+      await awsCredsVolume.cleanup();
+      context.logger.info('[CartographySync] Cleaned up AWS creds volume');
+    }
+  }
+}
+
 const definition = defineComponent({
   id: 'security.cartography.sync',
   label: 'Cartography Sync',
@@ -264,91 +458,53 @@ const definition = defineComponent({
     );
     context.emitProgress(`Syncing infrastructure graph: ${selectedModules.join(', ')} modules`);
 
-    // Prepare environment variables
-    const env: Record<string, string> = {};
-    const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const awsCredsVolume = parsedInputs.credentials
-      ? new IsolatedContainerVolume(tenantId, `${context.runId}-cartography-aws`)
-      : null;
-
-    // AWS credentials
-    if (parsedInputs.credentials) {
-      env.AWS_ACCESS_KEY_ID = parsedInputs.credentials.accessKeyId;
-      env.AWS_SECRET_ACCESS_KEY = parsedInputs.credentials.secretAccessKey;
-      if (parsedInputs.credentials.sessionToken) {
-        env.AWS_SESSION_TOKEN = parsedInputs.credentials.sessionToken;
-      }
-      const region = parsedParams.awsRegions?.split(',')[0]?.trim() || 'us-east-1';
-      env.AWS_DEFAULT_REGION = region;
-      env.AWS_REGION = region;
-    }
-
-    // GitHub credentials
-    if (parsedInputs.githubToken && parsedInputs.githubOrg) {
-      const ghConfig = JSON.stringify({
-        organization: [
-          {
-            token: parsedInputs.githubToken,
-            url: 'https://api.github.com/graphql',
-            name: parsedInputs.githubOrg,
-          },
-        ],
-      });
-      env.GITHUB_CONFIG = Buffer.from(ghConfig).toString('base64');
-      cmd.push('--github-config-env-var', 'GITHUB_CONFIG');
-    }
-
-    const dockerRunner: DockerRunnerConfig = {
-      kind: 'docker',
-      image: CARTOGRAPHY_IMAGE,
-      platform: 'linux/amd64',
-      // The current SDK type only models Docker's built-in network modes, but the
-      // runner passes custom network strings through to `docker run` at runtime.
-      network: 'shipsec-network' as unknown as DockerRunnerConfig['network'],
-      timeoutSeconds: 1800, // 30 minutes for full sync
-      env,
-      command: cmd,
-      volumes: [],
-    };
-
     let stderrCombined = '';
-    let awsVolumeInitialized = false;
+    const githubConfigBase64 =
+      parsedInputs.githubToken && parsedInputs.githubOrg
+        ? Buffer.from(
+            JSON.stringify({
+              organization: [
+                {
+                  token: parsedInputs.githubToken,
+                  url: 'https://api.github.com/graphql',
+                  name: parsedInputs.githubOrg,
+                },
+              ],
+            }),
+          ).toString('base64')
+        : undefined;
 
     try {
-      // Mount AWS credentials if provided
-      if (awsCredsVolume && parsedInputs.credentials) {
-        const credsLines = [
-          '[default]',
-          `aws_access_key_id = ${parsedInputs.credentials.accessKeyId}`,
-          `aws_secret_access_key = ${parsedInputs.credentials.secretAccessKey}`,
-        ];
-        if (parsedInputs.credentials.sessionToken) {
-          credsLines.push(`aws_session_token = ${parsedInputs.credentials.sessionToken}`);
-        }
-        const cfgRegion = parsedParams.awsRegions?.split(',')[0]?.trim() || 'us-east-1';
-        const cfgLines = ['[default]', `region = ${cfgRegion}`, 'output = json'];
-
-        await awsCredsVolume.initialize({
-          credentials: credsLines.join('\n'),
-          config: cfgLines.join('\n'),
-        });
-        awsVolumeInitialized = true;
-        context.logger.info(
-          `[CartographySync] Created AWS creds volume: ${awsCredsVolume.getVolumeName()}`,
-        );
-
-        dockerRunner.volumes = [
-          ...(dockerRunner.volumes ?? []),
-          awsCredsVolume.getVolumeConfig('/var/cartography/.aws', true),
-        ];
-      }
-
-      await runComponentWithRunner<Record<string, unknown>, unknown>(
-        dockerRunner,
-        async () => ({}) as unknown,
-        {},
+      const runnerResult = await runCartographyWithRunner(
+        {
+          selectedModules,
+          neo4jUri: parsedParams.neo4jUri,
+          neo4jDatabase: parsedParams.neo4jDatabase,
+          awsProfiles: parsedInputs.credentials
+            ? [
+                {
+                  profileName: 'default',
+                  region: parsedParams.awsRegions?.split(',')[0]?.trim() || 'us-east-1',
+                  accessKeyId: parsedInputs.credentials.accessKeyId,
+                  secretAccessKey: parsedInputs.credentials.secretAccessKey,
+                  sessionToken: parsedInputs.credentials.sessionToken,
+                },
+              ]
+            : [],
+          awsRegions: parsedParams.awsRegions
+            ? parsedParams.awsRegions
+                .split(',')
+                .map((region) => region.trim())
+                .filter((region) => region.length > 0)
+            : undefined,
+          awsRequestedSyncs: DEFAULT_AWS_REQUESTED_SYNCS,
+          awsBestEffort: parsedParams.awsBestEffort,
+          githubConfigBase64,
+          image: CARTOGRAPHY_IMAGE,
+        },
         context,
       );
+      stderrCombined = runnerResult.stderr;
 
       // Cartography exiting with code 0 means success
       const moduleResults = selectedModules.map((mod) => ({
@@ -365,13 +521,18 @@ const definition = defineComponent({
         moduleResults,
         neo4jUri: parsedParams.neo4jUri,
         neo4jDatabase: parsedParams.neo4jDatabase,
-        command: cmd,
+        command: runnerResult.command,
         stderr: stderrCombined,
-        durationMs: Date.now() - startTime,
+        durationMs: runnerResult.durationMs,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      stderrCombined = errorMessage;
+      const errorWithDetails = error as Error & {
+        stderr?: string;
+        command?: string[];
+        durationMs?: number;
+      };
+      stderrCombined = errorWithDetails.stderr || errorMessage;
 
       context.logger.error(`[CartographySync] Sync failed: ${errorMessage}`);
 
@@ -387,15 +548,10 @@ const definition = defineComponent({
         moduleResults,
         neo4jUri: parsedParams.neo4jUri,
         neo4jDatabase: parsedParams.neo4jDatabase,
-        command: cmd,
+        command: errorWithDetails.command ?? cmd,
         stderr: stderrCombined,
-        durationMs: Date.now() - startTime,
+        durationMs: errorWithDetails.durationMs ?? Date.now() - startTime,
       });
-    } finally {
-      if (awsVolumeInitialized && awsCredsVolume) {
-        await awsCredsVolume.cleanup();
-        context.logger.info('[CartographySync] Cleaned up AWS creds volume');
-      }
     }
   },
 });
