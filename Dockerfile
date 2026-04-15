@@ -4,16 +4,15 @@
 # BASE STAGE
 # ============================================================================
 FROM oven/bun:latest AS base
-# Install system deps
+# Install system deps (docker-ce-cli for container execution)
 RUN apt-get update && \
-    apt-get install -y ca-certificates curl gnupg lsb-release python3 make g++ && \
+    apt-get install -y ca-certificates curl gnupg lsb-release && \
     install -m 0755 -d /etc/apt/keyrings && \
     curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
     chmod a+r /etc/apt/keyrings/docker.gpg && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable" > /etc/apt/sources.list.d/docker.list && \
-    curl -fsSL https://deb.nodesource.com/setup_current.x | bash - && \
     apt-get update && \
-    apt-get install -y nodejs docker-ce-cli && \
+    apt-get install -y docker-ce-cli && \
     update-ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
@@ -25,7 +24,7 @@ RUN groupadd -g 1001 shipsec && useradd -u 1001 -g shipsec -m shipsec
 # Copy all files
 COPY --chown=shipsec:shipsec bun.lock package.json bunfig.toml .npmrc ./
 COPY --chown=shipsec:shipsec packages/ packages/
-COPY --chown=shipsec:shipsec scripts/ scripts/
+# scripts/ removed — no more postinstall native module checks
 COPY --chown=shipsec:shipsec backend/ backend/
 COPY --chown=shipsec:shipsec frontend/ frontend/
 COPY --chown=shipsec:shipsec worker/ worker/
@@ -76,8 +75,8 @@ ENV POSTHOG_HOST=${POSTHOG_HOST}
 # Set working directory for worker
 WORKDIR /app/worker
 
-# Run worker with Node + tsx (not bun, due to SWC binding issues)
-CMD ["node", "--import", "tsx/esm", "src/temporal/workers/dev.worker.ts"]
+# Run worker with Bun (native PTY support, no Node.js dependency)
+CMD ["bun", "run", "src/temporal/workers/dev.worker.ts"]
 
 # ============================================================================
 # FRONTEND SERVICE
