@@ -1,5 +1,5 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { components } from '../../../../packages/backend-client/src/client';
+import type { components } from '@shipsec/backend-client';
 
 import { queryKeys } from '@/lib/queryKeys';
 import { api } from '@/services/api';

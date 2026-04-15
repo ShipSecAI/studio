@@ -8,7 +8,7 @@ import {
   type ExecutionTriggerType,
   type ExecutionInputPreview,
 } from '@shipsec/shared';
-import type { components } from '../../../../packages/backend-client/src/client';
+import type { components } from '@shipsec/backend-client';
 
 /** Raw run shape returned by the backend (list or detail endpoints) */
 type ApiRunItem = components['schemas']['RunListResponseDto']['runs'][number];

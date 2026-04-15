@@ -23,8 +23,8 @@ function sanitizeOutput(str: string): string {
     .replace(/github_pat_[a-zA-Z0-9_]+/g, 'github_pat_***');
 }
 
-type PtySpawn = typeof import('node-pty')['spawn'];
-let cachedPtySpawn: PtySpawn | null = null;
+// Bun provides native PTY support via Bun.spawn({ terminal })
+// No external native module needed.
 let cachedDockerPath: string | null = null;
 
 export async function resolveDockerPath(context?: ExecutionContext): Promise<string> {
@@ -132,19 +132,7 @@ function formatArgs(args: string[]): string {
     .join(' ');
 }
 
-async function loadPtySpawn(): Promise<PtySpawn | null> {
-  if (cachedPtySpawn) {
-    return cachedPtySpawn;
-  }
-  try {
-    const mod = await import('node-pty');
-    cachedPtySpawn = mod.spawn;
-    return cachedPtySpawn;
-  } catch (error) {
-    console.warn('[Docker][PTY] node-pty module not available:', error instanceof Error ? error.message : error);
-    return null;
-  }
-}
+// Bun.Terminal PTY is always available — no dynamic loading needed.
 
 export async function runComponentInline<I, O>(
   execute: (params: I, context: ExecutionContext) => Promise<O>,
@@ -480,51 +468,45 @@ async function runDockerWithPty<I, O>(
   context: ExecutionContext,
   timeoutSeconds: number,
 ): Promise<string> {
-  const spawnPty = await loadPtySpawn();
-  if (!spawnPty) {
-    context.logger.warn('[Docker][PTY] node-pty unavailable; falling back to standard IO');
-    // Remove -t flag before falling back to standard IO (stdin is not a TTY)
-    const argsWithoutTty = dockerArgs.filter(arg => arg !== '-t');
-    return runDockerWithStandardIO(argsWithoutTty, params, context, timeoutSeconds);
-  }
-
   const dockerPath = await resolveDockerPath(context);
   return new Promise<string>((resolve, reject) => {
     const emitChunk = createTerminalChunkEmitter(context, 'pty');
     let stdout = '';
 
-    let ptyProcess: ReturnType<typeof spawnPty>;
     try {
-      // Debug: Log the full docker command
       context.logger.info(`[Docker][PTY] Spawning: ${dockerPath} ${formatArgs(dockerArgs)}`);
+    } catch (_e) {
+      // formatArgs may fail if dockerArgs has unexpected types
+    }
 
-      ptyProcess = spawnPty(dockerPath, dockerArgs, {
-        name: 'xterm-color',
-        cols: 120,
-        rows: 40,
+    let settled = false;
+    const timeout = setTimeout(() => {
+      settled = true;
+      reject(new TimeoutError(`Docker container timed out after ${timeoutSeconds}s`, timeoutSeconds * 1000, {
+        details: { dockerArgs: formatArgs(dockerArgs) },
+      }));
+    }, timeoutSeconds * 1000);
+
+    let proc: ReturnType<typeof Bun.spawn>;
+    try {
+      proc = Bun.spawn([dockerPath, ...dockerArgs], {
+        terminal: {
+          cols: 120,
+          rows: 40,
+          data(_terminal, data) {
+            emitChunk(data);
+            stdout += data;
+          },
+        },
         env: process.env as Record<string, string>,
       });
     } catch (error) {
-      const diag = {
-        dockerPath,
-        pathEnv: process.env.PATH,
-        cwd: process.cwd(),
-        error: error instanceof Error ? {
-          message: error.message,
-          stack: error.stack,
-          name: error.name,
-          // @ts-ignore
-          code: error.code,
-        } : String(error)
-      };
-
-      console.log('diag', diag);
+      clearTimeout(timeout);
       context.logger.warn(
-        `[Docker][PTY] Failed to spawn PTY: ${error instanceof Error ? error.message : String(error)}. Diagnostic: ${JSON.stringify(diag)}`,
+        `[Docker][PTY] Failed to spawn PTY: ${error instanceof Error ? error.message : String(error)}`,
       );
       context.logger.warn('[Docker][PTY] Falling back to standard IO due to PTY spawn failure');
 
-      // Remove -t flag and restore -i flag for standard IO (it was removed for PTY mode)
       const argsForStandardIO = dockerArgs.filter((arg) => arg !== '-t');
       if (!argsForStandardIO.includes('-i')) {
         argsForStandardIO.splice(2, 0, '-i');
@@ -533,29 +515,15 @@ async function runDockerWithPty<I, O>(
       return;
     }
 
-
-
-    const timeout = setTimeout(() => {
-      ptyProcess.kill();
-      reject(new TimeoutError(`Docker container timed out after ${timeoutSeconds}s`, timeoutSeconds * 1000, {
-        details: { dockerArgs: formatArgs(dockerArgs) },
-      }));
-    }, timeoutSeconds * 1000);
-
-    // NEVER write JSON to stdin in PTY mode - it pollutes the terminal output
-    // Components should use environment variables or command-line arguments instead
-
-    ptyProcess.onData((data) => {
-      emitChunk(data);
-      stdout += data; // Capture for fallback
-    });
-
-    ptyProcess.onExit(({ exitCode }) => {
+    proc.exited.then((exitCode) => {
       clearTimeout(timeout);
+      if (settled) return;
+
+      try { proc.terminal?.close(); } catch (_e) { /* ignore */ }
+
       if (exitCode !== 0) {
         context.logger.error(`[Docker][PTY] Exited with code ${exitCode}`);
 
-        // Emit error to UI
         context.emitProgress({
           message: `Docker container failed with exit code ${exitCode}`,
           level: 'error',

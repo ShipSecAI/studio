@@ -33,7 +33,7 @@
     "lint:worker": "bun --cwd=worker run lint",
     "lint:fix": "bun run lint:frontend --fix && bun run lint:backend --fix && bun run lint:worker --fix",
     "prepare": "husky",
-    "postinstall": "bash ./scripts/ensure-node-pty.sh"
+    "postinstall": "husky"
   },
   "devDependencies": {
     "@ai-sdk/mcp": "^1.0.13",

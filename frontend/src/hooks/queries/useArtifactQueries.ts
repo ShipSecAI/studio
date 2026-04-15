@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ArtifactMetadata } from '@shipsec/shared';
-import type { operations } from '../../../../packages/backend-client/src/client';
+import type { operations } from '@shipsec/backend-client';
 import { api } from '@/services/api';
 import { queryKeys } from '@/lib/queryKeys';
 import { terminalStaleTime } from '@/hooks/queries/useRunQueries';
