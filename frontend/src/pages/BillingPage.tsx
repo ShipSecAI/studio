@@ -1,29 +1,12 @@
-// @ts-nocheck
-import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, DollarSign, Zap, Workflow, Clock } from 'lucide-react';
-import { api } from '@/services/api';
 import { cn } from '@/lib/utils';
+import { useBillingUsage } from '@/hooks/queries/useBillingQueries';
+import type { components } from '../../../../packages/backend-client/src/client';
 
-interface BillingUsage {
-  organizationId: string;
-  subscriptionTier: string;
-  plan: { id: string; displayName: string; priceUsdCents: number };
-  period: { start: string; end: string };
-  workflowRuns: { used: number; limit: number; remaining: number };
-  ai: {
-    spentUsd: number;
-    budgetUsd: number;
-    remainingUsd: number;
-  };
-  limits: {
-    maxConcurrentRuns: number;
-    maxWorkflows: number;
-    analyticsRetentionDays: number;
-  };
-}
+type BillingUsage = components['schemas']['BillingUsageResponseDto'];
 
 function formatLimit(value: number): string {
   if (value === -1) return 'Unlimited';
@@ -48,21 +31,9 @@ function getProgressColor(percentage: number): string {
 }
 
 export function BillingPage() {
-  const [usage, setUsage] = useState<BillingUsage | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: usage, isPending, error } = useBillingUsage();
 
-  useEffect(() => {
-    api.billing
-      .getUsage()
-      .then(setUsage)
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : 'Failed to load billing data'),
-      )
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
+  if (isPending) {
     return (
       <div className="flex-1 bg-background">
         <div className="container mx-auto py-8 px-4 max-w-4xl">
@@ -82,13 +53,17 @@ export function BillingPage() {
         <div className="container mx-auto py-8 px-4 max-w-4xl">
           <h1 className="text-2xl font-semibold mb-8">Billing & Usage</h1>
           <div className="rounded-md bg-destructive/10 p-4 text-destructive">
-            {error || 'Failed to load billing data'}
+            {error?.message || 'Failed to load billing data'}
           </div>
         </div>
       </div>
     );
   }
 
+  return <BillingContent usage={usage} />;
+}
+
+function BillingContent({ usage }: { usage: BillingUsage }) {
   const workflowPct = getUsagePercentage(usage.workflowRuns.used, usage.workflowRuns.limit);
   const aiPct = getUsagePercentage(usage.ai.spentUsd, usage.ai.budgetUsd);
   const isUnlimitedRuns = usage.workflowRuns.limit === -1;
