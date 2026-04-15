@@ -30,6 +30,8 @@ import { registerAssetTools } from './tools/asset.tools';
 import { registerConnectionTools } from './tools/connection.tools';
 import { ReportTemplatesService } from '../report-templates/report-templates.service';
 import { registerReportTemplateTools } from './tools/report-template.tools';
+import { ConfigService } from '@nestjs/config';
+import { registerCloudGraphTools } from './tools/cloud-graph.tools';
 
 @Injectable()
 export class StudioMcpService {
@@ -50,6 +52,7 @@ export class StudioMcpService {
     @Optional() private readonly asmService?: AsmService,
     @Optional() private readonly integrationsService?: IntegrationsService,
     @Optional() private readonly reportTemplatesService?: ReportTemplatesService,
+    @Optional() private readonly configService?: ConfigService,
   ) {}
 
   /**
@@ -105,5 +108,8 @@ export class StudioMcpService {
     registerAssetTools(server, auth, deps);
     registerConnectionTools(server, auth, deps);
     registerReportTemplateTools(server, auth, deps);
+    if (this.configService) {
+      registerCloudGraphTools(server, auth, { configService: this.configService });
+    }
   }
 }

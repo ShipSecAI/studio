@@ -28,6 +28,7 @@ export type PermissionPath =
   | 'analytics.query'
   | 'assets.list'
   | 'assets.read'
+  | 'cloud-graph.query'
   | 'report-templates.read'
   | 'report-templates.write';
 
