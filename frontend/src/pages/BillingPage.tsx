@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertCircle, DollarSign, Zap, Workflow, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBillingUsage } from '@/hooks/queries/useBillingQueries';
-import type { components } from '../../../../packages/backend-client/src/client';
+import type { components } from '@shipsec/backend-client';
 
 type BillingUsage = components['schemas']['BillingUsageResponseDto'];
 
