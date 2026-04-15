@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -33,6 +33,13 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  useAnalyticsSettings,
+  useStorageUsage,
+  useUpdateAnalyticsSettings,
+  usePurgeAnalyticsData,
+} from '@/hooks/queries/useAnalyticsSettingsQueries';
+import type { SubscriptionTier } from './AnalyticsSettingsPage.types';
 
 // Retention period options in days
 const RETENTION_PERIODS = [
@@ -45,15 +52,13 @@ const RETENTION_PERIODS = [
   { value: '365', label: '365 days (1 year)', days: 365 },
 ];
 
-// Subscription tier limits
-const TIER_LIMITS = {
+// Subscription tier limits (must match backend TIER_LIMITS)
+const TIER_LIMITS: Record<SubscriptionTier, { name: string; maxRetentionDays: number }> = {
   free: { name: 'Free', maxRetentionDays: 30 },
   pro: { name: 'Pro', maxRetentionDays: 90 },
   team: { name: 'Team', maxRetentionDays: 90 },
   enterprise: { name: 'Enterprise', maxRetentionDays: 365 },
 };
-
-type SubscriptionTier = keyof typeof TIER_LIMITS;
 
 export function AnalyticsSettingsPage() {
   const roles = useAuthStore((state) => state.roles);
@@ -61,30 +66,29 @@ export function AnalyticsSettingsPage() {
   const isReadOnly = !canManageSettings;
   const { toast } = useToast();
 
-  // Mock data - will be replaced with actual API calls in US-013
-  const [isLoading] = useState(false);
-  const [currentTier] = useState<SubscriptionTier>('free');
-  const [retentionPeriod, setRetentionPeriod] = useState('30');
-  const [savedRetentionPeriod, setSavedRetentionPeriod] = useState('30');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [storageUsage] = useState<{ used: number; total: number } | null>(null);
+  const { data: settings, isPending: settingsLoading } = useAnalyticsSettings();
+  const { data: storageUsage } = useStorageUsage();
+  const updateSettings = useUpdateAnalyticsSettings();
+  const purgeData = usePurgeAnalyticsData();
+
+  const currentTier: SubscriptionTier = (settings?.subscriptionTier as SubscriptionTier) ?? 'free';
+  const tierInfo = TIER_LIMITS[currentTier];
+  const maxAllowedRetention = tierInfo.maxRetentionDays;
+
+  const [retentionPeriod, setRetentionPeriod] = useState<string | null>(null);
   const [showRetentionConfirm, setShowRetentionConfirm] = useState(false);
   const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
 
-  const tierInfo = TIER_LIMITS[currentTier];
-  const maxAllowedRetention = tierInfo.maxRetentionDays;
-  const isDirty = retentionPeriod !== savedRetentionPeriod;
-  const isReducingRetention = parseInt(retentionPeriod) < parseInt(savedRetentionPeriod);
+  // Derive the effective retention from local state or server state
+  const savedRetentionPeriod = String(settings?.analyticsRetentionDays ?? 30);
+  const effectiveRetentionPeriod = retentionPeriod ?? savedRetentionPeriod;
+  const isDirty = effectiveRetentionPeriod !== savedRetentionPeriod;
+  const isReducingRetention = parseInt(effectiveRetentionPeriod) < parseInt(savedRetentionPeriod);
 
   // Filter retention periods based on tier limit
   const availableRetentionPeriods = RETENTION_PERIODS.filter(
     (period) => period.days <= maxAllowedRetention,
   );
-
-  useEffect(() => {
-    // TODO: US-013 will implement API call to fetch current settings
-    // fetchSettings().catch(console.error);
-  }, []);
 
   const handleSave = async () => {
     if (isReadOnly || !isDirty) return;
@@ -98,13 +102,11 @@ export function AnalyticsSettingsPage() {
   };
 
   const performSave = async () => {
-    setIsSubmitting(true);
-
     try {
-      // TODO: US-013 will implement API call to save settings
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      setSavedRetentionPeriod(retentionPeriod);
+      await updateSettings.mutateAsync({
+        analyticsRetentionDays: parseInt(effectiveRetentionPeriod),
+      });
+      setRetentionPeriod(null);
       toast({
         title: 'Settings saved',
         description: 'Analytics retention period updated successfully.',
@@ -116,18 +118,12 @@ export function AnalyticsSettingsPage() {
         description: err instanceof Error ? err.message : 'An unexpected error occurred.',
         variant: 'destructive',
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   const handlePurge = async () => {
-    setIsSubmitting(true);
-
     try {
-      // TODO: US-013 will implement API call to purge data
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
+      await purgeData.mutateAsync();
       toast({
         title: 'Data purged',
         description: 'All analytics data has been permanently deleted.',
@@ -139,12 +135,10 @@ export function AnalyticsSettingsPage() {
         description: err instanceof Error ? err.message : 'An unexpected error occurred.',
         variant: 'destructive',
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
-  if (isLoading) {
+  if (settingsLoading) {
     return (
       <div className="flex-1 bg-background">
         <div className="container mx-auto py-4 md:py-8 px-3 md:px-6 max-w-5xl">
@@ -227,7 +221,7 @@ export function AnalyticsSettingsPage() {
                   Retention Period
                 </Label>
                 <Select
-                  value={retentionPeriod}
+                  value={effectiveRetentionPeriod}
                   onValueChange={setRetentionPeriod}
                   disabled={isReadOnly}
                 >
@@ -243,17 +237,17 @@ export function AnalyticsSettingsPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-muted-foreground mt-1.5">
-                  Data older than {retentionPeriod} days is automatically deleted.
+                  Data older than {effectiveRetentionPeriod} days is automatically deleted.
                 </p>
               </div>
 
               <Button
                 onClick={handleSave}
-                disabled={isReadOnly || isSubmitting || !isDirty}
+                disabled={isReadOnly || updateSettings.isPending || !isDirty}
                 size="sm"
                 className="w-full"
               >
-                {isSubmitting ? 'Saving...' : 'Save Settings'}
+                {updateSettings.isPending ? 'Saving...' : 'Save Settings'}
               </Button>
             </div>
           </div>
@@ -270,12 +264,19 @@ export function AnalyticsSettingsPage() {
               </div>
             </div>
 
-            {storageUsage ? (
+            {storageUsage && storageUsage.analyticsEnabled && storageUsage.documentCount > 0 ? (
               <div className="space-y-3">
-                <Progress value={(storageUsage.used / storageUsage.total) * 100} className="h-2" />
+                <Progress
+                  value={Math.min((storageUsage.usedBytes / (1024 * 1024 * 1024)) * 100, 100)}
+                  className="h-2"
+                />
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">{storageUsage.used} MB used</span>
-                  <span className="font-medium">{storageUsage.total} MB total</span>
+                  <span className="text-muted-foreground">
+                    {(storageUsage.usedBytes / (1024 * 1024)).toFixed(1)} MB used
+                  </span>
+                  <span className="font-medium">
+                    {storageUsage.documentCount.toLocaleString()} documents
+                  </span>
                 </div>
               </div>
             ) : (
@@ -318,7 +319,7 @@ export function AnalyticsSettingsPage() {
                 size="sm"
                 className="text-xs flex-shrink-0"
                 onClick={() => setShowPurgeConfirm(true)}
-                disabled={isSubmitting}
+                disabled={purgeData.isPending}
               >
                 <Trash2 className="h-3 w-3 mr-1.5" />
                 Purge Data
@@ -334,9 +335,9 @@ export function AnalyticsSettingsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Reduce data retention?</AlertDialogTitle>
             <AlertDialogDescription>
-              Reducing the retention period from {savedRetentionPeriod} days to {retentionPeriod}{' '}
-              days will permanently delete analytics data older than {retentionPeriod} days. This
-              action cannot be undone.
+              Reducing the retention period from {savedRetentionPeriod} days to{' '}
+              {effectiveRetentionPeriod} days will permanently delete analytics data older than{' '}
+              {effectiveRetentionPeriod} days. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1509,6 +1509,26 @@ export class ShipSecApiClient {
       params: { path: { id } },
     });
   }
+
+  // ── Analytics Settings ─────────────────────────────────────────────────────
+
+  async getAnalyticsSettings() {
+    return this.client.GET('/api/v1/analytics/settings');
+  }
+
+  async updateAnalyticsSettings(
+    body: components['schemas']['UpdateAnalyticsSettingsDto'],
+  ) {
+    return this.client.PUT('/api/v1/analytics/settings', { body });
+  }
+
+  async getAnalyticsStorageUsage() {
+    return this.client.GET('/api/v1/analytics/storage-usage');
+  }
+
+  async purgeAnalyticsData() {
+    return this.client.DELETE('/api/v1/analytics/data');
+  }
 }
 
 /**

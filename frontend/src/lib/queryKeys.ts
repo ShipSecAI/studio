@@ -136,6 +136,10 @@ export const queryKeys = {
     usage: () => ['billing', getOrgScope(), 'usage'] as const,
     plans: () => ['billing', getOrgScope(), 'plans'] as const,
   },
+  analyticsSettings: {
+    settings: () => ['analyticsSettings', getOrgScope(), 'settings'] as const,
+    storageUsage: () => ['analyticsSettings', getOrgScope(), 'storageUsage'] as const,
+  },
   cloudInventory: {
     assets: (filters?: Record<string, unknown>) =>
       ['cloudInventory', getOrgScope(), 'assets', filters] as const,

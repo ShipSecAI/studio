@@ -1603,6 +1603,32 @@ export const api = {
       return response.data;
     },
   },
+
+  analyticsSettings: {
+    getSettings: async () => {
+      const response = await apiClient.getAnalyticsSettings();
+      if (response.error || !response.data) throw new Error('Failed to fetch analytics settings');
+      return response.data;
+    },
+
+    updateSettings: async (body: components['schemas']['UpdateAnalyticsSettingsDto']) => {
+      const response = await apiClient.updateAnalyticsSettings(body);
+      if (response.error || !response.data) throw new Error('Failed to update analytics settings');
+      return response.data;
+    },
+
+    getStorageUsage: async () => {
+      const response = await apiClient.getAnalyticsStorageUsage();
+      if (response.error || !response.data) throw new Error('Failed to fetch storage usage');
+      return response.data;
+    },
+
+    purgeData: async () => {
+      const response = await apiClient.purgeAnalyticsData();
+      if (response.error || !response.data) throw new Error('Failed to purge analytics data');
+      return response.data;
+    },
+  },
 };
 
 export async function getApiAuthHeaders(): Promise<Record<string, string>> {
