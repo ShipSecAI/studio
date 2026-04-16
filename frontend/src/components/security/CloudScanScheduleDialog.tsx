@@ -18,10 +18,11 @@ import { useCreateSchedule, useSchedules } from '@/hooks/queries/useScheduleQuer
 import { useToast } from '@/components/ui/use-toast';
 import { CadencePicker } from '@/components/schedules/CadencePicker';
 
-interface AwsConnection {
+interface CloudConnection {
   id: string;
   displayName?: string;
   provider: string;
+  credentialType?: string;
   config?: Record<string, unknown>;
   status?: string;
 }
@@ -53,7 +54,7 @@ interface CloudScanScheduleDialogProps {
   open: boolean;
   onClose: () => void;
   onBack?: () => void;
-  connection: AwsConnection | null;
+  connection: CloudConnection | null;
   preSelectedScanSlug?: string;
   onScheduled?: () => void;
 }
@@ -73,13 +74,17 @@ export function CloudScanScheduleDialog({
   const createSchedule = useCreateSchedule();
   const { data: existingSchedules = [] } = useSchedules();
 
-  const awsConnections = useMemo(
+  const cloudConnections = useMemo(
     () =>
-      orgConnections.filter((c: { provider: string }) => c.provider === 'aws') as AwsConnection[],
+      orgConnections.filter(
+        (c: { provider: string; credentialType?: string }) =>
+          (c.provider === 'aws' && c.credentialType === 'iam_role') ||
+          (c.provider === 'gcp' && c.credentialType === 'service_account'),
+      ) as CloudConnection[],
     [orgConnections],
   );
 
-  const [selectedConnection, setSelectedConnection] = useState<AwsConnection | null>(
+  const [selectedConnection, setSelectedConnection] = useState<CloudConnection | null>(
     preSelectedConnection,
   );
   const [connectionSearch, setConnectionSearch] = useState('');
@@ -109,22 +114,27 @@ export function CloudScanScheduleDialog({
   }, [open, preSelectedConnection, preSelectedScanSlug]);
 
   const filteredConnections = useMemo(() => {
-    if (!connectionSearch.trim()) return awsConnections;
+    if (!connectionSearch.trim()) return cloudConnections;
     const q = connectionSearch.toLowerCase();
-    return awsConnections.filter(
+    return cloudConnections.filter(
       (c) =>
         (c.displayName || '').toLowerCase().includes(q) ||
-        ((c.config as Record<string, string>)?.accountId || '').includes(q),
+        ((c.config as Record<string, string>)?.accountId || '').includes(q) ||
+        ((c.config as Record<string, string>)?.defaultProjectId || '').toLowerCase().includes(q),
     );
-  }, [awsConnections, connectionSearch]);
+  }, [cloudConnections, connectionSearch]);
 
   const resolvedScans = useMemo(() => {
-    return CLOUD_QUICK_SCANS.flatMap((scan) => {
+    const visibleScans =
+      selectedConnection?.provider === 'gcp'
+        ? CLOUD_QUICK_SCANS.filter((scan) => scan.slug === 'cloud-security-scan')
+        : CLOUD_QUICK_SCANS;
+    return visibleScans.flatMap((scan) => {
       const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
       if (!match) return [];
       return [{ ...scan, workflowId: match.id }];
     });
-  }, [systemWorkflows]);
+  }, [selectedConnection?.provider, systemWorkflows]);
 
   const selectedScanDef = resolvedScans.find((s) => s.slug === selectedScan);
   const isContainerScan = selectedScan === 'container-image-scan';
@@ -132,7 +142,9 @@ export function CloudScanScheduleDialog({
   // Auto-generate schedule name
   useEffect(() => {
     if (nameEdited) return;
-    const target = selectedConnection?.displayName || 'Cloud Account';
+    const target =
+      selectedConnection?.displayName ||
+      (selectedConnection?.provider === 'gcp' ? 'Google Cloud Account' : 'Cloud Account');
     const scanName = selectedScanDef?.name || 'Scan';
     const cadence = humanLabel.split(' at ')[0] || 'Custom';
     setScheduleName(`${target} — ${scanName} (${cadence})`);
@@ -260,7 +272,7 @@ export function CloudScanScheduleDialog({
                 ))
               ) : filteredConnections.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  {awsConnections.length === 0
+                  {cloudConnections.length === 0
                     ? 'No cloud accounts connected. Connect one first.'
                     : 'No matching accounts found'}
                 </p>
@@ -268,6 +280,11 @@ export function CloudScanScheduleDialog({
                 filteredConnections.map((conn) => {
                   const accountId = (conn.config as Record<string, string>)?.accountId;
                   const region = (conn.config as Record<string, string>)?.region;
+                  const projectId = (conn.config as Record<string, string>)?.defaultProjectId;
+                  const secondary =
+                    conn.provider === 'gcp'
+                      ? [projectId, 'Google Cloud'].filter(Boolean).join(' · ')
+                      : [accountId, region].filter(Boolean).join(' · ');
                   return (
                     <button
                       key={conn.id}
@@ -277,11 +294,10 @@ export function CloudScanScheduleDialog({
                       <Cloud className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <div className="min-w-0">
                         <div className="text-sm font-medium truncate">
-                          {conn.displayName || 'AWS Account'}
+                          {conn.displayName ||
+                            (conn.provider === 'gcp' ? 'Google Cloud Account' : 'AWS Account')}
                         </div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {[accountId, region].filter(Boolean).join(' · ')}
-                        </div>
+                        <div className="text-xs text-muted-foreground truncate">{secondary}</div>
                       </div>
                     </button>
                   );
@@ -334,6 +350,11 @@ export function CloudScanScheduleDialog({
                   onChange={(e) => setImageRef(e.target.value)}
                   className="text-sm"
                 />
+                {selectedConnection?.provider === 'gcp' && (
+                  <p className="text-xs text-muted-foreground">
+                    Container image scans are currently optimized for AWS ECR sources.
+                  </p>
+                )}
               </div>
             )}
 

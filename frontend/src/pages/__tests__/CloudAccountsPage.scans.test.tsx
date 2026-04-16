@@ -133,4 +133,17 @@ describe('CloudAccountsPage ScansTab URL state', () => {
     expect(nextSearch).toContain('scan=run-1');
     expect(screen.getByTestId('cloud-scan-detail-panel')).toBeInTheDocument();
   });
+
+  it('shows cloud-provider empty state copy when no connections are present', () => {
+    render(
+      <Wrapper initialEntries={['/cloud/scans']}>
+        <ScansTab connections={[]} />
+      </Wrapper>,
+    );
+
+    expect(screen.getByText('Connect a Cloud Account First')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Connect an AWS or Google Cloud account from the Accounts tab/i),
+    ).toBeInTheDocument();
+  });
 });

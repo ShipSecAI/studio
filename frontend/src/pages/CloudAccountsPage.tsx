@@ -5,6 +5,7 @@ import {
   useIntegrationCatalog,
   useIntegrationConnections,
   useValidateAwsConnection,
+  useValidateGcpConnection,
   useDisconnectIntegration,
 } from '@/hooks/queries/useIntegrationQueries';
 import { useWorkflowsSummary } from '@/hooks/queries/useWorkflowQueries';
@@ -31,6 +32,7 @@ import {
   CalendarClock,
   Zap,
   Webhook,
+  Cloud,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -70,6 +72,7 @@ import {
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AwsSetupForm } from '@/components/integrations/AwsSetupForm';
+import { GcpSetupForm } from '@/components/integrations/GcpSetupForm';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
 import type { WorkflowSummary } from '@/services/api';
@@ -92,14 +95,27 @@ import { CloudScanScheduleDialog } from '@/components/security/CloudScanSchedule
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface AwsConnection {
+interface CloudConnection {
   id: string;
   displayName?: string;
   provider: string;
+  credentialType?: string;
   config?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   status?: string;
   lastValidatedAt?: string;
   createdAt?: string;
+}
+
+function getProviderLabel(provider: string): string {
+  switch (provider) {
+    case 'gcp':
+      return 'Google Cloud';
+    case 'aws':
+      return 'AWS';
+    default:
+      return provider.toUpperCase();
+  }
 }
 
 // ── Empty State ──────────────────────────────────────────────────────────────
@@ -108,12 +124,12 @@ function CloudEmptyState({ onConnect }: { onConnect: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="rounded-full bg-muted p-4 mb-4">
-        <img src="/icons/aws.svg" alt="AWS" className="h-8 w-8" />
+        <Cloud className="h-8 w-8 text-muted-foreground" />
       </div>
-      <h3 className="text-lg font-semibold mb-2">Connect Your AWS Account</h3>
+      <h3 className="text-lg font-semibold mb-2">Connect a Cloud Account</h3>
       <p className="text-muted-foreground mb-6 max-w-md">
         Enable cloud security scanning, misconfiguration detection, and compliance auditing for your
-        AWS infrastructure.
+        infrastructure across AWS and Google Cloud.
       </p>
       <ul className="text-sm text-muted-foreground mb-6 space-y-1 text-left">
         <li className="flex items-center gap-2">
@@ -128,7 +144,7 @@ function CloudEmptyState({ onConnect }: { onConnect: () => void }) {
       </ul>
       <Button onClick={onConnect}>
         <Plus className="mr-2 h-4 w-4" />
-        Connect AWS Account
+        Connect Cloud Account
       </Button>
     </div>
   );
@@ -175,7 +191,7 @@ const CLOUD_QUICK_SCANS = [
 interface CloudScanPickerModalProps {
   open: boolean;
   onClose: () => void;
-  connection: AwsConnection | null;
+  connection: CloudConnection | null;
 }
 
 function CloudScanPickerModal({ open, onClose, connection }: CloudScanPickerModalProps) {
@@ -194,12 +210,16 @@ function CloudScanPickerModal({ open, onClose, connection }: CloudScanPickerModa
   }, [open, fetchSystemWorkflows]);
 
   const resolvedScans = useMemo(() => {
-    return CLOUD_QUICK_SCANS.flatMap((scan) => {
+    const visibleScans =
+      connection?.provider === 'gcp'
+        ? CLOUD_QUICK_SCANS.filter((scan) => scan.slug === 'cloud-security-scan')
+        : CLOUD_QUICK_SCANS;
+    return visibleScans.flatMap((scan) => {
       const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
       if (!match) return [];
       return [{ ...scan, workflowId: match.id }];
     });
-  }, [systemWorkflows]);
+  }, [connection?.provider, systemWorkflows]);
 
   const quickScanIds = useMemo(
     () => new Set(resolvedScans.map((s) => s.workflowId)),
@@ -264,9 +284,14 @@ function CloudScanPickerModal({ open, onClose, connection }: CloudScanPickerModa
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            Run Cloud Scan{connection ? ` — "${connection.displayName || 'AWS Account'}"` : ''}
+            Run Cloud Scan
+            {connection
+              ? ` — "${connection.displayName || `${getProviderLabel(connection.provider)} Account`}"`
+              : ''}
           </DialogTitle>
-          <DialogDescription>Select a scan type to run against this AWS account.</DialogDescription>
+          <DialogDescription>
+            Select a scan type to run against this cloud connection.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-2">
@@ -380,7 +405,7 @@ function AccountCard({
   onValidate,
   onDisconnect,
 }: {
-  connection: AwsConnection;
+  connection: CloudConnection;
   onScan: () => void;
   onSchedule: () => void;
   onValidate: () => void;
@@ -388,6 +413,12 @@ function AccountCard({
 }) {
   const region = (connection.config as Record<string, string>)?.region;
   const accountId = (connection.config as Record<string, string>)?.accountId;
+  const defaultProjectId = (connection.config as Record<string, string>)?.defaultProjectId;
+  const organizationId = (connection.config as Record<string, string>)?.organizationId;
+  const serviceAccountEmail =
+    (connection.metadata as Record<string, string>)?.serviceAccountEmail ||
+    (connection.config as Record<string, string>)?.serviceAccountEmail;
+  const isGcp = connection.provider === 'gcp';
   const isActive = connection.status === 'valid' || connection.status === 'active';
   const connectedAt = connection.createdAt ? formatRelativeTime(connection.createdAt) : 'Unknown';
   const lastValidated = connection.lastValidatedAt
@@ -396,22 +427,36 @@ function AccountCard({
 
   return (
     <Card
-      className={cn(
-        'overflow-hidden transition-shadow hover:shadow-md',
-        'border-orange-200 dark:border-orange-800',
-      )}
+      className={cn('overflow-hidden transition-shadow hover:shadow-md', {
+        'border-orange-200 dark:border-orange-800': !isGcp,
+        'border-sky-200 dark:border-sky-800': isGcp,
+      })}
     >
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-[#232F3E] p-1.5">
-              <img src="/icons/aws-dark.svg" alt="AWS" className="h-full w-full object-contain" />
-            </div>
+            {isGcp ? (
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+                <Cloud className="h-5 w-5" />
+              </div>
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-[#232F3E] p-1.5">
+                <img src="/icons/aws-dark.svg" alt="AWS" className="h-full w-full object-contain" />
+              </div>
+            )}
             <div>
-              <CardTitle className="text-base">{connection.displayName || 'AWS Account'}</CardTitle>
+              <CardTitle className="text-base">
+                {connection.displayName || `${getProviderLabel(connection.provider)} Account`}
+              </CardTitle>
               <CardDescription className="text-xs">
-                {accountId ? `Account ${accountId}` : 'AWS'}
-                {region ? ` · ${region}` : ''}
+                {isGcp
+                  ? defaultProjectId
+                    ? `Project ${defaultProjectId}`
+                    : 'Google Cloud'
+                  : accountId
+                    ? `Account ${accountId}`
+                    : 'AWS'}
+                {!isGcp && region ? ` · ${region}` : ''}
               </CardDescription>
             </div>
           </div>
@@ -446,16 +491,34 @@ function AccountCard({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-3 text-sm">
-          {accountId && (
+          {accountId && !isGcp && (
             <div>
               <span className="text-muted-foreground">Account ID</span>
               <p className="font-medium font-mono text-xs">{accountId}</p>
             </div>
           )}
-          {region && (
+          {region && !isGcp && (
             <div>
               <span className="text-muted-foreground">Region</span>
               <p className="font-medium">{region}</p>
+            </div>
+          )}
+          {defaultProjectId && isGcp && (
+            <div>
+              <span className="text-muted-foreground">Default project</span>
+              <p className="font-medium font-mono text-xs">{defaultProjectId}</p>
+            </div>
+          )}
+          {organizationId && isGcp && (
+            <div>
+              <span className="text-muted-foreground">Organization</span>
+              <p className="font-medium font-mono text-xs">{organizationId}</p>
+            </div>
+          )}
+          {serviceAccountEmail && isGcp && (
+            <div className="col-span-2">
+              <span className="text-muted-foreground">Service account</span>
+              <p className="font-medium text-xs truncate">{serviceAccountEmail}</p>
             </div>
           )}
           <div>
@@ -520,17 +583,19 @@ function AccountsTab({
   onScan,
   onSchedule,
 }: {
-  connections: AwsConnection[];
+  connections: CloudConnection[];
   onConnect: () => void;
-  onScan: (conn: AwsConnection) => void;
-  onSchedule: (conn: AwsConnection) => void;
+  onScan: (conn: CloudConnection) => void;
+  onSchedule: (conn: CloudConnection) => void;
 }) {
   const { toast } = useToast();
   const validateMutation = useValidateAwsConnection();
+  const validateGcpMutation = useValidateGcpConnection();
   const disconnectMutation = useDisconnectIntegration();
   const { data: catalog = [] } = useIntegrationCatalog();
 
   const awsEntry = useMemo(() => catalog.find((c) => c.id === 'aws'), [catalog]);
+  const gcpEntry = useMemo(() => catalog.find((c) => c.id === 'gcp'), [catalog]);
   const sections = awsEntry?.setupInstructions?.sections;
   const hasSetupSections = sections && sections.length > 0;
 
@@ -543,8 +608,9 @@ function AccountsTab({
     return <CloudEmptyState onConnect={onConnect} />;
   }
 
-  const handleValidate = (conn: AwsConnection) => {
-    validateMutation.mutate(
+  const handleValidate = (conn: CloudConnection) => {
+    const mutation = conn.provider === 'gcp' ? validateGcpMutation : validateMutation;
+    mutation.mutate(
       { id: conn.id },
       {
         onSuccess: () => toast({ title: `Validated "${conn.displayName}"` }),
@@ -558,7 +624,7 @@ function AccountsTab({
     );
   };
 
-  const handleDisconnect = (conn: AwsConnection) => {
+  const handleDisconnect = (conn: CloudConnection) => {
     disconnectMutation.mutate(
       { id: conn.id },
       {
@@ -673,6 +739,21 @@ function AccountsTab({
                 </CardContent>
               </Card>
             )}
+            {gcpEntry?.docsUrl && (
+              <Card>
+                <CardContent className="p-4">
+                  <a
+                    href={gcpEntry.docsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 text-sm font-medium text-primary hover:underline"
+                  >
+                    <ExternalLink className="h-4 w-4 flex-shrink-0" />
+                    View Google Cloud Documentation
+                  </a>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Connection stats */}
             <Card>
@@ -694,17 +775,19 @@ function AccountsTab({
             </Card>
 
             {/* Auth methods */}
-            {awsEntry?.authMethods && awsEntry.authMethods.length > 0 && (
+            {[awsEntry, gcpEntry].some((entry) => entry?.authMethods?.length) && (
               <Card>
                 <CardContent className="p-4 space-y-3">
                   <h3 className="text-sm font-semibold">Supported Auth Methods</h3>
                   <div className="flex flex-wrap gap-2">
-                    {awsEntry.authMethods.map((method: { type: string; label: string }) => (
-                      <Badge key={method.type} variant="secondary" className="gap-1.5">
-                        <Shield className="h-3 w-3" />
-                        {method.label}
-                      </Badge>
-                    ))}
+                    {[...(awsEntry?.authMethods ?? []), ...(gcpEntry?.authMethods ?? [])].map(
+                      (method: { type: string; label: string }) => (
+                        <Badge key={method.type} variant="secondary" className="gap-1.5">
+                          <Shield className="h-3 w-3" />
+                          {method.label}
+                        </Badge>
+                      ),
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -827,7 +910,7 @@ function FindingsBadges({ summary }: { summary?: SeveritySummary }) {
   );
 }
 
-export function ScansTab({ connections }: { connections: AwsConnection[] }) {
+export function ScansTab({ connections }: { connections: CloudConnection[] }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile();
   const fetchSystemWorkflows = useGitHubStore((s) => s.fetchSystemWorkflows);
@@ -976,16 +1059,16 @@ export function ScansTab({ connections }: { connections: AwsConnection[] }) {
 
   // ── Empty state hierarchy ──────────────────────────────────────────────────
 
-  // 1. No AWS connections
+  // 1. No cloud connections
   if (connections.length === 0 && !isPanelOpen) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <div className="rounded-full bg-muted p-4 mb-4">
-          <img src="/icons/aws.svg" alt="AWS" className="h-8 w-8" />
+          <Cloud className="h-8 w-8 text-muted-foreground" />
         </div>
-        <h3 className="text-lg font-semibold mb-2">Connect an AWS Account First</h3>
+        <h3 className="text-lg font-semibold mb-2">Connect a Cloud Account First</h3>
         <p className="text-muted-foreground max-w-md">
-          Connect an AWS account from the Accounts tab to start running cloud scans.
+          Connect an AWS or Google Cloud account from the Accounts tab to start running cloud scans.
         </p>
       </div>
     );
@@ -1423,16 +1506,41 @@ function ConnectAccountDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const [provider, setProvider] = useState<'aws' | 'gcp'>('aws');
+
+  useEffect(() => {
+    if (!open) {
+      setProvider('aws');
+    }
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl lg:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Connect AWS Account</DialogTitle>
+          <DialogTitle>Connect Cloud Account</DialogTitle>
           <DialogDescription>
-            Set up IAM role assumption to connect your AWS account securely.
+            Choose a provider and configure secure read-only access.
           </DialogDescription>
         </DialogHeader>
-        <AwsSetupForm onCreated={() => onOpenChange(false)} onCancel={() => onOpenChange(false)} />
+        <Tabs value={provider} onValueChange={(value) => setProvider(value as 'aws' | 'gcp')}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="aws">AWS</TabsTrigger>
+            <TabsTrigger value="gcp">Google Cloud</TabsTrigger>
+          </TabsList>
+          <TabsContent value="aws" className="pt-2">
+            <AwsSetupForm
+              onCreated={() => onOpenChange(false)}
+              onCancel={() => onOpenChange(false)}
+            />
+          </TabsContent>
+          <TabsContent value="gcp" className="pt-2">
+            <GcpSetupForm
+              onCreated={() => onOpenChange(false)}
+              onCancel={() => onOpenChange(false)}
+            />
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
@@ -1456,21 +1564,25 @@ export function CloudAccountsPage() {
   };
 
   const { data: orgConnections = [], isLoading } = useIntegrationConnections();
-  const awsConnections = useMemo(
+  const cloudConnections = useMemo(
     () =>
-      orgConnections.filter((c: { provider: string }) => c.provider === 'aws') as AwsConnection[],
+      orgConnections.filter(
+        (c: { provider: string; credentialType?: string }) =>
+          (c.provider === 'aws' && c.credentialType === 'iam_role') ||
+          (c.provider === 'gcp' && c.credentialType === 'service_account'),
+      ) as CloudConnection[],
     [orgConnections],
   );
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
-  const [scanTarget, setScanTarget] = useState<AwsConnection | null>(null);
-  const [scheduleTarget, setScheduleTarget] = useState<AwsConnection | null>(null);
+  const [scanTarget, setScanTarget] = useState<CloudConnection | null>(null);
+  const [scheduleTarget, setScheduleTarget] = useState<CloudConnection | null>(null);
 
   // Auto-open scan picker when navigated with scanConnectionId param
   const scanConnectionId = searchParams.get('scanConnectionId');
   useEffect(() => {
-    if (scanConnectionId && awsConnections.length > 0 && !scanTarget) {
-      const match = awsConnections.find((c) => c.id === scanConnectionId);
+    if (scanConnectionId && cloudConnections.length > 0 && !scanTarget) {
+      const match = cloudConnections.find((c) => c.id === scanConnectionId);
       if (match) {
         setScanTarget(match);
         // Clean up the URL param
@@ -1484,7 +1596,7 @@ export function CloudAccountsPage() {
         );
       }
     }
-  }, [scanConnectionId, awsConnections, scanTarget, setSearchParams]);
+  }, [scanConnectionId, cloudConnections, scanTarget, setSearchParams]);
 
   return (
     <div className="flex-1 overflow-auto">
@@ -1505,14 +1617,14 @@ export function CloudAccountsPage() {
             </TabsList>
             <TabsContent value="accounts" className="mt-6">
               <AccountsTab
-                connections={awsConnections}
+                connections={cloudConnections}
                 onConnect={() => setShowConnectDialog(true)}
                 onScan={(conn) => setScanTarget(conn)}
                 onSchedule={(conn) => setScheduleTarget(conn)}
               />
             </TabsContent>
             <TabsContent value="scans" className="mt-6">
-              <ScansTab connections={awsConnections} />
+              <ScansTab connections={cloudConnections} />
             </TabsContent>
           </Tabs>
         )}
