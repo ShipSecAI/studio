@@ -109,6 +109,55 @@ export const CreateAwsConnectionSchema = z.object({
 });
 export class CreateAwsConnectionDto extends createZodDto(CreateAwsConnectionSchema) {}
 
+// --- GCP connection DTOs ---
+
+export const CreateGcpConnectionSchema = z.object({
+  displayName: z.string().min(1).describe('Display name for this connection'),
+  targetServiceAccountEmail: z
+    .string()
+    .email()
+    .describe('GCP service account email that ShipSec should impersonate'),
+  defaultProjectId: z.string().min(1).optional().describe('Optional default GCP project ID'),
+  organizationId: z.string().min(1).optional().describe('Optional GCP organization ID'),
+});
+export class CreateGcpConnectionDto extends createZodDto(CreateGcpConnectionSchema) {}
+
+export const ValidateGcpResponseSchema = z.object({
+  valid: z.boolean(),
+  serviceAccountEmail: z.string().optional(),
+  serviceAccountUniqueId: z.string().optional(),
+  defaultProjectId: z.string().optional(),
+  organizationId: z.string().optional(),
+  projects: z
+    .array(
+      z.object({
+        id: z.string(),
+        displayName: z.string(),
+        type: z.enum(['project', 'folder', 'organization']),
+        parent: z.string().optional(),
+        state: z.string().optional(),
+      }),
+    )
+    .optional(),
+  error: z.string().optional(),
+});
+export class ValidateGcpResponseDto extends createZodDto(ValidateGcpResponseSchema) {}
+
+export const DiscoverGcpProjectsResponseSchema = z.object({
+  resources: z.array(
+    z.object({
+      id: z.string(),
+      displayName: z.string(),
+      type: z.enum(['project', 'folder', 'organization']),
+      parent: z.string().optional(),
+      state: z.string().optional(),
+    }),
+  ),
+});
+export class DiscoverGcpProjectsResponseDto extends createZodDto(
+  DiscoverGcpProjectsResponseSchema,
+) {}
+
 export const AwsSetupInfoResponseSchema = z.object({
   platformRoleArn: z.string(),
   externalId: z.string(),
@@ -117,6 +166,14 @@ export const AwsSetupInfoResponseSchema = z.object({
   externalIdDisplay: z.string().optional(),
 });
 export class AwsSetupInfoResponseDto extends createZodDto(AwsSetupInfoResponseSchema) {}
+
+export const GcpSetupInfoResponseSchema = z.object({
+  serviceAccountEmail: z.string(),
+  serviceAccountMember: z.string(),
+  sourceProjectId: z.string().optional(),
+  tokenCreatorRole: z.literal('roles/iam.serviceAccountTokenCreator'),
+});
+export class GcpSetupInfoResponseDto extends createZodDto(GcpSetupInfoResponseSchema) {}
 
 // --- Slack connection DTOs ---
 

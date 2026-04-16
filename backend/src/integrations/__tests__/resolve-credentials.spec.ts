@@ -7,6 +7,7 @@ import type { IntegrationsRepository } from '../integrations.repository';
 import type { TokenEncryptionService } from '../token.encryption';
 import type { AwsService } from '../aws.service';
 import type { SlackService } from '../slack.service';
+import type { GcpService } from '../gcp.service';
 import type { SetupTokenService } from '../setup-token.service';
 
 /* -------------------------------------------------------------------------- */
@@ -51,6 +52,33 @@ function createService(opts: {
       ),
   } as unknown as AwsService;
 
+  const gcpService = {
+    validateServiceAccount: mock(() =>
+      Promise.resolve({
+        serviceAccountEmail: 'svc@example.iam.gserviceaccount.com',
+        serviceAccountUniqueId: '1234567890',
+        defaultProjectId: 'project-1',
+        organizationId: 'org-1',
+        projects: [
+          {
+            id: 'project-1',
+            displayName: 'Project 1',
+            type: 'project',
+          },
+        ],
+      }),
+    ),
+    discoverProjects: mock(() =>
+      Promise.resolve([
+        {
+          id: 'project-1',
+          displayName: 'Project 1',
+          type: 'project',
+        },
+      ]),
+    ),
+  } as unknown as GcpService;
+
   const slackService = {} as SlackService;
   const setupTokenService = {} as SetupTokenService;
   const eventEmitter = new EventEmitter2();
@@ -60,6 +88,7 @@ function createService(opts: {
     repository,
     encryption,
     awsService,
+    gcpService,
     slackService,
     setupTokenService,
     eventEmitter,
@@ -223,6 +252,39 @@ describe('resolveConnectionCredentials', () => {
       });
       expect(result.accountId).toBe('123456789012');
       expect(result.region).toBe('us-east-1');
+    });
+
+    it('returns resolved credentials for gcp service accounts', async () => {
+      const service = createService({
+        findById: mock(() =>
+          Promise.resolve(
+            makeRecord({
+              provider: 'gcp',
+              credentialType: 'service_account',
+              metadata: {
+                defaultProjectId: 'project-1',
+                organizationId: 'org-1',
+                clientEmail: 'svc@example.iam.gserviceaccount.com',
+              },
+            }),
+          ),
+        ),
+        decrypt: mock(() =>
+          Promise.resolve('{"targetServiceAccountEmail":"svc@example.iam.gserviceaccount.com"}'),
+        ),
+      });
+
+      const result = await service.resolveConnectionCredentials('conn-1');
+
+      expect(result.credentialType).toBe('service_account');
+      expect(result.provider).toBe('gcp');
+      expect(result.accountId).toBe('org-1');
+      expect(result.data).toEqual({
+        targetServiceAccountEmail: 'svc@example.iam.gserviceaccount.com',
+        defaultProjectId: 'project-1',
+        organizationId: 'org-1',
+        clientEmail: 'svc@example.iam.gserviceaccount.com',
+      });
     });
   });
 });

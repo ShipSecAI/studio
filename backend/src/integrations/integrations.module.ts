@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { DatabaseModule } from '../database/database.module';
 import { AwsService } from './aws.service';
+import { GcpService } from './gcp.service';
 import { ForgeDiscoveryService } from './forge-discovery.service';
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationsRepository } from './integrations.repository';
@@ -22,6 +23,7 @@ import { SchedulesModule } from '../schedules/schedules.module';
     IntegrationsRepository,
     TokenEncryptionService,
     AwsService,
+    GcpService,
     SlackService,
     SetupTokenService,
     ForgeDiscoveryService,

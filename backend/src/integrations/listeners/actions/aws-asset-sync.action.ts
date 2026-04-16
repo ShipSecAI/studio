@@ -8,8 +8,8 @@ import { IndexInfraService } from '../../../schedules/index-infra.service';
 
 @Injectable()
 export class AwsAssetSyncAction implements IntegrationAutoAction, OnModuleInit {
-  readonly name = 'aws-asset-sync';
-  readonly providers = ['aws'];
+  readonly name = 'cloud-asset-sync';
+  readonly providers = ['aws', 'gcp'];
 
   private readonly logger = new Logger(AwsAssetSyncAction.name);
 
@@ -23,8 +23,9 @@ export class AwsAssetSyncAction implements IntegrationAutoAction, OnModuleInit {
   }
 
   async execute(event: IntegrationConnectedEvent): Promise<void> {
+    const providerLabel = formatProviderLabel(event.provider);
     this.logger.log(
-      `Triggering Index Infra workflow for AWS connection ${event.connectionId} (org=${event.organizationId})`,
+      `Triggering Index Infra workflow for ${providerLabel} connection ${event.connectionId} (org=${event.organizationId})`,
     );
 
     const auth: AuthContext = {
@@ -42,8 +43,21 @@ export class AwsAssetSyncAction implements IntegrationAutoAction, OnModuleInit {
       trigger: {
         type: 'api',
         sourceId: event.connectionId,
-        label: event.isReconnect ? 'AWS integration reconnected' : 'AWS integration connected',
+        label: event.isReconnect
+          ? `${providerLabel} integration reconnected`
+          : `${providerLabel} integration connected`,
       },
     });
+  }
+}
+
+function formatProviderLabel(provider: string): string {
+  switch (provider) {
+    case 'aws':
+      return 'AWS';
+    case 'gcp':
+      return 'GCP';
+    default:
+      return provider.toUpperCase();
   }
 }

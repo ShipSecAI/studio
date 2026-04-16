@@ -24,11 +24,12 @@ import { getCatalog, type IntegrationProviderDefinition } from './integration-ca
 import { IntegrationsRepository } from './integrations.repository';
 import { TokenEncryptionService } from './token.encryption';
 import { AwsService } from './aws.service';
+import { GcpService, type GcpValidationMetadata } from './gcp.service';
 import { SlackService } from './slack.service';
 import { SetupTokenService } from './setup-token.service';
 import { generateExternalId, formatExternalIdForDisplay } from './external-id-generator';
 import { ForgeDiscoveryService } from './forge-discovery.service';
-import type { CreateAwsConnectionDto } from './integrations.dto';
+import type { CreateAwsConnectionDto, CreateGcpConnectionDto } from './integrations.dto';
 import type { IntegrationTokenRecord } from '../database/schema';
 import type { AuthContext } from '../auth/types';
 import { DEFAULT_ORGANIZATION_ID } from '../auth/constants';
@@ -88,6 +89,33 @@ interface TokenRequestOptions {
   additionalParams?: Record<string, string>;
 }
 
+function extractGcpScopeIdentifiers(metadata: Record<string, unknown>): Set<string> {
+  const identifiers = new Set<string>();
+
+  for (const value of [metadata.organizationId, metadata.defaultProjectId]) {
+    if (typeof value === 'string' && value.trim()) {
+      identifiers.add(value.trim());
+    }
+  }
+
+  const discoveredResources = metadata.discoveredResources;
+  if (Array.isArray(discoveredResources)) {
+    for (const resource of discoveredResources) {
+      if (
+        resource &&
+        typeof resource === 'object' &&
+        'id' in resource &&
+        typeof resource.id === 'string' &&
+        resource.id.trim()
+      ) {
+        identifiers.add(resource.id.trim());
+      }
+    }
+  }
+
+  return identifiers;
+}
+
 interface ProviderCredentialOverride {
   provider: string;
   clientId: string;
@@ -105,6 +133,7 @@ export class IntegrationsService implements OnModuleInit {
     private readonly repository: IntegrationsRepository,
     private readonly encryption: TokenEncryptionService,
     private readonly awsService: AwsService,
+    private readonly gcpService: GcpService,
     private readonly slackService: SlackService,
     private readonly setupTokenService: SetupTokenService,
     private readonly eventEmitter: EventEmitter2,
@@ -510,6 +539,21 @@ export class IntegrationsService implements OnModuleInit {
     };
   }
 
+  getGcpSetupInfo(): {
+    serviceAccountEmail: string;
+    serviceAccountMember: string;
+    sourceProjectId?: string;
+    tokenCreatorRole: 'roles/iam.serviceAccountTokenCreator';
+  } {
+    const principal = this.gcpService.getImpersonationSourcePrincipal();
+    return {
+      serviceAccountEmail: principal.serviceAccountEmail,
+      serviceAccountMember: principal.serviceAccountMember,
+      sourceProjectId: principal.sourceProjectId,
+      tokenCreatorRole: 'roles/iam.serviceAccountTokenCreator',
+    };
+  }
+
   private async getOrCreateAwsExternalId(userId: string): Promise<string> {
     const existing = await this.repository.getUserAwsExternalId(userId);
     if (existing) {
@@ -614,6 +658,178 @@ export class IntegrationsService implements OnModuleInit {
     });
 
     return this.toConnection(record);
+  }
+
+  async createGcpConnection(
+    auth: AuthContext,
+    input: CreateGcpConnectionDto,
+  ): Promise<IntegrationConnection> {
+    const orgId = auth.organizationId!;
+    const userId = auth.userId!;
+
+    const validation = await this.gcpService.validateServiceAccount({
+      targetServiceAccountEmail: input.targetServiceAccountEmail,
+      defaultProjectId: input.defaultProjectId,
+      organizationId: input.organizationId,
+    });
+
+    const encryptedCreds = await this.encryption.encrypt(
+      JSON.stringify({
+        targetServiceAccountEmail: input.targetServiceAccountEmail.trim(),
+      }),
+    );
+    const metadata: GcpValidationMetadata = {
+      defaultProjectId: input.defaultProjectId?.trim() || validation.defaultProjectId || null,
+      organizationId: input.organizationId?.trim() || validation.organizationId || null,
+      clientEmail: validation.serviceAccountEmail,
+      targetServiceAccountEmail: validation.serviceAccountEmail,
+      serviceAccountUniqueId: validation.serviceAccountUniqueId ?? null,
+      discoveredResources: validation.projects,
+    };
+
+    await this.assertGcpScopeIsolation(orgId, metadata);
+
+    const existing = await this.repository.findConnectionByNaturalKey({
+      organizationId: orgId,
+      provider: 'gcp',
+      credentialType: 'service_account',
+      displayName: input.displayName,
+    });
+    const now = new Date();
+    const record = await this.repository.upsertConnection({
+      userId,
+      provider: 'gcp',
+      organizationId: orgId,
+      credentialType: 'service_account',
+      displayName: input.displayName,
+      scopes: [],
+      accessToken: encryptedCreds,
+      refreshToken: null,
+      tokenType: 'Bearer',
+      expiresAt: null,
+      metadata,
+    });
+
+    await this.repository.updateConnectionHealth(record.id, {
+      lastValidatedAt: now,
+      lastValidationStatus: 'valid',
+      lastValidationError: null,
+      metadata,
+    });
+
+    this.emitConnectionEvent({
+      connectionId: record.id,
+      provider: 'gcp',
+      credentialType: 'service_account',
+      organizationId: orgId,
+      userId,
+      isReconnect: Boolean(existing),
+    });
+
+    return this.toConnection({
+      ...record,
+      lastValidatedAt: now,
+      lastValidationStatus: 'valid',
+      lastValidationError: null,
+      metadata: this.redactConnectionMetadata({ ...record, metadata }),
+    });
+  }
+
+  async validateGcpConnection(connectionId: string): Promise<{
+    valid: boolean;
+    serviceAccountEmail?: string;
+    serviceAccountUniqueId?: string;
+    defaultProjectId?: string;
+    organizationId?: string;
+    projects?: {
+      id: string;
+      displayName: string;
+      type: 'project' | 'folder' | 'organization';
+      parent?: string;
+      state?: string;
+    }[];
+    error?: string;
+  }> {
+    const record = await this.repository.findById(connectionId);
+    if (!record) {
+      throw new NotFoundException(`Connection ${connectionId} was not found`);
+    }
+
+    const decrypted = await this.encryption.decrypt(record.accessToken as SecretEncryptionMaterial);
+    const metadata = this.coerceMetadata(record.metadata);
+
+    try {
+      const result = await this.gcpService.validateServiceAccount({
+        targetServiceAccountEmail:
+          this.parseGcpCredentialPayload(decrypted).targetServiceAccountEmail,
+        defaultProjectId:
+          typeof metadata.defaultProjectId === 'string' ? metadata.defaultProjectId : undefined,
+        organizationId:
+          typeof metadata.organizationId === 'string' ? metadata.organizationId : undefined,
+      });
+
+      await this.repository.updateConnectionHealth(connectionId, {
+        lastValidatedAt: new Date(),
+        lastValidationStatus: 'valid',
+        metadata: {
+          ...metadata,
+          clientEmail: result.serviceAccountEmail,
+          targetServiceAccountEmail: result.serviceAccountEmail,
+          serviceAccountUniqueId: result.serviceAccountUniqueId ?? null,
+          discoveredResources: result.projects,
+          defaultProjectId: result.defaultProjectId ?? metadata.defaultProjectId ?? null,
+          organizationId: result.organizationId ?? metadata.organizationId ?? null,
+        },
+      });
+
+      return {
+        valid: true,
+        serviceAccountEmail: result.serviceAccountEmail,
+        serviceAccountUniqueId: result.serviceAccountUniqueId,
+        defaultProjectId: result.defaultProjectId,
+        organizationId: result.organizationId,
+        projects: result.projects,
+      };
+    } catch (error: any) {
+      await this.repository.updateConnectionHealth(connectionId, {
+        lastValidatedAt: new Date(),
+        lastValidationStatus: 'invalid',
+        lastValidationError: error.message,
+        metadata,
+      });
+      return { valid: false, error: error.message };
+    }
+  }
+
+  async discoverGcpProjects(connectionId: string): Promise<{
+    resources: {
+      id: string;
+      displayName: string;
+      type: 'project' | 'folder' | 'organization';
+      parent?: string;
+      state?: string;
+    }[];
+  }> {
+    const record = await this.repository.findById(connectionId);
+    if (!record) {
+      throw new NotFoundException(`Connection ${connectionId} was not found`);
+    }
+
+    const decrypted = await this.encryption.decrypt(record.accessToken as SecretEncryptionMaterial);
+    const metadata = this.coerceMetadata(record.metadata);
+    const resources = await this.gcpService.discoverProjects({
+      targetServiceAccountEmail:
+        this.parseGcpCredentialPayload(decrypted).targetServiceAccountEmail,
+    });
+    await this.repository.updateConnectionHealth(connectionId, {
+      lastValidatedAt: new Date(),
+      lastValidationStatus: 'valid',
+      metadata: {
+        ...metadata,
+        discoveredResources: resources,
+      },
+    });
+    return { resources };
   }
 
   async listAwsAccountIdentifiersForOrg(organizationId: string): Promise<string[]> {
@@ -895,6 +1111,35 @@ export class IntegrationsService implements OnModuleInit {
       } catch (error: any) {
         result = { valid: false, error: error.message };
       }
+    } else if (record.provider === 'gcp' && record.credentialType === 'service_account') {
+      const metadata = this.coerceMetadata(record.metadata);
+      try {
+        const validation = await this.gcpService.validateServiceAccount({
+          targetServiceAccountEmail:
+            this.parseGcpCredentialPayload(decrypted).targetServiceAccountEmail,
+          defaultProjectId:
+            typeof metadata.defaultProjectId === 'string' ? metadata.defaultProjectId : undefined,
+          organizationId:
+            typeof metadata.organizationId === 'string' ? metadata.organizationId : undefined,
+        });
+        result = { valid: true };
+        await this.repository.updateConnectionHealth(connectionId, {
+          lastValidatedAt: new Date(),
+          lastValidationStatus: 'valid',
+          metadata: {
+            ...metadata,
+            clientEmail: validation.serviceAccountEmail,
+            targetServiceAccountEmail: validation.serviceAccountEmail,
+            serviceAccountUniqueId: validation.serviceAccountUniqueId ?? null,
+            discoveredResources: validation.projects,
+            defaultProjectId: validation.defaultProjectId ?? metadata.defaultProjectId ?? null,
+            organizationId: validation.organizationId ?? metadata.organizationId ?? null,
+          },
+        });
+        return result;
+      } catch (error: any) {
+        result = { valid: false, error: error.message };
+      }
     } else if (record.provider === 'slack' && record.credentialType === 'webhook') {
       const creds = JSON.parse(decrypted);
       const webhookResult = await this.slackService.testWebhook(creds.webhookUrl);
@@ -1028,6 +1273,32 @@ export class IntegrationsService implements OnModuleInit {
           accessToken,
           tokenType: hydratedRecord.tokenType ?? 'Bearer',
         };
+        break;
+      }
+      case 'service_account': {
+        if (record.provider !== 'gcp') {
+          throw new BadRequestException(`Unsupported service account provider: ${record.provider}`);
+        }
+
+        const metadata = this.coerceMetadata(record.metadata);
+        const parsed = this.parseGcpCredentialPayload(decrypted);
+        data = {
+          targetServiceAccountEmail: parsed.targetServiceAccountEmail,
+          defaultProjectId:
+            typeof metadata.defaultProjectId === 'string' ? metadata.defaultProjectId : undefined,
+          organizationId:
+            typeof metadata.organizationId === 'string' ? metadata.organizationId : undefined,
+          clientEmail:
+            typeof metadata.clientEmail === 'string'
+              ? metadata.clientEmail
+              : parsed.targetServiceAccountEmail,
+        };
+        accountId =
+          typeof metadata.organizationId === 'string'
+            ? metadata.organizationId
+            : typeof metadata.defaultProjectId === 'string'
+              ? metadata.defaultProjectId
+              : parsed.targetServiceAccountEmail;
         break;
       }
       case 'iam_role': {
@@ -1267,7 +1538,7 @@ export class IntegrationsService implements OnModuleInit {
       status: isExpired ? 'expired' : 'active',
       supportsRefresh: provider?.supportsRefresh ?? false,
       hasRefreshToken: Boolean(record.refreshToken),
-      metadata: this.coerceMetadata(record.metadata),
+      metadata: this.redactConnectionMetadata(record),
     };
   }
 
@@ -1276,6 +1547,95 @@ export class IntegrationsService implements OnModuleInit {
       return {};
     }
     return metadata as Record<string, unknown>;
+  }
+
+  private parseGcpCredentialPayload(decrypted: string): {
+    targetServiceAccountEmail: string;
+  } {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(decrypted);
+    } catch {
+      throw new UnprocessableEntityException(
+        'Failed to parse GCP impersonation credentials. Stored payload is malformed.',
+      );
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new UnprocessableEntityException('Stored GCP credentials payload is malformed.');
+    }
+
+    const record = parsed as Record<string, unknown>;
+    const targetFromImpersonation =
+      typeof record.targetServiceAccountEmail === 'string'
+        ? record.targetServiceAccountEmail.trim()
+        : '';
+    const targetFromLegacyServiceAccount =
+      typeof record.client_email === 'string' ? record.client_email.trim() : '';
+
+    const targetServiceAccountEmail = targetFromImpersonation || targetFromLegacyServiceAccount;
+    if (!targetServiceAccountEmail) {
+      throw new UnprocessableEntityException(
+        'Stored GCP credentials are missing targetServiceAccountEmail/client_email.',
+      );
+    }
+
+    return {
+      targetServiceAccountEmail,
+    };
+  }
+
+  private async assertGcpScopeIsolation(
+    organizationId: string,
+    metadata: GcpValidationMetadata,
+  ): Promise<void> {
+    const requestedIdentifiers = extractGcpScopeIdentifiers(this.coerceMetadata(metadata));
+    if (requestedIdentifiers.size === 0) {
+      return;
+    }
+
+    const existingConnections = await this.repository.listGcpServiceAccountConnections();
+    for (const connection of existingConnections) {
+      if (connection.organizationId === organizationId) {
+        continue;
+      }
+
+      const existingIdentifiers = extractGcpScopeIdentifiers(
+        this.coerceMetadata(connection.metadata),
+      );
+      const conflictingIdentifier = Array.from(requestedIdentifiers).find((identifier) =>
+        existingIdentifiers.has(identifier),
+      );
+      if (!conflictingIdentifier) {
+        continue;
+      }
+
+      throw new BadRequestException(
+        `Google Cloud scope ${conflictingIdentifier} is already connected to another organization. Shared-scope isolation is not supported in the current Cartography model.`,
+      );
+    }
+  }
+
+  private redactConnectionMetadata(record: IntegrationTokenRecord): Record<string, unknown> {
+    const metadata = this.coerceMetadata(record.metadata);
+    if (record.provider !== 'gcp' || record.credentialType !== 'service_account') {
+      return metadata;
+    }
+
+    const redacted: Record<string, unknown> = {};
+    for (const key of [
+      'defaultProjectId',
+      'organizationId',
+      'clientEmail',
+      'targetServiceAccountEmail',
+      'serviceAccountUniqueId',
+    ]) {
+      const value = metadata[key];
+      if (typeof value === 'string' && value.trim()) {
+        redacted[key] = value;
+      }
+    }
+    return redacted;
   }
 
   /* ------------------------------------------------------------------ */

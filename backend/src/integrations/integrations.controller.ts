@@ -27,9 +27,12 @@ import {
   ConnectionCredentialsResponseDto,
   ConnectionTokenResponseDto,
   CreateAwsConnectionDto,
+  CreateGcpConnectionDto,
   CreateSlackWebhookConnectionDto,
   CreateJiraForgeConnectionDto,
+  DiscoverGcpProjectsResponseDto,
   DiscoverOrgAccountsResponseDto,
+  GcpSetupInfoResponseDto,
   IntegrationCatalogEntryDto,
   type IntegrationCatalogEntry,
   IntegrationConnectionResponse,
@@ -39,6 +42,7 @@ import {
   StartOAuthDto,
   UpsertProviderConfigDto,
   ValidateAwsResponseDto,
+  ValidateGcpResponseDto,
 } from './integrations.dto';
 import { IntegrationsService } from './integrations.service';
 
@@ -55,7 +59,7 @@ export class IntegrationsController {
 
   @Get('catalog')
   @ApiOkResponse({
-    description: 'Returns the integration provider catalog (AWS + Slack)',
+    description: 'Returns the integration provider catalog (AWS, GCP, Slack, Jira)',
     type: IntegrationCatalogEntryDto,
     isArray: true,
   })
@@ -259,9 +263,10 @@ export class IntegrationsController {
     @Param('id') id: string,
     @Headers('x-organization-id') orgId?: string,
   ): Promise<ConnectionTokenResponseDto> {
-    if (orgId) {
-      await this.integrations.assertConnectionBelongsToOrg(id, orgId);
+    if (!orgId) {
+      throw new BadRequestException('Organization context required');
     }
+    await this.integrations.assertConnectionBelongsToOrg(id, orgId);
     const token = await this.integrations.getConnectionToken(id);
     return {
       provider: token.provider,
@@ -284,9 +289,10 @@ export class IntegrationsController {
     @Param('id') id: string,
     @Headers('x-organization-id') orgId?: string,
   ): Promise<ConnectionCredentialsResponseDto> {
-    if (orgId) {
-      await this.integrations.assertConnectionBelongsToOrg(id, orgId);
+    if (!orgId) {
+      throw new BadRequestException('Organization context required');
     }
+    await this.integrations.assertConnectionBelongsToOrg(id, orgId);
     const result = await this.integrations.resolveConnectionCredentials(id);
     return {
       credentialType: result.credentialType,
@@ -309,6 +315,15 @@ export class IntegrationsController {
       throw new BadRequestException('Authentication with user and organization context required');
     }
     return this.integrations.getAwsSetupInfo(auth.organizationId, auth.userId);
+  }
+
+  @Get('gcp/setup-info')
+  @ApiOkResponse({ type: GcpSetupInfoResponseDto })
+  async getGcpSetupInfo(@CurrentAuth() auth: AuthContext | null): Promise<GcpSetupInfoResponseDto> {
+    if (!auth?.organizationId || !auth?.userId) {
+      throw new BadRequestException('Authentication with user and organization context required');
+    }
+    return this.integrations.getGcpSetupInfo();
   }
 
   @Post('aws/connections')
@@ -342,6 +357,49 @@ export class IntegrationsController {
       valid: result.valid,
       error: result.error,
     };
+  }
+
+  @Post('gcp/connections')
+  @ApiOkResponse({ type: IntegrationConnectionResponse })
+  async createGcpConnection(
+    @CurrentAuth() auth: AuthContext | null,
+    @Body() body: CreateGcpConnectionDto,
+  ): Promise<IntegrationConnectionResponse> {
+    if (!auth?.userId || !auth?.organizationId) {
+      throw new BadRequestException('Authentication with organization context required');
+    }
+
+    const connection = await this.integrations.createGcpConnection(auth, body);
+    return this.toConnectionResponse(connection);
+  }
+
+  @Post('gcp/connections/:id/validate')
+  @ApiOkResponse({ type: ValidateGcpResponseDto })
+  async validateGcpConnection(
+    @Param('id') id: string,
+    @CurrentAuth() auth: AuthContext | null,
+  ): Promise<ValidateGcpResponseDto> {
+    if (!auth?.userId || !auth?.organizationId) {
+      throw new BadRequestException('Authentication with organization context required');
+    }
+
+    await this.integrations.assertConnectionOwnership(id, auth);
+    return this.integrations.validateGcpConnection(id);
+  }
+
+  @Post('gcp/connections/:id/discover-projects')
+  @ApiOkResponse({ type: DiscoverGcpProjectsResponseDto })
+  async discoverGcpProjects(
+    @Param('id') id: string,
+    @CurrentAuth() auth: AuthContext | null,
+  ): Promise<DiscoverGcpProjectsResponseDto> {
+    if (!auth?.userId || !auth?.organizationId) {
+      throw new BadRequestException('Authentication with organization context required');
+    }
+
+    await this.integrations.assertConnectionOwnership(id, auth);
+    const result = await this.integrations.discoverGcpProjects(id);
+    return { resources: result.resources };
   }
 
   @Post('aws/connections/:id/discover-org')

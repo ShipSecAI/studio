@@ -105,6 +105,27 @@ export class IntegrationsRepository {
     return record;
   }
 
+  async findConnectionByNaturalKey(input: {
+    organizationId: string;
+    provider: string;
+    credentialType: string;
+    displayName: string;
+  }): Promise<IntegrationTokenRecord | undefined> {
+    const [record] = await this.db
+      .select()
+      .from(integrationTokens)
+      .where(
+        and(
+          eq(integrationTokens.organizationId, input.organizationId),
+          eq(integrationTokens.provider, input.provider),
+          eq(integrationTokens.credentialType, input.credentialType),
+          eq(integrationTokens.displayName, input.displayName),
+        ),
+      )
+      .limit(1);
+    return record;
+  }
+
   async listConnectionsByOrg(
     organizationId: string,
     provider?: string,
@@ -305,6 +326,18 @@ export class IntegrationsRepository {
       )
       .limit(1);
     return record;
+  }
+
+  async listGcpServiceAccountConnections(): Promise<IntegrationTokenRecord[]> {
+    return this.db
+      .select()
+      .from(integrationTokens)
+      .where(
+        and(
+          eq(integrationTokens.provider, 'gcp'),
+          eq(integrationTokens.credentialType, 'service_account'),
+        ),
+      );
   }
 
   async createOAuthState(payload: {
