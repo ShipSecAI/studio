@@ -1,4 +1,3 @@
-import { isSpilledDataMarker } from '@shipsec/component-sdk';
 import type { ConnectionType } from '@shipsec/component-sdk/types';
 import type { WorkflowAction } from './types';
 
@@ -17,6 +16,22 @@ interface CoercionResult {
   ok: boolean;
   value?: unknown;
   error?: string;
+}
+
+interface SpilledDataMarker {
+  __spilled__: true;
+  storageRef: string;
+  originalSize: number;
+  [key: string]: unknown;
+}
+
+function isSpilledDataMarker(data: unknown): data is SpilledDataMarker {
+  return (
+    data !== null &&
+    typeof data === 'object' &&
+    (data as Record<string, unknown>)['__spilled__'] === true &&
+    typeof (data as Record<string, unknown>)['storageRef'] === 'string'
+  );
 }
 
 function coercePrimitiveValue(type: string | undefined, value: unknown): CoercionResult {
