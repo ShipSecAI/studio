@@ -26,6 +26,18 @@ Connect AWS accounts for cloud security posture management (CSPM), compliance sc
 - Cross-Account via STS AssumeRole
 - AWS Organizations (multi-account discovery)
 
+### Google Cloud Platform (GCP)
+
+Connect GCP projects and organizations for cloud inventory indexing and security analysis.
+
+**Auth Method:** Service Account Impersonation (no customer key upload to ShipSec)
+
+**Supported Scenarios:**
+
+- Single GCP Project
+- Multiple projects under one org/folder hierarchy
+- Organization-level inventory (when org permissions are granted)
+
 ### Slack
 
 Send workflow notifications, security alerts, and scan results to Slack channels.
@@ -76,6 +88,72 @@ The resolver will call the backend's internal credentials endpoint, assume the I
 
 ---
 
+## Setting Up GCP (Customer Organization Admin)
+
+This section is for external customer org admins (for example, Headout).
+
+### Step 1: Create a target ingest service account
+
+Create a dedicated service account in your GCP project (example name: `shipsec-cartography-ingest`).
+
+```bash
+gcloud iam service-accounts create shipsec-cartography-ingest \
+  --project=<YOUR_PROJECT_ID> \
+  --display-name="ShipSec Cartography Ingest"
+```
+
+Service account email format:
+
+`shipsec-cartography-ingest@<YOUR_PROJECT_ID>.iam.gserviceaccount.com`
+
+### Step 2: Grant read permissions on your project/org
+
+At minimum, grant project-level read permissions used by discovery:
+
+```bash
+gcloud projects add-iam-policy-binding <YOUR_PROJECT_ID> \
+  --member="serviceAccount:shipsec-cartography-ingest@<YOUR_PROJECT_ID>.iam.gserviceaccount.com" \
+  --role="roles/serviceusage.serviceUsageViewer"
+```
+
+Add your standard read roles (custom or predefined) for resources you want indexed (Compute, Storage, GKE, IAM service accounts, Cloud SQL, Secret Manager, DNS, etc).
+
+For broader/complete coverage, include permissions for:
+
+- Artifact Registry reads (`artifactregistry.locations.list`, etc)
+- BigQuery connection reads (`bigquery.connections.list`, etc)
+
+If organization-level IAM role inventory is needed, grant org-level visibility/role viewing to the same target service account (for example `roles/resourcemanager.organizationViewer` / `roles/browser` and `roles/iam.organizationRoleViewer`).
+
+### Step 3: Grant ShipSec principal impersonation on the target SA
+
+ShipSec provides you a source principal (service account) email. Grant it:
+
+- `roles/iam.serviceAccountTokenCreator` on your target ingest service account
+
+```bash
+gcloud iam service-accounts add-iam-policy-binding \
+  shipsec-cartography-ingest@<YOUR_PROJECT_ID>.iam.gserviceaccount.com \
+  --project=<YOUR_PROJECT_ID> \
+  --member="serviceAccount:<SHIPSEC_SOURCE_PRINCIPAL_EMAIL>" \
+  --role="roles/iam.serviceAccountTokenCreator"
+```
+
+### Step 4: Add the GCP connection in ShipSec
+
+In **Settings → Integrations → GCP**:
+
+1. Enter a display name
+2. Enter the target service account email
+3. (Optional) set default project ID / organization ID
+4. Click **Connect**
+
+ShipSec validates impersonation and discovers available GCP scope resources.
+
+> **Security model:** Customers do **not** upload JSON keys to ShipSec for this flow. ShipSec uses service-account impersonation against the customer-owned target service account.
+
+---
+
 ## Setting Up Slack
 
 ### Incoming Webhook
@@ -121,6 +199,14 @@ The resolver will call the backend's internal credentials endpoint, assume the I
 | POST   | `/integrations/aws/connections`                  | Create an AWS IAM role connection                   |
 | POST   | `/integrations/aws/connections/:id/validate`     | Validate an AWS connection's credentials            |
 | POST   | `/integrations/aws/connections/:id/discover-org` | Discover AWS Organization member accounts           |
+
+### GCP Endpoints
+
+| Method | Endpoint                                              | Description                                   |
+| ------ | ----------------------------------------------------- | --------------------------------------------- |
+| POST   | `/integrations/gcp/connections`                       | Create a GCP impersonation-based connection   |
+| POST   | `/integrations/gcp/connections/:id/validate`          | Validate a GCP connection                     |
+| POST   | `/integrations/gcp/connections/:id/discover-projects` | Discover projects/folders/org scope resources |
 
 ### Slack Endpoints
 
