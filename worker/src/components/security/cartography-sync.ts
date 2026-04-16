@@ -14,16 +14,22 @@ import {
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 import type { ExecutionContext } from '@shipsec/component-sdk';
 import type { LogEventInput } from '@shipsec/component-sdk';
-import { awsCredentialSchema } from '@shipsec/contracts';
+import { awsCredentialSchema, gcpCredentialSchema } from '@shipsec/contracts';
 import { createIsolatedVolume, type IsolatedVolume } from '../../utils/isolated-volume';
+import { readFile } from 'node:fs/promises';
 
-const cartographyModules = ['aws', 'github', 'kubernetes'] as const;
+const cartographyModules = ['aws', 'gcp', 'github', 'kubernetes'] as const;
 const CARTOGRAPHY_IMAGE =
   process.env.CARTOGRAPHY_IMAGE?.trim() || 'ghcr.io/cartography-cncf/cartography:latest';
 export const DEFAULT_NEO4J_URI = process.env.NEO4J_URI?.trim() || 'bolt://localhost:7687';
 export const DEFAULT_NEO4J_DATABASE = process.env.NEO4J_DATABASE?.trim() || 'neo4j';
 export const DEFAULT_AWS_REQUESTED_SYNCS =
   'iam,s3,dynamodb,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc,ec2:volumes,ec2:load_balancer,ec2:load_balancer_v2,ecr,ecs,eks,elasticache,lambda_function,kms,rds,route53,apigateway,secretsmanager,sqs,acm:certificate,cloudfront,cloudtrail,guardduty,sns';
+export const GCP_APPLICATION_CREDENTIALS_DIR = '/var/cartography/.config/gcloud';
+export const GCP_APPLICATION_CREDENTIALS_FILENAME = 'application_default_credentials.json';
+export const GCP_APPLICATION_CREDENTIALS_PATH = `${GCP_APPLICATION_CREDENTIALS_DIR}/${GCP_APPLICATION_CREDENTIALS_FILENAME}`;
+export const GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV =
+  'SHIPSEC_GCP_IMPERSONATION_SOURCE_CREDENTIALS_JSON';
 
 type CartographyModule = (typeof cartographyModules)[number];
 
@@ -35,11 +41,19 @@ export interface CartographyAwsProfileInput {
   sessionToken?: string;
 }
 
+export interface CartographyGcpCredentialInput {
+  targetServiceAccountEmail: string;
+  defaultProjectId?: string;
+  organizationId?: string;
+  clientEmail?: string;
+}
+
 export interface CartographyRunnerInput {
   selectedModules: CartographyModule[];
   neo4jUri: string;
   neo4jDatabase: string;
   awsProfiles?: CartographyAwsProfileInput[];
+  gcpCredential?: CartographyGcpCredentialInput;
   awsRegions?: string[];
   awsRequestedSyncs?: string;
   awsBestEffort?: boolean;
@@ -55,6 +69,15 @@ const inputSchema = inputs({
       description:
         'Structured credentials object (`{ accessKeyId, secretAccessKey, sessionToken? }`). Required when syncing AWS.',
       connectionType: { kind: 'contract', name: 'core.credential.aws', credential: true },
+    },
+  ),
+  gcpCredential: port(
+    gcpCredentialSchema().optional().describe('GCP impersonation credentials for GCP sync.'),
+    {
+      label: 'GCP Credentials',
+      description:
+        'Structured GCP credential object (`{ targetServiceAccountEmail, defaultProjectId?, organizationId?, clientEmail? }`). Required when syncing GCP.',
+      connectionType: { kind: 'contract', name: 'core.credential.gcp', credential: true },
     },
   ),
   githubToken: port(
@@ -84,6 +107,7 @@ const parameterSchema = parameters({
       description: 'Choose which infrastructure providers to sync into the graph.',
       options: [
         { value: 'aws', label: 'AWS' },
+        { value: 'gcp', label: 'GCP' },
         { value: 'github', label: 'GitHub' },
         { value: 'kubernetes', label: 'Kubernetes' },
       ],
@@ -214,6 +238,45 @@ async function writeAwsProfileVolume(
   });
 }
 
+async function writeGcpCredentialVolume(
+  volume: IsolatedVolume,
+  credential: CartographyGcpCredentialInput,
+): Promise<void> {
+  let sourceCredentialJson = process.env[GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV]?.trim();
+  if (!sourceCredentialJson && process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()) {
+    sourceCredentialJson = await readFile(
+      process.env.GOOGLE_APPLICATION_CREDENTIALS.trim(),
+      'utf8',
+    );
+  }
+  if (!sourceCredentialJson) {
+    throw new Error(
+      `Missing ${GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV} (or GOOGLE_APPLICATION_CREDENTIALS). Cartography GCP impersonation requires ShipSec source credentials in worker environment.`,
+    );
+  }
+
+  let sourceCredentials: unknown;
+  try {
+    sourceCredentials = JSON.parse(sourceCredentialJson);
+  } catch {
+    throw new Error(`${GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV} is not valid JSON.`);
+  }
+
+  const impersonationCredentials = {
+    type: 'impersonated_service_account',
+    source_credentials: sourceCredentials,
+    service_account_impersonation_url:
+      `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/` +
+      `${encodeURIComponent(credential.targetServiceAccountEmail)}:generateAccessToken`,
+    delegates: [],
+    scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+  };
+
+  await volume.initialize({
+    [GCP_APPLICATION_CREDENTIALS_FILENAME]: JSON.stringify(impersonationCredentials),
+  });
+}
+
 export async function runCartographyWithRunner(
   input: CartographyRunnerInput,
   context: ExecutionContext,
@@ -226,6 +289,10 @@ export async function runCartographyWithRunner(
   const awsCredsVolume =
     awsProfiles.length > 0
       ? createIsolatedVolume(tenantId, `${context.runId}-cartography-aws`)
+      : null;
+  const gcpCredsVolume =
+    input.gcpCredential && selectedModules.includes('gcp')
+      ? createIsolatedVolume(tenantId, `${context.runId}-cartography-gcp`)
       : null;
 
   const command: string[] = [
@@ -275,6 +342,13 @@ export async function runCartographyWithRunner(
   if (input.githubConfigBase64) {
     env.GITHUB_CONFIG = input.githubConfigBase64;
   }
+  if (selectedModules.includes('gcp') && input.gcpCredential) {
+    env.GOOGLE_APPLICATION_CREDENTIALS = GCP_APPLICATION_CREDENTIALS_PATH;
+    if (input.gcpCredential.defaultProjectId) {
+      env.GOOGLE_CLOUD_PROJECT = input.gcpCredential.defaultProjectId;
+      env.CLOUDSDK_CORE_PROJECT = input.gcpCredential.defaultProjectId;
+    }
+  }
 
   const dockerRunner: DockerRunnerConfig = {
     kind: 'docker',
@@ -322,6 +396,13 @@ export async function runCartographyWithRunner(
         awsCredsVolume.getVolumeConfig('/var/cartography/.aws', true),
       ];
     }
+    if (gcpCredsVolume && input.gcpCredential) {
+      await writeGcpCredentialVolume(gcpCredsVolume, input.gcpCredential);
+      dockerRunner.volumes = [
+        ...(dockerRunner.volumes ?? []),
+        gcpCredsVolume.getVolumeConfig(GCP_APPLICATION_CREDENTIALS_DIR, true),
+      ];
+    }
 
     const runnerResult = await runComponentWithRunner<Record<string, never>, unknown>(
       dockerRunner,
@@ -363,6 +444,10 @@ export async function runCartographyWithRunner(
       await awsCredsVolume.cleanup();
       context.logger.info('[CartographySync] Cleaned up AWS creds volume');
     }
+    if (gcpCredsVolume) {
+      await gcpCredsVolume.cleanup();
+      context.logger.info('[CartographySync] Cleaned up GCP creds volume');
+    }
   }
 }
 
@@ -381,12 +466,12 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Run Cartography (CNCF) to discover and map infrastructure assets into a Neo4j graph database. Supports AWS, GitHub, and Kubernetes providers. The resulting graph can be queried via the Cartography Query component for blast radius analysis, asset inventory, and security posture assessment.',
+  docs: 'Run Cartography (CNCF) to discover and map infrastructure assets into a Neo4j graph database. Supports AWS, GCP, GitHub, and Kubernetes providers. The resulting graph can be queried via the Cartography Query component for blast radius analysis, asset inventory, and security posture assessment.',
   toolProvider: {
     kind: 'component',
     name: 'cartography_sync',
     description:
-      'Sync infrastructure assets into the Cartography Neo4j graph (AWS, GitHub, Kubernetes).',
+      'Sync infrastructure assets into the Cartography Neo4j graph (AWS, GCP, GitHub, Kubernetes).',
   },
   ui: {
     slug: 'cartography-sync',
@@ -394,7 +479,7 @@ const definition = defineComponent({
     type: 'scan',
     category: 'security',
     description:
-      'Discover and map infrastructure assets from AWS, GitHub, and Kubernetes into a Neo4j graph using Cartography (CNCF). Enables blast radius analysis, asset inventory, and security posture queries.',
+      'Discover and map infrastructure assets from AWS, GCP, GitHub, and Kubernetes into a Neo4j graph using Cartography (CNCF). Enables blast radius analysis, asset inventory, and security posture queries.',
     documentation: 'https://github.com/cartography-cncf/cartography',
     icon: 'Network',
     author: {
@@ -405,6 +490,7 @@ const definition = defineComponent({
     deprecated: false,
     examples: [
       'Schedule a nightly Cartography sync to keep the infrastructure graph up to date with your AWS accounts.',
+      'Run a GCP Cartography sync using impersonation credentials to ingest projects and related cloud assets.',
       'Sync GitHub organization data to map repository access, team memberships, and CI/CD action dependencies.',
     ],
   },
@@ -431,6 +517,11 @@ const definition = defineComponent({
     if (selectedModules.includes('aws') && !parsedInputs.credentials) {
       throw new Error(
         'AWS module requires credentials. Connect an AWS Credentials component to the credentials input.',
+      );
+    }
+    if (selectedModules.includes('gcp') && !parsedInputs.gcpCredential) {
+      throw new Error(
+        'GCP module requires impersonation credentials. Connect a GCP Credentials component to the gcpCredential input.',
       );
     }
     if (selectedModules.includes('github') && !parsedInputs.githubToken) {
@@ -513,6 +604,7 @@ const definition = defineComponent({
             : undefined,
           awsRequestedSyncs: DEFAULT_AWS_REQUESTED_SYNCS,
           awsBestEffort: parsedParams.awsBestEffort,
+          gcpCredential: parsedInputs.gcpCredential,
           githubConfigBase64,
           image: CARTOGRAPHY_IMAGE,
         },

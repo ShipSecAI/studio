@@ -18,7 +18,7 @@ const outputSchema = outputs({
   }),
   integrationId: port(z.string().uuid(), {
     label: 'Integration ID',
-    description: 'AWS IAM role connection used to anchor the sync run.',
+    description: 'Cloud connection used to anchor the sync run.',
   }),
   status: port(z.enum(['success']), {
     label: 'Status',
@@ -42,7 +42,7 @@ const outputSchema = outputs({
   }),
   coveredRegions: port(z.array(z.string()), {
     label: 'Covered Regions',
-    description: 'AWS regions included in the sync.',
+    description: 'Cloud regions included in the sync.',
   }),
   durationMs: port(z.number(), {
     label: 'Duration (ms)',
@@ -54,7 +54,7 @@ const inputSchema = inputs({
   integrationId: port(z.string().uuid().optional(), {
     label: 'Integration ID',
     description:
-      'Optional AWS IAM role connection ID. If omitted, the backend uses the first available AWS IAM role connection for the org.',
+      'Optional cloud connection ID. If omitted, the backend uses the first compatible cloud connection for the org.',
     connectionType: { kind: 'primitive', name: 'text' },
   }),
 });
@@ -82,7 +82,8 @@ const definition = defineComponent({
   toolProvider: {
     kind: 'component',
     name: 'asset_inventory_sync',
-    description: 'Sync AWS infrastructure inventory into Cartography and update cloud sync status.',
+    description:
+      'Sync cloud infrastructure inventory into Cartography and update cloud sync status.',
   },
   resolvePorts() {
     return {
@@ -95,7 +96,7 @@ const definition = defineComponent({
     version: '1.0.0',
     type: 'process',
     category: 'security',
-    description: 'Run Cartography-backed AWS inventory indexing and persist cloud sync history.',
+    description: 'Run Cartography-backed cloud inventory indexing and persist cloud sync history.',
     icon: 'Database',
     author: {
       name: 'ShipSecAI',

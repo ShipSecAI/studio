@@ -2716,7 +2716,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Returns the integration provider catalog (AWS + Slack)",
+            "description": "Returns the integration provider catalog (AWS, GCP, Slack, Jira)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3194,6 +3194,97 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ValidateAwsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/gcp/connections": {
+      "post": {
+        "operationId": "IntegrationsController_createGcpConnection",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGcpConnectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationConnectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/gcp/connections/{id}/validate": {
+      "post": {
+        "operationId": "IntegrationsController_validateGcpConnection",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidateGcpResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/gcp/connections/{id}/discover-projects": {
+      "post": {
+        "operationId": "IntegrationsController_discoverGcpProjects",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverGcpProjectsResponseDto"
                 }
               }
             }
@@ -15037,6 +15128,136 @@
         },
         "required": [
           "valid"
+        ]
+      },
+      "CreateGcpConnectionDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Display name for this connection"
+          },
+          "targetServiceAccountEmail": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "description": "GCP service account email that ShipSec should impersonate"
+          },
+          "defaultProjectId": {
+            "description": "Optional default GCP project ID",
+            "type": "string",
+            "minLength": 1
+          },
+          "organizationId": {
+            "description": "Optional GCP organization ID",
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "displayName",
+          "targetServiceAccountEmail"
+        ]
+      },
+      "ValidateGcpResponseDto": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "serviceAccountEmail": {
+            "type": "string"
+          },
+          "serviceAccountUniqueId": {
+            "type": "string"
+          },
+          "defaultProjectId": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "project",
+                    "folder",
+                    "organization"
+                  ]
+                },
+                "parent": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "displayName",
+                "type"
+              ]
+            }
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "valid"
+        ]
+      },
+      "DiscoverGcpProjectsResponseDto": {
+        "type": "object",
+        "properties": {
+          "resources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "project",
+                    "folder",
+                    "organization"
+                  ]
+                },
+                "parent": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "displayName",
+                "type"
+              ]
+            }
+          }
+        },
+        "required": [
+          "resources"
         ]
       },
       "DiscoverOrgAccountsResponseDto": {

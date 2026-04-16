@@ -110,6 +110,83 @@ export const AWS_PROVIDER: IntegrationProviderDefinition = {
   },
 };
 
+export const GCP_PROVIDER: IntegrationProviderDefinition = {
+  id: 'gcp',
+  name: 'Google Cloud',
+  description:
+    'Connect GCP projects and organizations for Cartography inventory indexing and GCP cloud security assessments.',
+  docsUrl:
+    'https://cloud.google.com/iam/docs/service-account-permissions#service_account_token_creator_role',
+  iconUrl: '/icons/gcp.svg',
+  supportsMultipleConnections: true,
+  authMethods: [
+    {
+      type: 'service_account',
+      label: 'Service Account Impersonation',
+      description:
+        'Configure a target service account for ShipSec to impersonate. No customer service-account key JSON is uploaded.',
+      fields: [
+        {
+          id: 'displayName',
+          label: 'Display Name',
+          type: 'text',
+          required: true,
+          placeholder: 'Production GCP',
+        },
+        {
+          id: 'defaultProjectId',
+          label: 'Default Project ID',
+          type: 'text',
+          required: false,
+          placeholder: 'my-project-123',
+          helpText: 'Optional default project scope for indexing and UI defaults.',
+        },
+        {
+          id: 'organizationId',
+          label: 'Organization ID',
+          type: 'text',
+          required: false,
+          placeholder: '123456789012',
+          helpText: 'Optional GCP organization identifier if this credential spans an org.',
+        },
+        {
+          id: 'targetServiceAccountEmail',
+          label: 'Target Service Account Email',
+          type: 'text',
+          required: true,
+          placeholder: 'shipsec-reader@my-project.iam.gserviceaccount.com',
+          helpText:
+            'ShipSec will impersonate this service account at runtime. Grant ShipSec token-creator on this account.',
+        },
+      ],
+    },
+  ],
+  setupInstructions: {
+    sections: [
+      {
+        title: 'Single Project',
+        authMethodType: 'service_account',
+        scenario: 'single-project',
+        steps: [
+          'Click "Add Connection" and follow the wizard to create a service account in your GCP project with `Viewer`, `Security Admin`, and `Service Usage Viewer` roles.',
+          'Run the `gcloud iam service-accounts add-iam-policy-binding` command shown in step 2 to let ShipSec impersonate the account. No keys are shared.',
+          'Paste the service account email into the form and click "Create Connection". Then use "Validate" to confirm access.',
+        ],
+      },
+      {
+        title: 'Organization',
+        authMethodType: 'service_account',
+        scenario: 'organization',
+        steps: [
+          'Create a service account in your GCP org with `Viewer`, `Security Admin`, `Service Usage Viewer`, `Organization Viewer`, and `Role Viewer` roles.',
+          'Run the impersonation grant command shown in the setup wizard to let ShipSec impersonate the account.',
+          'Add a connection with the service account email and your Organization ID, then use "Discover Projects" to list all accessible projects.',
+        ],
+      },
+    ],
+  },
+};
+
 export const SLACK_PROVIDER: IntegrationProviderDefinition = {
   id: 'slack',
   name: 'Slack',
@@ -214,5 +291,5 @@ export const JIRA_PROVIDER: IntegrationProviderDefinition = {
 };
 
 export function getCatalog(): IntegrationProviderDefinition[] {
-  return [AWS_PROVIDER, SLACK_PROVIDER, JIRA_PROVIDER];
+  return [AWS_PROVIDER, GCP_PROVIDER, SLACK_PROVIDER, JIRA_PROVIDER];
 }

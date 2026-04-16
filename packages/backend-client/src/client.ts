@@ -1284,6 +1284,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/gcp/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_createGcpConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/gcp/connections/{id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_validateGcpConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/gcp/connections/{id}/discover-projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_discoverGcpProjects"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/integrations/aws/connections/{id}/discover-org": {
         parameters: {
             query?: never;
@@ -5155,6 +5203,45 @@ export interface components {
             arn?: string;
             error?: string;
         };
+        CreateGcpConnectionDto: {
+            /** @description Display name for this connection */
+            displayName: string;
+            /**
+             * Format: email
+             * @description GCP service account email that ShipSec should impersonate
+             */
+            targetServiceAccountEmail: string;
+            /** @description Optional default GCP project ID */
+            defaultProjectId?: string;
+            /** @description Optional GCP organization ID */
+            organizationId?: string;
+        };
+        ValidateGcpResponseDto: {
+            valid: boolean;
+            serviceAccountEmail?: string;
+            serviceAccountUniqueId?: string;
+            defaultProjectId?: string;
+            organizationId?: string;
+            projects?: {
+                id: string;
+                displayName: string;
+                /** @enum {string} */
+                type: "project" | "folder" | "organization";
+                parent?: string;
+                state?: string;
+            }[];
+            error?: string;
+        };
+        DiscoverGcpProjectsResponseDto: {
+            resources: {
+                id: string;
+                displayName: string;
+                /** @enum {string} */
+                type: "project" | "folder" | "organization";
+                parent?: string;
+                state?: string;
+            }[];
+        };
         DiscoverOrgAccountsResponseDto: {
             accounts: {
                 id: string;
@@ -8882,7 +8969,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Returns the integration provider catalog (AWS + Slack) */
+            /** @description Returns the integration provider catalog (AWS, GCP, Slack, Jira) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -9215,6 +9302,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ValidateAwsResponseDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_createGcpConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGcpConnectionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationConnectionResponse"];
+                };
+            };
+        };
+    };
+    IntegrationsController_validateGcpConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidateGcpResponseDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_discoverGcpProjects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoverGcpProjectsResponseDto"];
                 };
             };
         };

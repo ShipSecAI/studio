@@ -16,6 +16,20 @@ export const awsCredentialSchema = () =>
 
 export type AwsCredential = z.infer<ReturnType<typeof awsCredentialSchema>>;
 
+export const gcpCredentialContractName = 'core.credential.gcp';
+export const gcpCredentialSchema = () =>
+  withPortMeta(
+    z.object({
+      targetServiceAccountEmail: z.string().email(),
+      defaultProjectId: z.string().optional(),
+      organizationId: z.string().optional(),
+      clientEmail: z.string().optional(),
+    }),
+    { schemaName: gcpCredentialContractName, isCredential: true },
+  );
+
+export type GcpCredential = z.infer<ReturnType<typeof gcpCredentialSchema>>;
+
 export const llmProviderContractName = 'core.ai.llm-provider.v1';
 
 const buildLlmProviderSchema = () =>

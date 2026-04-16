@@ -30,6 +30,7 @@
     "@clerk/types": "^4.101.13",
     "@clickhouse/client": "^1.18.2",
     "@grpc/grpc-js": "^1.14.3",
+    "google-auth-library": "^10.5.0",
     "@nest-lab/throttler-storage-redis": "^1.1.0",
     "@nestjs/common": "^10.4.22",
     "@nestjs/config": "^3.3.0",
