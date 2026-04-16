@@ -15,7 +15,7 @@ const PROVIDER_META: Record<
   {
     name: string;
     description: string;
-    logo: string;
+    logo?: string;
     route: string;
     gradient: string;
     borderAccent: string;
@@ -24,6 +24,8 @@ const PROVIDER_META: Record<
     hoverGradient: string;
     darkBg?: boolean;
     darkLogo?: string;
+    monogram?: string;
+    monogramClassName?: string;
   }
 > = {
   aws: {
@@ -38,6 +40,18 @@ const PROVIDER_META: Record<
     badgeClass: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
     category: 'Cloud Security',
     hoverGradient: 'linear-gradient(to right, #f97316, #f59e0b)',
+  },
+  gcp: {
+    name: 'Google Cloud',
+    description:
+      'Connect GCP projects and organizations for cloud inventory indexing, graph mapping, and posture visibility.',
+    logo: '/icons/gcp.svg',
+    route: '/integrations/gcp',
+    gradient: 'from-sky-50 to-blue-50 dark:from-sky-950/20 dark:to-blue-950/20',
+    borderAccent: 'hover:border-sky-300 dark:hover:border-sky-700',
+    badgeClass: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+    category: 'Cloud Security',
+    hoverGradient: 'linear-gradient(to right, #4285F4, #34A853)',
   },
   slack: {
     name: 'Slack',
@@ -54,7 +68,7 @@ const PROVIDER_META: Record<
 };
 
 /** IDs of the providers shown on this page, in display order. */
-const VISIBLE_PROVIDERS = ['aws', 'slack'] as const;
+const VISIBLE_PROVIDERS = ['aws', 'gcp', 'slack'] as const;
 
 export function IntegrationsManager() {
   const navigate = useNavigate();
@@ -143,7 +157,7 @@ export function IntegrationsManager() {
                   <div className="p-6 flex flex-col h-full">
                     {/* Logo + Info */}
                     <div className="flex items-start gap-4 flex-1">
-                      {meta.gradient ? (
+                      {meta.logo && meta.gradient ? (
                         <div
                           className={cn(
                             'flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br flex-shrink-0 p-2.5',
@@ -156,7 +170,7 @@ export function IntegrationsManager() {
                             className="h-full w-full object-contain"
                           />
                         </div>
-                      ) : meta.darkBg ? (
+                      ) : meta.logo && meta.darkBg ? (
                         <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#232F3E] flex-shrink-0 p-2.5">
                           <img
                             src={meta.darkLogo ?? meta.logo}
@@ -164,12 +178,22 @@ export function IntegrationsManager() {
                             className="h-full w-full object-contain"
                           />
                         </div>
-                      ) : (
+                      ) : meta.logo ? (
                         <img
                           src={meta.logo}
                           alt={entry?.name ?? providerId}
                           className="h-14 w-14 rounded-xl object-cover flex-shrink-0"
                         />
+                      ) : (
+                        <div
+                          className={cn(
+                            'flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br flex-shrink-0 text-sm font-semibold tracking-wide',
+                            meta.gradient,
+                            meta.monogramClassName,
+                          )}
+                        >
+                          {meta.monogram ?? (entry?.name ?? providerId).slice(0, 3).toUpperCase()}
+                        </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">

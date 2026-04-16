@@ -31,7 +31,9 @@ import {
   useAwsSetupInfo,
   useCreateAwsConnection,
   useCreateSlackWebhookConnection,
+  useValidateGcpConnection,
   useValidateAwsConnection,
+  useDiscoverGcpProjects,
   useTestSlackConnection,
   useDisconnectIntegration,
   useConnectJiraSite,
@@ -53,6 +55,7 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { GcpSetupForm } from '@/components/integrations/GcpSetupForm';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,7 +78,15 @@ function formatTimestamp(iso: string | null | undefined): string {
 
 const PROVIDER_VISUALS: Record<
   string,
-  { logo: string; darkLogo?: string; gradient: string; borderAccent: string; darkBg?: boolean }
+  {
+    logo?: string;
+    darkLogo?: string;
+    gradient: string;
+    borderAccent: string;
+    darkBg?: boolean;
+    monogram?: string;
+    monogramClassName?: string;
+  }
 > = {
   aws: {
     logo: '/icons/aws.svg',
@@ -83,6 +94,11 @@ const PROVIDER_VISUALS: Record<
     gradient: '',
     borderAccent: 'border-orange-200 dark:border-orange-800',
     darkBg: true,
+  },
+  gcp: {
+    logo: '/icons/gcp.svg',
+    gradient: 'from-sky-50 to-blue-50 dark:from-sky-950/20 dark:to-blue-950/20',
+    borderAccent: 'border-sky-200 dark:border-sky-800',
   },
   slack: {
     logo: '/icons/slack.svg',
@@ -100,6 +116,7 @@ function credentialTypeBadge(type: string) {
   const labels: Record<string, string> = {
     api_key: 'Access Key',
     iam_role: 'IAM Role',
+    service_account: 'Service Account',
     webhook: 'Webhook',
     oauth: 'OAuth',
     forge_app: 'Forge App',
@@ -1095,6 +1112,8 @@ export function IntegrationDetailPage() {
   const { data: orgConnections = [], isLoading: loadingOrgConnections } =
     useIntegrationConnections();
   const validateAwsMutation = useValidateAwsConnection();
+  const validateGcpMutation = useValidateGcpConnection();
+  const discoverGcpProjectsMutation = useDiscoverGcpProjects();
   const testSlackMutation = useTestSlackConnection();
   const disconnectMutation = useDisconnectIntegration();
 
@@ -1102,6 +1121,7 @@ export function IntegrationDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<IntegrationConnection | null>(null);
   const [validatingId, setValidatingId] = useState<string | null>(null);
+  const [discoveringId, setDiscoveringId] = useState<string | null>(null);
 
   const catalogEntry: IntegrationCatalogEntry | undefined = useMemo(() => {
     return catalog.find((c) => c.id === provider);
@@ -1145,6 +1165,27 @@ export function IntegrationDetailPage() {
           onSettled,
         },
       );
+    } else if (provider === 'gcp') {
+      validateGcpMutation.mutate(
+        { id: connection.id },
+        {
+          onSuccess: (result) =>
+            toast({
+              title: result.valid ? 'Validation passed' : 'Validation failed',
+              description: result.valid
+                ? `${result.serviceAccountEmail ?? connection.displayName} can access ${result.projects?.length ?? 0} project${(result.projects?.length ?? 0) === 1 ? '' : 's'}.`
+                : (result.error ?? 'Google Cloud validation failed.'),
+              variant: result.valid ? 'default' : 'destructive',
+            }),
+          onError: (err) =>
+            toast({
+              title: 'Validation failed',
+              description: err instanceof Error ? err.message : 'Validation request failed.',
+              variant: 'destructive',
+            }),
+          onSettled,
+        },
+      );
     } else if (provider === 'slack') {
       testSlackMutation.mutate(
         { id: connection.id },
@@ -1173,6 +1214,30 @@ export function IntegrationDetailPage() {
         },
       );
     }
+  };
+
+  const handleDiscoverProjects = (connection: IntegrationConnection) => {
+    setDiscoveringId(connection.id);
+    discoverGcpProjectsMutation.mutate(
+      { id: connection.id },
+      {
+        onSuccess: (result) =>
+          toast({
+            title: 'Projects discovered',
+            description:
+              result.resources.length > 0
+                ? `${result.resources.length} Google Cloud resources are visible to ${connection.displayName}.`
+                : `${connection.displayName} did not return any projects or folders.`,
+          }),
+        onError: (err) =>
+          toast({
+            title: 'Discovery failed',
+            description: err instanceof Error ? err.message : 'Failed to discover GCP projects.',
+            variant: 'destructive',
+          }),
+        onSettled: () => setDiscoveringId(null),
+      },
+    );
   };
 
   const confirmDelete = (connection: IntegrationConnection) => {
@@ -1249,7 +1314,7 @@ export function IntegrationDetailPage() {
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-center gap-4">
             {visuals ? (
-              visuals.gradient ? (
+              visuals.logo && visuals.gradient ? (
                 <div
                   className={cn(
                     'flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br flex-shrink-0 p-3',
@@ -1262,7 +1327,7 @@ export function IntegrationDetailPage() {
                     className="h-full w-full object-contain"
                   />
                 </div>
-              ) : visuals.darkBg ? (
+              ) : visuals.logo && visuals.darkBg ? (
                 <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-[#232F3E] flex-shrink-0 p-3">
                   <img
                     src={visuals.darkLogo ?? visuals.logo}
@@ -1270,12 +1335,23 @@ export function IntegrationDetailPage() {
                     className="h-full w-full object-contain"
                   />
                 </div>
-              ) : (
+              ) : visuals.logo ? (
                 <img
                   src={visuals.logo}
                   alt={catalogEntry?.name ?? provider ?? ''}
                   className="h-16 w-16 rounded-xl object-cover flex-shrink-0"
                 />
+              ) : (
+                <div
+                  className={cn(
+                    'flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br flex-shrink-0 text-base font-semibold tracking-wide',
+                    visuals.gradient,
+                    visuals.monogramClassName,
+                  )}
+                >
+                  {visuals.monogram ??
+                    (catalogEntry?.name ?? provider ?? '?').slice(0, 3).toUpperCase()}
+                </div>
               )
             ) : (
               <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex-shrink-0 p-3">
@@ -1314,7 +1390,9 @@ export function IntegrationDetailPage() {
               </DialogTrigger>
               <DialogContent
                 className={cn(
-                  provider === 'aws' || provider === 'slack' ? 'max-w-2xl' : 'max-w-lg',
+                  provider === 'aws' || provider === 'slack' || provider === 'gcp'
+                    ? 'max-w-2xl'
+                    : 'max-w-lg',
                 )}
               >
                 <DialogHeader>
@@ -1326,6 +1404,12 @@ export function IntegrationDetailPage() {
 
                 {provider === 'aws' && (
                   <AwsConnectionForm
+                    onCreated={handleConnectionCreated}
+                    onCancel={() => setDialogOpen(false)}
+                  />
+                )}
+                {provider === 'gcp' && (
+                  <GcpSetupForm
                     onCreated={handleConnectionCreated}
                     onCancel={() => setDialogOpen(false)}
                   />
@@ -1342,11 +1426,14 @@ export function IntegrationDetailPage() {
                     onCancel={() => setDialogOpen(false)}
                   />
                 )}
-                {provider !== 'aws' && provider !== 'slack' && provider !== 'jira' && (
-                  <div className="py-6 text-center text-sm text-muted-foreground">
-                    No connection form is available for this provider yet.
-                  </div>
-                )}
+                {provider !== 'aws' &&
+                  provider !== 'gcp' &&
+                  provider !== 'slack' &&
+                  provider !== 'jira' && (
+                    <div className="py-6 text-center text-sm text-muted-foreground">
+                      No connection form is available for this provider yet.
+                    </div>
+                  )}
               </DialogContent>
             </Dialog>
           </div>
@@ -1390,12 +1477,25 @@ export function IntegrationDetailPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {connections.map((conn) => {
                 const isValidating = validatingId === conn.id;
+                const isDiscovering = discoveringId === conn.id;
                 const meta = (conn.metadata ?? {}) as Record<string, any>;
                 const providerPayload = meta.providerPayload ?? {};
                 const teamName = providerPayload?.team?.name ?? conn.displayName;
                 const teamId = providerPayload?.team?.id;
                 const teamIcon: string | undefined = providerPayload?._teamIcon;
                 const connVisuals = PROVIDER_VISUALS[conn.provider];
+                const discoveredResources = Array.isArray(meta.discoveredResources)
+                  ? meta.discoveredResources
+                  : [];
+                const gcpScope =
+                  typeof meta.defaultProjectId === 'string'
+                    ? meta.defaultProjectId
+                    : typeof meta.organizationId === 'string'
+                      ? meta.organizationId
+                      : null;
+                const canValidate =
+                  provider === 'aws' || provider === 'gcp' || provider === 'slack';
+                const canDiscoverProjects = provider === 'gcp';
 
                 return (
                   <Card
@@ -1429,6 +1529,16 @@ export function IntegrationDetailPage() {
                               className="h-10 w-10 rounded-lg flex-shrink-0 object-contain bg-muted p-1"
                             />
                           )
+                        ) : connVisuals?.monogram ? (
+                          <div
+                            className={cn(
+                              'flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-gradient-to-br text-xs font-semibold tracking-wide',
+                              connVisuals.gradient,
+                              connVisuals.monogramClassName,
+                            )}
+                          >
+                            {connVisuals.monogram}
+                          </div>
                         ) : (
                           <div className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-muted text-muted-foreground font-semibold text-sm">
                             {(teamName ?? '?').slice(0, 2).toUpperCase()}
@@ -1457,21 +1567,53 @@ export function IntegrationDetailPage() {
                       <p className="text-xs text-muted-foreground">
                         Connected {formatTimestamp(conn.createdAt)}
                       </p>
-                      <div className="flex items-center gap-2 pt-2 border-t">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 gap-1.5 text-xs flex-1"
-                          disabled={isValidating}
-                          onClick={() => handleValidate(conn)}
-                        >
-                          {isValidating ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <RefreshCcw className="h-3.5 w-3.5" />
+                      {provider === 'gcp' && (
+                        <div className="space-y-1 text-xs text-muted-foreground">
+                          {typeof meta.clientEmail === 'string' && (
+                            <p className="truncate">Service account: {meta.clientEmail}</p>
                           )}
-                          {provider === 'slack' ? 'Test' : 'Validate'}
-                        </Button>
+                          {gcpScope && <p className="truncate">Scope: {gcpScope}</p>}
+                          {discoveredResources.length > 0 && (
+                            <p className="truncate">
+                              Discovered: {discoveredResources.length} project
+                              {discoveredResources.length === 1 ? '' : 's'}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 pt-2 border-t">
+                        {canValidate && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 gap-1.5 text-xs flex-1"
+                            disabled={isValidating}
+                            onClick={() => handleValidate(conn)}
+                          >
+                            {isValidating ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCcw className="h-3.5 w-3.5" />
+                            )}
+                            {provider === 'slack' ? 'Test' : 'Validate'}
+                          </Button>
+                        )}
+                        {canDiscoverProjects && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 gap-1.5 text-xs flex-1"
+                            disabled={isDiscovering}
+                            onClick={() => handleDiscoverProjects(conn)}
+                          >
+                            {isDiscovering ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Terminal className="h-3.5 w-3.5" />
+                            )}
+                            Discover Projects
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"

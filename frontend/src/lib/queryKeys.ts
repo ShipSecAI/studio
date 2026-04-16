@@ -37,9 +37,12 @@ export const queryKeys = {
   },
   integrations: {
     providers: () => ['integrationProviders', getOrgScope()] as const,
+    catalog: () => ['integrationCatalog', getOrgScope()] as const,
     connections: (userId?: string) =>
       ['integrationConnections', getOrgScope(), userId || getUserScope()] as const,
     providerConfig: (providerId: string) => ['providerConfig', getOrgScope(), providerId] as const,
+    awsSetupInfo: () => ['integrationAwsSetupInfo', getOrgScope()] as const,
+    gcpSetupInfo: () => ['integrationGcpSetupInfo', getOrgScope()] as const,
   },
   apiKeys: {
     all: () => ['apiKeys', getOrgScope()] as const,

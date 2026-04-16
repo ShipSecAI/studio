@@ -14,7 +14,7 @@ interface ProviderMeta {
   id: string;
   name: string;
   description: string;
-  logo: string;
+  logo?: string;
   darkLogo?: string;
   darkBg?: boolean;
   gradient: string;
@@ -22,6 +22,8 @@ interface ProviderMeta {
   hoverGradient: string;
   category: string;
   route: string;
+  monogram?: string;
+  monogramClassName?: string;
 }
 
 const PROVIDERS: ProviderMeta[] = [
@@ -37,6 +39,18 @@ const PROVIDERS: ProviderMeta[] = [
     hoverGradient: 'linear-gradient(to right, #f97316, #f59e0b)',
     category: 'Cloud Security',
     route: '/integrations/aws',
+  },
+  {
+    id: 'gcp',
+    name: 'Google Cloud',
+    description:
+      'Connect GCP projects and organizations for cloud inventory indexing, graph mapping, and posture visibility.',
+    logo: '/icons/gcp.svg',
+    gradient: 'from-sky-50 to-blue-50 dark:from-sky-950/20 dark:to-blue-950/20',
+    borderAccent: 'hover:border-sky-300 dark:hover:border-sky-700',
+    hoverGradient: 'linear-gradient(to right, #4285F4, #34A853)',
+    category: 'Cloud Security',
+    route: '/integrations/gcp',
   },
   {
     id: 'slack',
@@ -143,7 +157,7 @@ export function IntegrationsPage() {
                   <div className="p-6 flex flex-col h-full">
                     {/* Logo + Info */}
                     <div className="flex items-start gap-4 flex-1">
-                      {provider.darkBg ? (
+                      {provider.logo && provider.darkBg ? (
                         <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#232F3E] flex-shrink-0 p-2.5">
                           <img
                             src={provider.darkLogo ?? provider.logo}
@@ -151,7 +165,7 @@ export function IntegrationsPage() {
                             className="h-full w-full object-contain"
                           />
                         </div>
-                      ) : provider.gradient ? (
+                      ) : provider.logo && provider.gradient ? (
                         <div
                           className={cn(
                             'flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br flex-shrink-0 p-2.5',
@@ -164,12 +178,22 @@ export function IntegrationsPage() {
                             className="h-full w-full object-contain"
                           />
                         </div>
-                      ) : (
+                      ) : provider.logo ? (
                         <img
                           src={provider.logo}
                           alt={provider.name}
                           className="h-14 w-14 rounded-xl object-cover flex-shrink-0"
                         />
+                      ) : (
+                        <div
+                          className={cn(
+                            'flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br flex-shrink-0 text-sm font-semibold tracking-wide',
+                            provider.gradient,
+                            provider.monogramClassName,
+                          )}
+                        >
+                          {provider.monogram ?? provider.name.slice(0, 3).toUpperCase()}
+                        </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <h3 className="text-lg font-semibold tracking-tight">{provider.name}</h3>
