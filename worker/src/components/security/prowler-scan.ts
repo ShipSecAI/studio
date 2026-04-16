@@ -17,7 +17,7 @@ import {
 } from '@shipsec/component-sdk';
 
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
-import { awsCredentialSchema } from '@shipsec/contracts';
+import { awsCredentialSchema, gcpCredentialSchema } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
 import { createToolOutputVolume, readToolOutputFile } from '../../utils/tool-output';
 import { discoverOrgAccounts } from '../core/aws-org-discovery';
@@ -40,6 +40,7 @@ import {
   type NormalisedFinding,
   type RecommendedFlagId,
 } from './prowler-shared';
+import { readFileSync } from 'node:fs';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -50,6 +51,8 @@ const SINGLE_ACCOUNT_TIMEOUT_SECONDS = 2700; // 45 minutes — Prowler scans typ
 const _ORG_SCAN_TIMEOUT_SECONDS = 7200; // 2 hours — reserved for future per-org timeout budget
 const FLUSH_THRESHOLD = 5000;
 const PROWLER_ASFF_OUTPUT_FILE = 'shipsec.asff.json';
+const GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV =
+  'SHIPSEC_GCP_IMPERSONATION_SOURCE_CREDENTIALS_JSON';
 
 // ---------------------------------------------------------------------------
 // Inputs
@@ -78,6 +81,31 @@ const inputSchema = inputs({
       description:
         'Structured credentials object (`{ accessKeyId, secretAccessKey, sessionToken? }`).',
       connectionType: { kind: 'contract', name: 'core.credential.aws', credential: true },
+    },
+  ),
+  gcpCredential: port(
+    gcpCredentialSchema()
+      .optional()
+      .describe(
+        'GCP impersonation credential object for GCP scans (`{ targetServiceAccountEmail, defaultProjectId?, organizationId?, clientEmail? }`).',
+      ),
+    {
+      label: 'GCP Credential',
+      description: 'Structured GCP credential for `prowler gcp` scans.',
+      connectionType: { kind: 'contract', name: 'core.credential.gcp', credential: true },
+    },
+  ),
+  kubeconfig: port(
+    z
+      .string()
+      .optional()
+      .describe(
+        'Raw kubeconfig YAML content used by Kubernetes scans. Required for `prowler kubernetes` unless runner supplies in-cluster auth.',
+      ),
+    {
+      label: 'Kubeconfig',
+      description: 'Kubernetes kubeconfig content mounted for `prowler kubernetes` scans.',
+      connectionType: { kind: 'primitive', name: 'text' },
     },
   ),
   regions: port(
@@ -111,20 +139,19 @@ const inputSchema = inputs({
 const parameterSchema = parameters({
   scanMode: param(
     z
-      .enum(['aws', 'cloud'])
+      .enum(['aws', 'cloud', 'gcp', 'kubernetes'])
       .default('aws')
-      .describe(
-        'Run `prowler aws` for a specific account or `prowler cloud` for the multi-cloud overview.',
-      ),
+      .describe('Run `prowler aws`, `prowler cloud`, `prowler gcp`, or `prowler kubernetes`.'),
     {
       label: 'Scan Target',
       editor: 'select',
       options: [
         { label: 'AWS Account (prowler aws)', value: 'aws' },
         { label: 'Cloud Overview (prowler cloud)', value: 'cloud' },
+        { label: 'GCP (prowler gcp)', value: 'gcp' },
+        { label: 'Kubernetes (prowler kubernetes)', value: 'kubernetes' },
       ],
-      description:
-        'Choose between a targeted AWS account scan or the multi-cloud overview. AWS mode honors regions.',
+      description: 'Choose provider target. Regions are used only for AWS/cloud scans.',
     },
   ),
   recommendedFlags: param(
@@ -279,7 +306,7 @@ const outputSchema = outputs({
       severityCounts: z.record(z.enum(severityLevels), z.number()),
       generatedAt: z.string(),
       regions: z.array(z.string()),
-      scanMode: z.enum(['aws', 'cloud']),
+      scanMode: z.enum(['aws', 'cloud', 'gcp', 'kubernetes']),
       selectedFlagIds: z.array(recommendedFlagIdSchema),
       customFlags: z.string().nullable(),
       accountSummaries: z.array(accountSummarySchema).optional(),
@@ -330,11 +357,14 @@ interface PreparedScan {
 }
 
 function prepareScan(parsedInputs: ParsedInputs, parsedParams: ParsedParams): PreparedScan {
-  const parsedRegions = parsedInputs.regions
-    .split(',')
-    .map((region: string) => region.trim())
-    .filter((region: string) => region.length > 0);
-  const regions = parsedRegions.length > 0 ? parsedRegions : ['us-east-1'];
+  const usesAwsRegions = parsedParams.scanMode === 'aws' || parsedParams.scanMode === 'cloud';
+  const parsedRegions = usesAwsRegions
+    ? parsedInputs.regions
+        .split(',')
+        .map((region: string) => region.trim())
+        .filter((region: string) => region.length > 0)
+    : [];
+  const regions = usesAwsRegions ? (parsedRegions.length > 0 ? parsedRegions : ['us-east-1']) : [];
 
   const selectedFlags = new Set<RecommendedFlagId>(
     parsedParams.recommendedFlags ?? defaultSelectedFlagIds,
@@ -347,7 +377,7 @@ function prepareScan(parsedInputs: ParsedInputs, parsedParams: ParsedParams): Pr
 }
 
 function buildCommand(
-  scanMode: 'aws' | 'cloud',
+  scanMode: 'aws' | 'cloud' | 'gcp' | 'kubernetes',
   regions: string[],
   resolvedFlagArgs: string[],
   customFlags?: string,
@@ -386,7 +416,7 @@ function buildCommand(
 function buildAwsEnv(
   credentials: { accessKeyId: string; secretAccessKey: string; sessionToken?: string },
   regions: string[],
-  scanMode: 'aws' | 'cloud',
+  scanMode: 'aws' | 'cloud' | 'gcp' | 'kubernetes',
 ): Record<string, string> {
   const awsEnv: Record<string, string> = {};
   awsEnv.AWS_ACCESS_KEY_ID = credentials.accessKeyId;
@@ -402,6 +432,71 @@ function buildAwsEnv(
     awsEnv.AWS_DEFAULT_REGION = regions[0];
   }
   return awsEnv;
+}
+
+function buildGcpEnv(gcpCredential: NonNullable<ParsedInputs['gcpCredential']>): {
+  env: Record<string, string>;
+  files: Record<string, string>;
+} {
+  const keyPath = '/home/prowler/.gcp/application_default_credentials.json';
+  let sourceCredentialJson = process.env[GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV]?.trim();
+  if (!sourceCredentialJson && process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()) {
+    sourceCredentialJson = readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS.trim(), 'utf8');
+  }
+  if (!sourceCredentialJson) {
+    throw new ConfigurationError(
+      `Missing ${GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV} (or GOOGLE_APPLICATION_CREDENTIALS). Prowler GCP scans require ShipSec source credentials for impersonation.`,
+      { configKey: GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV },
+    );
+  }
+
+  let sourceCredentials: unknown;
+  try {
+    sourceCredentials = JSON.parse(sourceCredentialJson);
+  } catch {
+    throw new ConfigurationError(`${GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV} is not valid JSON.`, {
+      configKey: GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV,
+    });
+  }
+
+  const impersonationCredentials = {
+    type: 'impersonated_service_account',
+    source_credentials: sourceCredentials,
+    service_account_impersonation_url:
+      `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/` +
+      `${encodeURIComponent(gcpCredential.targetServiceAccountEmail)}:generateAccessToken`,
+    delegates: [],
+    scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+  };
+
+  const env: Record<string, string> = {
+    GOOGLE_APPLICATION_CREDENTIALS: keyPath,
+  };
+
+  if (gcpCredential.defaultProjectId) {
+    env.GOOGLE_CLOUD_PROJECT = gcpCredential.defaultProjectId;
+    env.CLOUDSDK_CORE_PROJECT = gcpCredential.defaultProjectId;
+  }
+
+  return {
+    env,
+    files: {
+      'application_default_credentials.json': JSON.stringify(impersonationCredentials),
+    },
+  };
+}
+
+function deriveScanTargetId(parsedInputs: ParsedInputs, parsedParams: ParsedParams): string {
+  if (parsedInputs.accountId) {
+    return parsedInputs.accountId;
+  }
+  if (parsedParams.scanMode === 'gcp') {
+    return parsedInputs.gcpCredential?.defaultProjectId ?? 'gcp';
+  }
+  if (parsedParams.scanMode === 'kubernetes') {
+    return 'kubernetes';
+  }
+  return 'cloud';
 }
 
 function buildAnalyticsResults(findings: NormalisedFinding[]): AnalyticsResult[] {
@@ -473,7 +568,7 @@ async function executeSingleAccountScan(
   const parsedInputs = inputSchema.parse(inputs);
   const parsedParams = parameterSchema.parse(params);
 
-  if (!parsedInputs.accountId) {
+  if (parsedParams.scanMode === 'aws' && !parsedInputs.accountId) {
     throw new ConfigurationError(
       'Account ID is required for single-account scans. Provide it via the accountId input port.',
       { configKey: 'accountId' },
@@ -482,28 +577,53 @@ async function executeSingleAccountScan(
 
   const { regions, selectedFlags, resolvedFlagArgs } = prepareScan(parsedInputs, parsedParams);
 
-  if (parsedParams.scanMode === 'aws' && !parsedInputs.credentials) {
+  if (
+    (parsedParams.scanMode === 'aws' || parsedParams.scanMode === 'cloud') &&
+    !parsedInputs.credentials
+  ) {
     throw new ConfigurationError(
-      'AWS scan requires credentials input. Ensure the previous step outputs { accessKeyId, secretAccessKey, sessionToken? } into the "credentials" input.',
+      `${parsedParams.scanMode} scan requires AWS credentials input. Ensure the previous step outputs { accessKeyId, secretAccessKey, sessionToken? } into the "credentials" input.`,
       { configKey: 'credentials' },
+    );
+  }
+  if (parsedParams.scanMode === 'gcp' && !parsedInputs.gcpCredential) {
+    throw new ConfigurationError(
+      'GCP scan requires gcpCredential input. Provide target service-account impersonation credentials from a GCP credential source.',
+      { configKey: 'gcpCredential' },
+    );
+  }
+  if (parsedParams.scanMode === 'kubernetes' && !parsedInputs.kubeconfig) {
+    throw new ConfigurationError(
+      'Kubernetes scan requires kubeconfig input. Provide kubeconfig YAML content via the kubeconfig port.',
+      { configKey: 'kubeconfig' },
     );
   }
 
   const tenantId = (context as any).tenantId ?? 'default-tenant';
-  const awsCredsVolume = parsedInputs.credentials
-    ? createIsolatedVolume(tenantId, `${context.runId}-prowler-aws`)
-    : null;
+  const awsCredsVolume =
+    parsedInputs.credentials &&
+    (parsedParams.scanMode === 'aws' || parsedParams.scanMode === 'cloud')
+      ? createIsolatedVolume(tenantId, `${context.runId}-prowler-aws`)
+      : null;
+  const gcpCredsVolume =
+    parsedParams.scanMode === 'gcp' && parsedInputs.gcpCredential
+      ? createIsolatedVolume(tenantId, `${context.runId}-prowler-gcp`)
+      : null;
+  const kubeconfigVolume =
+    parsedParams.scanMode === 'kubernetes' && parsedInputs.kubeconfig
+      ? createIsolatedVolume(tenantId, `${context.runId}-prowler-kubeconfig`)
+      : null;
 
   const awsEnv = parsedInputs.credentials
     ? buildAwsEnv(parsedInputs.credentials, regions, parsedParams.scanMode)
     : {};
+  const gcpConfig = parsedInputs.gcpCredential ? buildGcpEnv(parsedInputs.gcpCredential) : null;
+  const kubernetesEnv = parsedInputs.kubeconfig ? { KUBECONFIG: '/home/prowler/.kube/config' } : {};
 
   context.logger.info(
-    `[ProwlerScan] Running prowler ${parsedParams.scanMode} for ${parsedInputs.accountId} with regions: ${regions.join(', ')}`,
+    `[ProwlerScan] Running prowler ${parsedParams.scanMode} for ${deriveScanTargetId(parsedInputs, parsedParams)}${regions.length > 0 ? ` with regions: ${regions.join(', ')}` : ''}`,
   );
-  context.emitProgress(
-    `Executing prowler ${parsedParams.scanMode} scan across ${regions.length} region${regions.length === 1 ? '' : 's'}`,
-  );
+  context.emitProgress(`Executing prowler ${parsedParams.scanMode} scan`);
 
   const cmd = buildCommand(
     parsedParams.scanMode,
@@ -522,6 +642,8 @@ async function executeSingleAccountScan(
     env: {
       HOME: '/home/prowler',
       ...awsEnv,
+      ...(gcpConfig?.env ?? {}),
+      ...kubernetesEnv,
     },
     entrypoint: 'poetry',
     command: ['run', 'prowler', ...cmd],
@@ -536,6 +658,8 @@ async function executeSingleAccountScan(
   let outputVolume: Awaited<ReturnType<typeof createToolOutputVolume>> | null = null;
   let outputVolumeInitialized = false;
   let awsVolumeInitialized = false;
+  let gcpVolumeInitialized = false;
+  let kubeconfigVolumeInitialized = false;
 
   try {
     if (awsCredsVolume && parsedInputs.credentials) {
@@ -563,6 +687,28 @@ async function executeSingleAccountScan(
       dockerRunner.volumes = [
         ...(dockerRunner.volumes ?? []),
         awsCredsVolume.getVolumeConfig('/home/prowler/.aws', true),
+      ];
+    }
+    if (gcpCredsVolume && gcpConfig) {
+      await gcpCredsVolume.initialize(gcpConfig.files);
+      gcpVolumeInitialized = true;
+      context.logger.info(
+        `[ProwlerScan] Created isolated GCP creds volume: ${gcpCredsVolume.getVolumeName()}`,
+      );
+      dockerRunner.volumes = [
+        ...(dockerRunner.volumes ?? []),
+        gcpCredsVolume.getVolumeConfig('/home/prowler/.gcp', true),
+      ];
+    }
+    if (kubeconfigVolume && parsedInputs.kubeconfig) {
+      await kubeconfigVolume.initialize({ config: parsedInputs.kubeconfig });
+      kubeconfigVolumeInitialized = true;
+      context.logger.info(
+        `[ProwlerScan] Created isolated kubeconfig volume: ${kubeconfigVolume.getVolumeName()}`,
+      );
+      dockerRunner.volumes = [
+        ...(dockerRunner.volumes ?? []),
+        kubeconfigVolume.getVolumeConfig('/home/prowler/.kube', true),
       ];
     }
 
@@ -602,7 +748,10 @@ async function executeSingleAccountScan(
     }
 
     const { severityCounts, failed, passed, unknown } = computeSeverityCounts(findings);
-    const scanId = buildScanId(parsedInputs.accountId, parsedParams.scanMode);
+    const scanId = buildScanId(
+      deriveScanTargetId(parsedInputs, parsedParams),
+      parsedParams.scanMode,
+    );
     const results = buildAnalyticsResults(findings);
 
     const output: Output = {
@@ -636,6 +785,14 @@ async function executeSingleAccountScan(
     if (awsVolumeInitialized && awsCredsVolume) {
       await awsCredsVolume.cleanup();
       context.logger.info('[ProwlerScan] Cleaned up AWS creds volume');
+    }
+    if (gcpVolumeInitialized && gcpCredsVolume) {
+      await gcpCredsVolume.cleanup();
+      context.logger.info('[ProwlerScan] Cleaned up GCP creds volume');
+    }
+    if (kubeconfigVolumeInitialized && kubeconfigVolume) {
+      await kubeconfigVolume.cleanup();
+      context.logger.info('[ProwlerScan] Cleaned up kubeconfig volume');
     }
   }
 }
@@ -785,6 +942,11 @@ async function executeOrgScan(
 ): Promise<Output> {
   const parsedInputs = inputSchema.parse(inputs);
   const parsedParams = parameterSchema.parse(params);
+  if (parsedParams.scanMode !== 'aws') {
+    throw new ConfigurationError('Org-wide scan currently supports scanMode=aws only.', {
+      configKey: 'scanMode',
+    });
+  }
 
   if (!parsedInputs.credentials) {
     throw new ConfigurationError(
@@ -1001,7 +1163,7 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Execute Prowler inside Docker using `ghcr.io/shipsecai/prowler` (amd64 enforced on ARM hosts). Supports single-account AWS scans, org-wide multi-account scans, and the multi-cloud `prowler cloud` overview, with optional CLI flag customisation.',
+  docs: 'Execute Prowler inside Docker using `ghcr.io/shipsecai/prowler` (amd64 enforced on ARM hosts). Supports `prowler aws`, `prowler cloud`, `prowler gcp`, and `prowler kubernetes` modes. Org-wide mode currently applies to AWS.',
   toolProvider: {
     kind: 'component',
     name: 'prowler_scan',
@@ -1025,6 +1187,8 @@ const definition = defineComponent({
     examples: [
       'Run nightly `prowler aws --quick --severity-filter high,critical` scans on production accounts and forward findings into ELK.',
       'Use `prowler cloud` with custom flags to generate a multi-cloud compliance snapshot.',
+      'Run `prowler gcp` with a connected GCP credential to assess Google Cloud resources.',
+      'Run `prowler kubernetes` with a kubeconfig input to assess cluster posture.',
       'Enable org-wide scan to discover all member accounts and run Prowler across the entire organization.',
     ],
   },
@@ -1042,6 +1206,12 @@ const definition = defineComponent({
 });
 
 componentRegistry.register(definition);
+
+export const __testables = {
+  buildCommand,
+  prepareScan,
+  deriveScanTargetId,
+};
 
 // Create local type aliases for backward compatibility
 type Input = (typeof inputSchema)['__inferred'];

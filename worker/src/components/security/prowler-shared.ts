@@ -361,7 +361,10 @@ export function mapToAnalyticsSeverity(
   }
 }
 
-export function buildScanId(accountId: string, scanMode: 'aws' | 'cloud'): string {
+export function buildScanId(
+  accountId: string,
+  scanMode: 'aws' | 'cloud' | 'gcp' | 'kubernetes',
+): string {
   const timestamp = new Date()
     .toISOString()
     .replace(/[^0-9]/g, '')
