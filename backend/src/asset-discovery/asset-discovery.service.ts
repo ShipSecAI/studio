@@ -1,10 +1,14 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
+import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { AssetDiscoveryRepository } from './asset-discovery.repository';
 import { AssetSyncRunsRepository } from './asset-sync-runs.repository';
 import type { AuthContext } from '../auth/types';
 import { CloudGraphService } from './cloud-graph.service';
 import type { CartographySyncConnectionBinding } from './cartography-utils';
-import { IntegrationsService } from '../integrations/integrations.service';
+import { DRIZZLE_TOKEN } from '../database/database.module';
+import * as schema from '../database/schema';
+import { integrationTokens } from '../database/schema/integrations';
 
 @Injectable()
 export class AssetDiscoveryService {
@@ -14,7 +18,8 @@ export class AssetDiscoveryService {
     private readonly assetRepo: AssetDiscoveryRepository,
     private readonly syncRunsRepo: AssetSyncRunsRepository,
     private readonly cloudGraphService: CloudGraphService,
-    private readonly integrationsService: IntegrationsService,
+    @Inject(DRIZZLE_TOKEN)
+    private readonly db: NodePgDatabase<typeof schema>,
   ) {}
 
   private requireOrganizationId(auth: AuthContext | null): string {
@@ -37,9 +42,7 @@ export class AssetDiscoveryService {
       };
     }
 
-    const accountIdentifiers =
-      await this.integrationsService.listAwsAccountIdentifiersForOrg(organizationId);
-    const snapshot = await this.cloudGraphService.listAssets(organizationId, accountIdentifiers);
+    const snapshot = await this.listGraphAssetsForOrg(organizationId);
 
     const filtered = snapshot
       .filter((asset) => !options.provider || asset.provider === options.provider)
@@ -85,9 +88,7 @@ export class AssetDiscoveryService {
 
   async getAsset(auth: AuthContext, assetId: string) {
     const organizationId = this.requireOrganizationId(auth);
-    const accountIdentifiers =
-      await this.integrationsService.listAwsAccountIdentifiersForOrg(organizationId);
-    const assets = await this.cloudGraphService.listAssets(organizationId, accountIdentifiers);
+    const assets = await this.listGraphAssetsForOrg(organizationId);
     const asset = assets.find((candidate) => candidate.id === assetId);
     if (!asset) throw new NotFoundException('Asset not found');
     return {
@@ -102,10 +103,8 @@ export class AssetDiscoveryService {
 
   async getSummary(auth: AuthContext) {
     const organizationId = this.requireOrganizationId(auth);
-    const accountIdentifiers =
-      await this.integrationsService.listAwsAccountIdentifiersForOrg(organizationId);
     const [graphAssets, historicalStatuses] = await Promise.all([
-      this.cloudGraphService.listAssets(organizationId, accountIdentifiers),
+      this.listGraphAssetsForOrg(organizationId),
       this.assetRepo.getHistoricalStatusCounts(organizationId),
     ]);
 
@@ -189,25 +188,77 @@ export class AssetDiscoveryService {
 
   async refreshFromGraphSnapshot(
     organizationId: string,
-    _integrationId: string,
+    integrationId: string,
     _syncRunId: string,
-    _connectionBindings: CartographySyncConnectionBinding[],
+    connectionBindings: CartographySyncConnectionBinding[],
   ) {
-    const accountIdentifiers =
-      await this.integrationsService.listAwsAccountIdentifiersForOrg(organizationId);
-    const graphAssets = await this.cloudGraphService.listAssets(organizationId, accountIdentifiers);
+    const previousCompletedSync = await this.syncRunsRepo.findLatestCompletedSyncForIntegration(
+      organizationId,
+      integrationId,
+    );
+    const graphAssets = await this.listGraphAssetsForOrg(
+      organizationId,
+      connectionBindings.length > 0 ? connectionBindings : undefined,
+    );
+    const currentDiscovered = graphAssets.length;
+    const previousDiscovered = Number(previousCompletedSync?.assetsDiscovered ?? 0);
+    const assetsCreated = Math.max(currentDiscovered - previousDiscovered, 0);
+    const assetsStale = Math.max(previousDiscovered - currentDiscovered, 0);
+    const assetsUpdated = Math.min(currentDiscovered, previousDiscovered);
 
     return {
-      assetsDiscovered: graphAssets.length,
-      assetsCreated: graphAssets.length,
-      assetsUpdated: 0,
-      assetsStale: 0,
+      assetsDiscovered: currentDiscovered,
+      assetsCreated,
+      assetsUpdated,
+      assetsStale,
       coveredRegions: Array.from(
         new Set(
           graphAssets.map((asset) => asset.region).filter((region): region is string => !!region),
         ),
       ),
     };
+  }
+
+  private async listGraphAssetsForOrg(
+    organizationId: string,
+    bindings?: CartographySyncConnectionBinding[],
+  ) {
+    const connectionBindings =
+      bindings && bindings.length > 0
+        ? dedupeConnectionBindings(bindings)
+        : await this.listCloudConnectionBindingsForOrg(organizationId);
+    return this.cloudGraphService.listAssets(organizationId, connectionBindings);
+  }
+
+  private async listCloudConnectionBindingsForOrg(
+    organizationId: string,
+  ): Promise<CartographySyncConnectionBinding[]> {
+    const records = await this.db
+      .select({
+        id: integrationTokens.id,
+        provider: integrationTokens.provider,
+        credentialType: integrationTokens.credentialType,
+        metadata: integrationTokens.metadata,
+      })
+      .from(integrationTokens)
+      .where(eq(integrationTokens.organizationId, organizationId));
+
+    const bindings: CartographySyncConnectionBinding[] = [];
+    for (const record of records) {
+      const accountIdentifiers = extractConnectionIdentifiers(
+        record.provider,
+        record.credentialType,
+        coerceMetadata(record.metadata),
+      );
+      for (const accountIdentifier of accountIdentifiers) {
+        bindings.push({
+          connectionId: record.id,
+          accountIdentifier,
+        });
+      }
+    }
+
+    return dedupeConnectionBindings(bindings);
   }
 }
 
@@ -219,4 +270,67 @@ function compareAssetValues(
   const lhs = left ?? '';
   const rhs = right ?? '';
   return sortOrder === 'asc' ? lhs.localeCompare(rhs) : rhs.localeCompare(lhs);
+}
+
+function dedupeConnectionBindings(
+  bindings: CartographySyncConnectionBinding[],
+): CartographySyncConnectionBinding[] {
+  const deduped = new Map<string, CartographySyncConnectionBinding>();
+  for (const binding of bindings) {
+    if (!binding.accountIdentifier) {
+      continue;
+    }
+
+    deduped.set(`${binding.connectionId}:${binding.accountIdentifier}`, binding);
+  }
+  return Array.from(deduped.values());
+}
+
+function extractConnectionIdentifiers(
+  provider: string,
+  credentialType: string,
+  metadata: Record<string, unknown>,
+): string[] {
+  if (provider === 'aws' && credentialType === 'iam_role') {
+    const accountId =
+      (typeof metadata.accountId === 'string' && metadata.accountId.trim()) ||
+      (typeof metadata.roleArn === 'string'
+        ? metadata.roleArn.match(/^arn:aws:iam::(\d{12}):role\/.+$/)?.[1]
+        : undefined);
+    return accountId ? [accountId] : [];
+  }
+
+  if (provider !== 'gcp' || credentialType !== 'service_account') {
+    return [];
+  }
+
+  const identifiers = new Set<string>();
+  for (const value of [metadata.organizationId, metadata.defaultProjectId]) {
+    if (typeof value === 'string' && value.trim()) {
+      identifiers.add(value.trim());
+    }
+  }
+
+  const discoveredResources = metadata.discoveredResources;
+  if (Array.isArray(discoveredResources)) {
+    for (const resource of discoveredResources) {
+      if (
+        resource &&
+        typeof resource === 'object' &&
+        typeof resource.id === 'string' &&
+        resource.id.trim()
+      ) {
+        identifiers.add(resource.id.trim());
+      }
+    }
+  }
+
+  return Array.from(identifiers);
+}
+
+function coerceMetadata(metadata: unknown): Record<string, unknown> {
+  if (!metadata || typeof metadata !== 'object') {
+    return {};
+  }
+  return metadata as Record<string, unknown>;
 }

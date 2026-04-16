@@ -723,14 +723,14 @@ function indexInfraTemplate(): SeedTemplate {
     name: 'Index Infra',
     slug: 'sys-index-infra',
     description:
-      'Index AWS infrastructure into Cartography and update ShipSec cloud inventory state using the connected AWS IAM role integrations.',
+      'Index connected cloud infrastructure into Cartography and update ShipSec cloud inventory state.',
     category: 'cloud-security',
     icon: 'database-zap',
     isFeatured: false,
     isDefault: true,
     graph: {
       name: 'Index Infra',
-      description: 'Sync AWS inventory into Cartography and update cloud inventory metadata',
+      description: 'Sync cloud inventory into Cartography and update cloud inventory metadata',
       nodes: [
         makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
           runtimeInputs: [
@@ -740,7 +740,7 @@ function indexInfraTemplate(): SeedTemplate {
               type: 'text',
               required: false,
               description:
-                'Optional AWS IAM role connection ID. Leave empty to use the first available AWS IAM role connection for the organization.',
+                'Optional cloud integration connection ID. Leave empty to use the first available supported cloud connection for the organization.',
             },
           ],
         }),

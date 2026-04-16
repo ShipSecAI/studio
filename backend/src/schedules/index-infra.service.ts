@@ -38,14 +38,14 @@ export class IndexInfraService {
 
   async ensureDefaultScheduleForIntegration(
     auth: AuthContext,
-    integrationId?: string,
+    _integrationId?: string,
   ): Promise<WorkflowSchedule> {
     const workflow = await this.ensureIndexInfraWorkflow(auth);
     const current = await this.workflowsService.findById(workflow.id, auth);
     const schedules = await this.schedulesService.list(auth, { workflowId: workflow.id });
     const existing = schedules[0];
     const inputPayload = {
-      runtimeInputs: integrationId ? { integrationId } : {},
+      runtimeInputs: {},
       nodeOverrides: {},
     };
 
@@ -71,7 +71,7 @@ export class IndexInfraService {
 
     if (
       (current.currentVersionId && existing.workflowVersionId !== current.currentVersionId) ||
-      (integrationId && existingIntegrationId !== integrationId)
+      existingIntegrationId
     ) {
       return this.schedulesService.update(auth, existing.id, {
         workflowVersionId: current.currentVersionId ?? undefined,
@@ -79,15 +79,10 @@ export class IndexInfraService {
         cronExpression: existing.cronExpression,
         timezone: existing.timezone,
         humanLabel: existing.humanLabel ?? INDEX_INFRA_DEFAULT_HUMAN_LABEL,
-        inputPayload: integrationId
-          ? {
-              runtimeInputs: {
-                ...(existing.inputPayload?.runtimeInputs ?? {}),
-                integrationId,
-              },
-              nodeOverrides: existing.inputPayload?.nodeOverrides ?? {},
-            }
-          : existing.inputPayload,
+        inputPayload: {
+          runtimeInputs: {},
+          nodeOverrides: existing.inputPayload?.nodeOverrides ?? {},
+        },
       });
     }
 

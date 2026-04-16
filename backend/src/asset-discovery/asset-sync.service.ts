@@ -16,6 +16,10 @@ const syncRateMap = new Map<string, number>();
 
 const ASSET_DISCOVERY_ENABLED = process.env.ASSET_DISCOVERY_ENABLED !== 'false';
 const SYNC_RATE_LIMIT_MS = 5 * 60 * 1000; // 5 minutes
+const SUPPORTED_CLOUD_CREDENTIALS: readonly { provider: string; credentialType: string }[] = [
+  { provider: 'aws', credentialType: 'iam_role' },
+  { provider: 'gcp', credentialType: 'service_account' },
+];
 
 @Injectable()
 export class AssetSyncService {
@@ -53,8 +57,10 @@ export class AssetSyncService {
       )
       .limit(1);
 
-    if (connection?.provider !== 'aws' || connection?.credentialType !== 'iam_role') {
-      throw new BadRequestException('Only AWS IAM role connections support asset sync');
+    if (!isSupportedCloudConnection(connection)) {
+      throw new BadRequestException(
+        'Only AWS IAM role and GCP service account connections support asset sync',
+      );
     }
 
     const rateKey = `sync:${integrationId}`;
@@ -91,25 +97,47 @@ export class AssetSyncService {
       );
     }
 
-    const connections = await this.db
+    const orgConnections = await this.db
       .select({
         id: integrationTokens.id,
+        provider: integrationTokens.provider,
+        credentialType: integrationTokens.credentialType,
         displayName: integrationTokens.displayName,
+        metadata: integrationTokens.metadata,
       })
       .from(integrationTokens)
-      .where(
-        and(
-          eq(integrationTokens.organizationId, input.organizationId),
-          eq(integrationTokens.provider, 'aws'),
-          eq(integrationTokens.credentialType, 'iam_role'),
-        ),
-      );
+      .where(eq(integrationTokens.organizationId, input.organizationId));
 
-    if (connections.length === 0) {
-      throw new BadRequestException('No AWS IAM role connections available for org sync');
+    const supportedConnections = orgConnections.filter((connection) =>
+      isSupportedCloudConnection(connection),
+    );
+
+    if (input.integrationId) {
+      const selectedConnection = orgConnections.find(
+        (connection) => connection.id === input.integrationId,
+      );
+      if (!isSupportedCloudConnection(selectedConnection)) {
+        throw new BadRequestException(
+          'Only AWS IAM role and GCP service account connections support asset sync',
+        );
+      }
     }
 
-    const effectiveIntegrationId = input.integrationId ?? connections[0]!.id;
+    if (supportedConnections.length === 0) {
+      throw new BadRequestException('No supported cloud connections available for org sync');
+    }
+
+    const effectiveConnection = input.integrationId
+      ? supportedConnections.find((connection) => connection.id === input.integrationId)
+      : supportedConnections[0];
+    if (!effectiveConnection) {
+      throw new BadRequestException('Failed to resolve supported cloud connection for sync');
+    }
+    const effectiveIntegrationId = effectiveConnection.id;
+    const effectiveProvider = effectiveConnection.provider;
+    const connections = input.integrationId
+      ? [effectiveConnection]
+      : supportedConnections.filter((connection) => connection.provider === effectiveProvider);
 
     const targets = [];
     const coveredRegions = new Set<string>();
@@ -117,14 +145,28 @@ export class AssetSyncService {
 
     for (const connection of connections) {
       const resolved = await this.integrationsService.resolveConnectionCredentials(connection.id);
-      if (!resolved.accountId) {
+      const bindingIdentifiers = new Set<string>();
+      if (resolved.accountId) {
+        bindingIdentifiers.add(resolved.accountId);
+      }
+      for (const identifier of extractConnectionIdentifiers(
+        connection.provider,
+        connection.credentialType,
+        coerceMetadata(connection.metadata),
+      )) {
+        bindingIdentifiers.add(identifier);
+      }
+
+      if (bindingIdentifiers.size === 0) {
         continue;
       }
 
       const region =
-        resolved.region ??
-        (typeof resolved.data?.region === 'string' ? resolved.data.region : null) ??
-        null;
+        resolved.provider === 'aws'
+          ? (resolved.region ??
+            (typeof resolved.data?.region === 'string' ? resolved.data.region : null) ??
+            null)
+          : null;
       if (region) {
         coveredRegions.add(region);
       }
@@ -132,17 +174,19 @@ export class AssetSyncService {
       targets.push({
         connectionId: connection.id,
         displayName: connection.displayName,
-        accountIdentifier: resolved.accountId ?? null,
+        accountIdentifier: resolved.accountId ?? Array.from(bindingIdentifiers)[0] ?? null,
         region,
       });
-      connectionBindings.push({
-        connectionId: connection.id,
-        accountIdentifier: resolved.accountId ?? null,
-      });
+      for (const accountIdentifier of bindingIdentifiers) {
+        connectionBindings.push({
+          connectionId: connection.id,
+          accountIdentifier,
+        });
+      }
     }
 
     if (targets.length === 0) {
-      throw new BadRequestException('Failed to resolve usable AWS credentials for org sync');
+      throw new BadRequestException('Failed to resolve usable cloud credentials for org sync');
     }
 
     const run = await this.assetDiscoveryService.createSyncRun(
@@ -163,4 +207,67 @@ export class AssetSyncService {
       connectionBindings,
     };
   }
+}
+
+function isSupportedCloudConnection(
+  connection: { provider?: string | null; credentialType?: string | null } | undefined,
+): connection is { provider: string; credentialType: string } {
+  if (!connection?.provider || !connection?.credentialType) {
+    return false;
+  }
+
+  return SUPPORTED_CLOUD_CREDENTIALS.some(
+    (supported) =>
+      supported.provider === connection.provider &&
+      supported.credentialType === connection.credentialType,
+  );
+}
+
+function coerceMetadata(metadata: unknown): Record<string, unknown> {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return {};
+  }
+  return metadata as Record<string, unknown>;
+}
+
+function extractConnectionIdentifiers(
+  provider: string,
+  credentialType: string,
+  metadata: Record<string, unknown>,
+): string[] {
+  if (provider === 'aws' && credentialType === 'iam_role') {
+    const accountId =
+      (typeof metadata.accountId === 'string' && metadata.accountId.trim()) ||
+      (typeof metadata.roleArn === 'string'
+        ? metadata.roleArn.match(/^arn:aws:iam::(\d{12}):role\/.+$/)?.[1]
+        : undefined);
+    return accountId ? [accountId] : [];
+  }
+
+  if (provider !== 'gcp' || credentialType !== 'service_account') {
+    return [];
+  }
+
+  const identifiers = new Set<string>();
+  for (const value of [metadata.organizationId, metadata.defaultProjectId]) {
+    if (typeof value === 'string' && value.trim()) {
+      identifiers.add(value.trim());
+    }
+  }
+
+  const discoveredResources = metadata.discoveredResources;
+  if (Array.isArray(discoveredResources)) {
+    for (const resource of discoveredResources) {
+      if (
+        resource &&
+        typeof resource === 'object' &&
+        typeof resource.id === 'string' &&
+        resource.id.trim()
+      ) {
+        identifiers.add(resource.id.trim());
+      }
+    }
+  }
+
+  return Array.from(identifiers);
 }

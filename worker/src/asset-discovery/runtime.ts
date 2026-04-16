@@ -21,6 +21,51 @@ export interface ResolvedAwsCredentials {
   sessionToken?: string;
 }
 
+export interface ResolvedGcpCredentials {
+  targetServiceAccountEmail: string;
+  defaultProjectId?: string;
+  organizationId?: string;
+  clientEmail?: string;
+}
+
+type ResolvedConnectionCredentials =
+  | {
+      provider: 'aws';
+      credentialType: 'iam_role';
+      accountId?: string | null;
+      region?: string | null;
+      data: {
+        accessKeyId?: string;
+        secretAccessKey?: string;
+        sessionToken?: string;
+        region?: string;
+      };
+    }
+  | {
+      provider: 'gcp';
+      credentialType: 'service_account';
+      accountId?: string | null;
+      region?: string | null;
+      data: {
+        targetServiceAccountEmail?: string;
+        defaultProjectId?: string;
+        organizationId?: string;
+        clientEmail?: string;
+      };
+    };
+
+function isResolvedGcpCredentials(
+  value: ResolvedConnectionCredentials,
+): value is Extract<ResolvedConnectionCredentials, { provider: 'gcp' }> {
+  return value.provider === 'gcp';
+}
+
+function isResolvedAwsCredentials(
+  value: ResolvedConnectionCredentials,
+): value is Extract<ResolvedConnectionCredentials, { provider: 'aws' }> {
+  return value.provider === 'aws';
+}
+
 export interface SyncConnectionBinding {
   connectionId: string;
   accountIdentifier: string | null;
@@ -126,31 +171,75 @@ export async function updateAssetSyncRunStatus(input: {
   });
 }
 
-export async function resolveAwsCredentials(
+export async function resolveConnectionCredentials(
   organizationId: string,
   connectionId: string,
-): Promise<ResolvedAwsCredentials> {
+): Promise<ResolvedConnectionCredentials> {
   const payload = await callAssetSyncBackend<{
+    provider?: string;
+    credentialType?: string;
+    accountId?: string | null;
+    region?: string | null;
     data?: {
       accessKeyId?: string;
       secretAccessKey?: string;
       sessionToken?: string;
+      region?: string;
+      targetServiceAccountEmail?: string;
+      defaultProjectId?: string;
+      organizationId?: string;
+      clientEmail?: string;
     };
   }>(`/integrations/connections/${connectionId}/credentials`, {
     organizationId,
   });
 
-  const accessKeyId = payload.data?.accessKeyId;
-  const secretAccessKey = payload.data?.secretAccessKey;
-  if (!accessKeyId || !secretAccessKey) {
-    throw new Error(`Resolved credentials missing access keys for connection ${connectionId}`);
+  if (payload.provider === 'aws' && payload.credentialType === 'iam_role') {
+    const accessKeyId = payload.data?.accessKeyId;
+    const secretAccessKey = payload.data?.secretAccessKey;
+    if (!accessKeyId || !secretAccessKey) {
+      throw new Error(`Resolved credentials missing access keys for connection ${connectionId}`);
+    }
+
+    return {
+      provider: 'aws',
+      credentialType: 'iam_role',
+      accountId: payload.accountId,
+      region: payload.region,
+      data: {
+        accessKeyId,
+        secretAccessKey,
+        sessionToken: payload.data?.sessionToken,
+        region: payload.data?.region,
+      },
+    };
   }
 
-  return {
-    accessKeyId,
-    secretAccessKey,
-    sessionToken: payload.data?.sessionToken,
-  };
+  if (payload.provider === 'gcp' && payload.credentialType === 'service_account') {
+    const targetServiceAccountEmail = payload.data?.targetServiceAccountEmail;
+    if (!targetServiceAccountEmail) {
+      throw new Error(
+        `Resolved credentials missing target service-account email for connection ${connectionId}`,
+      );
+    }
+
+    return {
+      provider: 'gcp',
+      credentialType: 'service_account',
+      accountId: payload.accountId,
+      region: payload.region,
+      data: {
+        targetServiceAccountEmail,
+        defaultProjectId: payload.data?.defaultProjectId,
+        organizationId: payload.data?.organizationId,
+        clientEmail: payload.data?.clientEmail,
+      },
+    };
+  }
+
+  throw new Error(
+    `Unsupported resolved credential type for connection ${connectionId}: ${payload.provider ?? 'unknown'}/${payload.credentialType ?? 'unknown'}`,
+  );
 }
 
 export function buildProfileName(connectionId: string, index: number): string {
@@ -182,9 +271,17 @@ export async function runPreparedCartographySync(input: {
   const targetsWithCreds = await Promise.all(
     input.targets.map(async (target) => ({
       ...target,
-      ...(await resolveAwsCredentials(input.organizationId, target.connectionId)),
+      resolvedCredentials: await resolveConnectionCredentials(
+        input.organizationId,
+        target.connectionId,
+      ),
     })),
   );
+
+  const providers = new Set(targetsWithCreds.map((target) => target.resolvedCredentials.provider));
+  if (providers.size > 1) {
+    throw new Error('Mixed-provider Cartography sync is not supported in a single worker run');
+  }
 
   const context = createExecutionContext({
     runId: input.runId,
@@ -194,18 +291,63 @@ export async function runPreparedCartographySync(input: {
     workflowName: input.workflowName,
   });
 
+  const [provider] = providers;
+  if (provider === 'gcp') {
+    if (targetsWithCreds.length !== 1) {
+      throw new Error(
+        `GCP Cartography sync requires exactly one target per run (received ${targetsWithCreds.length})`,
+      );
+    }
+
+    const [{ resolvedCredentials }] = targetsWithCreds;
+    if (!isResolvedGcpCredentials(resolvedCredentials)) {
+      throw new Error('Expected resolved GCP credentials for GCP Cartography sync');
+    }
+    if (!resolvedCredentials.data.targetServiceAccountEmail) {
+      throw new Error('Expected targetServiceAccountEmail for GCP Cartography sync');
+    }
+
+    return runCartographyWithRunner(
+      {
+        selectedModules: ['gcp'],
+        neo4jUri: process.env.CARTOGRAPHY_NEO4J_URI?.trim() || 'bolt://neo4j:7687',
+        neo4jDatabase:
+          input.neo4jDatabase || process.env.NEO4J_DATABASE?.trim() || DEFAULT_NEO4J_DATABASE,
+        gcpCredential: {
+          targetServiceAccountEmail: resolvedCredentials.data.targetServiceAccountEmail,
+          defaultProjectId: resolvedCredentials.data.defaultProjectId,
+          organizationId: resolvedCredentials.data.organizationId,
+          clientEmail: resolvedCredentials.data.clientEmail,
+        },
+        image: process.env.CARTOGRAPHY_IMAGE?.trim(),
+      },
+      context,
+    );
+  }
+
+  const awsTargets = targetsWithCreds.map((target) => {
+    if (!isResolvedAwsCredentials(target.resolvedCredentials)) {
+      throw new Error('Expected resolved AWS credentials for AWS Cartography sync');
+    }
+
+    return {
+      ...target,
+      resolvedCredentials: target.resolvedCredentials,
+    };
+  });
+
   return runCartographyWithRunner(
     {
       selectedModules: ['aws'],
       neo4jUri: process.env.CARTOGRAPHY_NEO4J_URI?.trim() || 'bolt://neo4j:7687',
       neo4jDatabase:
         input.neo4jDatabase || process.env.NEO4J_DATABASE?.trim() || DEFAULT_NEO4J_DATABASE,
-      awsProfiles: targetsWithCreds.map((target, index) => ({
+      awsProfiles: awsTargets.map((target, index) => ({
         profileName: buildProfileName(target.connectionId, index),
         region: target.region?.trim() || input.coveredRegions[0] || 'us-east-1',
-        accessKeyId: target.accessKeyId,
-        secretAccessKey: target.secretAccessKey,
-        sessionToken: target.sessionToken,
+        accessKeyId: target.resolvedCredentials.data.accessKeyId!,
+        secretAccessKey: target.resolvedCredentials.data.secretAccessKey!,
+        sessionToken: target.resolvedCredentials.data.sessionToken,
       })),
       awsRegions: input.coveredRegions,
       awsRequestedSyncs:

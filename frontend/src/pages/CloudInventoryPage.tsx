@@ -89,12 +89,33 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   elasticache_cluster: 'ElastiCache Cluster',
   apigateway_rest_api: 'REST API',
   apigateway_http_api: 'HTTP API',
+  // GCP
+  gcp_organization: 'GCP Organization',
+  gcp_folder: 'GCP Folder',
+  gcp_project: 'GCP Project',
+  gcp_compute_instance: 'GCE Instance',
+  gcp_storage_bucket: 'GCS Bucket',
+  gcp_service_account: 'GCP Service Account',
+  gcp_dns_zone: 'Cloud DNS Zone',
+  gcp_gke_cluster: 'GKE Cluster',
+  gcp_cloud_sql_instance: 'Cloud SQL Instance',
+  gcp_secret: 'Secret Manager Secret',
+  gcp_cloud_run_service: 'Cloud Run Service',
+  gcp_kms_key_ring: 'KMS Key Ring',
+  gcp_kms_crypto_key: 'KMS Crypto Key',
 };
 
 const SERVICE_GROUPS: Record<string, string[]> = {
   Identity: ['iam_user', 'iam_role', 'iam_policy', 'iam_group'],
   Compute: ['ec2_instance', 'lambda_function', 'ecs_cluster', 'ecs_service', 'eks_cluster'],
-  Storage: ['s3_bucket', 'ec2_volume', 'ecr_repository', 'ecr_image', 'dynamodb_table'],
+  Storage: [
+    's3_bucket',
+    'ec2_volume',
+    'ecr_repository',
+    'ecr_image',
+    'dynamodb_table',
+    'gcp_storage_bucket',
+  ],
   Network: [
     'vpc',
     'vpc_subnet',
@@ -107,16 +128,28 @@ const SERVICE_GROUPS: Record<string, string[]> = {
     'route53_record',
     'apigateway_rest_api',
     'apigateway_http_api',
+    'gcp_dns_zone',
   ],
-  Database: ['rds_instance', 'rds_cluster', 'elasticache_cluster'],
+  Database: ['rds_instance', 'rds_cluster', 'elasticache_cluster', 'gcp_cloud_sql_instance'],
   Security: [
     'secretsmanager_secret',
     'kms_key',
     'acm_certificate',
     'cloudtrail_trail',
     'guardduty_detector',
+    'gcp_secret',
+    'gcp_kms_key_ring',
+    'gcp_kms_crypto_key',
+    'gcp_service_account',
   ],
   Messaging: ['sns_topic', 'sqs_queue'],
+  GCP: [
+    'gcp_project',
+    'gcp_folder',
+    'gcp_organization',
+    'gcp_gke_cluster',
+    'gcp_cloud_run_service',
+  ],
 };
 
 const GROUP_ICONS: Record<string, typeof Server> = {
@@ -288,10 +321,11 @@ function TypeBreakdown({ onSelectType }: { onSelectType: (type: string | null) =
 // ── Sync run history ─────────────────────────────────────────────────────────
 
 function SyncRunHistory({
-  awsConnections,
+  cloudConnections,
 }: {
-  awsConnections: {
+  cloudConnections: {
     id: string;
+    provider?: string;
     displayName: string;
     metadata?: Record<string, unknown> | null;
   }[];
@@ -299,7 +333,7 @@ function SyncRunHistory({
   const { data, isLoading } = useCloudSyncRuns({ limit: 5 });
 
   if (isLoading) return null;
-  const connectionById = new Map(awsConnections.map((conn) => [conn.id, conn]));
+  const connectionById = new Map(cloudConnections.map((conn) => [conn.id, conn]));
   const runs =
     data?.syncRuns.reduce<typeof data.syncRuns>((acc, run) => {
       const connection = connectionById.get(run.integrationId);
@@ -307,6 +341,12 @@ function SyncRunHistory({
         run.accountIdentifier ??
         (typeof connection?.metadata?.accountId === 'string'
           ? connection.metadata.accountId
+          : null) ??
+        (typeof connection?.metadata?.defaultProjectId === 'string'
+          ? connection.metadata.defaultProjectId
+          : null) ??
+        (typeof connection?.metadata?.organizationId === 'string'
+          ? connection.metadata.organizationId
           : null) ??
         (typeof connection?.metadata?.roleArn === 'string'
           ? connection.metadata.roleArn.split(':')[4] || null
@@ -388,6 +428,12 @@ function buildSyncRunTitle(
   const accountId =
     run.accountIdentifier ??
     (typeof connection?.metadata?.accountId === 'string' ? connection.metadata.accountId : null) ??
+    (typeof connection?.metadata?.defaultProjectId === 'string'
+      ? connection.metadata.defaultProjectId
+      : null) ??
+    (typeof connection?.metadata?.organizationId === 'string'
+      ? connection.metadata.organizationId
+      : null) ??
     (typeof connection?.metadata?.roleArn === 'string'
       ? connection.metadata.roleArn.split(':')[4] || null
       : null);
@@ -399,12 +445,12 @@ function buildSyncRunTitle(
     return connection.displayName;
   }
   if (accountId) {
-    return `AWS Inventory Sync · ${accountId}`;
+    return `Cloud Inventory Sync · ${accountId}`;
   }
   if (run.status === 'running') {
-    return 'AWS Inventory Sync';
+    return 'Cloud Inventory Sync';
   }
-  return 'Org-wide AWS Sync';
+  return 'Org-wide Cloud Sync';
 }
 
 function buildSyncRunSubtitle(run: {
@@ -489,7 +535,7 @@ function AssetDetailPanel({ asset, onClose }: { asset: CloudAsset; onClose: () =
         {/* External ID */}
         <section>
           <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
-            <Key className="h-3.5 w-3.5" /> ARN
+            <Key className="h-3.5 w-3.5" /> External ID
           </h4>
           <code className="text-xs bg-muted p-2 rounded block break-all">{asset.externalId}</code>
         </section>
@@ -550,11 +596,12 @@ export function CloudInventoryPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const awsConnections = useMemo(
+  const cloudConnections = useMemo(
     () =>
       orgConnections.filter(
         (c: { provider: string; credentialType?: string }) =>
-          c.provider === 'aws' && c.credentialType === 'iam_role',
+          (c.provider === 'aws' && c.credentialType === 'iam_role') ||
+          (c.provider === 'gcp' && c.credentialType === 'service_account'),
       ),
     [orgConnections],
   );
@@ -612,23 +659,23 @@ export function CloudInventoryPage() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Cloud Inventory</h1>
               <p className="text-muted-foreground text-sm mt-1">
-                {total.toLocaleString()} asset{total !== 1 ? 's' : ''} discovered across AWS
-                accounts
+                {total.toLocaleString()} asset{total !== 1 ? 's' : ''} discovered across connected
+                cloud environments
               </p>
             </div>
-            {awsConnections.length === 1 ? (
+            {cloudConnections.length === 1 ? (
               <Button
                 variant="outline"
                 size="sm"
                 disabled={triggerSync.isPending}
-                onClick={() => handleSync(awsConnections[0].id, awsConnections[0].displayName)}
+                onClick={() => handleSync(cloudConnections[0].id, cloudConnections[0].displayName)}
               >
                 <RefreshCw
                   className={`h-4 w-4 mr-1.5 ${triggerSync.isPending ? 'animate-spin' : ''}`}
                 />
                 Sync Now
               </Button>
-            ) : awsConnections.length > 1 ? (
+            ) : cloudConnections.length > 1 ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" disabled={triggerSync.isPending}>
@@ -639,15 +686,25 @@ export function CloudInventoryPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {awsConnections.map((conn: any) => (
+                  {cloudConnections.map((conn: any) => (
                     <DropdownMenuItem
                       key={conn.id}
                       onClick={() => handleSync(conn.id, conn.displayName)}
                     >
                       {conn.displayName}
-                      {conn.metadata?.roleArn && (
+                      {(conn.metadata?.accountId ||
+                        conn.metadata?.defaultProjectId ||
+                        conn.metadata?.organizationId ||
+                        conn.metadata?.roleArn) && (
                         <span className="text-muted-foreground text-xs ml-2">
-                          ({conn.metadata.roleArn.split(':')[4]})
+                          (
+                          {conn.metadata?.accountId ??
+                            conn.metadata?.defaultProjectId ??
+                            conn.metadata?.organizationId ??
+                            (typeof conn.metadata?.roleArn === 'string'
+                              ? conn.metadata.roleArn.split(':')[4]
+                              : null)}
+                          )
                         </span>
                       )}
                     </DropdownMenuItem>
@@ -664,7 +721,7 @@ export function CloudInventoryPage() {
           <TypeBreakdown onSelectType={(t) => setFilterParam('assetType', t)} />
 
           {/* Sync run history */}
-          <SyncRunHistory awsConnections={awsConnections} />
+          <SyncRunHistory cloudConnections={cloudConnections} />
 
           {/* Filter bar */}
           <div className="flex flex-wrap gap-3 mb-4">
@@ -768,8 +825,8 @@ export function CloudInventoryPage() {
               </div>
               <h3 className="text-lg font-semibold mb-2">No assets found</h3>
               <p className="text-muted-foreground max-w-md">
-                Cloud assets will appear here after running an asset discovery sync on your AWS
-                accounts.
+                Cloud assets will appear here after running an asset discovery sync on your cloud
+                connections.
               </p>
             </div>
           ) : (

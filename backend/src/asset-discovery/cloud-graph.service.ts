@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import neo4j from 'neo4j-driver';
 import type { Driver } from 'neo4j-driver';
 import { createHash } from 'node:crypto';
+import type { CartographySyncConnectionBinding } from './cartography-utils';
 
 interface AssetTypeConfig {
   labels: string[];
@@ -12,6 +13,14 @@ interface AssetTypeConfig {
   accountCandidates: string[];
   firstSeenCandidates?: string[];
   lastSeenCandidates?: string[];
+}
+
+type CloudProvider = 'aws' | 'gcp';
+
+interface AssetTypeDescriptor {
+  provider: CloudProvider;
+  assetType: string;
+  config: AssetTypeConfig;
 }
 
 export interface GraphAssetSnapshot {
@@ -347,13 +356,148 @@ const AWS_ASSET_TYPE_CONFIG: Record<string, AssetTypeConfig> = {
   },
 };
 
-const LABEL_TO_ASSET_TYPE = new Map<string, string>(
-  Object.entries(AWS_ASSET_TYPE_CONFIG).flatMap(([assetType, config]) =>
-    config.labels.map((label) => [label, assetType] as const),
+const GCP_ASSET_TYPE_CONFIG: Record<string, AssetTypeConfig> = {
+  gcp_organization: {
+    labels: ['GCPOrganization'],
+    externalIdCandidates: ['id', 'name', 'displayname'],
+    nameCandidates: ['displayname', 'name', 'id'],
+    regionCandidates: [],
+    accountCandidates: ['id', 'name'],
+    firstSeenCandidates: ['firstseen', 'creationtime'],
+    lastSeenCandidates: ['lastupdated'],
+  },
+  gcp_folder: {
+    labels: ['GCPFolder'],
+    externalIdCandidates: ['id', 'name', 'displayname'],
+    nameCandidates: ['displayname', 'name', 'id'],
+    regionCandidates: [],
+    accountCandidates: ['id', 'name', 'parent'],
+    firstSeenCandidates: ['firstseen', 'creationtime'],
+    lastSeenCandidates: ['lastupdated'],
+  },
+  gcp_project: {
+    labels: ['GCPProject'],
+    externalIdCandidates: ['project_id', 'projectid', 'id', 'name'],
+    nameCandidates: ['displayname', 'project_id', 'projectid', 'name', 'id'],
+    regionCandidates: [],
+    accountCandidates: ['project_id', 'projectid', 'id', 'name', 'parent'],
+    firstSeenCandidates: ['firstseen', 'creationtime'],
+    lastSeenCandidates: ['lastupdated'],
+  },
+  gcp_compute_instance: {
+    labels: ['GCPInstance'],
+    externalIdCandidates: ['id', 'selflink', 'name'],
+    nameCandidates: ['name', 'id'],
+    regionCandidates: ['region', 'zone', 'location'],
+    accountCandidates: ['project_id', 'projectid', 'project', 'name'],
+    firstSeenCandidates: ['firstseen', 'creationtimestamp'],
+    lastSeenCandidates: ['lastupdated'],
+  },
+  gcp_storage_bucket: {
+    labels: ['GCPBucket'],
+    externalIdCandidates: ['id', 'selflink', 'name'],
+    nameCandidates: ['name', 'id'],
+    regionCandidates: ['location', 'region'],
+    accountCandidates: ['project_id', 'projectid', 'project'],
+    firstSeenCandidates: ['firstseen', 'timecreated'],
+    lastSeenCandidates: ['lastupdated', 'updated'],
+  },
+  gcp_service_account: {
+    labels: ['GCPServiceAccount'],
+    externalIdCandidates: ['id', 'email', 'uniqueid', 'name'],
+    nameCandidates: ['email', 'displayname', 'name', 'id'],
+    regionCandidates: [],
+    accountCandidates: ['project_id', 'projectid', 'project'],
+    firstSeenCandidates: ['firstseen', 'oauth2clientid'],
+    lastSeenCandidates: ['lastupdated'],
+  },
+  gcp_dns_zone: {
+    labels: ['GCPDNSZone'],
+    externalIdCandidates: ['id', 'name', 'dnsname'],
+    nameCandidates: ['name', 'dnsname', 'id'],
+    regionCandidates: [],
+    accountCandidates: ['project_id', 'projectid', 'project'],
+    firstSeenCandidates: ['firstseen'],
+    lastSeenCandidates: ['lastupdated'],
+  },
+  gcp_gke_cluster: {
+    labels: ['GKECluster'],
+    externalIdCandidates: ['id', 'selflink', 'name'],
+    nameCandidates: ['name', 'id'],
+    regionCandidates: ['location', 'zone', 'region'],
+    accountCandidates: ['project_id', 'projectid', 'project'],
+    firstSeenCandidates: ['firstseen', 'createTime', 'createtime'],
+    lastSeenCandidates: ['lastupdated', 'updateTime', 'updatetime'],
+  },
+  gcp_cloud_sql_instance: {
+    labels: ['GCPCloudSQLInstance'],
+    externalIdCandidates: ['id', 'selflink', 'name'],
+    nameCandidates: ['name', 'id'],
+    regionCandidates: ['region', 'location'],
+    accountCandidates: ['project_id', 'projectid', 'project'],
+    firstSeenCandidates: ['firstseen', 'createTime', 'createtime'],
+    lastSeenCandidates: ['lastupdated', 'updateTime', 'updatetime'],
+  },
+  gcp_secret: {
+    labels: ['GCPSecretManagerSecret', 'GCPSecret'],
+    externalIdCandidates: ['id', 'name'],
+    nameCandidates: ['name', 'displayname', 'id'],
+    regionCandidates: ['location'],
+    accountCandidates: ['project_id', 'projectid', 'project'],
+    firstSeenCandidates: ['firstseen', 'createTime', 'createtime'],
+    lastSeenCandidates: ['lastupdated', 'updateTime', 'updatetime'],
+  },
+  gcp_cloud_run_service: {
+    labels: ['GCPCloudRunService'],
+    externalIdCandidates: ['id', 'name', 'selflink'],
+    nameCandidates: ['name', 'displayname', 'id'],
+    regionCandidates: ['location', 'region'],
+    accountCandidates: ['project_id', 'projectid', 'project'],
+    firstSeenCandidates: ['firstseen', 'createTime', 'createtime'],
+    lastSeenCandidates: ['lastupdated', 'updateTime', 'updatetime'],
+  },
+  gcp_kms_key_ring: {
+    labels: ['GCPKeyRing'],
+    externalIdCandidates: ['id', 'name'],
+    nameCandidates: ['name', 'id'],
+    regionCandidates: ['location'],
+    accountCandidates: ['project_id', 'projectid', 'project'],
+    firstSeenCandidates: ['firstseen'],
+    lastSeenCandidates: ['lastupdated'],
+  },
+  gcp_kms_crypto_key: {
+    labels: ['GCPCryptoKey'],
+    externalIdCandidates: ['id', 'name'],
+    nameCandidates: ['name', 'id'],
+    regionCandidates: ['location'],
+    accountCandidates: ['project_id', 'projectid', 'project', 'key_ring_id'],
+    firstSeenCandidates: ['firstseen'],
+    lastSeenCandidates: ['lastupdated'],
+  },
+};
+
+const LABEL_TO_ASSET_DESCRIPTOR = new Map<string, AssetTypeDescriptor>(
+  [
+    ['aws', AWS_ASSET_TYPE_CONFIG],
+    ['gcp', GCP_ASSET_TYPE_CONFIG],
+  ].flatMap(([provider, configMap]) =>
+    Object.entries(configMap).flatMap(([assetType, config]) =>
+      config.labels.map(
+        (label: string) =>
+          [
+            label,
+            {
+              provider: provider as CloudProvider,
+              assetType,
+              config,
+            },
+          ] as const,
+      ),
+    ),
   ),
 );
 
-const SUPPORTED_LABELS = Array.from(LABEL_TO_ASSET_TYPE.keys());
+const SUPPORTED_LABELS = Array.from(LABEL_TO_ASSET_DESCRIPTOR.keys());
 
 const GRAPH_SNAPSHOT_QUERY = `
 MATCH (n)
@@ -381,15 +525,20 @@ export class CloudGraphService implements OnModuleDestroy {
 
   async listAssets(
     organizationId: string,
-    accountIdentifiers: string[],
+    connectionBindings: CartographySyncConnectionBinding[],
   ): Promise<GraphAssetSnapshot[]> {
-    if (accountIdentifiers.length === 0) {
+    if (connectionBindings.length === 0) {
       return [];
     }
 
     const database = this.getDatabaseName();
     const session = this.getDriver().session({ database });
-    const allowedAccounts = new Set(accountIdentifiers);
+    const bindingByIdentifier = new Map<string, string>();
+    for (const binding of connectionBindings) {
+      if (binding.accountIdentifier && !bindingByIdentifier.has(binding.accountIdentifier)) {
+        bindingByIdentifier.set(binding.accountIdentifier, binding.connectionId);
+      }
+    }
 
     try {
       const result = await session.run(GRAPH_SNAPSHOT_QUERY, { labels: SUPPORTED_LABELS });
@@ -403,8 +552,14 @@ export class CloudGraphService implements OnModuleDestroy {
         )
         .filter((asset: GraphAssetSnapshot | null): asset is GraphAssetSnapshot => asset !== null)
         .filter(
-          (asset) => !!asset.accountIdentifier && allowedAccounts.has(asset.accountIdentifier),
-        );
+          (asset) => !!asset.accountIdentifier && bindingByIdentifier.has(asset.accountIdentifier),
+        )
+        .map((asset) => ({
+          ...asset,
+          integrationId: asset.accountIdentifier
+            ? (bindingByIdentifier.get(asset.accountIdentifier) ?? null)
+            : null,
+        }));
     } finally {
       await session.close();
     }
@@ -412,11 +567,11 @@ export class CloudGraphService implements OnModuleDestroy {
 
   async getAssetByKey(
     organizationId: string,
-    accountIdentifiers: string[],
+    connectionBindings: CartographySyncConnectionBinding[],
     assetType: string,
     externalId: string,
   ): Promise<GraphAssetSnapshot | null> {
-    const allAssets = await this.listAssets(organizationId, accountIdentifiers);
+    const allAssets = await this.listAssets(organizationId, connectionBindings);
     return (
       allAssets.find((asset) => asset.assetType === assetType && asset.externalId === externalId) ??
       null
@@ -447,22 +602,39 @@ export class CloudGraphService implements OnModuleDestroy {
     labels: string[],
     props: Record<string, unknown>,
   ): GraphAssetSnapshot | null {
-    const assetType = labels.map((label) => LABEL_TO_ASSET_TYPE.get(label)).find(Boolean);
-    if (!assetType) {
+    const descriptor = labels
+      .map((label) => LABEL_TO_ASSET_DESCRIPTOR.get(label))
+      .find((candidate): candidate is AssetTypeDescriptor => Boolean(candidate));
+    if (!descriptor) {
       return null;
     }
 
-    const config = AWS_ASSET_TYPE_CONFIG[assetType];
+    const { assetType, config, provider } = descriptor;
     const externalId = firstString(props, config.externalIdCandidates) ?? deriveExternalId(props);
     if (!externalId) {
       return null;
     }
 
-    const parsedArn = parseAwsArn(externalId);
+    const parsedArn = provider === 'aws' ? parseAwsArn(externalId) : null;
+    const gcpContext = provider === 'gcp' ? parseGcpResourceContext(externalId) : null;
     const region =
-      normalizeRegion(firstString(props, config.regionCandidates)) ?? parsedArn?.region ?? null;
+      normalizeRegion(firstString(props, config.regionCandidates)) ??
+      parsedArn?.region ??
+      normalizeRegion(gcpContext?.location ?? null);
     const accountIdentifier =
-      firstString(props, config.accountCandidates) ?? parsedArn?.accountId ?? null;
+      provider === 'gcp'
+        ? normalizeGcpAccountIdentifier(
+            firstString(props, config.accountCandidates) ??
+              gcpContext?.projectId ??
+              gcpContext?.folderId ??
+              gcpContext?.organizationId ??
+              (assetType === 'gcp_project' ||
+              assetType === 'gcp_folder' ||
+              assetType === 'gcp_organization'
+                ? externalId
+                : null),
+          )
+        : (firstString(props, config.accountCandidates) ?? parsedArn?.accountId ?? null);
     const lastSeenAt = normalizeDate(
       firstScalar(
         props,
@@ -493,7 +665,7 @@ export class CloudGraphService implements OnModuleDestroy {
       id: buildGraphAssetId(organizationId, assetType, externalId),
       organizationId,
       integrationId: null,
-      provider: 'aws',
+      provider,
       assetType,
       externalId,
       name: firstString(props, config.nameCandidates) ?? null,
@@ -581,6 +753,58 @@ function parseAwsArn(value: string): { accountId: string | null; region: string 
     region: parts[3] || null,
     accountId: parts[4] || null,
   };
+}
+
+function parseGcpResourceContext(value: string): {
+  projectId: string | null;
+  folderId: string | null;
+  organizationId: string | null;
+  location: string | null;
+} | null {
+  const projectMatch = value.match(/(?:^|\/)projects\/([^/]+)/);
+  const folderMatch = value.match(/(?:^|\/)folders\/([^/]+)/);
+  const organizationMatch = value.match(/(?:^|\/)organizations\/([^/]+)/);
+  const locationMatch = value.match(/(?:^|\/)(?:locations|regions|zones)\/([^/]+)/);
+
+  if (!projectMatch && !folderMatch && !organizationMatch && !locationMatch) {
+    return null;
+  }
+
+  return {
+    projectId: projectMatch?.[1] ?? null,
+    folderId: folderMatch?.[1] ?? null,
+    organizationId: organizationMatch?.[1] ?? null,
+    location: locationMatch?.[1] ?? null,
+  };
+}
+
+function normalizeGcpAccountIdentifier(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const directMatch =
+    trimmed.match(/^projects\/([^/]+)$/) ??
+    trimmed.match(/^folders\/([^/]+)$/) ??
+    trimmed.match(/^organizations\/([^/]+)$/);
+  if (directMatch) {
+    return directMatch[1];
+  }
+
+  const nestedMatch =
+    trimmed.match(/\/projects\/([^/]+)/) ??
+    trimmed.match(/\/folders\/([^/]+)/) ??
+    trimmed.match(/\/organizations\/([^/]+)/);
+  if (nestedMatch) {
+    return nestedMatch[1];
+  }
+
+  return trimmed;
 }
 
 function toPlainValue(value: unknown): unknown {

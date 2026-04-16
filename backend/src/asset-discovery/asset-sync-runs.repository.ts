@@ -103,4 +103,20 @@ export class AssetSyncRunsRepository {
       .limit(1);
     return row ?? null;
   }
+
+  async findLatestCompletedSyncForIntegration(organizationId: string, integrationId: string) {
+    const [row] = await this.db
+      .select()
+      .from(assetSyncRuns)
+      .where(
+        and(
+          eq(assetSyncRuns.organizationId, organizationId),
+          eq(assetSyncRuns.integrationId, integrationId),
+          eq(assetSyncRuns.status, 'completed'),
+        ),
+      )
+      .orderBy(desc(assetSyncRuns.completedAt))
+      .limit(1);
+    return row ?? null;
+  }
 }
