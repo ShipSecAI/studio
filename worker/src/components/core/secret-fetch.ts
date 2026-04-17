@@ -13,7 +13,21 @@ import {
 } from '@shipsec/component-sdk';
 import { secretMetadataSchema } from '@shipsec/contracts';
 
-const inputSchema = inputs({});
+const inputSchema = inputs({
+  secretId: port(
+    z
+      .string()
+      .min(1, 'Secret identifier is required')
+      .describe('Optional secret name or UUID supplied by an upstream node.'),
+    {
+      label: 'Secret Name',
+      description:
+        'Optional secret name or UUID from an upstream node. Overrides the parameter when connected.',
+      editor: 'secret',
+      connectionType: { kind: 'primitive', name: 'secret' },
+    },
+  ),
+});
 
 const parameterSchema = parameters({
   secretId: param(
@@ -79,7 +93,7 @@ const definition = defineComponent({
     description: 'Resolve a stored secret and provide it as masked output for other components.',
     icon: 'KeyRound',
   },
-  async execute({ params }, context) {
+  async execute({ inputs, params }, context) {
     if (!context.secrets) {
       throw new ConfigurationError(
         'Secret Fetch component requires the secrets service. Ensure the worker injects ISecretsService.',
@@ -87,9 +101,14 @@ const definition = defineComponent({
       );
     }
 
+    const resolvedSecretId =
+      typeof inputs.secretId === 'string' && inputs.secretId.trim().length > 0
+        ? inputs.secretId.trim()
+        : params.secretId;
+
     context.emitProgress('Resolving secret from store...');
 
-    const resolved = await context.secrets.get(params.secretId, {
+    const resolved = await context.secrets.get(resolvedSecretId, {
       version: params.version,
     });
 
@@ -98,7 +117,7 @@ const definition = defineComponent({
         'Secret value unavailable. Verify the secret mapping and active version.',
         {
           resourceType: 'Secret',
-          resourceId: params.secretId,
+          resourceId: resolvedSecretId,
         },
       );
     }
@@ -121,13 +140,13 @@ const definition = defineComponent({
     }
 
     context.logger.info(
-      `[SecretFetch] Retrieved secret ${params.secretId} (version ${resolved.version}).`,
+      `[SecretFetch] Retrieved secret ${resolvedSecretId} (version ${resolved.version}).`,
     );
 
     return {
       secret: secretOutput,
       metadata: {
-        secretId: params.secretId,
+        secretId: resolvedSecretId,
         version: resolved.version,
         format,
       },

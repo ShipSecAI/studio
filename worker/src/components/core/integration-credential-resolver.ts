@@ -13,6 +13,7 @@ import {
   fromHttpResponse,
   type ExecutionContext,
 } from '@shipsec/component-sdk';
+import { awsCredentialSchema, gcpCredentialSchema } from '@shipsec/contracts';
 import { getBackendApiV1Url } from '../../utils/backend-url';
 
 const inputSchema = inputs({
@@ -88,6 +89,16 @@ const outputSchema = outputs({
     editor: 'secret',
     connectionType: { kind: 'any' },
   }),
+  credentials: port(awsCredentialSchema().optional(), {
+    label: 'AWS Credentials',
+    description: 'Typed AWS credential output for AWS-aware downstream components.',
+    connectionType: { kind: 'contract', name: 'core.credential.aws', credential: true },
+  }),
+  gcpCredential: port(gcpCredentialSchema().optional(), {
+    label: 'GCP Credential',
+    description: 'Typed GCP impersonation credential output for GCP-aware downstream components.',
+    connectionType: { kind: 'contract', name: 'core.credential.gcp', credential: true },
+  }),
 });
 
 const definition = defineComponent({
@@ -155,6 +166,8 @@ const definition = defineComponent({
       accountId: payload.accountId ?? '',
       regions: resolvedRegions,
       data: payload.data,
+      credentials: payload.provider === 'aws' ? payload.data : undefined,
+      gcpCredential: payload.provider === 'gcp' ? payload.data : undefined,
     });
   },
 });

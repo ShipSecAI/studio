@@ -41,7 +41,7 @@ const mockCloudScansState = {
 
 const githubStoreState = {
   fetchSystemWorkflows: () => {},
-  systemWorkflows: [{ id: 'wf-1', slug: 'sys-cloud-security-scan' }],
+  systemWorkflows: [{ id: 'wf-1', slug: 'sys-aws-cloud-security-scan' }],
   systemWorkflowsLoading: false,
 };
 

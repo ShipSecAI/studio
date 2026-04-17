@@ -15,7 +15,12 @@ import {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const CLOUD_TEMPLATE_SLUGS = new Set(['sys-cloud-security-scan', 'sys-container-image-scan']);
+const CLOUD_TEMPLATE_SLUGS = new Set([
+  'sys-aws-cloud-security-scan',
+  'sys-gcp-cloud-security-scan',
+  'sys-kubernetes-security-scan',
+  'sys-container-image-scan',
+]);
 
 const PAGE_LIMIT = 100;
 export const CLOUD_SCAN_FINDINGS_LIMIT = 200;

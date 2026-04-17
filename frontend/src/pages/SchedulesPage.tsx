@@ -65,16 +65,25 @@ import { CODE_SCHEDULE_SCANS, ASM_SCHEDULE_SCANS } from '@/components/security/c
 
 const CLOUD_SCAN_TYPES = [
   {
-    slug: 'cloud-security-scan',
-    templateSlug: 'sys-cloud-security-scan',
-    name: 'Misconfiguration Scan',
+    slug: 'aws-cloud-security-scan',
+    templateSlug: 'sys-aws-cloud-security-scan',
+    name: 'AWS Misconfiguration Scan',
     description: 'Prowler — CIS, GDPR, HIPAA benchmarks',
+    providers: ['aws'],
+  },
+  {
+    slug: 'gcp-cloud-security-scan',
+    templateSlug: 'sys-gcp-cloud-security-scan',
+    name: 'GCP Misconfiguration Scan',
+    description: 'Prowler — GCP posture and compliance checks',
+    providers: ['gcp'],
   },
   {
     slug: 'container-image-scan',
     templateSlug: 'sys-container-image-scan',
     name: 'Container Image Scan',
     description: 'Trivy — ECR image vulnerability scan',
+    providers: ['aws'],
   },
 ];
 

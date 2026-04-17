@@ -100,12 +100,14 @@ const inputSchema = inputs({
       .string()
       .optional()
       .describe(
-        'Raw kubeconfig YAML content used by Kubernetes scans. Required for `prowler kubernetes` unless runner supplies in-cluster auth.',
+        'Kubeconfig YAML content used by Kubernetes scans. Connect it from Secret Fetch so the kubeconfig stays masked.',
       ),
     {
       label: 'Kubeconfig',
-      description: 'Kubernetes kubeconfig content mounted for `prowler kubernetes` scans.',
-      connectionType: { kind: 'primitive', name: 'text' },
+      description:
+        'Kubernetes kubeconfig content mounted for `prowler kubernetes` scans. Treat as secret material.',
+      editor: 'secret',
+      connectionType: { kind: 'primitive', name: 'secret' },
     },
   ),
   regions: port(
@@ -351,13 +353,28 @@ type ParsedInputs = ReturnType<typeof inputSchema.parse>;
 type ParsedParams = ReturnType<typeof parameterSchema.parse>;
 
 interface PreparedScan {
+  scanMode: 'aws' | 'cloud' | 'gcp' | 'kubernetes';
   regions: string[];
   selectedFlags: Set<RecommendedFlagId>;
   resolvedFlagArgs: string[];
 }
 
+function resolveScanMode(
+  parsedInputs: ParsedInputs,
+  parsedParams: ParsedParams,
+): 'aws' | 'cloud' | 'gcp' | 'kubernetes' {
+  if (parsedParams.scanMode === 'kubernetes') {
+    return 'kubernetes';
+  }
+  if (parsedInputs.gcpCredential && !parsedInputs.credentials) {
+    return 'gcp';
+  }
+  return parsedParams.scanMode;
+}
+
 function prepareScan(parsedInputs: ParsedInputs, parsedParams: ParsedParams): PreparedScan {
-  const usesAwsRegions = parsedParams.scanMode === 'aws' || parsedParams.scanMode === 'cloud';
+  const scanMode = resolveScanMode(parsedInputs, parsedParams);
+  const usesAwsRegions = scanMode === 'aws' || scanMode === 'cloud';
   const parsedRegions = usesAwsRegions
     ? parsedInputs.regions
         .split(',')
@@ -373,7 +390,7 @@ function prepareScan(parsedInputs: ParsedInputs, parsedParams: ParsedParams): Pr
     (flagId) => recommendedFlagMap.get(flagId) ?? [],
   );
 
-  return { regions, selectedFlags, resolvedFlagArgs };
+  return { scanMode, regions, selectedFlags, resolvedFlagArgs };
 }
 
 function buildCommand(
@@ -490,10 +507,11 @@ function deriveScanTargetId(parsedInputs: ParsedInputs, parsedParams: ParsedPara
   if (parsedInputs.accountId) {
     return parsedInputs.accountId;
   }
-  if (parsedParams.scanMode === 'gcp') {
+  const scanMode = resolveScanMode(parsedInputs, parsedParams);
+  if (scanMode === 'gcp') {
     return parsedInputs.gcpCredential?.defaultProjectId ?? 'gcp';
   }
-  if (parsedParams.scanMode === 'kubernetes') {
+  if (scanMode === 'kubernetes') {
     return 'kubernetes';
   }
   return 'cloud';
@@ -567,70 +585,63 @@ async function executeSingleAccountScan(
 ): Promise<Output> {
   const parsedInputs = inputSchema.parse(inputs);
   const parsedParams = parameterSchema.parse(params);
+  const { scanMode, regions, selectedFlags, resolvedFlagArgs } = prepareScan(
+    parsedInputs,
+    parsedParams,
+  );
 
-  if (parsedParams.scanMode === 'aws' && !parsedInputs.accountId) {
+  if (scanMode === 'aws' && !parsedInputs.accountId) {
     throw new ConfigurationError(
       'Account ID is required for single-account scans. Provide it via the accountId input port.',
       { configKey: 'accountId' },
     );
   }
 
-  const { regions, selectedFlags, resolvedFlagArgs } = prepareScan(parsedInputs, parsedParams);
-
-  if (
-    (parsedParams.scanMode === 'aws' || parsedParams.scanMode === 'cloud') &&
-    !parsedInputs.credentials
-  ) {
+  if ((scanMode === 'aws' || scanMode === 'cloud') && !parsedInputs.credentials) {
     throw new ConfigurationError(
-      `${parsedParams.scanMode} scan requires AWS credentials input. Ensure the previous step outputs { accessKeyId, secretAccessKey, sessionToken? } into the "credentials" input.`,
+      `${scanMode} scan requires AWS credentials input. Ensure the previous step outputs { accessKeyId, secretAccessKey, sessionToken? } into the "credentials" input.`,
       { configKey: 'credentials' },
     );
   }
-  if (parsedParams.scanMode === 'gcp' && !parsedInputs.gcpCredential) {
+  if (scanMode === 'gcp' && !parsedInputs.gcpCredential) {
     throw new ConfigurationError(
       'GCP scan requires gcpCredential input. Provide target service-account impersonation credentials from a GCP credential source.',
       { configKey: 'gcpCredential' },
     );
   }
-  if (parsedParams.scanMode === 'kubernetes' && !parsedInputs.kubeconfig) {
+  if (scanMode === 'kubernetes' && !parsedInputs.kubeconfig) {
     throw new ConfigurationError(
-      'Kubernetes scan requires kubeconfig input. Provide kubeconfig YAML content via the kubeconfig port.',
+      'Kubernetes scan requires kubeconfig input. Connect kubeconfig YAML from Secret Fetch via the kubeconfig port.',
       { configKey: 'kubeconfig' },
     );
   }
 
   const tenantId = (context as any).tenantId ?? 'default-tenant';
   const awsCredsVolume =
-    parsedInputs.credentials &&
-    (parsedParams.scanMode === 'aws' || parsedParams.scanMode === 'cloud')
+    parsedInputs.credentials && (scanMode === 'aws' || scanMode === 'cloud')
       ? createIsolatedVolume(tenantId, `${context.runId}-prowler-aws`)
       : null;
   const gcpCredsVolume =
-    parsedParams.scanMode === 'gcp' && parsedInputs.gcpCredential
+    scanMode === 'gcp' && parsedInputs.gcpCredential
       ? createIsolatedVolume(tenantId, `${context.runId}-prowler-gcp`)
       : null;
   const kubeconfigVolume =
-    parsedParams.scanMode === 'kubernetes' && parsedInputs.kubeconfig
+    scanMode === 'kubernetes' && parsedInputs.kubeconfig
       ? createIsolatedVolume(tenantId, `${context.runId}-prowler-kubeconfig`)
       : null;
 
   const awsEnv = parsedInputs.credentials
-    ? buildAwsEnv(parsedInputs.credentials, regions, parsedParams.scanMode)
+    ? buildAwsEnv(parsedInputs.credentials, regions, scanMode)
     : {};
   const gcpConfig = parsedInputs.gcpCredential ? buildGcpEnv(parsedInputs.gcpCredential) : null;
   const kubernetesEnv = parsedInputs.kubeconfig ? { KUBECONFIG: '/home/prowler/.kube/config' } : {};
 
   context.logger.info(
-    `[ProwlerScan] Running prowler ${parsedParams.scanMode} for ${deriveScanTargetId(parsedInputs, parsedParams)}${regions.length > 0 ? ` with regions: ${regions.join(', ')}` : ''}`,
+    `[ProwlerScan] Running prowler ${scanMode} for ${deriveScanTargetId(parsedInputs, parsedParams)}${regions.length > 0 ? ` with regions: ${regions.join(', ')}` : ''}`,
   );
-  context.emitProgress(`Executing prowler ${parsedParams.scanMode} scan`);
+  context.emitProgress(`Executing prowler ${scanMode} scan`);
 
-  const cmd = buildCommand(
-    parsedParams.scanMode,
-    regions,
-    resolvedFlagArgs,
-    parsedParams.customFlags,
-  );
+  const cmd = buildCommand(scanMode, regions, resolvedFlagArgs, parsedParams.customFlags);
   context.logger.info(`[ProwlerScan] Command: ${cmd.join(' ')}`);
 
   const dockerRunner = {
@@ -748,10 +759,7 @@ async function executeSingleAccountScan(
     }
 
     const { severityCounts, failed, passed, unknown } = computeSeverityCounts(findings);
-    const scanId = buildScanId(
-      deriveScanTargetId(parsedInputs, parsedParams),
-      parsedParams.scanMode,
-    );
+    const scanId = buildScanId(deriveScanTargetId(parsedInputs, parsedParams), scanMode);
     const results = buildAnalyticsResults(findings);
 
     const output: Output = {
@@ -767,7 +775,7 @@ async function executeSingleAccountScan(
         severityCounts,
         generatedAt: new Date().toISOString(),
         regions,
-        scanMode: parsedParams.scanMode,
+        scanMode,
         selectedFlagIds: Array.from(selectedFlags),
         customFlags: parsedParams.customFlags?.trim() || null,
       },
@@ -1211,6 +1219,7 @@ export const __testables = {
   buildCommand,
   prepareScan,
   deriveScanTargetId,
+  resolveScanMode,
 };
 
 // Create local type aliases for backward compatibility

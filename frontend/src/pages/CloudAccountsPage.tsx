@@ -173,11 +173,20 @@ function CloudLoadingSkeleton() {
 
 const CLOUD_QUICK_SCANS = [
   {
-    slug: 'cloud-security-scan',
-    templateSlug: 'sys-cloud-security-scan',
-    name: 'Misconfiguration Scan',
+    slug: 'aws-cloud-security-scan',
+    templateSlug: 'sys-aws-cloud-security-scan',
+    name: 'AWS Misconfiguration Scan',
     description: 'Prowler — CIS, GDPR, HIPAA benchmarks',
     icon: Shield,
+    providers: ['aws'],
+  },
+  {
+    slug: 'gcp-cloud-security-scan',
+    templateSlug: 'sys-gcp-cloud-security-scan',
+    name: 'GCP Misconfiguration Scan',
+    description: 'Prowler — GCP posture and compliance checks',
+    icon: Shield,
+    providers: ['gcp'],
   },
   {
     slug: 'container-image-scan',
@@ -185,6 +194,7 @@ const CLOUD_QUICK_SCANS = [
     name: 'Container Image Scan',
     description: 'Trivy — ECR image vulnerability scan',
     icon: Container,
+    providers: ['aws'],
   },
 ];
 
@@ -210,10 +220,9 @@ function CloudScanPickerModal({ open, onClose, connection }: CloudScanPickerModa
   }, [open, fetchSystemWorkflows]);
 
   const resolvedScans = useMemo(() => {
-    const visibleScans =
-      connection?.provider === 'gcp'
-        ? CLOUD_QUICK_SCANS.filter((scan) => scan.slug === 'cloud-security-scan')
-        : CLOUD_QUICK_SCANS;
+    const visibleScans = connection?.provider
+      ? CLOUD_QUICK_SCANS.filter((scan) => scan.providers.includes(connection.provider))
+      : [];
     return visibleScans.flatMap((scan) => {
       const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
       if (!match) return [];
@@ -996,7 +1005,13 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
     () =>
       systemWorkflows.some(
         (sw) =>
-          sw.slug && new Set(['sys-cloud-security-scan', 'sys-container-image-scan']).has(sw.slug),
+          sw.slug &&
+          new Set([
+            'sys-aws-cloud-security-scan',
+            'sys-gcp-cloud-security-scan',
+            'sys-kubernetes-security-scan',
+            'sys-container-image-scan',
+          ]).has(sw.slug),
       ),
     [systemWorkflows],
   );

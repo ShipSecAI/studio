@@ -541,10 +541,10 @@ function aiCodeReviewTemplate(): SeedTemplate {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Template 7: Cloud Security Scan
-// Entry Point → AWS Credentials → Prowler → Normalize → Analytics Sink
+// Template 7: AWS Cloud Security Scan
+// Entry Point → Resolve AWS Credentials → Prowler → Analytics Sink
 // ──────────────────────────────────────────────────────────────────────────────
-function cloudSecurityScanTemplate(): SeedTemplate {
+function awsCloudSecurityScanTemplate(): SeedTemplate {
   resetCounter();
   const entryPoint = nid('node');
   const awsCreds = nid('node');
@@ -552,17 +552,16 @@ function cloudSecurityScanTemplate(): SeedTemplate {
   const analytics = nid('node');
 
   return {
-    name: 'Cloud Security Scan',
-    slug: 'sys-cloud-security-scan',
-    description:
-      'Scan AWS accounts with Prowler and index findings into Analytics. Supports single-account or org-wide scanning.',
+    name: 'AWS Cloud Security Scan',
+    slug: 'sys-aws-cloud-security-scan',
+    description: 'Scan AWS accounts with Prowler and index findings into Analytics.',
     category: 'cloud-security',
     icon: 'cloud',
     isFeatured: true,
     isDefault: true,
     graph: {
-      name: 'Cloud Security Scan',
-      description: 'AWS cloud security scan with Prowler',
+      name: 'AWS Cloud Security Scan',
+      description: 'AWS cloud security scan with explicit AWS credential resolution',
       nodes: [
         makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
           runtimeInputs: [{ id: 'connectionId', label: 'AWS Account', type: 'text' }],
@@ -573,7 +572,7 @@ function cloudSecurityScanTemplate(): SeedTemplate {
           'Resolve AWS Credentials',
           300,
           0,
-          { parameters: { provider: 'aws' } },
+          { provider: 'aws' },
         ),
         makeNode(prowler, 'security.prowler.scan', 'Prowler', 600, 0),
         makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 900, 0, {
@@ -583,8 +582,8 @@ function cloudSecurityScanTemplate(): SeedTemplate {
       edges: [
         // Entry Point → Resolve Credentials (connectionId)
         makeEdge('e1', entryPoint, awsCreds, 'connectionId', 'connectionId'),
-        // Resolve Credentials → Prowler (data→credentials, accountId, regions)
-        makeEdge('e2', awsCreds, prowler, 'data', 'credentials'),
+        // Resolve Credentials → Prowler (AWS credentials, accountId, regions)
+        makeEdge('e2', awsCreds, prowler, 'credentials', 'credentials'),
         makeEdge('e2b', awsCreds, prowler, 'accountId', 'accountId'),
         makeEdge('e2c', awsCreds, prowler, 'regions', 'regions'),
         // Prowler → Analytics (use results port directly, bypass normalize)
@@ -596,7 +595,115 @@ function cloudSecurityScanTemplate(): SeedTemplate {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Template 8: Attack Surface Recon
+// Template 8: GCP Cloud Security Scan
+// Entry Point → Resolve GCP Credentials → Prowler → Analytics Sink
+// ──────────────────────────────────────────────────────────────────────────────
+function gcpCloudSecurityScanTemplate(): SeedTemplate {
+  resetCounter();
+  const entryPoint = nid('node');
+  const gcpCreds = nid('node');
+  const prowler = nid('node');
+  const analytics = nid('node');
+
+  return {
+    name: 'GCP Cloud Security Scan',
+    slug: 'sys-gcp-cloud-security-scan',
+    description:
+      'Scan Google Cloud projects and organizations with Prowler and index findings into Analytics.',
+    category: 'cloud-security',
+    icon: 'cloud',
+    isFeatured: true,
+    isDefault: true,
+    graph: {
+      name: 'GCP Cloud Security Scan',
+      description: 'Google Cloud security scan with explicit GCP credential resolution',
+      nodes: [
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [{ id: 'connectionId', label: 'GCP Account', type: 'text' }],
+        }),
+        makeNode(
+          gcpCreds,
+          'core.integration.resolve-credentials',
+          'Resolve GCP Credentials',
+          300,
+          0,
+          { provider: 'gcp' },
+        ),
+        makeNode(prowler, 'security.prowler.scan', 'Prowler', 600, 0, { scanMode: 'gcp' }),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 900, 0, {
+          dataInputs: [{ id: 'input1', label: 'Prowler Findings', sourceTag: 'prowler' }],
+        }),
+      ],
+      edges: [
+        makeEdge('e1', entryPoint, gcpCreds, 'connectionId', 'connectionId'),
+        makeEdge('e2', gcpCreds, prowler, 'gcpCredential', 'gcpCredential'),
+        makeEdge('e2b', gcpCreds, prowler, 'accountId', 'accountId'),
+        makeEdge('e2c', gcpCreds, prowler, 'regions', 'regions'),
+        makeEdge('e3', prowler, analytics, 'results', 'input1'),
+      ],
+      viewport: { x: 0, y: 0, zoom: 0.8 },
+    },
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Template 9: Kubernetes Security Scan
+// Entry Point → Prowler(kubernetes) → Analytics Sink
+// ──────────────────────────────────────────────────────────────────────────────
+function kubernetesSecurityScanTemplate(): SeedTemplate {
+  resetCounter();
+  const entryPoint = nid('node');
+  const secretFetch = nid('node');
+  const prowler = nid('node');
+  const analytics = nid('node');
+
+  return {
+    name: 'Kubernetes Security Scan',
+    slug: 'sys-kubernetes-security-scan',
+    description:
+      'Scan Kubernetes clusters with Prowler using a supplied kubeconfig and index findings into Analytics.',
+    category: 'cloud-security',
+    icon: 'container',
+    isFeatured: true,
+    isDefault: true,
+    graph: {
+      name: 'Kubernetes Security Scan',
+      description: 'Kubernetes cluster posture scan with kubeconfig input',
+      nodes: [
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [
+            {
+              id: 'kubeconfigSecretId',
+              label: 'Kubeconfig Secret',
+              type: 'text',
+              required: true,
+              description:
+                'Secret ID or name containing the kubeconfig YAML for the target cluster.',
+            },
+          ],
+        }),
+        makeNode(secretFetch, 'core.secret.fetch', 'Load Kubeconfig Secret', 300, 0, {
+          outputFormat: 'raw',
+        }),
+        makeNode(prowler, 'security.prowler.scan', 'Prowler', 650, 0, {
+          scanMode: 'kubernetes',
+        }),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1050, 0, {
+          dataInputs: [{ id: 'input1', label: 'Prowler Findings', sourceTag: 'prowler' }],
+        }),
+      ],
+      edges: [
+        makeEdge('e1', entryPoint, secretFetch, 'kubeconfigSecretId', 'secretId'),
+        makeEdge('e2', secretFetch, prowler, 'secret', 'kubeconfig'),
+        makeEdge('e3', prowler, analytics, 'results', 'input1'),
+      ],
+      viewport: { x: 0, y: 0, zoom: 0.8 },
+    },
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Template 10: Attack Surface Recon
 // Entry Point → Subfinder → DNSx → HTTPx → Dedupe+Enrich → Analytics
 // ──────────────────────────────────────────────────────────────────────────────
 function attackSurfaceReconTemplate(): SeedTemplate {
@@ -651,7 +758,7 @@ function attackSurfaceReconTemplate(): SeedTemplate {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Template 9: Container Image Scan
+// Template 11: Container Image Scan
 // Entry Point → Trivy (image scan) → Normalize → [Markdown, Analytics Sink]
 // ──────────────────────────────────────────────────────────────────────────────
 function containerImageScanTemplate(): SeedTemplate {
@@ -764,7 +871,9 @@ export const SEED_TEMPLATES: SeedTemplate[] = [
   fullCodeSecurityTemplate(),
   prSecurityGateTemplate(),
   aiCodeReviewTemplate(),
-  cloudSecurityScanTemplate(),
+  awsCloudSecurityScanTemplate(),
+  gcpCloudSecurityScanTemplate(),
+  kubernetesSecurityScanTemplate(),
   attackSurfaceReconTemplate(),
   containerImageScanTemplate(),
   indexInfraTemplate(),

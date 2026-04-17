@@ -29,16 +29,25 @@ interface CloudConnection {
 
 const CLOUD_QUICK_SCANS = [
   {
-    slug: 'cloud-security-scan',
-    templateSlug: 'sys-cloud-security-scan',
-    name: 'Misconfiguration Scan',
+    slug: 'aws-cloud-security-scan',
+    templateSlug: 'sys-aws-cloud-security-scan',
+    name: 'AWS Misconfiguration Scan',
     description: 'Prowler — CIS, GDPR, HIPAA benchmarks',
+    providers: ['aws'],
+  },
+  {
+    slug: 'gcp-cloud-security-scan',
+    templateSlug: 'sys-gcp-cloud-security-scan',
+    name: 'GCP Misconfiguration Scan',
+    description: 'Prowler — GCP posture and compliance checks',
+    providers: ['gcp'],
   },
   {
     slug: 'container-image-scan',
     templateSlug: 'sys-container-image-scan',
     name: 'Container Image Scan',
     description: 'Trivy — ECR image vulnerability scan',
+    providers: ['aws'],
   },
 ];
 
@@ -125,10 +134,9 @@ export function CloudScanScheduleDialog({
   }, [cloudConnections, connectionSearch]);
 
   const resolvedScans = useMemo(() => {
-    const visibleScans =
-      selectedConnection?.provider === 'gcp'
-        ? CLOUD_QUICK_SCANS.filter((scan) => scan.slug === 'cloud-security-scan')
-        : CLOUD_QUICK_SCANS;
+    const visibleScans = selectedConnection?.provider
+      ? CLOUD_QUICK_SCANS.filter((scan) => scan.providers.includes(selectedConnection.provider))
+      : [];
     return visibleScans.flatMap((scan) => {
       const match = systemWorkflows.find((sw) => sw.slug === scan.templateSlug);
       if (!match) return [];

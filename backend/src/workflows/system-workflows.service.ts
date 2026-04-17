@@ -78,6 +78,30 @@ export class SystemWorkflowsService {
       );
     }
 
+    for (const workflow of existing) {
+      const template = defaultTemplates.find((item) => item.id === workflow.templateId);
+      if (!template) continue;
+
+      const record = await this.workflowRepo.findById(workflow.id, { organizationId });
+      if (!record) continue;
+
+      const graph = template.graph as WorkflowGraph;
+      if (JSON.stringify(record.graph) === JSON.stringify(graph)) {
+        continue;
+      }
+
+      await this.workflowRepo.update(workflow.id, graph, { organizationId });
+      await this.versionRepo.create({
+        workflowId: workflow.id,
+        graph,
+        organizationId,
+      });
+
+      this.logger.log(
+        `Updated system workflow "${template.name}" (${workflow.id}) to match template for org ${organizationId}`,
+      );
+    }
+
     this.initializedOrgs.add(organizationId);
     return this.findSystemWorkflows(organizationId);
   }

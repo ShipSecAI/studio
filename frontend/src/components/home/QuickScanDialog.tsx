@@ -25,17 +25,27 @@ interface AwsConnection {
   id: string;
   displayName?: string;
   provider: string;
+  credentialType?: string;
   config?: Record<string, unknown>;
   status?: string;
 }
 
 const CLOUD_SCANS = [
   {
-    id: 'cloud-security-scan',
-    templateSlug: 'sys-cloud-security-scan',
-    name: 'Misconfiguration Scan',
+    id: 'aws-cloud-security-scan',
+    templateSlug: 'sys-aws-cloud-security-scan',
+    name: 'AWS Misconfiguration Scan',
     description: 'Prowler — CIS, GDPR, HIPAA benchmarks',
     icon: Shield,
+    providers: ['aws'],
+  },
+  {
+    id: 'gcp-cloud-security-scan',
+    templateSlug: 'sys-gcp-cloud-security-scan',
+    name: 'GCP Misconfiguration Scan',
+    description: 'Prowler — GCP posture and compliance checks',
+    icon: Shield,
+    providers: ['gcp'],
   },
   {
     id: 'container-image-scan',
@@ -43,6 +53,7 @@ const CLOUD_SCANS = [
     name: 'Container Image Scan',
     description: 'Trivy — ECR image vulnerability scan',
     icon: Container,
+    providers: ['aws'],
   },
 ];
 
@@ -337,17 +348,22 @@ function CloudTargetStep({ templateSlug, onClose }: { templateSlug: string; onCl
     return match?.id;
   }, [systemWorkflows, templateSlug]);
 
-  const awsConnections = useMemo(() => {
-    const aws = connections.filter(
-      (c: AwsConnection) => c.provider === 'aws' && c.status !== 'disconnected',
+  const selectedProviders = useMemo(() => {
+    const match = CLOUD_SCANS.find((scan) => scan.templateSlug === templateSlug);
+    return match?.providers ?? ['aws'];
+  }, [templateSlug]);
+
+  const cloudConnections = useMemo(() => {
+    const matches = connections.filter(
+      (c: AwsConnection) => selectedProviders.includes(c.provider) && c.status !== 'disconnected',
     );
-    if (!search.trim()) return aws;
+    if (!search.trim()) return matches;
     const q = search.toLowerCase();
-    return aws.filter(
+    return matches.filter(
       (c: AwsConnection) =>
         (c.displayName ?? '').toLowerCase().includes(q) || c.id.toLowerCase().includes(q),
     );
-  }, [connections, search]);
+  }, [connections, search, selectedProviders]);
 
   const handleTrigger = async (connection: AwsConnection) => {
     if (!workflowId) return;
@@ -372,10 +388,14 @@ function CloudTargetStep({ templateSlug, onClose }: { templateSlug: string; onCl
     }
   };
 
-  if (!isLoading && awsConnections.length === 0 && !search.trim()) {
+  if (!isLoading && cloudConnections.length === 0 && !search.trim()) {
     return (
       <div className="py-4 text-center space-y-3 border-t pt-3">
-        <p className="text-sm text-muted-foreground">No AWS accounts connected</p>
+        <p className="text-sm text-muted-foreground">
+          {selectedProviders.includes('gcp')
+            ? 'No GCP accounts connected'
+            : 'No AWS accounts connected'}
+        </p>
         <Button
           variant="outline"
           size="sm"
@@ -384,7 +404,7 @@ function CloudTargetStep({ templateSlug, onClose }: { templateSlug: string; onCl
             navigate('/cloud/accounts');
           }}
         >
-          Connect AWS
+          {selectedProviders.includes('gcp') ? 'Connect GCP' : 'Connect AWS'}
         </Button>
       </div>
     );
@@ -402,7 +422,9 @@ function CloudTargetStep({ templateSlug, onClose }: { templateSlug: string; onCl
 
   return (
     <div className="space-y-2 border-t pt-3">
-      <div className="text-xs font-medium text-muted-foreground">Select AWS account</div>
+      <div className="text-xs font-medium text-muted-foreground">
+        Select {selectedProviders.includes('gcp') ? 'GCP account' : 'AWS account'}
+      </div>
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <Input
@@ -415,10 +437,10 @@ function CloudTargetStep({ templateSlug, onClose }: { templateSlug: string; onCl
       <div className="max-h-48 overflow-y-auto space-y-1">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
-        ) : awsConnections.length === 0 ? (
+        ) : cloudConnections.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">No accounts found</p>
         ) : (
-          awsConnections.map((conn: AwsConnection) => (
+          cloudConnections.map((conn: AwsConnection) => (
             <button
               key={conn.id}
               onClick={() => handleTrigger(conn)}
@@ -432,13 +454,19 @@ function CloudTargetStep({ templateSlug, onClose }: { templateSlug: string; onCl
               )}
               <div className="min-w-0">
                 <div className="text-sm font-medium truncate">
-                  {conn.displayName || 'AWS Account'}
+                  {conn.displayName || (conn.provider === 'gcp' ? 'GCP Account' : 'AWS Account')}
                 </div>
                 <div className="text-xs text-muted-foreground truncate">
-                  {conn.config?.accountId
-                    ? `Account ${String(conn.config.accountId)}`
-                    : conn.id.slice(0, 8)}
-                  {conn.config?.region ? ` · ${String(conn.config.region)}` : ''}
+                  {conn.provider === 'gcp'
+                    ? conn.config?.defaultProjectId
+                      ? `Project ${String(conn.config.defaultProjectId)}`
+                      : conn.id.slice(0, 8)
+                    : conn.config?.accountId
+                      ? `Account ${String(conn.config.accountId)}`
+                      : conn.id.slice(0, 8)}
+                  {conn.provider === 'aws' && conn.config?.region
+                    ? ` · ${String(conn.config.region)}`
+                    : ''}
                 </div>
               </div>
             </button>

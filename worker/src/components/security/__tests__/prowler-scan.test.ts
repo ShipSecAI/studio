@@ -91,4 +91,35 @@ describe('prowler-scan helpers', () => {
     expect(gcpTarget).toBe('demo-project');
     expect(k8sTarget).toBe('kubernetes');
   });
+
+  it('resolveScanMode auto-detects gcp when only a gcp credential is wired', () => {
+    const scanMode = __testables.resolveScanMode(
+      {
+        accountId: undefined,
+        credentials: undefined,
+        gcpCredential: {
+          targetServiceAccountEmail: 'svc@example.com',
+          defaultProjectId: 'demo-project',
+          organizationId: undefined,
+          clientEmail: undefined,
+        },
+        kubeconfig: undefined,
+        regions: '',
+        orgScan: undefined,
+      },
+      {
+        scanMode: 'aws',
+        recommendedFlags: [],
+        customFlags: undefined,
+        orgScan: false,
+        memberRoleName: 'OrganizationAccountAccessRole',
+        externalId: undefined,
+        continueOnError: true,
+        skipManagementAccount: false,
+        maxConcurrency: 1,
+      },
+    );
+
+    expect(scanMode).toBe('gcp');
+  });
 });

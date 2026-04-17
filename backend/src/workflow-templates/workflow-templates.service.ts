@@ -49,10 +49,20 @@ export class WorkflowTemplatesService implements OnModuleInit {
       isFeatured: true,
       runCount: 1240,
     },
-    'Cloud Security Scan': {
+    'AWS Cloud Security Scan': {
       screenshotUrl: '/templates/cloud-security-scan.png',
       isFeatured: true,
       runCount: 310,
+    },
+    'GCP Cloud Security Scan': {
+      screenshotUrl: '/templates/cloud-security-scan.png',
+      isFeatured: true,
+      runCount: 140,
+    },
+    'Kubernetes Security Scan': {
+      screenshotUrl: '/templates/cloud-security-scan.png',
+      isFeatured: true,
+      runCount: 90,
     },
     'Attack Surface Recon': {
       screenshotUrl: '/templates/attack-surface-recon.png',
