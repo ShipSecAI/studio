@@ -34,6 +34,7 @@ const parameterSchema = parameters({
     z
       .string()
       .min(1, 'Secret identifier is required')
+      .optional()
       .describe('Name or UUID of the secret in the ShipSec store'),
     {
       label: 'Secret Name',
@@ -105,6 +106,13 @@ const definition = defineComponent({
       typeof inputs.secretId === 'string' && inputs.secretId.trim().length > 0
         ? inputs.secretId.trim()
         : params.secretId;
+
+    if (!resolvedSecretId) {
+      throw new ConfigurationError(
+        'Secret identifier is required. Provide it as a parameter or wire it into the secretId input.',
+        { configKey: 'secretId' },
+      );
+    }
 
     context.emitProgress('Resolving secret from store...');
 

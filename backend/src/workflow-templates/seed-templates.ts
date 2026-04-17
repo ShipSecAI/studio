@@ -675,7 +675,7 @@ function kubernetesSecurityScanTemplate(): SeedTemplate {
             {
               id: 'kubeconfigSecretId',
               label: 'Kubeconfig Secret',
-              type: 'text',
+              type: 'secret',
               required: true,
               description:
                 'Secret ID or name containing the kubeconfig YAML for the target cluster.',
