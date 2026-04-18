@@ -333,6 +333,33 @@ const outputSchema = outputs({
   }),
 });
 
+function resolveProwlerPorts(params: ParsedParams) {
+  const sharedInputs = {
+    accountId: inputSchema.shape.accountId,
+    regions: inputSchema.shape.regions,
+    orgScan: inputSchema.shape.orgScan,
+  };
+
+  if (params.scanMode === 'gcp') {
+    return inputs({
+      ...sharedInputs,
+      gcpCredential: inputSchema.shape.gcpCredential,
+    });
+  }
+
+  if (params.scanMode === 'kubernetes') {
+    return inputs({
+      ...sharedInputs,
+      kubeconfig: inputSchema.shape.kubeconfig,
+    });
+  }
+
+  return inputs({
+    ...sharedInputs,
+    credentials: inputSchema.shape.credentials,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Retry policy
 // ---------------------------------------------------------------------------
@@ -353,28 +380,13 @@ type ParsedInputs = ReturnType<typeof inputSchema.parse>;
 type ParsedParams = ReturnType<typeof parameterSchema.parse>;
 
 interface PreparedScan {
-  scanMode: 'aws' | 'cloud' | 'gcp' | 'kubernetes';
   regions: string[];
   selectedFlags: Set<RecommendedFlagId>;
   resolvedFlagArgs: string[];
 }
 
-function resolveScanMode(
-  parsedInputs: ParsedInputs,
-  parsedParams: ParsedParams,
-): 'aws' | 'cloud' | 'gcp' | 'kubernetes' {
-  if (parsedParams.scanMode === 'kubernetes') {
-    return 'kubernetes';
-  }
-  if (parsedInputs.gcpCredential && !parsedInputs.credentials) {
-    return 'gcp';
-  }
-  return parsedParams.scanMode;
-}
-
 function prepareScan(parsedInputs: ParsedInputs, parsedParams: ParsedParams): PreparedScan {
-  const scanMode = resolveScanMode(parsedInputs, parsedParams);
-  const usesAwsRegions = scanMode === 'aws' || scanMode === 'cloud';
+  const usesAwsRegions = parsedParams.scanMode === 'aws' || parsedParams.scanMode === 'cloud';
   const parsedRegions = usesAwsRegions
     ? parsedInputs.regions
         .split(',')
@@ -390,7 +402,7 @@ function prepareScan(parsedInputs: ParsedInputs, parsedParams: ParsedParams): Pr
     (flagId) => recommendedFlagMap.get(flagId) ?? [],
   );
 
-  return { scanMode, regions, selectedFlags, resolvedFlagArgs };
+  return { regions, selectedFlags, resolvedFlagArgs };
 }
 
 function buildCommand(
@@ -507,11 +519,10 @@ function deriveScanTargetId(parsedInputs: ParsedInputs, parsedParams: ParsedPara
   if (parsedInputs.accountId) {
     return parsedInputs.accountId;
   }
-  const scanMode = resolveScanMode(parsedInputs, parsedParams);
-  if (scanMode === 'gcp') {
+  if (parsedParams.scanMode === 'gcp') {
     return parsedInputs.gcpCredential?.defaultProjectId ?? 'gcp';
   }
-  if (scanMode === 'kubernetes') {
+  if (parsedParams.scanMode === 'kubernetes') {
     return 'kubernetes';
   }
   return 'cloud';
@@ -585,10 +596,8 @@ async function executeSingleAccountScan(
 ): Promise<Output> {
   const parsedInputs = inputSchema.parse(inputs);
   const parsedParams = parameterSchema.parse(params);
-  const { scanMode, regions, selectedFlags, resolvedFlagArgs } = prepareScan(
-    parsedInputs,
-    parsedParams,
-  );
+  const { regions, selectedFlags, resolvedFlagArgs } = prepareScan(parsedInputs, parsedParams);
+  const scanMode = parsedParams.scanMode;
 
   if (scanMode === 'aws' && !parsedInputs.accountId) {
     throw new ConfigurationError(
@@ -1200,6 +1209,13 @@ const definition = defineComponent({
       'Enable org-wide scan to discover all member accounts and run Prowler across the entire organization.',
     ],
   },
+  resolvePorts(params) {
+    const parsedParams = parameterSchema.parse(params);
+    return {
+      inputs: resolveProwlerPorts(parsedParams),
+      outputs: outputSchema,
+    };
+  },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);
 
@@ -1219,7 +1235,6 @@ export const __testables = {
   buildCommand,
   prepareScan,
   deriveScanTargetId,
-  resolveScanMode,
 };
 
 // Create local type aliases for backward compatibility

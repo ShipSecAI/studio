@@ -23,6 +23,8 @@ import './core/artifact-writer';
 import './core/file-writer';
 import './core/credentials-aws';
 import './core/integration-credential-resolver';
+import './core/integration-aws-credential-resolver';
+import './core/integration-gcp-credential-resolver';
 import './core/aws-org-discovery';
 import './core/aws-assume-role';
 import './core/destination-artifact';

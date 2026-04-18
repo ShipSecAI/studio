@@ -172,4 +172,93 @@ describe('asset discovery runtime', () => {
       expect.anything(),
     );
   });
+
+  it('runs mixed AWS and GCP targets in separate Cartography passes', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(((input: URL | RequestInfo) => {
+      const url = String(input);
+      const body = url.includes('conn-aws-1')
+        ? {
+            provider: 'aws',
+            credentialType: 'iam_role',
+            accountId: '111111111111',
+            data: {
+              accessKeyId: 'AKIA111',
+              secretAccessKey: 'secret-1',
+              region: 'us-east-1',
+            },
+          }
+        : {
+            provider: 'gcp',
+            credentialType: 'service_account',
+            accountId: 'demo-project',
+            data: {
+              targetServiceAccountEmail: 'svc@example.com',
+              defaultProjectId: 'demo-project',
+              organizationId: 'organizations/1234567890',
+              clientEmail: 'svc@example.com',
+            },
+          };
+
+      return Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    }) as unknown as typeof fetch);
+
+    const cartographySpy = vi
+      .spyOn(cartographySync, 'runCartographyWithRunner')
+      .mockResolvedValueOnce({
+        command: ['--selected-modules', 'aws'],
+        stdout: 'aws-ok',
+        stderr: '',
+        durationMs: 21,
+      })
+      .mockResolvedValueOnce({
+        command: ['--selected-modules', 'gcp'],
+        stdout: 'gcp-ok',
+        stderr: '',
+        durationMs: 17,
+      });
+
+    const result = await runPreparedCartographySync({
+      organizationId: 'org-123',
+      workflowId: 'workflow-1',
+      workflowName: 'Index Infra',
+      runId: 'run-1',
+      componentRef: 'asset-sync.cartography',
+      neo4jDatabase: 'neo4j',
+      targets: [
+        {
+          connectionId: 'conn-aws-1',
+          displayName: 'AWS account 1',
+          accountIdentifier: '111111111111',
+          region: 'us-east-1',
+        },
+        {
+          connectionId: 'conn-gcp-1',
+          displayName: 'GCP connection',
+          accountIdentifier: 'demo-project',
+          region: null,
+        },
+      ],
+      coveredRegions: ['us-east-1'],
+    });
+
+    expect(cartographySpy).toHaveBeenCalledTimes(2);
+    expect(cartographySpy.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        selectedModules: ['aws'],
+      }),
+    );
+    expect(cartographySpy.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        selectedModules: ['gcp'],
+      }),
+    );
+    expect(result.stdout).toContain('aws-ok');
+    expect(result.stdout).toContain('gcp-ok');
+    expect(result.durationMs).toBe(38);
+  });
 });

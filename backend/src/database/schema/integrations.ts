@@ -17,6 +17,7 @@ export const integrationTokens = pgTable(
     provider: varchar('provider', { length: 64 }).notNull(),
     credentialType: varchar('credential_type', { length: 32 }).notNull().default('oauth'),
     displayName: varchar('display_name', { length: 191 }).notNull(),
+    naturalKey: varchar('natural_key', { length: 255 }).notNull(),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
     accessToken: jsonb('access_token')
@@ -48,11 +49,13 @@ export const integrationTokens = pgTable(
   (table) => ({
     userIdx: index('integration_tokens_user_idx').on(table.userId),
     orgIdx: index('integration_tokens_org_idx').on(table.organizationId),
-    orgProviderTypeNameUnique: uniqueIndex('integration_tokens_org_provider_type_name_uidx').on(
+    orgProviderTypeNaturalKeyUnique: uniqueIndex(
+      'integration_tokens_org_provider_type_natural_key_uidx',
+    ).on(
       table.organizationId,
       table.provider,
       table.credentialType,
-      table.displayName,
+      table.naturalKey,
     ),
   }),
 );

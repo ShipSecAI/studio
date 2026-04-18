@@ -98,8 +98,7 @@ dev action="start":
             bun --env-file="$FE_ENV" frontend/scripts/validate-env.ts || exit 1
             echo ""
 
-            # Ensure native PTY module is rebuilt for current Node runtime
-            ./scripts/ensure-node-pty.sh
+            # PTY support is handled by Bun/native runtime now; no node-pty rebuild step required
 
             if [ "$SECURE_MODE" = "true" ]; then
                 echo "🔐  Starting development environment (Clerk auth, instance ${INST})..."

@@ -134,10 +134,7 @@ export class AssetSyncService {
       throw new BadRequestException('Failed to resolve supported cloud connection for sync');
     }
     const effectiveIntegrationId = effectiveConnection.id;
-    const effectiveProvider = effectiveConnection.provider;
-    const connections = input.integrationId
-      ? [effectiveConnection]
-      : supportedConnections.filter((connection) => connection.provider === effectiveProvider);
+    const connections = input.integrationId ? [effectiveConnection] : supportedConnections;
 
     const targets = [];
     const coveredRegions = new Set<string>();

@@ -80,4 +80,70 @@ describe('AssetSyncService.prepareSyncContext', () => {
     expect(resolveConnectionCredentials).toHaveBeenCalledTimes(1);
     expect(resolveConnectionCredentials).toHaveBeenCalledWith('gcp-1');
   });
+
+  it('includes multiple providers when no integration is pinned', async () => {
+    const resolveConnectionCredentials = mock((connectionId: string) =>
+      Promise.resolve(
+        connectionId === 'aws-1'
+          ? {
+              provider: 'aws',
+              credentialType: 'iam_role',
+              accountId: '111111111111',
+              region: 'us-east-1',
+              data: { accessKeyId: 'AKIA', secretAccessKey: 'SECRET', region: 'us-east-1' },
+            }
+          : {
+              provider: 'gcp',
+              credentialType: 'service_account',
+              accountId: 'project-a',
+              data: { targetServiceAccountEmail: 'svc@example.com' },
+            },
+      ),
+    );
+    const createSyncRun = mock(() => Promise.resolve({ id: 'sync-run-1' }));
+
+    const service = new AssetSyncService(
+      {
+        resolveConnectionCredentials,
+      } as any,
+      {
+        createSyncRun,
+      } as any,
+      {
+        getDatabaseName: () => 'neo4j',
+      } as any,
+      {} as any,
+      makeDbWithConnections([
+        {
+          id: 'aws-1',
+          provider: 'aws',
+          credentialType: 'iam_role',
+          displayName: 'AWS One',
+          metadata: {
+            accountId: '111111111111',
+            region: 'us-east-1',
+          },
+        },
+        {
+          id: 'gcp-1',
+          provider: 'gcp',
+          credentialType: 'service_account',
+          displayName: 'GCP One',
+          metadata: {
+            defaultProjectId: 'project-a',
+          },
+        },
+      ]),
+    );
+
+    const context = await service.prepareSyncContext({
+      organizationId: 'org-1',
+    });
+
+    expect(context.targets).toHaveLength(2);
+    expect(context.targets.map((target: any) => target.connectionId)).toEqual(
+      expect.arrayContaining(['aws-1', 'gcp-1']),
+    );
+    expect(resolveConnectionCredentials).toHaveBeenCalledTimes(2);
+  });
 });

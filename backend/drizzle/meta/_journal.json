@@ -106,6 +106,13 @@
       "when": 1775908800000,
       "tag": "0028_add_report_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1776484200000,
+      "tag": "0029_add_integration_natural_key",
+      "breakpoints": true
     }
   ]
 }

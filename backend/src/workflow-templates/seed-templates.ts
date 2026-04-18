@@ -568,11 +568,11 @@ function awsCloudSecurityScanTemplate(): SeedTemplate {
         }),
         makeNode(
           awsCreds,
-          'core.integration.resolve-credentials',
+          'core.integration.resolve-aws-credentials',
           'Resolve AWS Credentials',
           300,
           0,
-          { provider: 'aws' },
+          {},
         ),
         makeNode(prowler, 'security.prowler.scan', 'Prowler', 600, 0),
         makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 900, 0, {
@@ -623,11 +623,11 @@ function gcpCloudSecurityScanTemplate(): SeedTemplate {
         }),
         makeNode(
           gcpCreds,
-          'core.integration.resolve-credentials',
+          'core.integration.resolve-gcp-credentials',
           'Resolve GCP Credentials',
           300,
           0,
-          { provider: 'gcp' },
+          {},
         ),
         makeNode(prowler, 'security.prowler.scan', 'Prowler', 600, 0, { scanMode: 'gcp' }),
         makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 900, 0, {

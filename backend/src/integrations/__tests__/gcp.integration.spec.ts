@@ -36,6 +36,7 @@ function makeRecord(overrides: Record<string, unknown> = {}) {
       serviceAccountUniqueId: 'uid-1',
       discoveredResources: [{ id: 'project-1' }],
     },
+    naturalKey: 'uid-1::123456789012::project-1',
     ...overrides,
   };
 }
@@ -127,7 +128,7 @@ describe('gcp integration foundation', () => {
     expect(resolved.data).toHaveProperty('targetServiceAccountEmail');
   });
 
-  it('persists refreshed gcp credentials when reconnecting the same display name', async () => {
+  it('persists refreshed gcp credentials when reconnecting the same service account scope', async () => {
     const updates: any[] = [];
     const service = createService({
       findConnectionByNaturalKey: mock(() =>
@@ -142,17 +143,18 @@ describe('gcp integration foundation', () => {
     });
 
     const result = await service.createGcpConnection(makeAuth(), {
-      displayName: 'Prod GCP',
+      displayName: 'Renamed GCP Connection',
       targetServiceAccountEmail: 'svc2@example.iam.gserviceaccount.com',
     } as any);
 
     expect(result.provider).toBe('gcp');
     expect(updates.length).toBe(1);
     expect(updates[0].accessToken.ciphertext).toContain('svc2@example.iam.gserviceaccount.com');
-    expect(updates[0].displayName).toBe('Prod GCP');
+    expect(updates[0].displayName).toBe('Renamed GCP Connection');
+    expect(updates[0].naturalKey).toBe('uid-1::123456789012::project-1');
   });
 
-  it('creates a distinct GCP connection when the display name is new', async () => {
+  it('creates a distinct GCP connection when the service account scope is new', async () => {
     const upserts: any[] = [];
     const service = createService({
       findConnectionByNaturalKey: mock(() => Promise.resolve(undefined)),
@@ -177,6 +179,35 @@ describe('gcp integration foundation', () => {
     expect(result.id).toBe('conn-2');
     expect(upserts).toHaveLength(1);
     expect(upserts[0].displayName).toBe('Sandbox GCP');
+    expect(upserts[0].naturalKey).toBe('uid-1::123456789012::project-1');
+  });
+
+  it('creates a distinct GCP connection when the display name is reused for a different scope', async () => {
+    const upserts: any[] = [];
+    const service = createService({
+      findConnectionByNaturalKey: mock(() => Promise.resolve(undefined)),
+      validateServiceAccount: mock(() =>
+        Promise.resolve({
+          serviceAccountEmail: 'other@example.iam.gserviceaccount.com',
+          serviceAccountUniqueId: 'uid-2',
+          defaultProjectId: 'project-2',
+          organizationId: '123456789012',
+          projects: [{ id: 'project-2', displayName: 'Project 2', type: 'project' as const }],
+        }),
+      ),
+      upsertConnection: mock((input: any) => {
+        upserts.push(input);
+        return Promise.resolve(makeRecord({ id: 'conn-3', metadata: input.metadata }));
+      }),
+    });
+
+    await service.createGcpConnection(makeAuth(), {
+      displayName: 'Prod GCP',
+      targetServiceAccountEmail: 'other@example.iam.gserviceaccount.com',
+    } as any);
+
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0].naturalKey).toBe('uid-2::123456789012::project-2');
   });
 
   it('rejects GCP connections whose discovered scope is already linked to another org', async () => {

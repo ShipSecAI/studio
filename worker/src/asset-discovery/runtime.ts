@@ -278,11 +278,6 @@ export async function runPreparedCartographySync(input: {
     })),
   );
 
-  const providers = new Set(targetsWithCreds.map((target) => target.resolvedCredentials.provider));
-  if (providers.size > 1) {
-    throw new Error('Mixed-provider Cartography sync is not supported in a single worker run');
-  }
-
   const context = createExecutionContext({
     runId: input.runId,
     componentRef: input.componentRef,
@@ -291,72 +286,93 @@ export async function runPreparedCartographySync(input: {
     workflowName: input.workflowName,
   });
 
-  const [provider] = providers;
-  if (provider === 'gcp') {
-    if (targetsWithCreds.length !== 1) {
-      throw new Error(
-        `GCP Cartography sync requires exactly one target per run (received ${targetsWithCreds.length})`,
-      );
-    }
+  const awsTargets = targetsWithCreds.filter(
+    (
+      target,
+    ): target is SyncContextTarget & {
+      resolvedCredentials: Extract<ResolvedConnectionCredentials, { provider: 'aws' }>;
+    } => isResolvedAwsCredentials(target.resolvedCredentials),
+  );
+  const gcpTargets = targetsWithCreds.filter(
+    (
+      target,
+    ): target is SyncContextTarget & {
+      resolvedCredentials: Extract<ResolvedConnectionCredentials, { provider: 'gcp' }>;
+    } => isResolvedGcpCredentials(target.resolvedCredentials),
+  );
 
-    const [{ resolvedCredentials }] = targetsWithCreds;
-    if (!isResolvedGcpCredentials(resolvedCredentials)) {
-      throw new Error('Expected resolved GCP credentials for GCP Cartography sync');
-    }
-    if (!resolvedCredentials.data.targetServiceAccountEmail) {
-      throw new Error('Expected targetServiceAccountEmail for GCP Cartography sync');
-    }
+  if (awsTargets.length + gcpTargets.length !== targetsWithCreds.length) {
+    throw new Error('Encountered unsupported provider while preparing Cartography sync');
+  }
 
-    return runCartographyWithRunner(
-      {
-        selectedModules: ['gcp'],
-        neo4jUri: process.env.CARTOGRAPHY_NEO4J_URI?.trim() || 'bolt://neo4j:7687',
-        neo4jDatabase:
-          input.neo4jDatabase || process.env.NEO4J_DATABASE?.trim() || DEFAULT_NEO4J_DATABASE,
-        gcpCredential: {
-          targetServiceAccountEmail: resolvedCredentials.data.targetServiceAccountEmail,
-          defaultProjectId: resolvedCredentials.data.defaultProjectId,
-          organizationId: resolvedCredentials.data.organizationId,
-          clientEmail: resolvedCredentials.data.clientEmail,
+  const runs: { stdout: string; stderr: string; durationMs: number }[] = [];
+
+  if (awsTargets.length > 0) {
+    runs.push(
+      await runCartographyWithRunner(
+        {
+          selectedModules: ['aws'],
+          neo4jUri: process.env.CARTOGRAPHY_NEO4J_URI?.trim() || 'bolt://neo4j:7687',
+          neo4jDatabase:
+            input.neo4jDatabase || process.env.NEO4J_DATABASE?.trim() || DEFAULT_NEO4J_DATABASE,
+          awsProfiles: awsTargets.map((target, index) => ({
+            profileName: buildProfileName(target.connectionId, index),
+            region: target.region?.trim() || input.coveredRegions[0] || 'us-east-1',
+            accessKeyId: target.resolvedCredentials.data.accessKeyId!,
+            secretAccessKey: target.resolvedCredentials.data.secretAccessKey!,
+            sessionToken: target.resolvedCredentials.data.sessionToken,
+          })),
+          awsRegions: input.coveredRegions,
+          awsRequestedSyncs:
+            process.env.CARTOGRAPHY_AWS_REQUESTED_SYNCS?.trim() || DEFAULT_AWS_REQUESTED_SYNCS,
+          awsBestEffort: true,
+          image: process.env.CARTOGRAPHY_IMAGE?.trim(),
         },
-        image: process.env.CARTOGRAPHY_IMAGE?.trim(),
-      },
-      context,
+        context,
+      ),
     );
   }
 
-  const awsTargets = targetsWithCreds.map((target) => {
-    if (!isResolvedAwsCredentials(target.resolvedCredentials)) {
-      throw new Error('Expected resolved AWS credentials for AWS Cartography sync');
+  for (const target of gcpTargets) {
+    if (!target.resolvedCredentials.data.targetServiceAccountEmail) {
+      throw new Error('Expected targetServiceAccountEmail for GCP Cartography sync');
     }
 
-    return {
-      ...target,
-      resolvedCredentials: target.resolvedCredentials,
-    };
-  });
+    runs.push(
+      await runCartographyWithRunner(
+        {
+          selectedModules: ['gcp'],
+          neo4jUri: process.env.CARTOGRAPHY_NEO4J_URI?.trim() || 'bolt://neo4j:7687',
+          neo4jDatabase:
+            input.neo4jDatabase || process.env.NEO4J_DATABASE?.trim() || DEFAULT_NEO4J_DATABASE,
+          gcpCredential: {
+            targetServiceAccountEmail: target.resolvedCredentials.data.targetServiceAccountEmail,
+            defaultProjectId: target.resolvedCredentials.data.defaultProjectId,
+            organizationId: target.resolvedCredentials.data.organizationId,
+            clientEmail: target.resolvedCredentials.data.clientEmail,
+          },
+          image: process.env.CARTOGRAPHY_IMAGE?.trim(),
+        },
+        context,
+      ),
+    );
+  }
 
-  return runCartographyWithRunner(
-    {
-      selectedModules: ['aws'],
-      neo4jUri: process.env.CARTOGRAPHY_NEO4J_URI?.trim() || 'bolt://neo4j:7687',
-      neo4jDatabase:
-        input.neo4jDatabase || process.env.NEO4J_DATABASE?.trim() || DEFAULT_NEO4J_DATABASE,
-      awsProfiles: awsTargets.map((target, index) => ({
-        profileName: buildProfileName(target.connectionId, index),
-        region: target.region?.trim() || input.coveredRegions[0] || 'us-east-1',
-        accessKeyId: target.resolvedCredentials.data.accessKeyId!,
-        secretAccessKey: target.resolvedCredentials.data.secretAccessKey!,
-        sessionToken: target.resolvedCredentials.data.sessionToken,
-      })),
-      awsRegions: input.coveredRegions,
-      awsRequestedSyncs:
-        process.env.CARTOGRAPHY_AWS_REQUESTED_SYNCS?.trim() || DEFAULT_AWS_REQUESTED_SYNCS,
-      awsBestEffort: true,
-      image: process.env.CARTOGRAPHY_IMAGE?.trim(),
-    },
-    context,
-  );
+  if (runs.length === 0) {
+    throw new Error('No supported Cartography sync targets were prepared');
+  }
+
+  return {
+    stdout: runs
+      .map((run) => run.stdout)
+      .filter(Boolean)
+      .join('\n'),
+    stderr: runs
+      .map((run) => run.stderr)
+      .filter(Boolean)
+      .join('\n'),
+    durationMs: runs.reduce((sum, run) => sum + run.durationMs, 0),
+  };
 }
 
 export async function executeAssetInventorySync(input: {

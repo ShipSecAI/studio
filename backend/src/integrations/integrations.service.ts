@@ -116,6 +116,19 @@ function extractGcpScopeIdentifiers(metadata: Record<string, unknown>): Set<stri
   return identifiers;
 }
 
+function buildGcpConnectionNaturalKey(input: {
+  serviceAccountUniqueId?: string | null;
+  serviceAccountEmail: string;
+  defaultProjectId?: string | null;
+  organizationId?: string | null;
+}): string {
+  const subject =
+    input.serviceAccountUniqueId?.trim() || input.serviceAccountEmail.trim().toLowerCase();
+  const organizationId = input.organizationId?.trim() || '-';
+  const defaultProjectId = input.defaultProjectId?.trim() || '-';
+  return `${subject}::${organizationId}::${defaultProjectId}`;
+}
+
 interface ProviderCredentialOverride {
   provider: string;
   clientId: string;
@@ -688,12 +701,18 @@ export class IntegrationsService implements OnModuleInit {
     };
 
     await this.assertGcpScopeIsolation(orgId, metadata);
+    const naturalKey = buildGcpConnectionNaturalKey({
+      serviceAccountUniqueId: validation.serviceAccountUniqueId,
+      serviceAccountEmail: validation.serviceAccountEmail,
+      defaultProjectId: metadata.defaultProjectId,
+      organizationId: metadata.organizationId,
+    });
 
     const existing = await this.repository.findConnectionByNaturalKey({
       organizationId: orgId,
       provider: 'gcp',
       credentialType: 'service_account',
-      displayName: input.displayName,
+      naturalKey,
     });
     const now = new Date();
     const record = await this.repository.upsertConnection({
@@ -702,6 +721,7 @@ export class IntegrationsService implements OnModuleInit {
       organizationId: orgId,
       credentialType: 'service_account',
       displayName: input.displayName,
+      naturalKey,
       scopes: [],
       accessToken: encryptedCreds,
       refreshToken: null,
@@ -1785,6 +1805,7 @@ export class IntegrationsService implements OnModuleInit {
       organizationId: input.organizationId,
       credentialType: input.credentialType,
       displayName: input.displayName,
+      naturalKey: input.displayName,
       provider: input.provider.id,
       scopes: grantedScopes,
       accessToken: accessMaterial,
@@ -1846,6 +1867,7 @@ export class IntegrationsService implements OnModuleInit {
       organizationId: record.organizationId,
       credentialType: record.credentialType ?? 'oauth',
       displayName: record.displayName ?? record.provider,
+      naturalKey: record.naturalKey ?? record.displayName ?? record.provider,
       provider: record.provider,
       scopes: grantedScopes,
       accessToken: accessMaterial,

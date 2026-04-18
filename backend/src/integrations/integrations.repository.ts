@@ -20,6 +20,7 @@ interface UpsertIntegrationTokenInput {
   organizationId: string;
   credentialType: string;
   displayName: string;
+  naturalKey: string;
   scopes: string[];
   accessToken: SecretEncryptionMaterial;
   refreshToken: SecretEncryptionMaterial | null;
@@ -34,6 +35,7 @@ interface InsertConnectionInput {
   organizationId: string;
   credentialType: string;
   displayName: string;
+  naturalKey?: string;
   scopes?: string[];
   accessToken: SecretEncryptionMaterial;
   refreshToken?: SecretEncryptionMaterial | null;
@@ -109,7 +111,7 @@ export class IntegrationsRepository {
     organizationId: string;
     provider: string;
     credentialType: string;
-    displayName: string;
+    naturalKey: string;
   }): Promise<IntegrationTokenRecord | undefined> {
     const [record] = await this.db
       .select()
@@ -119,7 +121,7 @@ export class IntegrationsRepository {
           eq(integrationTokens.organizationId, input.organizationId),
           eq(integrationTokens.provider, input.provider),
           eq(integrationTokens.credentialType, input.credentialType),
-          eq(integrationTokens.displayName, input.displayName),
+          eq(integrationTokens.naturalKey, input.naturalKey),
         ),
       )
       .limit(1);
@@ -148,6 +150,7 @@ export class IntegrationsRepository {
       organizationId: input.organizationId,
       credentialType: input.credentialType,
       displayName: input.displayName,
+      naturalKey: input.naturalKey,
       scopes: input.scopes,
       accessToken: input.accessToken,
       refreshToken: input.refreshToken,
@@ -168,7 +171,7 @@ export class IntegrationsRepository {
           integrationTokens.organizationId,
           integrationTokens.provider,
           integrationTokens.credentialType,
-          integrationTokens.displayName,
+          integrationTokens.naturalKey,
         ],
         set: payload,
       })
@@ -193,6 +196,7 @@ export class IntegrationsRepository {
           organizationId: input.organizationId,
           credentialType: input.credentialType,
           displayName: input.displayName,
+          naturalKey: input.naturalKey ?? input.displayName,
           scopes: input.scopes ?? [],
           accessToken: input.accessToken,
           refreshToken: input.refreshToken ?? null,
@@ -219,7 +223,7 @@ export class IntegrationsRepository {
               eq(integrationTokens.organizationId, input.organizationId),
               eq(integrationTokens.provider, input.provider),
               eq(integrationTokens.credentialType, input.credentialType),
-              eq(integrationTokens.displayName, input.displayName),
+              eq(integrationTokens.naturalKey, input.naturalKey ?? input.displayName),
             ),
           )
           .limit(1);

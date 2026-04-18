@@ -183,7 +183,7 @@ export class WorkflowTemplatesService implements OnModuleInit {
       // Find system workflows for this template, then update their latest version's
       // graph and clear the compiled definition so it gets re-compiled on next run.
       const systemWorkflows = await this.db
-        .select({ id: workflowsTable.id })
+        .select({ id: workflowsTable.id, organizationId: workflowsTable.organizationId })
         .from(workflowsTable)
         .where(and(eq(workflowsTable.templateId, template.id), eq(workflowsTable.isSystem, true)));
 
@@ -199,11 +199,21 @@ export class WorkflowTemplatesService implements OnModuleInit {
           })
           .where(eq(workflowsTable.id, sw.id));
 
-        // Update the version's graph and clear compiled definition for re-compilation
-        await this.db
-          .update(workflowVersionsTable)
-          .set({ graph: seed.graph as any, compiledDefinition: null })
-          .where(eq(workflowVersionsTable.workflowId, sw.id));
+        const latestVersion = await this.db
+          .select({ version: workflowVersionsTable.version })
+          .from(workflowVersionsTable)
+          .where(eq(workflowVersionsTable.workflowId, sw.id))
+          .orderBy(desc(workflowVersionsTable.version))
+          .limit(1);
+
+        const nextVersion = (latestVersion[0]?.version ?? 0) + 1;
+        await this.db.insert(workflowVersionsTable).values({
+          workflowId: sw.id,
+          version: nextVersion,
+          graph: seed.graph as any,
+          organizationId: sw.organizationId,
+          compiledDefinition: null,
+        });
       }
 
       updated++;
