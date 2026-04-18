@@ -91,5 +91,4 @@ describe('prowler-scan helpers', () => {
     expect(gcpTarget).toBe('demo-project');
     expect(k8sTarget).toBe('kubernetes');
   });
-
 });

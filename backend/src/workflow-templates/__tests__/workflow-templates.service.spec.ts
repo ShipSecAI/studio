@@ -4,8 +4,8 @@ import { WorkflowTemplatesService } from '../workflow-templates.service';
 
 describe('WorkflowTemplatesService.syncDefaultGraphs', () => {
   it('creates a new workflow version instead of rewriting existing versions', async () => {
-    const updateCalls: Array<{ table: any; values: any }> = [];
-    const insertCalls: Array<{ table: any; values: any }> = [];
+    const updateCalls: { table: any; values: any }[] = [];
+    const insertCalls: { table: any; values: any }[] = [];
     let selectCall = 0;
     const db = {
       select: () => ({

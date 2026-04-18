@@ -51,12 +51,7 @@ export const integrationTokens = pgTable(
     orgIdx: index('integration_tokens_org_idx').on(table.organizationId),
     orgProviderTypeNaturalKeyUnique: uniqueIndex(
       'integration_tokens_org_provider_type_natural_key_uidx',
-    ).on(
-      table.organizationId,
-      table.provider,
-      table.credentialType,
-      table.naturalKey,
-    ),
+    ).on(table.organizationId, table.provider, table.credentialType, table.naturalKey),
   }),
 );
 
