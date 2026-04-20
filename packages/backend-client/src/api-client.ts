@@ -1043,26 +1043,6 @@ export class ShipSecApiClient {
     });
   }
 
-  // ===== Billing =====
-
-  async getBillingUsage() {
-    return this.client.GET('/api/v1/billing/usage');
-  }
-
-  async listSubscriptionPlans() {
-    return this.client.GET('/api/v1/billing/plans');
-  }
-
-  async getBifrostVirtualKey(
-    organizationId: string,
-  ): Promise<ClientResponse<components['schemas']['BifrostKeyResponseDto']>> {
-    return this.client.GET('/api/v1/internal/billing/bifrost-key', {
-      params: {
-        header: { 'x-organization-id': organizationId },
-      },
-    });
-  }
-
   // ===== MCP Discovery =====
 
   async discoverMcpTools(body: DiscoveryInputPayload) {

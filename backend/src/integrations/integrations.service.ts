@@ -1068,7 +1068,7 @@ export class IntegrationsService implements OnModuleInit {
   }> {
     if (!this.forgeDiscovery.isConfigured()) {
       throw new BadRequestException(
-        'Forge discovery is not configured (FORGE_EMAIL/FORGE_API_TOKEN missing)',
+        'Automatic Jira discovery is not configured in this deployment; use manual Jira setup.',
       );
     }
 

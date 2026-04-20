@@ -1590,20 +1590,6 @@ export const api = {
     },
   },
 
-  billing: {
-    getUsage: async () => {
-      const response = await apiClient.getBillingUsage();
-      if (response.error || !response.data) throw new Error('Failed to fetch billing usage');
-      return response.data;
-    },
-
-    getPlans: async () => {
-      const response = await apiClient.listSubscriptionPlans();
-      if (response.error || !response.data) throw new Error('Failed to fetch subscription plans');
-      return response.data;
-    },
-  },
-
   analyticsSettings: {
     getSettings: async () => {
       const response = await apiClient.getAnalyticsSettings();

@@ -41,7 +41,6 @@ import { WorkflowTemplatesModule } from './workflow-templates/workflow-templates
 import { ReportTemplatesModule } from './report-templates/report-templates.module';
 import { AsmModule } from './asm/asm.module';
 import { AssetDiscoveryModule } from './asset-discovery/asset-discovery.module';
-import { BillingModule } from './billing/billing.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { AgentSkillsModule } from './agent-skills/agent-skills.module';
 import { HotplugModule } from './hotplug/hotplug.module';
@@ -51,7 +50,6 @@ const coreModules = [
   AgentsModule,
   AnalyticsModule,
   AuthModule,
-  BillingModule,
   OnboardingModule,
   WorkflowsModule,
   TraceModule,

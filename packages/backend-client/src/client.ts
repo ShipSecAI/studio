@@ -884,54 +884,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/billing/usage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["BillingController_usage"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/billing/plans": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["BillingController_plans"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/internal/billing/bifrost-key": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["InternalBillingController_getBifrostKey"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/onboarding/preferences": {
         parameters: {
             query?: never;
@@ -1244,6 +1196,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["IntegrationsController_getAwsSetupInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/gcp/setup-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IntegrationsController_getGcpSetupInfo"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4668,61 +4636,6 @@ export interface components {
         DeleteApiKeyResponseDto: {
             success: boolean;
         };
-        BillingUsageResponseDto: {
-            organizationId: string;
-            /** @enum {string} */
-            subscriptionTier: "free" | "pro" | "team" | "enterprise";
-            plan: {
-                id: string;
-                displayName: string;
-                /** @description Monthly price in USD cents */
-                priceUsdCents: number;
-            };
-            period: {
-                start: string;
-                end: string;
-            };
-            workflowRuns: {
-                used: number;
-                /** @description -1 means unlimited */
-                limit: number;
-                /** @description -1 means unlimited */
-                remaining: number;
-            };
-            ai: {
-                /** @description USD spent via Bifrost this period */
-                spentUsd: number;
-                /** @description Budget in USD (-1 = unlimited) */
-                budgetUsd: number;
-                /** @description Remaining budget (-1 = unlimited) */
-                remainingUsd: number;
-            };
-            limits: {
-                /** @description -1 means unlimited */
-                maxConcurrentRuns: number;
-                /** @description -1 means unlimited */
-                maxWorkflows: number;
-                analyticsRetentionDays: number;
-            };
-        };
-        SubscriptionPlanDto: {
-            id: string;
-            displayName: string;
-            /** @description Monthly price in USD cents (0 = free or custom) */
-            priceUsdCents: number;
-            /** @description -1 means unlimited */
-            workflowRunsPerMonth: number;
-            /** @description AI budget in USD cents (-1 = unlimited) */
-            aiBudgetUsdCents: number;
-            /** @description -1 means unlimited */
-            maxConcurrentRuns: number;
-            analyticsRetentionDays: number;
-            /** @description -1 means unlimited */
-            maxWorkflows: number;
-        };
-        BifrostKeyResponseDto: {
-            virtualKey: string | null;
-        };
         OnboardingPreferencesDto: {
             /** @description example: true */
             appNavigationTourCompleted: boolean;
@@ -5184,6 +5097,13 @@ export interface components {
             setupToken: string;
             trustPolicyTemplate: string;
             externalIdDisplay?: string;
+        };
+        GcpSetupInfoResponseDto: {
+            serviceAccountEmail: string;
+            serviceAccountMember: string;
+            sourceProjectId?: string;
+            /** @enum {string} */
+            tokenCreatorRole: "roles/iam.serviceAccountTokenCreator";
         };
         CreateAwsConnectionDto: {
             /** @description Display name for this connection */
@@ -8635,65 +8555,6 @@ export interface operations {
             };
         };
     };
-    BillingController_usage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BillingUsageResponseDto"];
-                };
-            };
-        };
-    };
-    BillingController_plans: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SubscriptionPlanDto"][];
-                };
-            };
-        };
-    };
-    InternalBillingController_getBifrostKey: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-organization-id": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BifrostKeyResponseDto"];
-                };
-            };
-        };
-    };
     OnboardingController_getPreferences: {
         parameters: {
             query?: never;
@@ -9258,6 +9119,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AwsSetupInfoResponseDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_getGcpSetupInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GcpSetupInfoResponseDto"];
                 };
             };
         };

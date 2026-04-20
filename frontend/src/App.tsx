@@ -121,9 +121,6 @@ const AssetsPage = lazy(() =>
 const AsmScansPage = lazy(() =>
   import('@/pages/asm/AsmScansPage').then((m) => ({ default: m.AsmScansPage })),
 );
-const BillingPage = lazy(() =>
-  import('@/pages/BillingPage').then((m) => ({ default: m.BillingPage })),
-);
 
 function AuthIntegration({ children }: { children: React.ReactNode }) {
   useAuthStoreIntegration();
@@ -322,7 +319,6 @@ function App() {
                               <Route element={<FeatureFlagRoute flag="SECRETS" />}>
                                 <Route path="/secrets" element={<SecretsManager />} />
                               </Route>
-                              <Route path="/billing" element={<BillingPage />} />
                               <Route element={<FeatureFlagRoute flag="API_KEYS" />}>
                                 <Route path="/api-keys" element={<ApiKeysManager />} />
                               </Route>

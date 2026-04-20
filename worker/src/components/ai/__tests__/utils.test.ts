@@ -1,88 +1,49 @@
-import { beforeEach, describe, expect, test, vi } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 
-const getBifrostVirtualKeyMock = vi.fn();
-const createInternalBackendClientMock = vi.fn(() => ({
-  getBifrostVirtualKey: getBifrostVirtualKeyMock,
-}));
+import { fetchOrgVirtualKey, requireOrgVirtualKey, resetAiGatewayProviderForTests } from '../utils';
 
-vi.mock('../../../utils/internal-backend-client', () => ({
-  createInternalBackendClient: createInternalBackendClientMock,
-}));
-
-import { fetchOrgVirtualKey, requireOrgVirtualKey } from '../utils';
-
-describe('Bifrost org key helpers', () => {
+describe('AI gateway key helpers', () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
-    getBifrostVirtualKeyMock.mockReset();
-    createInternalBackendClientMock.mockClear();
-
-    process.env.BIFROST_BASE_URL = 'http://bifrost.local:4000/v1';
-    process.env.INTERNAL_SERVICE_TOKEN = 'internal-token';
-    process.env.API_BASE_URL = 'http://backend.local/api/v1';
-    delete process.env.STUDIO_API_BASE_URL;
-    delete process.env.SHIPSEC_API_BASE_URL;
+    resetAiGatewayProviderForTests();
+    delete process.env.CHAT_AI_BASE_URL;
+    delete process.env.CHAT_AI_API_KEY;
+    delete process.env.BIFROST_BASE_URL;
+    delete process.env.BIFROST_API_KEY;
   });
 
-  test('fetchOrgVirtualKey uses the internal backend client with a normalized base URL', async () => {
-    getBifrostVirtualKeyMock.mockResolvedValue({
-      data: { virtualKey: 'sk-org-123' },
-    });
+  test('fetchOrgVirtualKey returns the configured CHAT_AI_API_KEY', async () => {
+    process.env.CHAT_AI_BASE_URL = 'https://gateway.local/v1';
+    process.env.CHAT_AI_API_KEY = 'sk-org-123';
 
     await expect(fetchOrgVirtualKey('org-123')).resolves.toBe('sk-org-123');
-    expect(createInternalBackendClientMock).toHaveBeenCalledWith({
-      baseUrl: 'http://backend.local',
-    });
-    expect(getBifrostVirtualKeyMock).toHaveBeenCalledWith('org-123');
   });
 
-  test('fetchOrgVirtualKey accepts a backend origin and normalizes it to /api/v1', async () => {
-    getBifrostVirtualKeyMock.mockResolvedValue({
-      data: { virtualKey: 'sk-org-456' },
-    });
+  test('fetchOrgVirtualKey falls back to legacy BIFROST envs', async () => {
+    process.env.BIFROST_BASE_URL = 'https://legacy-gateway.local/v1';
+    process.env.BIFROST_API_KEY = 'sk-legacy-456';
 
-    await expect(fetchOrgVirtualKey('org-456', 'http://backend.local:3711')).resolves.toBe(
-      'sk-org-456',
-    );
-    expect(createInternalBackendClientMock).toHaveBeenCalledWith({
-      baseUrl: 'http://backend.local:3711',
-    });
-    expect(getBifrostVirtualKeyMock).toHaveBeenCalledWith('org-456');
-  });
-
-  test('fetchOrgVirtualKey returns null when the backend cannot resolve a key', async () => {
-    getBifrostVirtualKeyMock.mockResolvedValue({
-      data: { virtualKey: null },
-    });
-
-    await expect(fetchOrgVirtualKey('org-null')).resolves.toBeNull();
+    await expect(fetchOrgVirtualKey('org-456')).resolves.toBe('sk-legacy-456');
   });
 
   test('fetchOrgVirtualKey caches successful lookups', async () => {
-    getBifrostVirtualKeyMock.mockResolvedValue({
-      data: { virtualKey: 'sk-org-cache' },
-    });
+    process.env.CHAT_AI_BASE_URL = 'https://gateway.local/v1';
+    process.env.CHAT_AI_API_KEY = 'sk-org-cache';
 
     await expect(fetchOrgVirtualKey('org-cache')).resolves.toBe('sk-org-cache');
+    process.env.CHAT_AI_API_KEY = 'sk-new-value';
     await expect(fetchOrgVirtualKey('org-cache')).resolves.toBe('sk-org-cache');
-
-    expect(createInternalBackendClientMock).toHaveBeenCalledTimes(1);
-    expect(getBifrostVirtualKeyMock).toHaveBeenCalledTimes(1);
   });
 
-  test('requireOrgVirtualKey rejects Bifrost calls without an organization', async () => {
+  test('requireOrgVirtualKey rejects when no AI gateway is configured', async () => {
     await expect(requireOrgVirtualKey(null, { consumer: 'Chat AI' })).rejects.toThrow(
-      'Chat AI requires an organization ID',
+      'AI gateway routing is not enabled.',
     );
   });
 
-  test('requireOrgVirtualKey rejects when the backend cannot resolve a key', async () => {
-    getBifrostVirtualKeyMock.mockResolvedValue({
-      data: { virtualKey: null },
-    });
+  test('requireOrgVirtualKey resolves a shared gateway key without an org id', async () => {
+    process.env.CHAT_AI_BASE_URL = 'https://gateway.local/v1';
+    process.env.CHAT_AI_API_KEY = 'sk-shared';
 
-    await expect(requireOrgVirtualKey('org-missing', { consumer: 'AI Agent' })).rejects.toThrow(
-      'could not resolve a Bifrost virtual key',
-    );
+    await expect(requireOrgVirtualKey(null, { consumer: 'AI Agent' })).resolves.toBe('sk-shared');
   });
 });

@@ -135,10 +135,6 @@ export const queryKeys = {
     scans: (filters?: Record<string, unknown>) => ['asm', getOrgScope(), 'scans', filters] as const,
     stats: () => ['asm', getOrgScope(), 'stats'] as const,
   },
-  billing: {
-    usage: () => ['billing', getOrgScope(), 'usage'] as const,
-    plans: () => ['billing', getOrgScope(), 'plans'] as const,
-  },
   analyticsSettings: {
     settings: () => ['analyticsSettings', getOrgScope(), 'settings'] as const,
     storageUsage: () => ['analyticsSettings', getOrgScope(), 'storageUsage'] as const,

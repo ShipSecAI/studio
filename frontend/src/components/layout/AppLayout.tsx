@@ -37,7 +37,6 @@ import {
   LayoutTemplate,
   Cloud,
   MessageSquare,
-  CreditCard,
   Sparkles,
   type LucideIcon,
 } from 'lucide-react';
@@ -499,11 +498,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       name: 'Agent Skills',
       href: '/agent-skills',
       icon: Sparkles,
-    },
-    {
-      name: 'Billing & Usage',
-      href: '/billing',
-      icon: CreditCard,
     },
     ...(canManageWorkflows
       ? [

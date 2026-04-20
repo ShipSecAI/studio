@@ -165,13 +165,17 @@ function getAnthropicBaseUrl(baseURL: string): string {
 }
 
 function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
-  const baseURL = overrides?.baseURL ?? process.env.BIFROST_BASE_URL?.trim();
-  const apiKey = overrides?.apiKey ?? process.env.BIFROST_API_KEY?.trim();
+  const baseURL =
+    overrides?.baseURL ??
+    process.env.CHAT_AI_BASE_URL?.trim() ??
+    process.env.BIFROST_BASE_URL?.trim();
+  const apiKey =
+    overrides?.apiKey ?? process.env.CHAT_AI_API_KEY?.trim() ?? process.env.BIFROST_API_KEY?.trim();
   const modelId = process.env.CHAT_AI_MODEL_ID;
 
   if (!baseURL || !apiKey || !modelId) {
     throw new Error(
-      'Chat AI not configured. Set BIFROST_BASE_URL, BIFROST_API_KEY, and CHAT_AI_MODEL_ID.',
+      'Chat AI not configured. Set CHAT_AI_BASE_URL, CHAT_AI_API_KEY, and CHAT_AI_MODEL_ID.',
     );
   }
 
@@ -190,7 +194,7 @@ function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
 }
 
 /**
- * Build a model instance with per-org virtual key via Bifrost.
+ * Build a model instance with the currently configured AI gateway key.
  */
 async function getModelForOrg(organizationId?: string) {
   try {
@@ -200,10 +204,11 @@ async function getModelForOrg(organizationId?: string) {
     });
     return getModel({ apiKey: virtualKey });
   } catch (error) {
-    const fallbackApiKey = process.env.BIFROST_API_KEY?.trim();
+    const fallbackApiKey =
+      process.env.CHAT_AI_API_KEY?.trim() ?? process.env.BIFROST_API_KEY?.trim();
     if (organizationId === 'local-dev' && fallbackApiKey) {
       console.warn(
-        '[chat-agent] Falling back to local Bifrost API key for local-dev chat because org virtual key resolution failed.',
+        '[chat-agent] Falling back to the local AI gateway API key for local-dev chat because org-specific key resolution failed.',
         error,
       );
       return getModel({ apiKey: fallbackApiKey });
