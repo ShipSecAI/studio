@@ -1,0 +1,1 @@
+/Users/betterclever/shipsec/studio-cloud/frontend/index.js

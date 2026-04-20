@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { env } from '@/config/env';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { FeatureFlagProvider, FeatureFlagRoute } from '@/features/feature-flags';
+import { useFrontendCloudExtension } from '@/app/cloud-extension';
 
 const ReactQueryDevtools = lazy(() =>
   import('@tanstack/react-query-devtools').then((mod) => ({
@@ -168,6 +169,8 @@ function CommandPaletteProvider({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  const cloudExtension = useFrontendCloudExtension();
+
   return (
     <AuthProvider>
       <AuthIntegration>
@@ -346,6 +349,13 @@ function App() {
                                   element={<AnalyticsSettingsPage />}
                                 />
                               </Route>
+
+                              {cloudExtension.routeComponents?.BillingPage ? (
+                                <Route
+                                  path="/billing"
+                                  element={cloudExtension.routeComponents.BillingPage}
+                                />
+                              ) : null}
 
                               <Route path="*" element={<NotFound />} />
                             </Routes>

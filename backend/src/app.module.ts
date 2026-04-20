@@ -13,71 +13,13 @@ import { authConfig } from './config/auth.config';
 import { clickhouseConfig } from './config/clickhouse.config';
 import { validateBackendEnv } from './config/env.validate';
 import { ClickHouseModule } from './config/clickhouse.module';
-import { AgentsModule } from './agents/agents.module';
-import { AuthModule } from './auth/auth.module';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './auth/roles.guard';
-import { ComponentsModule } from './components/components.module';
-import { StorageModule } from './storage/storage.module';
-import { SecretsModule } from './secrets/secrets.module';
-import { TraceModule } from './trace/trace.module';
-import { WorkflowsModule } from './workflows/workflows.module';
-import { TestingSupportModule } from './testing/testing.module';
-import { IntegrationsModule } from './integrations/integrations.module';
-import { SchedulesModule } from './schedules/schedules.module';
-import { AnalyticsModule } from './analytics/analytics.module';
-import { McpModule } from './mcp/mcp.module';
-import { StudioMcpModule } from './studio-mcp/studio-mcp.module';
-import { AuditModule } from './audit/audit.module';
-import { ChatModule } from './chat/chat.module';
-
-import { ApiKeysModule } from './api-keys/api-keys.module';
-import { WebhooksModule } from './webhooks/webhooks.module';
-import { HumanInputsModule } from './human-inputs/human-inputs.module';
-import { McpServersModule } from './mcp-servers/mcp-servers.module';
-import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
-import { GitHubAppModule } from './github-app/github-app.module';
-import { WorkflowTemplatesModule } from './workflow-templates/workflow-templates.module';
-import { ReportTemplatesModule } from './report-templates/report-templates.module';
-import { AsmModule } from './asm/asm.module';
-import { AssetDiscoveryModule } from './asset-discovery/asset-discovery.module';
-import { OnboardingModule } from './onboarding/onboarding.module';
-import { AgentSkillsModule } from './agent-skills/agent-skills.module';
-import { HotplugModule } from './hotplug/hotplug.module';
-import { SlackBotModule } from './slack-bot/slack-bot.module';
-
-const coreModules = [
-  AgentsModule,
-  AnalyticsModule,
-  AuthModule,
-  OnboardingModule,
-  WorkflowsModule,
-  TraceModule,
-  ComponentsModule,
-  StorageModule,
-  SecretsModule,
-  IntegrationsModule,
-  SchedulesModule,
-  ApiKeysModule,
-  WebhooksModule,
-  HumanInputsModule,
-  McpServersModule,
-  McpGroupsModule,
-  McpModule,
-  GitHubAppModule,
-  StudioMcpModule,
-  WorkflowTemplatesModule,
-  ReportTemplatesModule,
-  AsmModule,
-  AssetDiscoveryModule,
-  AuditModule,
-  ChatModule,
-  AgentSkillsModule,
-  HotplugModule,
-  SlackBotModule,
-];
-
-const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
+import {
+  getCoreBackendModules,
+  getOptionalBackendModules,
+  getTestingBackendModules,
+} from './composition/backend-modules';
 
 function getEnvFilePaths(): string[] {
   // In multi-instance dev, each instance has its own env file under:
@@ -120,8 +62,9 @@ function getEnvFilePaths(): string[] {
     }),
     EventEmitterModule.forRoot(),
     ClickHouseModule,
-    ...coreModules,
-    ...testingModules,
+    ...getCoreBackendModules(),
+    ...getOptionalBackendModules(),
+    ...getTestingBackendModules(),
   ],
   controllers: [AppController],
   providers: [

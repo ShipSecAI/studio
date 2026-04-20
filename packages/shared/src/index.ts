@@ -9,3 +9,4 @@ export * from './webhooks.js';
 export * from './mcp.js';
 export * from './env.js';
 export * from './github-mcp.js';
+export * from './providers.js';

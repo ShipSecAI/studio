@@ -58,6 +58,7 @@ import { SecurityTabBar } from '@/components/security/SecurityTabBar';
 import { SpotlightTour, useAppTour } from '@/features/onboarding';
 import { useAllFeatureFlags } from '@/features/feature-flags';
 import type { FeatureKey } from '@/features/feature-flags';
+import { useFrontendCloudExtension } from '@/app/cloud-extension';
 
 // Thin loading bar shown during lazy-loaded route transitions.
 // React Router v7 wraps navigations in startTransition, so React 19
@@ -112,6 +113,7 @@ function useIsMobile(breakpoint = 768) {
 export function AppLayout({ children }: AppLayoutProps) {
   usePrefetchOnIdle();
   useAppTour();
+  const cloudExtension = useFrontendCloudExtension();
 
   // Prefetch all route chunks during idle time
   useEffect(() => {
@@ -472,6 +474,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           },
         ]
       : []),
+    ...cloudExtension.navigationGroups,
   ];
 
   const settingsItems: NavItem[] = [
@@ -518,6 +521,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           },
         ]
       : []),
+    ...cloudExtension.settingsItems,
   ];
 
   // Filter nav groups and items based on resolved feature flags

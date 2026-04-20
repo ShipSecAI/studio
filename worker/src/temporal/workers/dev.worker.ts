@@ -80,6 +80,8 @@ import * as schema from '../../adapters/schema';
 import { logHeartbeat } from '../../utils/debug-logger';
 import { getBackendOrigin } from '../../utils/backend-url';
 import { validateWorkerEnv } from '../../config/env.validate';
+import { loadWorkerProviderOverrides } from '../../providers/provider-overrides.loader';
+import { setAiGatewayProvider } from '../../components/ai/utils';
 
 // Load environment variables from instance-specific env if set, otherwise fall back
 // to the worker's default `.env`.
@@ -91,6 +93,11 @@ const instanceEnvPath = instanceNum
 
 config({ path: instanceEnvPath ?? join(workerRoot, '.env') });
 validateWorkerEnv(process.env);
+
+const workerProviderOverrides = loadWorkerProviderOverrides();
+if (workerProviderOverrides.aiGateway) {
+  setAiGatewayProvider(workerProviderOverrides.aiGateway);
+}
 
 if (typeof globalThis.crypto === 'undefined') {
   Object.defineProperty(globalThis, 'crypto', {

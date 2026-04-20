@@ -14,6 +14,9 @@ import { IntegrationActionRegistry } from './listeners/integration-action.regist
 import { IntegrationConnectedListener } from './listeners/integration-connected.listener';
 import { AwsAssetSyncAction } from './listeners/actions/aws-asset-sync.action';
 import { SchedulesModule } from '../schedules/schedules.module';
+import { JIRA_DISCOVERY_PROVIDER } from '../providers/tokens';
+import { resolveProvider } from '../providers/provider-registry';
+import { OpenSourceJiraDiscoveryProvider } from './open-source-jira-discovery.provider';
 
 @Module({
   imports: [DatabaseModule, SchedulesModule],
@@ -27,6 +30,13 @@ import { SchedulesModule } from '../schedules/schedules.module';
     SlackService,
     SetupTokenService,
     ForgeDiscoveryService,
+    OpenSourceJiraDiscoveryProvider,
+    {
+      provide: JIRA_DISCOVERY_PROVIDER,
+      useFactory: (fallback: OpenSourceJiraDiscoveryProvider) =>
+        resolveProvider('jiraDiscovery', fallback),
+      inject: [OpenSourceJiraDiscoveryProvider],
+    },
     IntegrationActionRegistry,
     IntegrationConnectedListener,
     AwsAssetSyncAction,

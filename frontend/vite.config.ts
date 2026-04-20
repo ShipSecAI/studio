@@ -29,6 +29,9 @@ export default defineConfig({
     port: frontendPort,
     strictPort: true,
     open: false,
+    fs: {
+      allow: [path.resolve(__dirname, '..'), path.resolve(__dirname, '..', '..', 'studio-cloud')],
+    },
     allowedHosts: [
       'studio.shipsec.ai',
       'studio-next.shipsec.ai',
