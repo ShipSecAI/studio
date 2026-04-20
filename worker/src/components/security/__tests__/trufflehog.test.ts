@@ -283,6 +283,234 @@ describe('trufflehog component', () => {
     expect(result.results).toHaveLength(2);
   });
 
+  it('should not pass --results flag when onlyVerified is false', async () => {
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
+    if (!component) throw new Error('Component not registered');
+
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'trufflehog-test',
+    });
+
+    const executePayload = {
+      inputs: {
+        scanTarget: 'https://github.com/test/repo',
+      },
+      params: {
+        scanType: 'git' as const,
+        onlyVerified: false,
+      },
+    };
+
+    const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
+      JSON.stringify({
+        secrets: [],
+        rawOutput: '',
+        secretCount: 0,
+        verifiedCount: 0,
+        hasVerifiedSecrets: false,
+      }),
+    );
+
+    await component.execute(executePayload, context);
+
+    const runnerConfig = spy.mock.calls[0]?.[0] as { command?: string[] };
+    const command = runnerConfig.command ?? [];
+    expect(command.some((arg) => arg.startsWith('--results='))).toBe(false);
+  });
+
+  it('should pass --results=verified when onlyVerified is true', async () => {
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
+    if (!component) throw new Error('Component not registered');
+
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'trufflehog-test',
+    });
+
+    const executePayload = {
+      inputs: {
+        scanTarget: 'https://github.com/test/repo',
+      },
+      params: {
+        scanType: 'git' as const,
+        onlyVerified: true,
+      },
+    };
+
+    const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
+      JSON.stringify({
+        secrets: [],
+        rawOutput: '',
+        secretCount: 0,
+        verifiedCount: 0,
+        hasVerifiedSecrets: false,
+      }),
+    );
+
+    await component.execute(executePayload, context);
+
+    const runnerConfig = spy.mock.calls[0]?.[0] as { command?: string[] };
+    const command = runnerConfig.command ?? [];
+    expect(command).toContain('--results=verified');
+  });
+
+  it('should not pass --results flag when onlyVerified is false', async () => {
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
+    if (!component) throw new Error('Component not registered');
+
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'trufflehog-test',
+    });
+
+    const executePayload = {
+      inputs: {
+        scanTarget: 'https://github.com/test/repo',
+      },
+      params: {
+        scanType: 'git' as const,
+        onlyVerified: false,
+      },
+    };
+
+    const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
+      JSON.stringify({
+        secrets: [],
+        rawOutput: '',
+        secretCount: 0,
+        verifiedCount: 0,
+        hasVerifiedSecrets: false,
+      }),
+    );
+
+    await component.execute(executePayload, context);
+
+    const runnerConfig = spy.mock.calls[0]?.[0] as { command?: string[] };
+    const command = runnerConfig.command ?? [];
+    expect(command.some((arg) => arg.startsWith('--results='))).toBe(false);
+  });
+
+  it('should pass --results=verified when onlyVerified is true', async () => {
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
+    if (!component) throw new Error('Component not registered');
+
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'trufflehog-test',
+    });
+
+    const executePayload = {
+      inputs: {
+        scanTarget: 'https://github.com/test/repo',
+      },
+      params: {
+        scanType: 'git' as const,
+        onlyVerified: true,
+      },
+    };
+
+    const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
+      JSON.stringify({
+        secrets: [],
+        rawOutput: '',
+        secretCount: 0,
+        verifiedCount: 0,
+        hasVerifiedSecrets: false,
+      }),
+    );
+
+    await component.execute(executePayload, context);
+
+    const runnerConfig = spy.mock.calls[0]?.[0] as { command?: string[] };
+    const command = runnerConfig.command ?? [];
+    expect(command).toContain('--results=verified');
+  });
+
+  it('should not pass --results flag when onlyVerified is false', async () => {
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
+    if (!component) throw new Error('Component not registered');
+
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'trufflehog-test',
+    });
+
+    const executePayload = {
+      inputs: {
+        scanTarget: 'https://github.com/test/repo',
+      },
+      params: {
+        scanType: 'git' as const,
+        onlyVerified: false,
+      },
+    };
+
+    const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
+      JSON.stringify({
+        secrets: [],
+        rawOutput: '',
+        secretCount: 0,
+        verifiedCount: 0,
+        hasVerifiedSecrets: false,
+      }),
+    );
+
+    await component.execute(executePayload, context);
+
+    const runnerConfig = spy.mock.calls[0]?.[0] as { command?: string[] };
+    const command = runnerConfig.command ?? [];
+    expect(command.some((arg) => arg.startsWith('--results='))).toBe(false);
+  });
+
+  it('should pass --results=verified when onlyVerified is true', async () => {
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
+    if (!component) throw new Error('Component not registered');
+
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'trufflehog-test',
+    });
+
+    const executePayload = {
+      inputs: {
+        scanTarget: 'https://github.com/test/repo',
+      },
+      params: {
+        scanType: 'git' as const,
+        onlyVerified: true,
+      },
+    };
+
+    const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
+      JSON.stringify({
+        secrets: [],
+        rawOutput: '',
+        secretCount: 0,
+        verifiedCount: 0,
+        hasVerifiedSecrets: false,
+      }),
+    );
+
+    await component.execute(executePayload, context);
+
+    const runnerConfig = spy.mock.calls[0]?.[0] as { command?: string[] };
+    const command = runnerConfig.command ?? [];
+    expect(command).toContain('--results=verified');
+  });
+
   it('should handle parse errors gracefully', async () => {
     const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
       'shipsec.trufflehog.scan',
@@ -381,8 +609,8 @@ describe('trufflehog component', () => {
       },
     };
 
-    const error = new Error('Container exited with code 183');
-    vi.spyOn(sdk, 'runComponentWithRunner').mockRejectedValue(error);
+    const error = { message: 'Container exited with code 183' };
+    vi.spyOn(sdk, 'runComponentWithRunner').mockRejectedValue(error as any);
 
     await expect(component.execute(executePayload, context)).rejects.toThrow(
       'Container exited with code 183',
@@ -409,8 +637,8 @@ describe('trufflehog component', () => {
       },
     };
 
-    const error = new Error('Container exited with code 1: auth failed');
-    vi.spyOn(sdk, 'runComponentWithRunner').mockRejectedValue(error);
+    const error = { message: 'Container exited with code 1: auth failed' };
+    vi.spyOn(sdk, 'runComponentWithRunner').mockRejectedValue(error as any);
 
     await expect(component.execute(executePayload, context)).rejects.toThrow('auth failed');
   });
