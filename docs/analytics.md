@@ -6,24 +6,23 @@ This document describes the analytics infrastructure for ShipSec Studio, includi
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         Nginx (port 80)                              │
+│                         Frontend + Backend                           │
 │                                                                      │
-│  /api/*        ──────►  Backend API (3211)                          │
-│  /*            ──────►  Frontend SPA (8080)                         │
+│  /api/v1/analytics/*  ──────►  Analytics API                        │
 └─────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         Worker Service                               │
 │                                                                      │
-│  Analytics Sink Component  ──────►  ClickHouse (8123)               │
-│  (CLICKHOUSE_URL env var)                                           │
+│  Analytics Sink Component  ──────►  ClickHouse                      │
+│  (via CLICKHOUSE_URL)                                               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Components
 
-### ClickHouse (Port 8123)
+### ClickHouse
 
 Columnar analytics database for storing security findings and workflow analytics.
 
@@ -51,7 +50,7 @@ The `core.analytics.sink` component writes workflow results directly to ClickHou
 **Environment Variable:**
 
 ```yaml
-CLICKHOUSE_URL=http://clickhouse:8123
+CLICKHOUSE_URL=http://your-clickhouse-host:8123
 ```
 
 **Document Structure:**
@@ -143,11 +142,11 @@ Verify that the worker environment includes `CLICKHOUSE_URL` and inspect the wor
 **Check if data exists:**
 
 ```bash
-# Count documents via ClickHouse HTTP interface
-curl -s "http://localhost:8123/?query=SELECT+count()+FROM+security_findings"
+# Count documents via the ClickHouse HTTP interface
+curl -s "$CLICKHOUSE_URL/?query=SELECT+count()+FROM+security_findings"
 
 # List run_ids with data
-curl -s "http://localhost:8123/?query=SELECT+run_id,+count()+FROM+security_findings+GROUP+BY+run_id+LIMIT+10"
+curl -s "$CLICKHOUSE_URL/?query=SELECT+run_id,+count()+FROM+security_findings+GROUP+BY+run_id+LIMIT+10"
 ```
 
 ## Environment Variables

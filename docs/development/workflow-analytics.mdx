@@ -191,7 +191,7 @@ CLICKHOUSE_USER=default
 CLICKHOUSE_PASSWORD=
 ```
 
-### Docker Compose
+### Runtime Requirement
 
 Provide a reachable ClickHouse instance for local or self-hosted analytics development.
 
@@ -324,7 +324,7 @@ Findings are written to the `security_findings` table in ClickHouse, partitioned
 1. Check worker logs for `[ClickHouseIndexer]` messages
 2. Verify `CLICKHOUSE_URL` is set in worker environment
 3. Ensure Analytics Sink is connected to a `results` port
-4. Check if ClickHouse is running: `curl http://localhost:8123/ping`
+4. Check if ClickHouse is reachable: `curl "$CLICKHOUSE_URL/ping"`
 
 ### pm2 not loading environment variables
 
