@@ -69,7 +69,6 @@ INFRA_MESSAGE_PATTERNS = [
     r"\bstaging\b",
     r"\bprod\b",
     r"\bproduction\b",
-    r"\bworkload identity\b",
     r"\barc runners?\b",
     r"\bshipsec-system\b",
     r"\bshipsec-prod\b",
@@ -78,7 +77,6 @@ INFRA_MESSAGE_PATTERNS = [
 PRIVATE_MESSAGE_PATTERNS = [
     r"\bbilling\b",
     r"\bbifrost\b",
-    r"\blitellm\b",
     r"\bforge\b",
     r"\bjira\b",
     r"\bhotplug\b",
