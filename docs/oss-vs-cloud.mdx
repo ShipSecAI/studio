@@ -37,42 +37,32 @@ ShipSec Cloud is the managed hosted deployment.
 Typical characteristics:
 
 - managed hosting by ShipSec
-- smoother setup for provider onboarding
+- hosted provider paths where the product has hosted-only behavior
 - less operator overhead for hosted users
-
-Public docs should stop there. They should not disclose private implementation structure.
 
 ## Practical Examples
 
 ### AI
 
 - **OSS**: configure `CHAT_AI_MODEL_ID`, `CHAT_AI_BASE_URL`, and `CHAT_AI_API_KEY`
-- **Cloud**: managed provider path
+- **Cloud**: hosted AI gateway path
 
 ### GitHub
 
-- **OSS**: PAT or GitHub App
-- **Cloud**: managed app flow
+- **OSS**: BYOA GitHub App
+- **Cloud**: hosted GitHub App path
 
 ### AWS
 
 - **OSS**: direct credentials or IAM role setup
-- **Cloud**: managed onboarding path
+- **Cloud**: same AWS capability in a hosted deployment
 
 ### Jira
 
-- **OSS**: OAuth, API token, or manual setup
-- **Cloud**: managed setup path
+- **OSS**: self-managed Jira app and web trigger
+- **Cloud**: hosted Jira discovery and registration path
 
 ### Slack
 
 - **OSS**: webhook or app setup
-- **Cloud**: managed app flow
-
-## Public Docs Rule
-
-When writing or updating public docs:
-
-- fully explain the OSS path
-- mention the managed offering briefly
-- do not expose private repository structure or hosted-only implementation details
+- **Cloud**: same Slack capability in a hosted deployment

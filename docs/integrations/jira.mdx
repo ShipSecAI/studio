@@ -8,27 +8,21 @@ off work into an issue-tracking system.
 
 ## OSS Setup Path
 
-The public self-hosted model is manual and operator-managed.
+The current public Jira connection model is a self-managed Jira app/web-trigger
+path.
 
-Typical options:
+In practice:
 
-- OAuth
-- API token
-- manual app setup where appropriate for your Jira environment
-
-## What The Public Docs Should Emphasize
-
-For OSS:
-
-- you manage the Jira app or token setup
-- you control the credentials
-- workflows can create or update Jira issues once the connection exists
+- you deploy or own the Jira app
+- you generate the app web trigger URL
+- you store that connection in Studio
+- Jira-aware workflows call that app directly at runtime
 
 ## Self-Hosted vs ShipSec Cloud
 
-ShipSec Cloud may provide a smoother managed onboarding path for Jira.
+ShipSec Cloud uses the hosted Jira discovery and registration path.
 
-In self-hosted Studio, expect to manage the Jira app or token setup yourself.
+In self-hosted Studio, you provide the Jira app and web trigger yourself.
 
 ## Related Docs
 

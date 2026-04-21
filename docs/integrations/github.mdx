@@ -15,8 +15,8 @@ Use it when you need:
 
 ## OSS Setup Path
 
-For the actual Studio GitHub product surface, a GitHub App is the primary
-self-hosted path.
+For the actual Studio GitHub product surface, a GitHub App is the self-hosted
+path.
 
 That is the path required for:
 
@@ -32,9 +32,9 @@ In practice, self-hosted Studio already works as BYOA:
 - you set the app credentials in Studio config
 - you install that app into the repositories or organizations you want Studio to manage
 
-A PAT can still make sense for narrower custom automation outside this main App
-surface, but it is not the first-class path for PR-triggered GitHub workflows in
-Studio today.
+PATs still make sense for narrower custom automation outside the main GitHub App
+surface, but they are not the built-in path for PR-triggered GitHub workflows in
+Studio.
 
 ## What The GitHub Surface Covers
 
@@ -72,16 +72,16 @@ the curated sample workflows that live in the repo.
 
 ## Self-Hosted vs ShipSec Cloud
 
-In ShipSec Cloud, the onboarding flow can be more managed.
+ShipSec Cloud runs the same GitHub App model as a hosted service.
 
-In self-hosted Studio, the GitHub App model is still the right mental model:
+In self-hosted Studio, the GitHub App model is BYOA:
 
 - bring your own app
 - configure Studio with that app’s credentials
 - install the app where you want repository and PR automation
 
-That gives self-hosted users the same core GitHub capability surface without
-requiring a ShipSec-managed app.
+That gives self-hosted users the same GitHub capability surface while keeping
+app ownership in their own GitHub environment.
 
 ## What PAT Can And Cannot Do
 
@@ -94,8 +94,8 @@ What a PAT does **not** give you:
 - installation-token-based repository access
 - the main repository/trigger-rule/check-run product flow in Studio
 
-So if you want PR webhooks and the richer GitHub automation surface, the answer
-is BYOA via GitHub App, not PAT-only setup.
+If you want PR webhooks and the richer GitHub automation surface, use BYOA via
+GitHub App.
 
 ## Related Docs
 
