@@ -164,5 +164,4 @@ curl -s "http://localhost:8123/?query=SELECT+run_id,+count()+FROM+security_findi
 
 ## See Also
 
-- [Docker README](../docker/README.md) - Docker deployment configurations
-- [nginx.prod.conf](../docker/nginx/nginx.prod.conf) - Container-mode nginx routing (full stack + production)
+- The public repo documents the analytics model and application behavior, not a bundled deployment overlay.

@@ -1,29 +1,23 @@
 ---
 title: "Installation"
-description: "Install and run ShipSec Studio as a self-hosted, single-tenant system"
+description: "Install Studio for source development or use the published images in your own deployment"
 ---
 
 ## Choose Your Path
 
 ShipSec Studio has two public setup paths:
 
-### Docker Quickstart
+### 1. Use The Published Images In Your Own Deployment
 
 Best for:
 
-- local evaluation
-- fastest self-hosted start
-- not caring about source builds
+- self-hosting
+- running Studio on your own infrastructure
+- building your own runtime model around the published images
 
-```bash
-git clone https://github.com/ShipSecAI/studio.git
-cd studio
-just quickstart
-```
+The public repo publishes the Studio application images. Pair them with the required backing services described in [Self-Hosting](/self-hosting).
 
-This uses the public quickstart stack and applies backend migrations automatically.
-
-### Source Development
+### 2. Source Development
 
 Best for:
 
@@ -38,59 +32,17 @@ just init
 just dev
 ```
 
-This uses the shared infra + PM2 development flow.
+This starts the Studio app processes from source. Runtime services must be provided separately by your local or deployment environment.
 
-## Docker Quickstart Details
-
-Requirements:
-
-- Docker Desktop or compatible Docker runtime
-- enough local memory for the bundled services
-
-Start:
-
-```bash
-just quickstart
-```
-
-Endpoints:
-
-- App: `http://localhost:8080`
-- API: `http://localhost:8080/api`
-- Temporal UI: `http://localhost:8081`
-- Redpanda Console: `http://localhost:8082`
-- MinIO Console: `http://localhost:9001`
-
-Authentication defaults:
-
-- username: `admin`
-- password: `admin`
-
-AI is optional. If you want AI steps to work, export these before startup:
-
-```bash
-export CHAT_AI_BASE_URL="https://api.openai.com/v1"
-export CHAT_AI_API_KEY="..."
-export CHAT_AI_MODEL_ID="gpt-5.4-mini"
-just quickstart
-```
-
-Stop or clean:
-
-```bash
-just quickstart stop
-just quickstart clean
-```
-
-## Source Development Details
+## Source Development
 
 Requirements:
 
 - Bun
-- Docker
 - just
+- access to the services your env files point at
 
-Initialize:
+Start:
 
 ```bash
 just init
@@ -108,14 +60,9 @@ Start:
 just dev
 ```
 
-The dev flow:
+The public repo no longer ships the full local runtime overlay. `just dev` assumes your configured backing services already exist.
 
-- starts shared local infra
-- validates env files
-- runs migrations
-- launches frontend, backend, and worker via PM2
-
-See [MULTI-INSTANCE-DEV](/MULTI-INSTANCE-DEV) for contributor-oriented local instance details.
+See [Development / Multi-Instance Dev](/development/multi-instance-dev) for contributor-oriented local instance details.
 
 ## Environment Basics
 
@@ -143,21 +90,4 @@ The open-source model is direct configuration, not hosted indirection.
 
 ## Migration Behavior
 
-### Docker Quickstart
-
-You do **not** need a separate migration step.
-
-The backend container runs migrations automatically on startup.
-
-### Source Development
-
 `just dev` applies the committed migrations before starting the app services.
-
-## Notes on Older Local Setups
-
-The public quickstart uses its own Compose project and volumes.
-
-If you previously ran an older local setup:
-
-- stop it first if ports conflict
-- you do not need to manually “migrate” that older setup just to try the current public stack

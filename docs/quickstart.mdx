@@ -1,61 +1,48 @@
 ---
 title: "Quickstart"
-description: "Boot ShipSec Studio quickly with the public Docker quickstart"
+description: "Get oriented with the public Studio repo and the published application images"
 ---
 
-## Fastest Path
+## Start Here
 
 ```bash
 git clone https://github.com/ShipSecAI/studio.git
 cd studio
-just quickstart
 ```
 
-Open:
+Then choose your lane:
 
-- App: [http://localhost:8080](http://localhost:8080)
-- Temporal UI: [http://localhost:8081](http://localhost:8081)
+- **Self-hosting**: use the published Studio images in your own deployment model
+- **Source development**: run `just init` and `just dev`
 
-## What This Gives You
+## If You Are Self-Hosting
 
-The quickstart stack is the simplest public self-hosted path.
+Use the published images:
 
-It brings up:
+- `ghcr.io/shipsecai/studio-backend:latest`
+- `ghcr.io/shipsecai/studio-worker:latest`
+- `ghcr.io/shipsecai/studio-frontend:latest`
 
-- frontend
-- backend
-- worker
-- PostgreSQL
-- Temporal
-- Redis
-- MinIO
-- Loki
-- Redpanda
-- ClickHouse
-- Neo4j
-- Hotplug
+Then provide the required service classes described in [Self-Hosting](/self-hosting).
 
-Backend migrations are applied automatically during startup.
+## If You Are Developing From Source
 
-## Sign In
+```bash
+just init
+just dev
+```
 
-Default local credentials:
+This starts the Studio app processes from source against the runtime services configured in your env files.
 
-- username: `admin`
-- password: `admin`
+## AI Setup
 
-## Optional AI Setup
-
-If you want AI components and agent flows to call your own model provider:
+If you want agent and AI workflows to call your provider directly:
 
 ```bash
 export CHAT_AI_BASE_URL="https://api.openai.com/v1"
 export CHAT_AI_API_KEY="..."
 export CHAT_AI_MODEL_ID="gpt-5.4-mini"
-just quickstart
 ```
-
-If you skip this, Studio still starts normally.
 
 ## First Things To Try
 
@@ -65,14 +52,13 @@ If you skip this, Studio still starts normally.
 4. Open the component catalog.
 5. Explore the MCP and integrations surfaces.
 
-## Common Commands
+## Common Source Commands
 
 ```bash
-just quickstart
-just quickstart logs
-just quickstart status
-just quickstart stop
-just quickstart clean
+just init
+just dev
+just dev stop
+just dev logs
 ```
 
 ## Next Steps
@@ -80,6 +66,9 @@ just quickstart clean
 <CardGroup cols={2}>
   <Card title="Installation" icon="download" href="/installation">
     Understand the supported self-hosted and contributor setup paths.
+  </Card>
+  <Card title="Self-Hosting" icon="server" href="/self-hosting">
+    See what services Studio needs and how to deploy the published images.
   </Card>
   <Card title="Deployment Model" icon="server" href="/deployment-model">
     See how the OSS product is positioned and operated.

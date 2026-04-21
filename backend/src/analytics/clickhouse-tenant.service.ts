@@ -5,7 +5,8 @@ import { ClickHouseClientService } from '../config/clickhouse.client';
  * ClickHouse Tenant Service
  *
  * Verifies that the ClickHouse schema exists.
- * Table creation is handled by docker/clickhouse/init-schema.sql
+ * Table creation is handled by the ClickHouse initialization SQL asset
+ * used by local and test environments.
  * on first container startup.
  */
 @Injectable()

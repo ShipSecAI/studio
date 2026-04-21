@@ -1,6 +1,6 @@
 ---
 title: "Self-Hosting"
-description: "Run ShipSec Studio on your own infrastructure with the public Docker setup"
+description: "Run ShipSec Studio on your own infrastructure using the published application images"
 ---
 
 ## What Self-Hosting Means Here
@@ -13,25 +13,11 @@ That means:
 - you manage your own credentials and provider setup
 - you decide how much infrastructure you want to own
 
-The simplest supported path is the public Docker quickstart.
+This public repo intentionally focuses on the application and image build surface.
 
-## Fastest Self-Hosted Path
+## What A Studio Deployment Needs
 
-```bash
-just quickstart
-```
-
-This starts the public Docker Compose stack and applies backend migrations automatically during startup.
-
-Main endpoints:
-
-- App: `http://localhost:8080`
-- API: `http://localhost:8080/api`
-- Temporal UI: `http://localhost:8081`
-
-## What The Docker Stack Includes
-
-The quickstart stack brings up the services the public product needs:
+Studio expects a deployment to provide these service classes:
 
 - frontend
 - backend
@@ -45,47 +31,42 @@ The quickstart stack brings up the services the public product needs:
 - ClickHouse
 - Neo4j
 - Hotplug
-- nginx
 
-## Authentication Defaults
+How you provide those is up to you.
 
-Quickstart uses local auth defaults:
+## Published Images
 
-- username: `admin`
-- password: `admin`
+The public repo publishes application images such as:
+
+- `ghcr.io/shipsecai/studio-backend:latest`
+- `ghcr.io/shipsecai/studio-worker:latest`
+- `ghcr.io/shipsecai/studio-frontend:latest`
+
+## Authentication
+
+Self-hosted deployments can use local auth or external auth depending on how you configure the backend.
 
 ## AI Configuration
 
 AI is optional in self-hosted mode.
 
-If you want AI components and agent flows to call your provider directly:
+If you want AI components and agent flows to call your provider directly, configure:
 
 ```bash
 export CHAT_AI_BASE_URL="https://api.openai.com/v1"
 export CHAT_AI_API_KEY="..."
 export CHAT_AI_MODEL_ID="gpt-5.4-mini"
-just quickstart
 ```
 
 ## How To Make It Your Own
 
-The quickstart stack is meant to be a base, not the only possible deployment model.
-
-Typical ways teams customize it:
+Typical self-hosted customizations:
 
 - replace image tags with pinned versions
-- replace local storage/services with managed services
+- provide your own PostgreSQL, Temporal, Redis, object storage, analytics, and runtime services
 - inject external auth configuration
 - add provider credentials and integrations
 - change ingress, networking, and persistence policies
-
-The public Docker files are intentionally readable so you can fork the setup for your own environment.
-
-## Relevant Files
-
-- `docker/docker-compose.quickstart.yml`
-- `docker/QUICKSTART.md`
-- `docker/README.md`
 
 ## Related Docs
 

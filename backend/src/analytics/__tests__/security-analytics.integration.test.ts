@@ -26,7 +26,7 @@ describe.skipIf(!process.env.INTEGRATION)('SecurityAnalyticsService integration'
       .withDatabase('test_shipsec')
       .withCopyFilesToContainer([
         {
-          source: resolve(__dirname, '../../../../docker/clickhouse/init-schema.sql'),
+          source: resolve(__dirname, '../schema/security-findings.init.sql'),
           target: '/docker-entrypoint-initdb.d/01-init-schema.sql',
         },
       ])

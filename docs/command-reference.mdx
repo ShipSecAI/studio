@@ -1,6 +1,6 @@
 ---
 title: "Command Reference"
-description: "Command reference for quickstart, development, and maintenance"
+description: "Command reference for source development and repository maintenance"
 ---
 
 ShipSec Studio uses [`just`](https://github.com/casey/just) as its primary command runner.
@@ -16,42 +16,6 @@ or:
 ```bash
 just help
 ```
-
-## Quickstart
-
-### Start Quickstart
-
-```bash
-just quickstart
-```
-
-Starts the public single-tenant Docker Compose stack.
-
-### Stop Quickstart
-
-```bash
-just quickstart stop
-```
-
-### Logs
-
-```bash
-just quickstart logs
-```
-
-### Status
-
-```bash
-just quickstart status
-```
-
-### Clean
-
-```bash
-just quickstart clean
-```
-
-Removes quickstart volumes and data.
 
 ## Source Development
 
@@ -69,12 +33,7 @@ Installs dependencies and creates service `.env` files from examples.
 just dev
 ```
 
-Starts the contributor development stack with:
-
-- shared local infra
-- backend
-- worker
-- frontend
+Starts the Studio app processes from source using the env configuration in your workspace.
 
 ### Stop Development
 
@@ -100,17 +59,6 @@ just dev status
 just dev clean
 ```
 
-## Infrastructure-Only
-
-These commands are contributor-oriented and mainly useful during source development.
-
-```bash
-just infra up
-just infra down
-just infra logs
-just infra clean
-```
-
 ## Multi-Instance Development
 
 ```bash
@@ -122,7 +70,7 @@ just instance-env update 3
 just instance-env show 3
 ```
 
-See [MULTI-INSTANCE-DEV](/MULTI-INSTANCE-DEV) for details.
+See [Development / Multi-Instance Dev](/development/multi-instance-dev) for details.
 
 ## Database
 
@@ -144,14 +92,10 @@ bun run test
 
 | Command | Purpose |
 | --- | --- |
-| `just quickstart` | Start the public Docker quickstart |
-| `just quickstart stop` | Stop the quickstart stack |
-| `just quickstart clean` | Remove quickstart data |
 | `just init` | Install deps and create env files |
 | `just dev` | Start contributor development mode |
 | `just dev stop` | Stop contributor development mode |
 | `just dev logs` | View app logs |
-| `just infra up` | Start infra only |
 | `just db-reset` | Reset local database |
 | `bun run typecheck` | Typecheck workspace |
 | `bun run lint` | Lint workspace |
