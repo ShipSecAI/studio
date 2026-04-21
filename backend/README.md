@@ -1,192 +1,46 @@
 # ShipSec Studio Backend
 
-NestJS REST API server for workflow management, orchestration, and real-time execution monitoring.
+NestJS API server for workflows, integrations, auth, storage metadata, traces, templates, and runtime control surfaces.
 
-## Prerequisites
-
-- Bun latest (see root `README.md` for install instructions)
-- Infrastructure services running (`just dev` from repo root)
-
-## Development Commands
+## Development
 
 ```bash
-# Install workspace dependencies (run once from repo root)
 bun install
-
-# Start the API server with hot reload
-bun dev
-
-# Type-check and lint before committing
-bun run typecheck
-bun run lint
-
-# Run API tests (NestJS testing utilities)
-bun run test
+bun --cwd backend run dev
 ```
 
-## Architecture Overview
-
-### Core Technologies
-
-- **NestJS** with TypeScript for API framework
-- **Bun runtime** for fast JavaScript execution
-- **PostgreSQL** with Drizzle ORM for data persistence
-- **Temporal.io** for workflow orchestration
-- **Clerk** for authentication and user management
-- **MinIO** for object storage
-- **Redis** for caching and session management
-- **Kafka/Redpanda** for event streaming
-- **Loki** for log aggregation
-
-### Key Services
-
-#### Workflows Module
-
-- **Workflow CRUD**: Create, read, update, delete workflows
-- **Graph Compilation**: Convert ReactFlow graphs to executable DSL
-- **Temporal Integration**: Workflow scheduling and management
-- **Validation**: Component registry validation and type checking
-
-#### Storage Module
-
-- **File Management**: Upload, download, and metadata management
-- **Artifact Storage**: Component outputs and execution results
-- **Terminal Archival**: Convert Redis streams to Asciinema cast files
-- **MinIO Integration**: S3-compatible object storage
-
-#### Secrets Module
-
-- **Encrypted Storage**: AES-256-GCM encryption for sensitive data
-- **Version Control**: Multiple secret versions with rollback
-- **Access Control**: Role-based secret access and audit logging
-
-#### Integrations Module
-
-- **Provider Catalog**: Static integration catalog (AWS, Slack) with auth methods, setup scenarios, and configuration
-- **OAuth Provider**: Multi-provider OAuth orchestration (GitHub, Slack, Zoom) with PKCE support
-- **Token Vault**: AES-256-GCM encrypted storage of access and refresh tokens
-- **Connection Management**: Full lifecycle management -- create, validate, refresh, disconnect
-- **AWS Service**: IAM Role connections with STS AssumeRole, Organization account discovery, trust policy generation
-- **Slack Service**: Webhook connections with test messaging support
-- **Credential Resolution**: Internal API for worker components to resolve typed credentials at runtime
-
-#### Logging & Events Module
-
-- **Log Ingestion**: Multi-transport log processing (Kafka, Loki, PostgreSQL)
-- **Event Management**: Trace event storage and timeline generation
-- **Real-time APIs**: SSE endpoints for live updates
-- **Terminal Streaming**: Redis Stream-based terminal output delivery
-
-## Environment Configuration
-
-### Required Variables
+Before committing:
 
 ```bash
-# Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/shipsec
-
-# Authentication
-CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-CLERK_WEBHOOK_SECRET=whsec_...
-
-# Temporal
-TEMPORAL_ADDRESS=localhost:7233
-TEMPORAL_NAMESPACE=shipsec-studio
-TEMPORAL_TASK_QUEUE=shipsec-workflows
-
-# Object Storage
-MINIO_ENDPOINT=localhost:9000
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=minioadmin
-
-# Event Streaming / Kafka (Redpanda)
-LOG_KAFKA_BROKERS=localhost:9092
-REDIS_URL=redis://localhost:6379
-
-# Log Aggregation
-LOKI_URL=http://localhost:3100
-
-# Security
-# Must be exactly 32 characters (raw string, NOT hex-encoded).
-# Generate with: openssl rand -base64 24 | head -c 32
-SECRET_STORE_MASTER_KEY=your-32-character-secret-key!!!!
-INTEGRATION_STORE_MASTER_KEY=your-32-character-integ-key!!!!!
+bun --cwd backend run typecheck
+bun --cwd backend run lint
+bun --cwd backend run test
 ```
 
-## API Endpoints
+The backend expects its dependencies to be reachable through configured environment variables.
 
-### Workflows
+## Common Tasks
 
-- `GET /api/v1/workflows` - List workflows
-- `POST /api/v1/workflows` - Create workflow
-- `GET /api/v1/workflows/{id}` - Get workflow details
-- `PUT /api/v1/workflows/{id}` - Update workflow
-- `DELETE /api/v1/workflows/{id}` - Delete workflow
-- `POST /api/v1/workflows/{id}/runs` - Execute workflow
+Generate OpenAPI:
 
-### Execution Monitoring
-
-- `GET /api/v1/runs/{runId}/events` - Get execution trace events
-- `GET /api/v1/runs/{runId}/terminal` - Get terminal output chunks
-- `GET /api/v1/runs/{runId}/logs` - Query execution logs
-- `GET /api/v1/runs/{runId}/stream` - SSE endpoint for live updates
-
-### File & Artifact Management
-
-- `POST /api/v1/files/upload` - Upload file
-- `GET /api/v1/files/{id}/download` - Download file
-- `GET /api/v1/files/{id}/metadata` - Get file metadata
-
-### Secrets
-
-- `GET /api/v1/secrets` - List secrets
-- `POST /api/v1/secrets` - Create secret
-
-### Integrations
-
-- `GET /integrations/catalog` - List integration provider catalog
-- `GET /integrations/connections` - List user connections
-- `GET /integrations/org/connections` - List organization connections
-- `DELETE /integrations/connections/{id}` - Remove a connection
-- `POST /integrations/connections/{id}/refresh` - Refresh connection tokens
-- `GET /integrations/providers` - List OAuth providers
-- `POST /integrations/{provider}/start` - Start OAuth flow
-- `POST /integrations/{provider}/exchange` - Complete OAuth exchange
-- `GET /integrations/aws/setup-info` - Get IAM trust policy and external ID
-- `POST /integrations/aws/connections` - Create AWS IAM role connection
-- `POST /integrations/aws/connections/{id}/validate` - Validate AWS connection
-- `POST /integrations/aws/connections/{id}/discover-org` - Discover AWS Organization accounts
-- `POST /integrations/slack/connections` - Create Slack webhook connection
-- `POST /integrations/slack/connections/{id}/test` - Test Slack connection
-
-## Project Structure
-
-```
-src/
-├── workflows/          # Workflow CRUD and compilation
-├── storage/            # File and artifact management
-├── secrets/            # Encrypted secrets storage
-├── integrations/       # OAuth provider orchestration
-├── components/         # Component registry API
-├── trace/              # Event management and timeline
-├── logging/            # Log ingestion and processing
-├── events/             # Event processing service
-├── temporal/           # Temporal client wrapper
-├── database/           # Database schemas and migrations
-└── auth/               # Clerk authentication integration
+```bash
+bun --cwd backend run generate:openapi
 ```
 
-## Development Workflow
+Run migrations:
 
-1. **Infrastructure**: Start required services with `just dev`
-2. **Database**: Run migrations with `bun run db:migrate`
-3. **Development**: Start API server with `bun dev`
-4. **Testing**: Run test suite with `bun run test`
-5. **Validation**: Check types with `bun run typecheck`
+```bash
+bun --cwd backend run migration:migrate
+```
 
-## Where To Read More
+Generate migration SQL:
 
-- **[Architecture Overview](../docs/architecture.md)** - Complete system design and data flows
-- **[Component Development](../docs/component-development.md)** - Building security components
-- **[Getting Started](../docs/getting-started.md)** - Development setup and configuration
+```bash
+bun --cwd backend run migration:generate
+```
+
+## Read More
+
+- [Architecture](../docs/architecture.mdx)
+- [Installation](../docs/installation.mdx)
+- [Self-Hosting](../docs/self-hosting.mdx)

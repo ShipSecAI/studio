@@ -6,7 +6,7 @@ If you are self-hosting the product, use the Docker quickstart and self-hosting 
 
 ## Purpose
 
-Multi-instance development lets you run multiple app instances on one machine while sharing the same local infrastructure services.
+Multi-instance development lets you run multiple app instances on one machine while sharing the same local runtime services.
 
 That is useful for:
 
@@ -17,7 +17,7 @@ That is useful for:
 
 ## Model
 
-- one shared local Docker infra stack
+- one shared local runtime-services layer
 - many app instances started through PM2
 - isolation via instance-specific ports, databases, and Temporal namespaces
 
@@ -70,7 +70,7 @@ Examples:
 | `1`      | `5273`   | `3311`  |
 | `4`      | `5573`   | `3611`  |
 
-Shared infra services keep fixed ports.
+Shared runtime services keep fixed ports.
 
 ## Env Files
 
@@ -100,7 +100,7 @@ bun run test:e2e
 ## Operational Notes
 
 - `just dev stop` stops the active instance’s PM2 apps
-- shared infra may remain running for other instances
+- shared runtime services may remain available for other instances
 - instance `0` is the default shared local baseline
 
 ## Related Docs

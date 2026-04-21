@@ -5,10 +5,10 @@ A reusable guide for auditing frontend performance, TanStack Query behavior, and
 ## Prerequisites
 
 1. **Seed data:** `bun backend/scripts/seed-stress-test.ts --tier medium`
-2. **Dev server running:** `just dev` (Vite on localhost)
+2. **Studio app running from source:** `just dev`
 3. **Browser:** Chrome with DevTools open (Network tab, Performance tab)
 4. **Viewport:** Desktop 1280x720 default, then mobile/tablet for responsive checks
-5. **All testing must be done via `localhost` (nginx reverse proxy), NOT via the direct Vite dev server port.** Nginx provides gzip compression and more closely matches production behavior.
+5. **Test through the frontend URL exposed by your active instance.** Do not assume a bundled nginx layer exists in this public repo.
 
 ## Step 0: Discover All Routes
 

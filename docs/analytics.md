@@ -132,15 +132,9 @@ Each organization's data is isolated by `organization_id`. The ClickHouse schema
 
 **Check:**
 
-```bash
-# Verify worker has CLICKHOUSE_URL set
-docker exec shipsec-worker env | grep CLICKHOUSE
+Verify that the worker environment includes `CLICKHOUSE_URL` and inspect the worker logs from your own runtime environment.
 
-# Check worker logs for indexing errors
-docker logs shipsec-worker 2>&1 | grep -i "analytics\|indexing"
-```
-
-**Solution:** Ensure `CLICKHOUSE_URL=http://clickhouse:8123` is set in worker environment.
+**Solution:** Ensure `CLICKHOUSE_URL` points at a reachable ClickHouse instance in the worker environment.
 
 ### Query Returns No Results
 
