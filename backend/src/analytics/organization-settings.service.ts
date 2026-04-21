@@ -40,7 +40,6 @@ export class OrganizationSettingsService {
       .insert(organizationSettingsTable)
       .values({
         organizationId,
-        subscriptionTier: 'free',
         analyticsRetentionDays: 30,
       })
       .returning();
