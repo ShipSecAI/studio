@@ -16,7 +16,7 @@ Simple method for development and testing.
 
 ```bash
 # Backend Environment
-export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+export AWS_ACCESS_KEY_ID=<YOUR_AWS_ACCESS_KEY_ID>
 export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 export AWS_REGION=us-east-1
 
@@ -56,7 +56,7 @@ Create `.env` in the backend directory:
 
 ```bash
 # backend/.env
-AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+AWS_ACCESS_KEY_ID=<YOUR_AWS_ACCESS_KEY_ID>
 AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 AWS_REGION=us-east-1
 AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE/IvU1dYUg2RVAJBanLiHb4IgPzxj4XvrJOgQP0KM4T
@@ -169,12 +169,12 @@ Traditional AWS CLI-style configuration.
 
 ```ini
 [default]
-aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+aws_access_key_id = <YOUR_AWS_ACCESS_KEY_ID>
 aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 aws_session_token = AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE/IvU1dYUg2RVAJBanLiHb4IgPzxj4XvrJOgQP0KM4T
 
 [shipsec-studio]
-aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+aws_access_key_id = <YOUR_AWS_ACCESS_KEY_ID>
 aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 region = us-east-1
 ```
@@ -195,7 +195,7 @@ Secure credential management for production.
 
 ```bash
 # Store access key
-aws ssm put-parameter --name "/shipsec/access-key" --value "AKIAIOSFODNN7EXAMPLE" --type "SecureString"
+aws ssm put-parameter --name "/shipsec/access-key" --value "<YOUR_AWS_ACCESS_KEY_ID>" --type "SecureString"
 
 # Store secret key
 aws ssm put-parameter --name "/shipsec/secret-key" --value "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" --type "SecureString"
