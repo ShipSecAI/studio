@@ -1,1 +1,0 @@
-Please use the get_time tool from the test-server MCP to tell me the current time. Then use the echo tool to say "Finished investigation".
