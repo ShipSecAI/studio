@@ -1,48 +1,80 @@
 ---
 title: "Command Reference"
-description: "Complete reference for just commands and development utilities"
+description: "Command reference for quickstart, development, and maintenance"
 ---
 
-ShipSec Studio uses [just](https://github.com/casey/just) as its command runner. Run `just` or `just help` to see all available commands.
+ShipSec Studio uses [`just`](https://github.com/casey/just) as its primary command runner.
 
----
+Run:
 
-## Getting Started
+```bash
+just
+```
 
-### Initialize Project
+or:
+
+```bash
+just help
+```
+
+## Quickstart
+
+### Start Quickstart
+
+```bash
+just quickstart
+```
+
+Starts the public single-tenant Docker Compose stack.
+
+### Stop Quickstart
+
+```bash
+just quickstart stop
+```
+
+### Logs
+
+```bash
+just quickstart logs
+```
+
+### Status
+
+```bash
+just quickstart status
+```
+
+### Clean
+
+```bash
+just quickstart clean
+```
+
+Removes quickstart volumes and data.
+
+## Source Development
+
+### Initialize
 
 ```bash
 just init
 ```
 
-Sets up the development environment:
-- Installs dependencies with Bun
-- Creates environment files from examples (`backend/.env`, `worker/.env`, `frontend/.env`)
+Installs dependencies and creates service `.env` files from examples.
 
----
-
-## Development Commands
-
-### Start Development Environment
+### Start Development
 
 ```bash
 just dev
 ```
 
-Starts the full development environment with hot-reload:
-- Checks for environment files
-- Starts Docker infrastructure (Postgres, Temporal, MinIO, Loki)
-- Waits for services to be ready
-- Runs database migrations
-- Starts backend, worker, and frontend via PM2
+Starts the contributor development stack with:
 
-**Access points (all via nginx on port 80):**
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost/ |
-| Backend API | http://localhost/api/ |
-| Analytics | http://localhost/analytics/ |
-| Temporal UI | http://localhost:8081 |
+- shared local infra
+- backend
+- worker
+- frontend
 
 ### Stop Development
 
@@ -50,217 +82,77 @@ Starts the full development environment with hot-reload:
 just dev stop
 ```
 
-Stops all PM2 processes and Docker infrastructure.
-
-### View Logs
+### Logs
 
 ```bash
 just dev logs
 ```
 
-Streams logs from all application processes via PM2.
-
-### Check Status
+### Status
 
 ```bash
 just dev status
 ```
 
-Shows status of PM2 processes and Docker containers.
-
----
-
-## Production Commands
-
-### Start Production
+### Clean
 
 ```bash
-just prod
+just dev clean
 ```
 
-Starts the production environment using Docker Compose with pre-built images.
+## Infrastructure-Only
 
-**Access points (all via nginx on port 80):**
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost/ |
-| Backend API | http://localhost/api/ |
-| Analytics | http://localhost/analytics/ |
-| Temporal UI | http://localhost:8081 |
-
-### Build and Start
-
-```bash
-just prod build
-```
-
-Builds Docker images and starts the production environment.
-
-### Stop Production
-
-```bash
-just prod stop
-```
-
-Stops all production containers.
-
-### View Production Logs
-
-```bash
-just prod logs
-```
-
-Streams logs from all production containers.
-
-### Check Production Status
-
-```bash
-just prod status
-```
-
-Shows status of production containers.
-
-### Clean Production
-
-<Danger>This deletes all data.</Danger>
-
-```bash
-just prod clean
-```
-
-Stops containers, removes volumes, and prunes Docker system.
-
-
----
-
-## Infrastructure Commands
-
-### Start Infrastructure
+These commands are contributor-oriented and mainly useful during source development.
 
 ```bash
 just infra up
-```
-
-Starts only the infrastructure containers:
-- PostgreSQL
-- Temporal
-- MinIO
-- Redis
-- Loki
-
-### Stop Infrastructure
-
-```bash
 just infra down
-```
-
-Stops all infrastructure containers.
-
-### View Infrastructure Logs
-
-```bash
 just infra logs
-```
-
-Streams logs from infrastructure containers.
-
-### Clean Infrastructure
-
-```bash
 just infra clean
 ```
 
-Stops infrastructure and removes all volumes. 
-
-<Danger>This deletes all data.</Danger>
-
----
-
-## Utility Commands
-
-### Show All Status
+## Multi-Instance Development
 
 ```bash
-just status
+just instance show
+just instance use 3
+just instance-init 3
+just instance-env init 3
+just instance-env update 3
+just instance-env show 3
 ```
 
-Comprehensive status check showing:
-- PM2 services
-- Infrastructure containers
-- Production containers
+See [MULTI-INSTANCE-DEV](/MULTI-INSTANCE-DEV) for details.
 
-### Reset Database
+## Database
 
 ```bash
 just db-reset
+bun --cwd backend run migration:generate
+bun --cwd backend run migration:migrate
 ```
 
-Drops and recreates the database, then runs migrations. **This deletes all data.**
-
-<Warning>
-  This command requires PostgreSQL to be running (`just dev` or `just infra up`).
-</Warning>
-
-### Build Images Only
+## Validation
 
 ```bash
-just build
+bun run typecheck
+bun run lint
+bun run test
 ```
 
-Builds production Docker images without starting containers.
+## Short Reference
 
----
-
-## Quick Reference
-
-| Command | Description |
-|---------|-------------|
-| `just init` | Initialize environment |
-| `just dev` | Start development |
-| `just dev stop` | Stop development |
-| `just dev logs` | View dev logs |
-| `just dev status` | Check dev status |
-| `just prod` | Start production |
-| `just prod build` | Build and start production |
-| `just prod stop` | Stop production |
-| `just prod logs` | View production logs |
-| `just prod clean` | Clean production data |
-| `just infra up` | Start infrastructure |
-| `just infra down` | Stop infrastructure |
-| `just infra logs` | View infrastructure logs |
-| `just infra clean` | Clean infrastructure data |
-| `just status` | Show all status |
-| `just db-reset` | Reset database |
-| `just build` | Build images |
-| `just help` | Show help |
-| `bun scripts/generate-prowler-metadata.ts` | Regenerate Prowler check remediation metadata |
-
----
-
-## Maintenance Scripts
-
-### Generate Prowler Check Metadata
-
-```bash
-bun scripts/generate-prowler-metadata.ts
-```
-
-Extracts remediation metadata (CLI, Terraform, CloudFormation, manual steps) from the Prowler Docker image into `backend/src/assets/prowler-checks.json`. This file is served by the backend to enrich the security findings detail view with tabbed IaC remediation code.
-
-**Requirements:** Docker access to pull `ghcr.io/shipsecai/prowler:latest`.
-
-**When to run:** After updating the Prowler Docker image version. Commit the generated JSON to the repo.
-
----
-
-## Environment Files
-
-The `just init` command creates these environment files:
-
-| File | Purpose |
-|------|---------|
-| `backend/.env` | Backend API configuration |
-| `worker/.env` | Worker configuration |
-| `frontend/.env` | Frontend configuration |
-
-Each file is created from its corresponding `.env.example` template.
+| Command | Purpose |
+| --- | --- |
+| `just quickstart` | Start the public Docker quickstart |
+| `just quickstart stop` | Stop the quickstart stack |
+| `just quickstart clean` | Remove quickstart data |
+| `just init` | Install deps and create env files |
+| `just dev` | Start contributor development mode |
+| `just dev stop` | Stop contributor development mode |
+| `just dev logs` | View app logs |
+| `just infra up` | Start infra only |
+| `just db-reset` | Reset local database |
+| `bun run typecheck` | Typecheck workspace |
+| `bun run lint` | Lint workspace |
+| `bun run test` | Run tests |

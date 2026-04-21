@@ -1,0 +1,70 @@
+---
+title: "Multi-Instance Dev"
+description: "Run multiple local Studio instances during source development"
+---
+
+## Purpose
+
+This page is for **contributors working from source**.
+
+It is not the self-hosting guide.
+
+Use this when you want multiple local Studio app instances on one machine while sharing the same local Docker infrastructure.
+
+## Core Model
+
+Local source development supports:
+
+- one shared local Docker infra stack
+- many app instances
+- instance-scoped ports, databases, and Temporal namespaces
+
+That lets contributors run multiple worktrees or app instances side by side.
+
+## Typical Flow
+
+```bash
+just instance show
+just instance use 4
+just dev
+```
+
+Useful helpers:
+
+```bash
+just instance-init 4
+just instance-env init 4
+just instance-env update 4
+just instance-env show 4
+```
+
+## What Changes Per Instance
+
+- frontend port
+- backend port
+- database name
+- Temporal namespace
+- worker backend URL
+
+## When To Use This
+
+Use multi-instance dev when you are:
+
+- testing multiple branches or worktrees
+- running E2E/tests against a specific local instance
+- comparing feature work side by side
+
+## Related Commands
+
+- `just dev`
+- `just dev stop`
+- `just dev logs`
+- `just instance show`
+- `just instance use N`
+- `just instance-env ...`
+
+## Detailed Reference
+
+There is still a longer legacy runbook in the repository at `docs/MULTI-INSTANCE-DEV.md`.
+
+That content should continue to be treated as contributor/development documentation, not part of the self-hosting story.

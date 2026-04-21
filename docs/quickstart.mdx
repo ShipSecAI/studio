@@ -1,101 +1,93 @@
 ---
 title: "Quickstart"
-description: "Get ShipSec Studio running in 5 minutes"
+description: "Boot ShipSec Studio quickly with the public Docker quickstart"
 ---
 
-## Prerequisites
+## Fastest Path
 
-- Docker Desktop (≥8 GB RAM)
-- [Bun](https://bun.sh) runtime
-- [just](https://github.com/casey/just) command runner
+```bash
+git clone https://github.com/ShipSecAI/studio.git
+cd studio
+just quickstart
+```
 
-## Quick Setup
+Open:
 
-<Steps>
-  <Step title="Clone and initialize">
-    ```bash
-    git clone https://github.com/shipsecai/studio.git
-    cd studio
-    just init
-    ```
-    
-    This automatically installs dependencies and creates environment files.
-  </Step>
-  
-  <Step title="Start development environment">
-    ```bash
-    just dev
-    ```
-    
-    This starts all infrastructure (Postgres, Temporal, MinIO, Loki), runs migrations, and launches the full stack with hot-reload.
-  </Step>
-  
-  <Step title="Open ShipSec Studio">
-    Navigate to [http://localhost](http://localhost) and sign in or create an account.
-  </Step>
-</Steps>
+- App: [http://localhost:8080](http://localhost:8080)
+- Temporal UI: [http://localhost:8081](http://localhost:8081)
 
-## Access Points
+## What This Gives You
 
-All services are accessible through nginx on port 80:
+The quickstart stack is the simplest public self-hosted path.
 
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost/ |
-| Backend API | http://localhost/api/ |
-| Temporal UI | http://localhost:8081 |
+It brings up:
 
-<Note>
-  Individual service ports are available for debugging (frontend: 5173, backend: 3211) but should not be used in normal development.
-</Note>
+- frontend
+- backend
+- worker
+- PostgreSQL
+- Temporal
+- Redis
+- MinIO
+- Loki
+- Redpanda
+- ClickHouse
+- Neo4j
+- Hotplug
 
-## Your First Workflow
+Backend migrations are applied automatically during startup.
 
-<Steps>
-  <Step title="Create a new workflow">
-    Click **New Workflow** in the dashboard. Name it "Subdomain Discovery".
-  </Step>
+## Sign In
 
-  <Step title="Add components">
-    - Drag **Manual Trigger** to the canvas
-    - Drag **Subfinder** component to the canvas
-    - Connect the trigger output to the Subfinder input
-  </Step>
+Default local credentials:
 
-  <Step title="Run the workflow">
-    Click **Save**, then **Run**. Watch the execution unfold in real-time with streaming logs and terminal output.
-  </Step>
-</Steps>
+- username: `admin`
+- password: `admin`
+
+## Optional AI Setup
+
+If you want AI components and agent flows to call your own model provider:
+
+```bash
+export CHAT_AI_BASE_URL="https://api.openai.com/v1"
+export CHAT_AI_API_KEY="..."
+export CHAT_AI_MODEL_ID="gpt-5.4-mini"
+just quickstart
+```
+
+If you skip this, Studio still starts normally.
+
+## First Things To Try
+
+1. Open the workflow templates library.
+2. Inspect the seeded security workflows.
+3. Create a workflow from a template.
+4. Open the component catalog.
+5. Explore the MCP and integrations surfaces.
 
 ## Common Commands
 
 ```bash
-# View logs
-just dev logs
-
-# Check status
-just dev status
-
-# Stop everything
-just dev stop
-
-# Restart
-just dev stop && just dev
+just quickstart
+just quickstart logs
+just quickstart status
+just quickstart stop
+just quickstart clean
 ```
 
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Full Installation" icon="download" href="/installation">
-    Detailed setup and configuration options
+  <Card title="Installation" icon="download" href="/installation">
+    Understand the supported self-hosted and contributor setup paths.
   </Card>
-  <Card title="Command Reference" icon="terminal" href="/command-reference">
-    All available just commands
-  </Card>
-  <Card title="Components" icon="cube" href="/components/overview">
-    Explore available components
+  <Card title="Deployment Model" icon="server" href="/deployment-model">
+    See how the OSS product is positioned and operated.
   </Card>
   <Card title="Architecture" icon="sitemap" href="/architecture">
-    Understand the system design
+    Learn how frontend, backend, worker, and Temporal fit together.
+  </Card>
+  <Card title="Components" icon="cube" href="/components/overview">
+    Explore the building blocks used in workflows.
   </Card>
 </CardGroup>

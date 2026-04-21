@@ -1,286 +1,163 @@
 ---
 title: "Installation"
-description: "Self-host ShipSec Studio on your infrastructure"
+description: "Install and run ShipSec Studio as a self-hosted, single-tenant system"
 ---
 
-## Prerequisites
+## Choose Your Path
 
-- Docker Desktop with ≥8 GB RAM
-- [Bun](https://bun.sh) runtime
-- [just](https://github.com/casey/just) command runner
-- Open ports: `5433`, `7233`, `8081`, `9000`, `9001`, `3100`
+ShipSec Studio has two public setup paths:
 
----
+### Docker Quickstart
 
-## Installation Steps
+Best for:
 
-### 1. Clone & initialize
+- local evaluation
+- fastest self-hosted start
+- not caring about source builds
 
 ```bash
-git clone https://github.com/shipsecai/studio.git
+git clone https://github.com/ShipSecAI/studio.git
 cd studio
+just quickstart
+```
+
+This uses the public quickstart stack and applies backend migrations automatically.
+
+### Source Development
+
+Best for:
+
+- contributors
+- source-level debugging
+- local product development
+
+```bash
+git clone https://github.com/ShipSecAI/studio.git
+cd studio
+just init
+just dev
+```
+
+This uses the shared infra + PM2 development flow.
+
+## Docker Quickstart Details
+
+Requirements:
+
+- Docker Desktop or compatible Docker runtime
+- enough local memory for the bundled services
+
+Start:
+
+```bash
+just quickstart
+```
+
+Endpoints:
+
+- App: `http://localhost:8080`
+- API: `http://localhost:8080/api`
+- Temporal UI: `http://localhost:8081`
+- Redpanda Console: `http://localhost:8082`
+- MinIO Console: `http://localhost:9001`
+
+Authentication defaults:
+
+- username: `admin`
+- password: `admin`
+
+AI is optional. If you want AI steps to work, export these before startup:
+
+```bash
+export CHAT_AI_BASE_URL="https://api.openai.com/v1"
+export CHAT_AI_API_KEY="..."
+export CHAT_AI_MODEL_ID="gpt-5.4-mini"
+just quickstart
+```
+
+Stop or clean:
+
+```bash
+just quickstart stop
+just quickstart clean
+```
+
+## Source Development Details
+
+Requirements:
+
+- Bun
+- Docker
+- just
+
+Initialize:
+
+```bash
 just init
 ```
 
-<Note>
-  **macOS users:** If you see native module errors, run:
-  ```bash
-  export SDKROOT=$(xcrun --show-sdk-path)
-  bun install
-  ```
-</Note>
+This installs dependencies and creates:
 
-The `just init` command automatically:
-- Installs project dependencies with Bun
-- Creates environment files from examples (`backend/.env`, `worker/.env`, `frontend/.env`)
+- `backend/.env`
+- `worker/.env`
+- `frontend/.env`
 
-### 2. Configure environment variables
-
-Edit the generated `.env` files as needed:
-
-```bash
-# Edit environment files
-nano backend/.env
-nano worker/.env
-nano frontend/.env
-```
-
-### 3. Start development environment
+Start:
 
 ```bash
 just dev
 ```
 
-The `just dev` command automatically:
-- Checks that environment files exist
-- Starts Docker infrastructure (Postgres, Temporal, MinIO, Loki)
-- Waits for services to be ready
-- Runs database migrations
-- Starts backend, worker, and frontend with hot-reload
+The dev flow:
 
----
+- starts shared local infra
+- validates env files
+- runs migrations
+- launches frontend, backend, and worker via PM2
 
-## Service Endpoints
+See [MULTI-INSTANCE-DEV](/MULTI-INSTANCE-DEV) for contributor-oriented local instance details.
 
-In development mode, all application services are accessible through nginx on port 80:
+## Environment Basics
 
-| Service | URL | Notes |
-|---------|-----|-------|
-| Frontend | http://localhost/ | Workflow builder (via nginx) |
-| Backend API | http://localhost/api/ | REST API (via nginx) |
-| Temporal UI | http://localhost:8081 | Workflow management |
-| PostgreSQL | http://localhost:5433 | Database |
-| MinIO | http://localhost:9000 | Object storage |
-| MinIO Console | http://localhost:9001 | Credentials: `minioadmin/minioadmin` |
-| Loki | http://localhost:3100 | Logs |
+### Required Everywhere
 
-<Note>
-  Individual service ports (5173, 3211) are available for debugging but should not be used in normal development. All traffic flows through nginx on port 80.
-</Note>
+- `SECRET_STORE_MASTER_KEY`
 
----
+### Optional but Common
 
-## Analytics Stack (Optional)
+- `CHAT_AI_MODEL_ID`
+- `CHAT_AI_BASE_URL`
+- `CHAT_AI_API_KEY`
 
-ShipSec Studio includes an optional analytics stack powered by ClickHouse for indexing and querying workflow execution data.
+### Integration Configuration
 
-### Starting the Analytics Stack
+Configure only what you actually plan to use:
 
-The analytics services are included in the infrastructure docker-compose file:
+- GitHub
+- AWS
+- GCP
+- Slack
+- Jira
 
-```bash
-# Start infrastructure including ClickHouse
-just infra up
-```
+The open-source model is direct configuration, not hosted indirection.
 
-This will start:
-- **ClickHouse** on port `8123` - Columnar analytics database
+## Migration Behavior
 
-### Configuring Analytics
+### Docker Quickstart
 
-Add these environment variables to your worker `.env` file:
+You do **not** need a separate migration step.
 
-```bash
-# Worker (.env)
-CLICKHOUSE_URL=http://localhost:8123
-CLICKHOUSE_USER=default
-CLICKHOUSE_PASSWORD=
-```
+The backend container runs migrations automatically on startup.
 
-### Using Analytics
+### Source Development
 
-1. **Analytics Sink Component**: Add the "Analytics Sink" component to your workflows to index output data
-2. **Query API**: Use the `/api/v1/analytics/query` endpoint to query indexed data programmatically
+`just dev` applies the committed migrations before starting the app services.
 
-### Analytics Service Endpoints
+## Notes on Older Local Setups
 
-| Service | URL | Notes |
-|---------|-----|-------|
-| ClickHouse | http://localhost:8123 | Analytics database HTTP API |
+The public quickstart uses its own Compose project and volumes.
 
-<Note>
-  The analytics stack is optional. If ClickHouse is not configured, the Analytics Sink component will gracefully skip indexing and log a warning.
-</Note>
+If you previously ran an older local setup:
 
----
-
-## Production Deployment
-
-For production, use the Docker-based deployment:
-
-```bash
-# Start production environment with cached images
-just prod
-
-# Or build and start
-just prod build
-```
-
-Production endpoints (all via nginx on port 80):
-- Frontend: http://localhost/
-- Backend API: http://localhost/api/
-- Temporal UI: http://localhost:8081
-
----
-
-## Common Commands
-
-### Development
-
-```bash
-just dev          # Start development environment
-just dev stop     # Stop everything
-just dev logs     # View application logs
-just dev status   # Check service status
-just dev clean    # Stop and remove all data
-```
-
-### Production
-
-```bash
-just prod          # Start with cached images
-just prod build    # Rebuild and start
-just prod stop     # Stop production
-just prod logs     # View production logs
-just prod status   # Check production status
-just prod clean    # Remove all data
-```
-
-### Infrastructure
-
-```bash
-just infra up     # Start infrastructure only
-just infra down   # Stop infrastructure
-just infra logs   # View infrastructure logs
-just infra clean  # Remove infrastructure data
-```
-
-### Utilities
-
-```bash
-just status       # Show status of all services
-just db-reset     # Reset database (drops all data)
-just build        # Build images only
-```
-
----
-
-## Troubleshooting
-
-### macOS: Native module build errors
-
-```bash
-export SDKROOT=$(xcrun --show-sdk-path)
-bun install
-```
-
-### Services not starting
-
-```bash
-# Check status
-just dev status
-
-# Restart everything
-just dev stop
-just dev
-```
-
-### Database connection failed
-
-```bash
-# Run migrations manually
-bun run migrate
-
-# Check database logs
-just infra logs
-```
-
-### PM2 processes failing
-
-```bash
-# Check environment files
-ls -la */.env
-
-# Restart everything
-just dev stop
-just dev
-
-# Check logs
-just dev logs
-```
-
-### Frontend not loading
-
-```bash
-# Check if dev server is running
-just dev status
-
-# Start manually if needed
-bun --cwd frontend dev
-```
-
-### Temporal namespace missing
-
-```bash
-docker compose -p shipsec --profile setup up -d
-```
-
-### Clean rebuild
-
-```bash
-just dev stop
-just infra clean
-just infra up
-bun run migrate
-just dev
-```
-
----
-
-## Manual Setup (Optional)
-
-If you need more control over the setup process:
-
-### Infrastructure only
-
-```bash
-just infra up
-just status
-just infra logs
-```
-
-### Applications only
-
-```bash
-pm2 start pm2.config.cjs
-pm2 status
-pm2 logs
-```
-
----
-
-## Getting Help
-
-- Check [GitHub Issues](https://github.com/shipsecai/studio/issues) for similar problems
-- Review logs with `just dev logs` for error details
-- Email support at [support@shipsec.ai](mailto:support@shipsec.ai)
+- stop it first if ports conflict
+- you do not need to manually “migrate” that older setup just to try the current public stack

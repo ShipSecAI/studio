@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/media/splash.png" alt="ShipSec AI" width="800">
+  <img src="docs/media/splash.png" alt="ShipSec Studio" width="800">
 </div>
 
 <p align="center">
@@ -10,272 +10,92 @@
 
 # ShipSec Studio
 
-**Open-Source Security Workflow Orchestration Platform.**
+**The harness for agent-native security workflow orchestration.**
 
-> ShipSec is currently in active development. We are optimizing the platform for stable production use and high-performance security operations.
+ShipSec Studio is an open-source platform for building, running, observing, and governing security workflows that combine agents, MCP tools, scanners, APIs, and human approvals in one durable execution system.
 
-ShipSec Studio provides a visual DSL and runtime for building, executing, and monitoring automated security workflows. It decouples security logic from infrastructure management, providing a durable and isolated environment for running security tooling at scale.
+The public repo is aimed at **self-hosted, usually single-tenant deployments**. If you want a managed experience, ShipSec Cloud is the hosted offering, but the open-source product is fully usable on its own infrastructure.
 
-<div align="center">
-  <a href="https://youtu.be/7uyv43VforM">
-    <img src="https://img.youtube.com/vi/7uyv43VforM/maxresdefault.jpg" alt="ShipSec Studio Demo" width="600">
-  </a>
-  <p><em>Watch the platform in action on YouTube.</em></p>
-</div>
+## Why Studio
 
----
+- **Agent-native by design**: wire AI agents, prompts, MCP tools, and traditional security components into one workflow.
+- **Durable execution**: retries, resumability, schedules, webhooks, and subworkflows are backed by Temporal.
+- **Human-in-the-loop controls**: pause for approvals, forms, or operator decisions without losing workflow state.
+- **Full run visibility**: terminal output, logs, events, artifacts, and replayable execution history.
+- **Reusable security automation**: templates for code security, cloud security, ASM, reporting, and investigations.
 
-### 🏗️ Core Pillars
+## Core Primitives
 
-- **Durable, resumable workflows** powered by Temporal.io for stateful execution across failures.
-- **Isolated security runtimes** using ephemeral containers with per-run volume management.
-- **Unified telemetry streams** delivering terminal output, events, and logs via a low-latency SSE pipeline.
-- **Visual no-code builder** that compiles complex security graphs into an executable DSL.
+- **Workflows**: visual graphs that compile into executable security automations
+- **Agents**: tool-using AI steps, chat sessions, and skill-enabled runs
+- **Tools**: MCP servers, security scanners, HTTP integrations, credential resolvers
+- **Human steps**: approvals, forms, and manual branching
+- **Observability**: traces, logs, terminal streams, artifacts, and audit records
 
----
+## Docker Quickstart
 
-## 🚀 Deployment Options
-
-### 1. Shipsec Self-Host with Docker (Recommended)
-
-The easiest way to run ShipSec Studio on your own infrastructure:
-
-#### One-Line Install
+The simplest public self-hosted path is:
 
 ```bash
-curl -fsSL https://get.shipsec.ai | bash
+just quickstart
 ```
 
-This installer will:
+This starts a single-tenant self-hosted stack from public images and applies backend migrations automatically on startup.
 
-- Check and install missing dependencies (docker, just, curl, jq, git)
-- Start Docker if not running
-- Clone the repository and start all services
-- Guide you through any required setup steps
+Endpoints:
 
-Once complete, visit **http://localhost** to access ShipSec Studio.
+- App: `http://localhost:8080`
+- API: `http://localhost:8080/api`
+- Temporal UI: `http://localhost:8081`
 
-### 2. ShipSec Cloud (Preview)
+Details: [docker/QUICKSTART.md](docker/QUICKSTART.md)
 
-The fastest way to test ShipSec Studio without managing infrastructure.
+## Development
 
-- **Try it out:** [studio.shipsec.ai](https://studio.shipsec.ai)
-- **Note:** ShipSec Studio is under active development. The cloud environment is a technical preview for evaluation and sandbox testing.
-
-### 3. Self-Host (Docker)
-
-For teams requiring data residency and air-gapped security orchestrations. This setup runs the full stack (Frontend, Backend, Worker, and Infrastructure).
-
-**Prerequisites:**
-
-- **[docker](https://www.docker.com/)** - For running the application and security components
-- **[just](https://github.com/casey/just)** - Command runner for simplified workflows
-- **curl** and **jq** - For fetching release information
-
-```bash
-# Clone and start the latest stable release
-git clone https://github.com/ShipSecAI/studio.git
-cd studio
-just prod start-latest
-```
-
-Access the studio at `http://localhost`.
-
----
-
-## 🛠️ Capabilities
-
-### Integrated Tooling
-
-Native support for industry-standard security tools including:
-
-- **Discovery**: `Subfinder`, `DNSX`, `Naabu`, `HTTPx`
-- **Vulnerability**: `Nuclei`, `TruffleHog`
-- **CSPM**: `Prowler` for AWS cloud security posture management
-- **Utility**: `JSON Transform`, `Logic Scripts`, `HTTP Requests`
-
-### Cloud & Platform Integrations
-
-First-class integration support with encrypted credential management:
-
-- **AWS**: IAM Role connections with STS AssumeRole, Organization account discovery, cross-account scanning
-- **Slack**: Incoming Webhooks and OAuth App connections for notifications and alerts
-- **Credential Resolution**: Workflow components that securely resolve connection credentials at runtime
-
-### Advanced Orchestration
-
-- **Human-in-the-Loop**: Pause workflows for approvals, form inputs, or manual validation before continuing.
-- **AI-Driven Analysis**: Leverage LLM nodes and MCP providers for intelligent results interpretation.
-- **Native Scheduling**: Integrated CRON support for recurring security posture and compliance monitoring.
-- **API First**: Trigger and monitor any workflow execution via a comprehensive REST API.
-
-### MCP Integration
-
-- **MCP Library**: Centralized MCP server management with multi-server selection and automatic tool registration
-- **Built-in MCP Servers**: AWS CloudTrail, CloudWatch, and Filesystem support out-of-the-box
-- **Seamless Tool Discovery**: AI Agents automatically discover and use MCP tools via standardized contracts
-
----
-
-## 🏛️ Architecture Overview
-
-ShipSec Studio is designed for enterprise-grade durability and horizontal scalability.
-
-- **Management Plane (Backend)**: NestJS service handling DSL compilation, secret management (AES-256-GCM), and identity.
-- **Orchestration Plane (Temporal)**: Manages workflow state, concurrency, and persistent wait states.
-- **Execution Plane (Worker)**: Stateless agents that pull tasks from Temporal and execute tool-bound activities in isolated runtimes.
-- **Monitoring (SSE/Loki)**: Real-time telemetry pipeline for deterministic execution visibility.
-
-Learn more about our design decisions and system components in the **[Architecture Deep-dive](/docs/architecture.mdx)**.
-
----
-
-## 🤝 Community & Support
-
-- 💬 **[Discord](https://discord.gg/fmMA4BtNXC)** — Real-time support and community discussion.
-- 🗣️ **[GitHub Discussions](https://github.com/ShipSecAI/studio/discussions)** — Technical RFCs and feature requests.
-- 📚 **[Documentation](https://docs.shipsec.ai)** — Full guides on component development and deployment.
-
----
-
-## 🧑‍💻 Development Setup
-
-### Prerequisites
-
-- [Bun](https://bun.sh/) — package manager + runtime
-- [Docker](https://docs.docker.com/get-docker/) — shared infra (Postgres, Temporal, Redpanda, Redis, MinIO, Loki)
-- [just](https://github.com/casey/just) — command runner
-
-### 1. Initialize
+For contributors and local source development:
 
 ```bash
 just init
-```
-
-This installs dependencies and creates `.env` files from the `.env.example` templates:
-
-- `backend/.env` from `backend/.env.example`
-- `worker/.env` from `worker/.env.example`
-- `frontend/.env` from `frontend/.env.example`
-
-### 2. Configure environment
-
-After `just init`, fill in the required credentials before running the app. Get these from a team member or your secrets vault.
-
-#### `backend/.env`
-
-| Variable                        | How to get it                                                                                                   |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `SECRET_STORE_MASTER_KEY`       | Generate: `openssl rand -base64 24 \| head -c 32` (exactly 32 chars). **Copy the same value to `worker/.env`.** |
-| `GITHUB_APP_ID`                 | [GitHub App settings](https://github.com/settings/apps) → App ID                                                |
-| `GITHUB_APP_SLUG`               | URL-friendly name from `github.com/apps/<slug>`                                                                 |
-| `GITHUB_APP_PRIVATE_KEY`        | GitHub App settings → Private keys → Generate (PEM or base64-encoded)                                           |
-| `GITHUB_APP_WEBHOOK_SECRET`     | GitHub App settings → Webhook → Secret                                                                          |
-| `GITHUB_APP_CLIENT_ID`          | GitHub App settings → OAuth credentials                                                                         |
-| `GITHUB_APP_CLIENT_SECRET`      | GitHub App settings → OAuth credentials                                                                         |
-| `SLACK_OAUTH_CLIENT_ID`         | Slack App → OAuth & Permissions                                                                                 |
-| `SLACK_OAUTH_CLIENT_SECRET`     | Slack App → OAuth & Permissions                                                                                 |
-| `SHIPSEC_AWS_REGION`            | Your AWS region (e.g., `us-east-1`)                                                                             |
-| `SHIPSEC_AWS_ACCESS_KEY_ID`     | IAM user or role credentials                                                                                    |
-| `SHIPSEC_AWS_SECRET_ACCESS_KEY` | IAM user or role credentials                                                                                    |
-
-These work out of the box with defaults: `DATABASE_URL`, `LOG_KAFKA_BROKERS`, `LOKI_URL`.
-
-#### `worker/.env`
-
-| Variable                  | How to get it                                                                                   |
-| ------------------------- | ----------------------------------------------------------------------------------------------- |
-| `SECRET_STORE_MASTER_KEY` | **Same value as `backend/.env`** — both services encrypt/decrypt secrets in the shared database |
-
-Everything else has safe defaults.
-
-#### `frontend/.env`
-
-No changes needed — defaults work out of the box.
-
-### 3. Run
-
-```bash
 just dev
 ```
 
-This starts the shared Docker infra + backend, worker, and frontend via PM2.
+This uses the shared infra + PM2 development path documented in [docs/installation.mdx](docs/installation.mdx) and [docs/MULTI-INSTANCE-DEV.md](docs/MULTI-INSTANCE-DEV.md).
 
-You can access the app at: http://localhost (since everything is proxied through nginx).
+## OSS vs ShipSec Cloud
 
-| Service         | URL                   |
-| --------------- | --------------------- |
-| Frontend        | http://localhost:5173 |
-| Backend API     | http://localhost:3211 |
-| Unified (nginx) | http://localhost      |
-| Temporal UI     | http://localhost:8081 |
+The public repo supports the core product directly:
 
-### Common commands
+- self-hosted workflows
+- local auth or external auth
+- direct provider configuration
+- AI via model/base URL/API key
+- integrations via user-managed credentials or apps
 
-```bash
-just dev               # Start dev environment
-just dev stop          # Stop your instance (infra stays running)
-just dev stop all      # Stop everything including infra
-just dev logs          # View logs
-just help              # All commands
-```
+ShipSec Cloud offers a managed deployment and a smoother setup experience for hosted users. Public docs mention that product shape, but do not rely on private implementation details.
 
-### After backend route changes
+## Capabilities
 
-```bash
-bun --cwd backend run generate:openapi
-bun --cwd packages/backend-client run generate
-```
+- Workflow builder and reusable workflow templates
+- Chat and agent-driven execution
+- MCP server library and tool discovery
+- Code security, PR protection, and GitHub scans
+- Cloud accounts, cloud inventory, and cloud scans
+- Attack surface management (domains, assets, scans)
+- Report templates, artifacts, and audit logs
+- Schedules, webhooks, and API-driven execution
 
-### Database
+## Learn More
 
-```bash
-bun --cwd backend run migration:generate   # Generate migration SQL from schema changes
-bun --cwd backend run migration:migrate    # Apply committed migrations
-bun --cwd backend run db:studio            # View data
-```
+- [Introduction](docs/index.mdx)
+- [Quickstart](docs/quickstart.mdx)
+- [Installation](docs/installation.mdx)
+- [Deployment Model](docs/deployment-model.mdx)
+- [OSS vs ShipSec Cloud](docs/oss-vs-cloud.mdx)
+- [Architecture](docs/architecture.mdx)
+- [Components](docs/components/overview.mdx)
 
-### Testing
+## Community
 
-```bash
-bun run test           # All tests
-bun run typecheck      # Type check
-bun run lint           # Lint
-```
-
----
-
-## 🔀 Multi-Instance Development
-
-Run multiple isolated dev instances on one machine for parallel feature work:
-
-```bash
-# Instance 0 (default)
-just dev
-
-# Switch active workspace instance
-just instance use 1
-just dev
-
-# Manage per-instance env files
-just instance-env init 1
-```
-
-Each instance gets its own frontend port, backend port, database, and Temporal namespace while sharing a single Docker infra stack. See [Multi-Instance Development Guide](docs/MULTI-INSTANCE-DEV.md) for full details.
-
----
-
-## ✍️ Contributing
-
-We welcome contributions to the management plane, worker logic, or new security components.
-See [CONTRIBUTING.md](CONTRIBUTING.md) for architectural guidelines and setup instructions.
-
----
-
-## License
-
-ShipSec Studio is licensed under the **Apache License 2.0**.
-
-<div align="center">
-  <p>Engineered for security teams by the ShipSec AI team.</p>
-</div>
+- Discord: https://discord.gg/fmMA4BtNXC
+- Discussions: https://github.com/ShipSecAI/studio/discussions
+- Docs: https://docs.shipsec.ai

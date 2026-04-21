@@ -1,0 +1,78 @@
+---
+title: "OSS vs ShipSec Cloud"
+description: "How the public self-hosted product differs from the managed hosted offering"
+---
+
+## Shared Capability Model
+
+The important thing to understand is that ShipSec Studio and ShipSec Cloud are not different products.
+
+They expose the same capability categories:
+
+- workflows
+- agents
+- tools and MCP integrations
+- cloud and code security
+- templates and reporting
+- observability and auditability
+
+What differs is **how those capabilities are operated and configured**.
+
+## Open Source Studio
+
+Open-source Studio is for self-hosting.
+
+Typical characteristics:
+
+- single-tenant deployment
+- operator-managed infrastructure
+- user-managed integrations and credentials
+- direct AI provider configuration
+- local auth or external auth depending on your setup
+
+## ShipSec Cloud
+
+ShipSec Cloud is the managed hosted deployment.
+
+Typical characteristics:
+
+- managed hosting by ShipSec
+- smoother setup for provider onboarding
+- less operator overhead for hosted users
+
+Public docs should stop there. They should not disclose private implementation structure.
+
+## Practical Examples
+
+### AI
+
+- **OSS**: configure `CHAT_AI_MODEL_ID`, `CHAT_AI_BASE_URL`, and `CHAT_AI_API_KEY`
+- **Cloud**: managed provider path
+
+### GitHub
+
+- **OSS**: PAT or GitHub App
+- **Cloud**: managed app flow
+
+### AWS
+
+- **OSS**: direct credentials or IAM role setup
+- **Cloud**: managed onboarding path
+
+### Jira
+
+- **OSS**: OAuth, API token, or manual setup
+- **Cloud**: managed setup path
+
+### Slack
+
+- **OSS**: webhook or app setup
+- **Cloud**: managed app flow
+
+## Public Docs Rule
+
+When writing or updating public docs:
+
+- fully explain the OSS path
+- mention the managed offering briefly
+- do not expose private forks, overlays, or hosted-only implementation details

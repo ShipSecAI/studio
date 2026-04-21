@@ -1,0 +1,78 @@
+---
+title: "Deployment Model"
+description: "How ShipSec Studio is positioned and deployed in open source"
+---
+
+## Public Positioning
+
+ShipSec Studio is an open-source platform for self-hosted, agent-native security workflow orchestration.
+
+The public repo should be understood as:
+
+- **self-hosted first**
+- **single-tenant by default**
+- **operator-controlled**
+
+That means the open-source product expects you to:
+
+- run the app stack yourself
+- own your own infrastructure and credentials
+- choose your own AI provider configuration
+- choose your own integration setup path
+
+## What “Single-Tenant” Means Here
+
+For the public repo, the default mental model is:
+
+- one deployment
+- one team or one organization operating it
+- one set of credentials and runtime services under your control
+
+Studio still has organization and auth concepts internally, but the open-source docs should not pretend this repo is a hosted multitenant SaaS by default.
+
+## Supported Public Paths
+
+### 1. Docker Quickstart
+
+Use this for evaluation and fast local self-hosting:
+
+```bash
+just quickstart
+```
+
+### 2. Source Development
+
+Use this if you are contributing or developing from source:
+
+```bash
+just init
+just dev
+```
+
+## ShipSec Cloud
+
+ShipSec Cloud is the managed hosted offering.
+
+It is the right fit when you want:
+
+- managed hosting
+- less operational setup
+- a smoother onboarding path for provider integrations
+
+But the open-source product remains the primary public artifact, and public docs should explain how to use it directly.
+
+## OSS vs Managed Principle
+
+The rule for public docs is:
+
+- describe the same capability class in both worlds
+- explain the OSS setup path directly
+- mention the managed option without exposing internal implementation details
+
+Examples:
+
+- AI in OSS: model ID + base URL + API key
+- GitHub in OSS: PAT or GitHub App
+- AWS in OSS: direct credentials or IAM role setup
+- Jira in OSS: OAuth, API token, or manual app flow
+- Slack in OSS: webhook or Slack app

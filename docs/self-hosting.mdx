@@ -1,0 +1,94 @@
+---
+title: "Self-Hosting"
+description: "Run ShipSec Studio on your own infrastructure with the public Docker setup"
+---
+
+## What Self-Hosting Means Here
+
+ShipSec Studio open source is designed first for **self-hosted, usually single-tenant deployments**.
+
+That means:
+
+- you run the app stack yourself
+- you manage your own credentials and provider setup
+- you decide how much infrastructure you want to own
+
+The simplest supported path is the public Docker quickstart.
+
+## Fastest Self-Hosted Path
+
+```bash
+just quickstart
+```
+
+This starts the public Docker Compose stack and applies backend migrations automatically during startup.
+
+Main endpoints:
+
+- App: `http://localhost:8080`
+- API: `http://localhost:8080/api`
+- Temporal UI: `http://localhost:8081`
+
+## What The Docker Stack Includes
+
+The quickstart stack brings up the services the public product needs:
+
+- frontend
+- backend
+- worker
+- PostgreSQL
+- Temporal
+- Redis
+- MinIO
+- Loki
+- Redpanda
+- ClickHouse
+- Neo4j
+- Hotplug
+- nginx
+
+## Authentication Defaults
+
+Quickstart uses local auth defaults:
+
+- username: `admin`
+- password: `admin`
+
+## AI Configuration
+
+AI is optional in self-hosted mode.
+
+If you want AI components and agent flows to call your provider directly:
+
+```bash
+export CHAT_AI_BASE_URL="https://api.openai.com/v1"
+export CHAT_AI_API_KEY="..."
+export CHAT_AI_MODEL_ID="gpt-5.4-mini"
+just quickstart
+```
+
+## How To Make It Your Own
+
+The quickstart stack is meant to be a base, not the only possible deployment model.
+
+Typical ways teams customize it:
+
+- replace image tags with pinned versions
+- replace local storage/services with managed services
+- inject external auth configuration
+- add provider credentials and integrations
+- change ingress, networking, and persistence policies
+
+The public Docker files are intentionally readable so you can fork the setup for your own environment.
+
+## Relevant Files
+
+- `docker/docker-compose.quickstart.yml`
+- `docker/QUICKSTART.md`
+- `docker/README.md`
+
+## Related Docs
+
+- [Quickstart](/quickstart)
+- [Installation](/installation)
+- [Deployment Model](/deployment-model)

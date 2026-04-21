@@ -1,146 +1,141 @@
 ---
 title: "Architecture"
-description: "System design and module responsibilities for ShipSec Studio"
+description: "How ShipSec Studio runs agent-native security workflows"
 ---
 
-## What is ShipSec Studio?
+## Overview
 
-ShipSec Studio is an open-source, no-code security workflow orchestration platform. Build, execute, and monitor security automation workflows through a visual interface — focus on security, not infrastructure.
+ShipSec Studio is the harness layer that connects:
 
----
+- workflow design
+- durable execution
+- agents and MCP tools
+- secrets and runtime credentials
+- human approvals
+- run observability
 
-## System Overview
+At a high level:
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                              FRONTEND                                  │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │
-│  │   Visual    │  │  Terminal   │  │  Timeline   │  │   Config    │    │
-│  │   Builder   │  │   Viewer    │  │   Replay    │  │    Panel    │    │
-│  │ (ReactFlow) │  │  (xterm.js) │  │  (Zustand)  │  │  (Forms)    │    │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘    │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ REST API + Unified SSE
-┌───────────────────────────────────▼─────────────────────────────────────┐
-│                               BACKEND                                   │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │Workflows │ │ Secrets  │ │ Storage  │ │  Trace   │ │  Auth    │       │
-│  │  + DSL   │ │(AES-256) │ │ (MinIO)  │ │ Events   │ │ (Clerk)  │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │ Webhooks │ │Schedules │ │ Agents   │ │Human     │ │Integr-   │       │
-│  │          │ │ (CRON)   │ │          │ │Inputs    │ │ations    │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-└───────────────────────────────────┬─────────────────────────────────────┘
-                                    │ Temporal Client
-┌───────────────────────────────────▼─────────────────────────────────────┐
-│                              TEMPORAL                                   │
-│            Workflow Orchestration • Retry Logic • Durability            │
-└───────────────────────────────────┬─────────────────────────────────────┘
-                                    │ Activity Execution
-┌───────────────────────────────────▼─────────────────────────────────────┐
-│                               WORKER                                    │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                    COMPONENT REGISTRY                           │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐            │    │
-│  │  │  Tools   │ │    AI    │ │  Human   │ │   Core   │            │    │
-│  │  │(Security)│ │  Agents  │ │ in Loop  │ │  Utils   │            │    │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘            │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                      SERVICE ADAPTERS                           │    │
-│  │  Secrets │ Storage │ Artifacts │ Trace │ Terminal │ Logs        │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼─────────────────────────────────────┐
-│                           INFRASTRUCTURE                                │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │PostgreSQL│ │  MinIO   │ │  Redis   │ │Redpanda  │ │   Loki   │       │
-│  │  (Data)  │ │ (Files)  │ │(Terminal)│ │ (Kafka)  │ │  (Logs)  │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-└─────────────────────────────────────────────────────────────────────────┘
+Frontend → Backend → Temporal → Worker → Tools / MCP / APIs / Scanners
 ```
 
----
+## Core Runtime Model
 
-## Technology Stack
+### Frontend
 
-| Layer | Stack |
-|-------|-------|
-| **Frontend** | React 19, TypeScript, Vite, TailwindCSS, Radix UI, ReactFlow, xterm.js, Zustand |
-| **Backend** | NestJS, TypeScript, Bun, Drizzle ORM, Clerk Auth |
-| **Worker** | Node.js, TypeScript, Temporal SDK, Docker |
-| **Infrastructure** | PostgreSQL 16, Temporal, MinIO, Redis, Redpanda (Kafka), Loki |
+The frontend provides:
 
----
+- workflow design
+- chat and agent UX
+- settings and integrations
+- run visibility
+- cloud, code security, and ASM surfaces
 
-## Core Deep-Dives
+### Backend
 
-To keep this guide concise, complicated subsystems are documented in their own dedicated files:
+The backend owns:
 
-- **[Workflow Compilation (DSL)](/architecture/workflow-compilation)**: How visual graphs are transformed into executable instructions.
-- **[Temporal Orchestration](/architecture/temporal-orchestration)**: How we use Temporal for durability and worker scaling.
-- **[Streaming Pipelines](/architecture/streaming-pipelines)**: How terminal, logs, and events are delivered in real-time.
-- **[Human-in-the-Loop](/architecture/human-in-the-loop)**: How we pause workflows for manual approvals and forms.
+- APIs
+- auth and organization context
+- secrets and storage metadata
+- schedules and webhooks
+- templates and report templates
+- MCP and integration control surfaces
+- trace, audit, and artifact APIs
 
----
+### Temporal
 
-## Component Categories
+Temporal gives Studio:
 
-Components are the building blocks of workflows:
+- durable workflow execution
+- retries
+- pause/resume behavior
+- long-running waits
+- workflow-level state management
 
-| Category | Description | Examples |
-|----------|-------------|----------|
-| **security** | Security scanning and enumeration tools | Subfinder, DNSX, Nuclei, Naabu, HTTPx, TruffleHog |
-| **ai** | AI/ML and agent components | LLM Generate, AI Agent, MCP Providers |
-| **core** | Utility and data processing | HTTP Request, File Loader, Logic Script, JSON Transform |
-| **notification** | Alerts and messaging | Slack, Email |
-| **manual-action** | Human-in-the-loop | Approvals, Forms, Selection |
-| **github** | GitHub integrations | Remove Org Membership |
+### Worker
 
----
+The worker executes:
 
-## Security Architecture
+- components
+- agent steps
+- MCP discovery/runtime steps
+- scanner calls
+- cloud and GitHub tasks
+- human-in-the-loop activities
 
-### Authentication & Multi-tenancy
-- **Clerk Integration** — Production-ready authentication for hosted environments.
-- **Local Auth** — Default for local setup using `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
-- **Organization Isolation** — All data scoped by `organization_id`.
+## Why This Fits The “Harness” Model
 
-### Secrets Management
-- **AES-256-GCM** encryption at rest.
-- **Versioned secrets** with active/inactive tracking.
-- **Master key** via `SECRET_STORE_MASTER_KEY` environment variable.
+Studio is not only about defining steps.
 
-### Container Isolation
-- **IsolatedContainerVolume** — Per-tenant, per-run Docker volumes. See **[Isolated Volumes](/development/isolated-volumes)**.
-- **Network isolation** — Components run with `network: none` or `bridge`.
-- **Automatic cleanup** — Volumes destroyed after execution.
+It provides the execution frame around those steps:
 
----
+- tools have lifecycle
+- credentials resolve at runtime
+- humans can interrupt and resume safely
+- runs are visible and auditable
+- workflows can be reused and scheduled
 
-## Development URLs
+That is why “harness” is the right framing.
 
-All application services are accessible through nginx on port 80:
+## Major System Areas
 
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost/ |
-| Backend API | http://localhost/api/ |
-| Analytics | http://localhost/analytics/ |
-| Temporal UI | http://localhost:8081 |
-| MinIO Console | http://localhost:9001 |
-| Redpanda Console | http://localhost:8082 |
-| Loki | http://localhost:3100 |
+### Agent-native orchestration
 
-<Note>
-  Individual service ports (5173, 3211, 5601) are available for debugging but should not be used in normal development. All traffic flows through nginx on port 80.
-</Note>
+- chat sessions
+- agent skills
+- AI agent components
+- MCP tool access
+- agent trace events
 
----
+### Workflow orchestration
 
-## Learn More
+- workflow graphs
+- schedules
+- webhooks
+- workflow templates
+- report templates
+- workflow calls and reusable patterns
 
-- **Component Development**: `/development/component-development`
-- **Getting Started**: `/getting-started`
+### Human-in-the-loop
+
+- approvals
+- forms
+- manual selection
+- action center workflows
+
+### Observability
+
+- terminal streaming
+- event timelines
+- logs
+- artifacts
+- audit records
+
+### Security operations
+
+- GitHub scans and PR protection
+- cloud posture and inventory
+- ASM domains, assets, and scans
+- security dashboards and findings pipelines
+
+## Self-Hosted Default
+
+The public repo is designed for self-hosted, usually single-tenant operation.
+
+That means the architecture you should think about first is:
+
+- one deployment
+- your own credentials
+- your own AI provider config
+- your own integrations
+
+ShipSec Cloud is the managed hosted offering, but public architecture docs should focus on the self-hosted system first.
+
+## Deep Dives
+
+- [Workflow Compilation](/architecture/workflow-compilation)
+- [Temporal Orchestration](/architecture/temporal-orchestration)
+- [Streaming Pipelines](/architecture/streaming-pipelines)
+- [Human-in-the-Loop](/architecture/human-in-the-loop)

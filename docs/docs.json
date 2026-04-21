@@ -14,12 +14,27 @@
         "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting Started",
-            "pages": ["index", "quickstart", "installation", "command-reference"]
+            "group": "Introduction",
+            "pages": [
+              "index",
+              "quickstart",
+              "installation",
+              "deployment-model",
+              "self-hosting",
+              "oss-vs-cloud",
+              "command-reference"
+            ]
           },
           {
             "group": "Architecture",
-            "pages": ["architecture"]
+            "pages": [
+              "architecture",
+              "architecture/workflow-compilation",
+              "architecture/temporal-orchestration",
+              "architecture/streaming-pipelines",
+              "architecture/human-in-the-loop",
+              "architecture/run-context"
+            ]
           },
           {
             "group": "Components",
@@ -33,6 +48,7 @@
           {
             "group": "Development",
             "pages": [
+              "development/multi-instance-dev",
               "development/component-development",
               "development/isolated-volumes",
               "development/workflow-analytics",
@@ -45,11 +61,6 @@
     ],
     "global": {
       "anchors": [
-        {
-          "anchor": "Website",
-          "href": "https://studio.shipsec.ai",
-          "icon": "globe"
-        },
         {
           "anchor": "GitHub",
           "href": "https://github.com/shipsecai/studio",
@@ -71,8 +82,8 @@
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://studio.shipsec.ai"
+      "label": "Quickstart",
+      "href": "/quickstart"
     }
   },
   "footer": {
