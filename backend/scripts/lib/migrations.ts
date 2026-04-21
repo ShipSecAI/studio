@@ -59,15 +59,5 @@ export function loadMigrations(drizzleDir: string): LoadedMigration[] {
 }
 
 export function loadAllMigrations(baseDir: string): LoadedMigration[] {
-  return getConfiguredDrizzleDirs(baseDir)
-    .flatMap((dir) => loadMigrations(dir))
-    .sort((a, b) => {
-      if (a.when !== b.when) {
-        return a.when - b.when;
-      }
-      if (a.dir !== b.dir) {
-        return a.dir.localeCompare(b.dir);
-      }
-      return a.idx - b.idx;
-    });
+  return getConfiguredDrizzleDirs(baseDir).flatMap((dir) => loadMigrations(dir));
 }

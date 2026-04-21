@@ -89,7 +89,7 @@ describe('migration loader', () => {
     ]);
   });
 
-  it('sorts migrations by time first and then by directory and idx for stable playback', () => {
+  it('keeps the public journal order first and appends overlay journals in configured order', () => {
     const baseDir = writeDrizzleDir(tempRoot, 'backend/drizzle', [
       {
         idx: 1,
@@ -108,9 +108,15 @@ describe('migration loader', () => {
     const overlayDir = writeDrizzleDir(tempRoot, 'cloud/drizzle', [
       {
         idx: 0,
-        when: 300,
-        tag: '0000_cloud_same_time',
+        when: 50,
+        tag: '0000_cloud_first',
         sql: '-- cloud same time\nselect 3;\n',
+      },
+      {
+        idx: 1,
+        when: 25,
+        tag: '0001_cloud_second',
+        sql: '-- cloud second\nselect 4;\n',
       },
     ]);
 
@@ -126,7 +132,8 @@ describe('migration loader', () => {
     expect(ordered.map((migration) => migration.tag)).toEqual([
       '0000_public_a',
       '0001_public_b',
-      '0000_cloud_same_time',
+      '0000_cloud_first',
+      '0001_cloud_second',
     ]);
   });
 });
