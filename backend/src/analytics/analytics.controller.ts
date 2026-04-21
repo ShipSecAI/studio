@@ -36,7 +36,6 @@ import {
 import {
   AnalyticsSettingsResponseDto,
   UpdateAnalyticsSettingsDto,
-  TIER_LIMITS,
 } from './dto/analytics-settings.dto';
 import {
   BatchRunSummariesRequestDto,
@@ -248,13 +247,10 @@ export class AnalyticsController {
     const settings = await this.organizationSettingsService.getOrganizationSettings(
       auth.organizationId,
     );
-    const maxRetentionDays = this.organizationSettingsService.getMaxRetentionDays(
-      settings.subscriptionTier,
-    );
+    const maxRetentionDays = this.organizationSettingsService.getMaxRetentionDays();
 
     return {
       organizationId: settings.organizationId,
-      subscriptionTier: settings.subscriptionTier,
       analyticsRetentionDays: settings.analyticsRetentionDays,
       maxRetentionDays,
       createdAt: settings.createdAt.toISOString(),
@@ -281,11 +277,6 @@ export class AnalyticsController {
       throw new ForbiddenException('Only organization admins can update analytics settings');
     }
 
-    const currentSettings = await this.organizationSettingsService.getOrganizationSettings(
-      auth.organizationId,
-    );
-    const tierToValidate = updateDto.subscriptionTier ?? currentSettings.subscriptionTier;
-
     if (updateDto.analyticsRetentionDays !== undefined) {
       if (
         typeof updateDto.analyticsRetentionDays !== 'number' ||
@@ -295,14 +286,12 @@ export class AnalyticsController {
       }
 
       const isValid = this.organizationSettingsService.validateRetentionPeriod(
-        tierToValidate,
         updateDto.analyticsRetentionDays,
       );
 
       if (!isValid) {
-        const maxDays = TIER_LIMITS[tierToValidate].maxRetentionDays;
         throw new BadRequestException(
-          `Retention period of ${updateDto.analyticsRetentionDays} days exceeds the limit for ${TIER_LIMITS[tierToValidate].name} tier (${maxDays} days)`,
+          `Retention period of ${updateDto.analyticsRetentionDays} days exceeds the public maximum (${this.organizationSettingsService.getMaxRetentionDays()} days)`,
         );
       }
     }
@@ -311,17 +300,13 @@ export class AnalyticsController {
       auth.organizationId,
       {
         analyticsRetentionDays: updateDto.analyticsRetentionDays,
-        subscriptionTier: updateDto.subscriptionTier,
       },
     );
 
-    const maxRetentionDays = this.organizationSettingsService.getMaxRetentionDays(
-      updated.subscriptionTier,
-    );
+    const maxRetentionDays = this.organizationSettingsService.getMaxRetentionDays();
 
     return {
       organizationId: updated.organizationId,
-      subscriptionTier: updated.subscriptionTier,
       analyticsRetentionDays: updated.analyticsRetentionDays,
       maxRetentionDays,
       createdAt: updated.createdAt.toISOString(),

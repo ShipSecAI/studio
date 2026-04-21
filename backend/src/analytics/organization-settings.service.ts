@@ -6,9 +6,8 @@ import { DRIZZLE_TOKEN } from '../database/database.module';
 import {
   organizationSettingsTable,
   OrganizationSettings,
-  SubscriptionTier,
 } from '../database/schema/organization-settings';
-import { TIER_LIMITS } from './dto/analytics-settings.dto';
+import { MAX_ANALYTICS_RETENTION_DAYS } from './dto/analytics-settings.dto';
 import { ClickHouseTenantService } from './clickhouse-tenant.service';
 
 @Injectable()
@@ -61,7 +60,6 @@ export class OrganizationSettingsService {
     organizationId: string,
     updates: {
       analyticsRetentionDays?: number;
-      subscriptionTier?: SubscriptionTier;
     },
   ): Promise<OrganizationSettings> {
     // Ensure settings exist
@@ -87,15 +85,14 @@ export class OrganizationSettingsService {
   /**
    * Validate retention period is within tier limits
    */
-  validateRetentionPeriod(tier: SubscriptionTier, retentionDays: number): boolean {
-    const limit = TIER_LIMITS[tier];
-    return retentionDays <= limit.maxRetentionDays && retentionDays > 0;
+  validateRetentionPeriod(retentionDays: number): boolean {
+    return retentionDays <= MAX_ANALYTICS_RETENTION_DAYS && retentionDays > 0;
   }
 
   /**
-   * Get max retention days for a tier
+   * Get the max retention days available in the public single-tenant build.
    */
-  getMaxRetentionDays(tier: SubscriptionTier): number {
-    return TIER_LIMITS[tier].maxRetentionDays;
+  getMaxRetentionDays(): number {
+    return MAX_ANALYTICS_RETENTION_DAYS;
   }
 }

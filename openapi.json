@@ -11916,15 +11916,6 @@
           "organizationId": {
             "type": "string"
           },
-          "subscriptionTier": {
-            "type": "string",
-            "enum": [
-              "free",
-              "pro",
-              "team",
-              "enterprise"
-            ]
-          },
           "analyticsRetentionDays": {
             "type": "number"
           },
@@ -11944,7 +11935,6 @@
         },
         "required": [
           "organizationId",
-          "subscriptionTier",
           "analyticsRetentionDays",
           "maxRetentionDays",
           "createdAt",
@@ -11958,15 +11948,6 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 365
-          },
-          "subscriptionTier": {
-            "type": "string",
-            "enum": [
-              "free",
-              "pro",
-              "team",
-              "enterprise"
-            ]
           }
         }
       },

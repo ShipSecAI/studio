@@ -110,7 +110,6 @@ Requests exceeding these limits return `400 Bad Request`.
 The analytics settings update API supports **partial updates**:
 
 - `analyticsRetentionDays` is optional
-- `subscriptionTier` is optional
 
 Omit fields you don't want to change. The backend validates the retention days only when provided.
 

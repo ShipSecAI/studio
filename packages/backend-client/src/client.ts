@@ -4307,8 +4307,6 @@ export interface components {
         };
         AnalyticsSettingsResponseDto: {
             organizationId: string;
-            /** @enum {string} */
-            subscriptionTier: "free" | "pro" | "team" | "enterprise";
             analyticsRetentionDays: number;
             maxRetentionDays: number;
             /** Format: date-time */
@@ -4318,8 +4316,6 @@ export interface components {
         };
         UpdateAnalyticsSettingsDto: {
             analyticsRetentionDays?: number;
-            /** @enum {string} */
-            subscriptionTier?: "free" | "pro" | "team" | "enterprise";
         };
         BatchRunSummariesRequestDto: {
             runIds: string[];

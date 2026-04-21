@@ -8,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -21,15 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  BarChart3,
-  Database,
-  Calendar,
-  AlertCircle,
-  ArrowUpRight,
-  Trash2,
-  Info,
-} from 'lucide-react';
+import { BarChart3, Database, Calendar, AlertCircle, Trash2, Info } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { useToast } from '@/components/ui/use-toast';
@@ -39,7 +30,6 @@ import {
   useUpdateAnalyticsSettings,
   usePurgeAnalyticsData,
 } from '@/hooks/queries/useAnalyticsSettingsQueries';
-import type { SubscriptionTier } from './AnalyticsSettingsPage.types';
 
 // Retention period options in days
 const RETENTION_PERIODS = [
@@ -52,14 +42,6 @@ const RETENTION_PERIODS = [
   { value: '365', label: '365 days (1 year)', days: 365 },
 ];
 
-// Subscription tier limits (must match backend TIER_LIMITS)
-const TIER_LIMITS: Record<SubscriptionTier, { name: string; maxRetentionDays: number }> = {
-  free: { name: 'Free', maxRetentionDays: 30 },
-  pro: { name: 'Pro', maxRetentionDays: 90 },
-  team: { name: 'Team', maxRetentionDays: 90 },
-  enterprise: { name: 'Enterprise', maxRetentionDays: 365 },
-};
-
 export function AnalyticsSettingsPage() {
   const roles = useAuthStore((state) => state.roles);
   const canManageSettings = hasAdminRole(roles);
@@ -71,9 +53,7 @@ export function AnalyticsSettingsPage() {
   const updateSettings = useUpdateAnalyticsSettings();
   const purgeData = usePurgeAnalyticsData();
 
-  const currentTier: SubscriptionTier = (settings?.subscriptionTier as SubscriptionTier) ?? 'free';
-  const tierInfo = TIER_LIMITS[currentTier];
-  const maxAllowedRetention = tierInfo.maxRetentionDays;
+  const maxAllowedRetention = settings?.maxRetentionDays ?? 365;
 
   const [retentionPeriod, setRetentionPeriod] = useState<string | null>(null);
   const [showRetentionConfirm, setShowRetentionConfirm] = useState(false);
@@ -171,31 +151,18 @@ export function AnalyticsSettingsPage() {
           </div>
         )}
 
-        {/* Subscription Tier — full-width banner */}
+        {/* Retention Overview — full-width banner */}
         <div className="rounded-xl border bg-card p-4 md:p-5 mb-4">
           <div className="flex items-center gap-4">
             <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
               <BarChart3 className="h-5 w-5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-sm font-semibold">Subscription Tier</h2>
-                <Badge variant="secondary" className="text-xs font-medium">
-                  {tierInfo.name}
-                </Badge>
-              </div>
+              <h2 className="text-sm font-semibold">Retention Limits</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Maximum retention: {maxAllowedRetention} days
               </p>
             </div>
-            {currentTier !== 'enterprise' && (
-              <Button variant="outline" size="sm" className="text-xs" asChild>
-                <a href="mailto:founders@shipsec.io?subject=ShipSec%20Studio%20—%20Upgrade%20Inquiry">
-                  Upgrade
-                  <ArrowUpRight className="h-3 w-3 ml-1" />
-                </a>
-              </Button>
-            )}
           </div>
         </div>
 
