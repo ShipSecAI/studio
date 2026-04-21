@@ -9,7 +9,6 @@ const rootPackage = (() => {
   }
 })();
 
-const DEFAULT_BASE_URL = process.env.SHIPSEC_VERSION_CHECK_URL ?? 'https://version.shipsec.ai';
 const DEFAULT_VERSION = typeof rootPackage?.version === 'string' ? rootPackage.version : '0.1.1';
 const DEFAULT_TIMEOUT_MS = Number(process.env.SHIPSEC_VERSION_CHECK_TIMEOUT_MS ?? '5000');
 
@@ -35,22 +34,34 @@ export interface VersionCheckResult {
   requestedVersion: string;
 }
 
+export function getVersionCheckBaseUrl(env: NodeJS.ProcessEnv = process.env) {
+  const value = env.SHIPSEC_VERSION_CHECK_URL?.trim();
+  return value ? value : null;
+}
+
 export function isVersionCheckDisabled(env: NodeJS.ProcessEnv = process.env) {
   const value = env.SHIPSEC_VERSION_CHECK_DISABLED;
-  if (!value) return false;
-  return ['1', 'true', 'yes'].includes(value.toLowerCase());
+  if (value && ['1', 'true', 'yes'].includes(value.toLowerCase())) {
+    return true;
+  }
+  return getVersionCheckBaseUrl(env) === null;
 }
 
 export async function performVersionCheck(
   overrides: Partial<VersionCheckMetadata> = {},
 ): Promise<VersionCheckResult> {
+  const baseUrl = getVersionCheckBaseUrl();
+  if (!baseUrl) {
+    throw new Error('Version check URL is not configured');
+  }
+
   const metadata: VersionCheckMetadata = {
     version: overrides.version ?? DEFAULT_VERSION,
     platform: overrides.platform ?? process.platform,
     arch: overrides.arch ?? process.arch,
   };
 
-  const url = new URL('/api/version/check', ensureTrailingSlash(DEFAULT_BASE_URL));
+  const url = new URL('/api/version/check', ensureTrailingSlash(baseUrl));
   url.searchParams.set('app', 'studio');
   url.searchParams.set('version', metadata.version);
   if (metadata.platform) url.searchParams.set('platform', metadata.platform);

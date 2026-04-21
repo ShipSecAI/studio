@@ -6,6 +6,14 @@ import path from 'path';
 const instance = parseInt(process.env.SHIPSEC_INSTANCE || '0', 10);
 const frontendPort = 5173 + instance * 100;
 const backendPort = 3211 + instance * 100;
+const allowedHosts = [
+  'studio.shipsec.ai',
+  'frontend',
+  ...(process.env.SHIPSEC_ALLOWED_HOSTS ?? '')
+    .split(',')
+    .map((host) => host.trim())
+    .filter(Boolean),
+];
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -32,12 +40,7 @@ export default defineConfig({
     fs: {
       allow: [path.resolve(__dirname, '..'), path.resolve(__dirname, '..', '..', 'studio-cloud')],
     },
-    allowedHosts: [
-      'studio.shipsec.ai',
-      'studio-next.shipsec.ai',
-      'studio-staging.shipsec.ai',
-      'frontend',
-    ],
+    allowedHosts,
     proxy: {
       '/api/': {
         target: `http://localhost:${backendPort}`,
@@ -47,12 +50,7 @@ export default defineConfig({
     },
   },
   preview: {
-    allowedHosts: [
-      'studio.shipsec.ai',
-      'studio-next.shipsec.ai',
-      'studio-staging.shipsec.ai',
-      'frontend',
-    ],
+    allowedHosts,
   },
   build: {
     rollupOptions: {

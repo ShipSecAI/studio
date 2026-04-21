@@ -31,5 +31,4 @@ permissions:
   external:
     fetch:
       backend:
-        - 'studio.shipsec.ai'
-        - 'studio-staging.shipsec.ai'
+        - 'your-studio-host.example.com'

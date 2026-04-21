@@ -36,7 +36,7 @@ function printSection(lines: string[], accentColor: string) {
 async function main() {
   if (isVersionCheckDisabled(process.env)) {
     printSection(
-      [`${colors.dim}Version check skipped (disabled via env)${colors.reset}`],
+      [`${colors.dim}Version check skipped (disabled or no URL configured)${colors.reset}`],
       colors.dim,
     );
     return;

@@ -96,7 +96,7 @@ async function bootstrap() {
 
 async function enforceVersionCheck() {
   if (isVersionCheckDisabled(process.env)) {
-    console.warn('[version-check] Skipping version validation (disabled via env).');
+    console.warn('[version-check] Skipping version validation (disabled or no URL configured).');
     return;
   }
 
