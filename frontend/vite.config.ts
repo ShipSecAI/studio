@@ -6,6 +6,10 @@ import path from 'path';
 const instance = parseInt(process.env.SHIPSEC_INSTANCE || '0', 10);
 const frontendPort = 5173 + instance * 100;
 const backendPort = 3211 + instance * 100;
+const cloudExtensionPackage = process.env.VITE_CLOUD_EXTENSION_PACKAGE?.trim();
+const extraFsAllow = cloudExtensionPackage
+  ? [path.dirname(path.resolve(cloudExtensionPackage))]
+  : [];
 const allowedHosts = [
   'studio.shipsec.ai',
   'frontend',
@@ -38,7 +42,7 @@ export default defineConfig({
     strictPort: true,
     open: false,
     fs: {
-      allow: [path.resolve(__dirname, '..'), path.resolve(__dirname, '..', '..', 'studio-cloud')],
+      allow: [path.resolve(__dirname, '..'), ...extraFsAllow],
     },
     allowedHosts,
     proxy: {

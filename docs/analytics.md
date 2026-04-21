@@ -114,7 +114,7 @@ The analytics settings update API supports **partial updates**:
 Omit fields you don't want to change. The backend validates the retention days only when provided.
 
 In the open-source product, the retention limit comes from the public single-tenant default.
-When Studio is composed with `studio-cloud`, the same surface can report a plan-derived limit instead.
+When Studio is composed with a managed/private overlay, the same surface can report a plan-derived limit instead.
 
 ## Multi-Tenant Architecture
 
