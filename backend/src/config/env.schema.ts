@@ -137,11 +137,6 @@ export const backendEnvSchema = z
     NEO4J_USER: z.string().optional().default(''),
     NEO4J_PASSWORD: z.string().optional().default(''),
 
-    // --- Bifrost ---
-    BIFROST_PROXY_URL: z.string().optional(),
-    BIFROST_MASTER_KEY: z.string().optional(),
-    BIFROST_ALLOW_TEAM_INFO_SPEND_FALLBACK: z.string().optional(),
-
     // --- Platform ---
     PLATFORM_API_URL: z.string().optional().default(''),
     PLATFORM_SERVICE_TOKEN: z.string().optional().default(''),

@@ -45,10 +45,10 @@ const DEFAULT_STEP_LIMIT = 4;
 const LOG_TRUNCATE_LIMIT = 2000;
 
 import {
-  shouldRouteViaBifrost,
-  getBifrostBaseUrl,
-  normalizeBifrostModel,
-  requireOrgVirtualKey,
+  shouldRouteViaGateway,
+  getGatewayBaseUrl,
+  normalizeGatewayModel,
+  requireOrganizationApiKey,
   isBudgetExceededError,
   BUDGET_EXCEEDED_USER_MESSAGE,
   connectToHotplugTools,
@@ -570,10 +570,10 @@ Loop the Conversation State output back into the next agent invocation to keep m
 
       const effectiveProvider: ModelProvider = chatModel?.provider ?? 'openai';
       const effectiveModel = ensureModelName(effectiveProvider, chatModel?.modelId ?? null);
-      const bifrostEnabled = shouldRouteViaBifrost();
-      const bifrostBaseUrl = getBifrostBaseUrl();
-      const routedModel = bifrostEnabled
-        ? normalizeBifrostModel(effectiveProvider, effectiveModel)
+      const gatewayEnabled = shouldRouteViaGateway();
+      const gatewayBaseUrl = getGatewayBaseUrl();
+      const routedModel = gatewayEnabled
+        ? normalizeGatewayModel(effectiveProvider, effectiveModel)
         : effectiveModel;
 
       let overrideApiKey = chatModel?.apiKey ?? null;
@@ -581,21 +581,21 @@ Loop the Conversation State output back into the next agent invocation to keep m
         overrideApiKey = modelApiKey.trim();
       }
 
-      // When Bifrost is enabled and no user-provided key (BYOK), use the org's virtual key
-      let resolvedBifrostKey: string | null = null;
-      if (bifrostEnabled && !overrideApiKey) {
-        resolvedBifrostKey = await requireOrgVirtualKey(organizationId ?? null, {
+      // When the AI gateway is enabled and no user-provided key (BYOK), use the org key.
+      let resolvedOrganizationApiKey: string | null = null;
+      if (gatewayEnabled && !overrideApiKey) {
+        resolvedOrganizationApiKey = await requireOrganizationApiKey(organizationId ?? null, {
           consumer: 'AI Agent',
         });
       }
 
-      const effectiveApiKey = bifrostEnabled
-        ? resolveApiKey(effectiveProvider, resolvedBifrostKey || overrideApiKey)
+      const effectiveApiKey = gatewayEnabled
+        ? resolveApiKey(effectiveProvider, resolvedOrganizationApiKey || overrideApiKey)
         : resolveApiKey(effectiveProvider, overrideApiKey);
       const explicitBaseUrl = chatModel?.baseUrl?.trim();
       const baseUrl =
-        bifrostEnabled && bifrostBaseUrl
-          ? bifrostBaseUrl
+        gatewayEnabled && gatewayBaseUrl
+          ? gatewayBaseUrl
           : explicitBaseUrl && explicitBaseUrl.length > 0
             ? explicitBaseUrl
             : effectiveProvider === 'gemini'
@@ -641,7 +641,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
           : {}),
       };
       const isOpenRouter =
-        !bifrostEnabled &&
+        !gatewayEnabled &&
         (effectiveProvider === 'openrouter' ||
           (typeof baseUrl === 'string' && baseUrl.includes('openrouter.ai')));
       const openAIProvider = createOpenAIImpl({
@@ -649,15 +649,15 @@ Loop the Conversation State output back into the next agent invocation to keep m
         ...(isOpenRouter ? { name: 'openrouter' } : {}),
       });
       const model =
-        !bifrostEnabled && effectiveProvider === 'gemini'
+        !gatewayEnabled && effectiveProvider === 'gemini'
           ? createGoogleGenerativeAIImpl({
               apiKey: effectiveApiKey,
               ...(baseUrl ? { baseURL: baseUrl } : {}),
             })(routedModel)
           : isOpenRouter
             ? openAIProvider.chat(routedModel)
-            : bifrostEnabled
-              ? openAIProvider.chat(routedModel) // Bifrost doesn't support Responses API
+            : gatewayEnabled
+              ? openAIProvider.chat(routedModel) // Gateway path does not use the Responses API
               : openAIProvider(routedModel);
 
       const agentSettings: ToolLoopAgentSettings<never, AgentTools> = {

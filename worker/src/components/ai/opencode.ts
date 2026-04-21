@@ -12,7 +12,7 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
-import { requireOrgVirtualKey, shouldRouteViaBifrost, getSkillWorkspaceFiles } from './utils';
+import { requireOrganizationApiKey, shouldRouteViaGateway, getSkillWorkspaceFiles } from './utils';
 import { getOpenCodePluginSetupScript } from './opencode-plugins';
 
 const inputSchema = inputs({
@@ -240,14 +240,14 @@ const definition = defineComponent({
       ...providerConfig,
     };
 
-    // When Bifrost is enabled and no user-provided key, use org's virtual key
+    // When the AI gateway is enabled and no user-provided key, use the org key.
     let orgVirtualKey: string | undefined;
-    if (shouldRouteViaBifrost() && !model?.apiKey && organizationId) {
-      orgVirtualKey = await requireOrgVirtualKey(organizationId, {
+    if (shouldRouteViaGateway() && !model?.apiKey && organizationId) {
+      orgVirtualKey = await requireOrganizationApiKey(organizationId, {
         consumer: 'OpenCode agent',
       });
-    } else if (shouldRouteViaBifrost() && !model?.apiKey) {
-      orgVirtualKey = await requireOrgVirtualKey(organizationId ?? null, {
+    } else if (shouldRouteViaGateway() && !model?.apiKey) {
+      orgVirtualKey = await requireOrganizationApiKey(organizationId ?? null, {
         consumer: 'OpenCode agent',
       });
     }
@@ -468,13 +468,13 @@ function buildProviderEnv(
   model?: { provider: string; apiKey?: string },
   orgVirtualKey?: string,
 ): Record<string, string> {
-  const bifrostBaseUrl = process.env.BIFROST_BASE_URL?.trim();
-  if (bifrostBaseUrl) {
+  const gatewayBaseUrl = process.env.CHAT_AI_BASE_URL?.trim();
+  if (gatewayBaseUrl) {
     const key = model?.apiKey || orgVirtualKey;
     return key
       ? {
           OPENAI_API_KEY: key,
-          OPENAI_BASE_URL: bifrostBaseUrl,
+          OPENAI_BASE_URL: gatewayBaseUrl,
         }
       : {};
   }

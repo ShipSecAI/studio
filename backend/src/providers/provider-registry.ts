@@ -28,18 +28,16 @@ class OssBillingProvider implements BillingProvider {
 }
 
 class OssAiGatewayProvider implements AiGatewayProvider {
-  shouldRouteViaBifrost(): boolean {
-    const baseUrl =
-      process.env.CHAT_AI_BASE_URL?.trim() ?? process.env.BIFROST_BASE_URL?.trim() ?? '';
-    return baseUrl.length > 0;
+  shouldRouteViaGateway(): boolean {
+    return (process.env.CHAT_AI_BASE_URL?.trim() ?? '').length > 0;
   }
 
-  getBifrostBaseUrl(): string {
-    return process.env.CHAT_AI_BASE_URL?.trim() || process.env.BIFROST_BASE_URL?.trim() || '';
+  getGatewayBaseUrl(): string {
+    return process.env.CHAT_AI_BASE_URL?.trim() || '';
   }
 
-  getBifrostApiKey(): string {
-    return process.env.CHAT_AI_API_KEY?.trim() || process.env.BIFROST_API_KEY?.trim() || '';
+  getGatewayApiKey(): string {
+    return process.env.CHAT_AI_API_KEY?.trim() || '';
   }
 
   normalizeModel(provider: string, model: string): string {
@@ -50,20 +48,20 @@ class OssAiGatewayProvider implements AiGatewayProvider {
     return model;
   }
 
-  async fetchOrgVirtualKey(_orgId: string): Promise<string | null> {
-    return this.getBifrostApiKey() || null;
+  async fetchOrganizationApiKey(_orgId: string): Promise<string | null> {
+    return this.getGatewayApiKey() || null;
   }
 
   async resolve(input: AiGatewayResolutionInput): Promise<AiGatewayResolution> {
     return {
-      routeViaBifrost: this.shouldRouteViaBifrost(),
-      baseUrl: input.backendUrl?.trim() ? this.getBifrostBaseUrl() : this.getBifrostBaseUrl(),
-      apiKey: this.getBifrostApiKey(),
+      routeViaGateway: this.shouldRouteViaGateway(),
+      baseUrl: input.backendUrl?.trim() ? this.getGatewayBaseUrl() : this.getGatewayBaseUrl(),
+      apiKey: this.getGatewayApiKey(),
       modelId:
         input.provider && input.modelId
           ? this.normalizeModel(input.provider, input.modelId)
           : (input.modelId ?? null),
-      virtualKey: null,
+      organizationApiKey: null,
     };
   }
 }

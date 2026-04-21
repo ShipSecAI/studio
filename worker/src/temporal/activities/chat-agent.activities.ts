@@ -11,7 +11,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, asc } from 'drizzle-orm';
 
 import {
-  requireOrgVirtualKey,
+  requireOrganizationApiKey,
   isBudgetExceededError,
   BUDGET_EXCEEDED_USER_MESSAGE,
 } from '../../components/ai/utils';
@@ -165,12 +165,8 @@ function getAnthropicBaseUrl(baseURL: string): string {
 }
 
 function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
-  const baseURL =
-    overrides?.baseURL ??
-    process.env.CHAT_AI_BASE_URL?.trim() ??
-    process.env.BIFROST_BASE_URL?.trim();
-  const apiKey =
-    overrides?.apiKey ?? process.env.CHAT_AI_API_KEY?.trim() ?? process.env.BIFROST_API_KEY?.trim();
+  const baseURL = overrides?.baseURL ?? process.env.CHAT_AI_BASE_URL?.trim();
+  const apiKey = overrides?.apiKey ?? process.env.CHAT_AI_API_KEY?.trim();
   const modelId = process.env.CHAT_AI_MODEL_ID;
 
   if (!baseURL || !apiKey || !modelId) {
@@ -183,13 +179,13 @@ function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
     const provider = createAnthropic({
       baseURL: getAnthropicBaseUrl(baseURL),
       apiKey,
-      name: 'bifrost-anthropic',
+      name: 'gateway-anthropic',
     });
     return provider.messages(modelId);
   }
 
-  // Use OpenAI-compatible API for Bifrost providers that behave correctly on that surface.
-  const provider = createOpenAI({ baseURL, apiKey, name: 'bifrost' });
+  // Use the OpenAI-compatible AI gateway surface for supported providers.
+  const provider = createOpenAI({ baseURL, apiKey, name: 'gateway' });
   return provider.chat(modelId);
 }
 
@@ -198,14 +194,13 @@ function getModel(overrides?: { apiKey?: string; baseURL?: string }) {
  */
 async function getModelForOrg(organizationId?: string) {
   try {
-    const virtualKey = await requireOrgVirtualKey(organizationId, {
+    const organizationApiKey = await requireOrganizationApiKey(organizationId, {
       backendUrl: globalBackendUrl,
       consumer: 'Chat AI',
     });
-    return getModel({ apiKey: virtualKey });
+    return getModel({ apiKey: organizationApiKey });
   } catch (error) {
-    const fallbackApiKey =
-      process.env.CHAT_AI_API_KEY?.trim() ?? process.env.BIFROST_API_KEY?.trim();
+    const fallbackApiKey = process.env.CHAT_AI_API_KEY?.trim();
     if (organizationId === 'local-dev' && fallbackApiKey) {
       console.warn(
         '[chat-agent] Falling back to the local AI gateway API key for local-dev chat because org-specific key resolution failed.',

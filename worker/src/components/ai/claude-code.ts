@@ -12,7 +12,7 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
-import { requireOrgVirtualKey, shouldRouteViaBifrost, getSkillWorkspaceFiles } from './utils';
+import { requireOrganizationApiKey, shouldRouteViaGateway, getSkillWorkspaceFiles } from './utils';
 import { getPluginSetupScript } from './claude-plugins';
 
 const inputSchema = inputs({
@@ -203,14 +203,14 @@ const definition = defineComponent({
           }
         : { mcpServers: {} };
 
-    // 3. Resolve Bifrost virtual key if needed
+    // 3. Resolve an organization AI gateway key if needed.
     let orgVirtualKey: string | undefined;
-    if (shouldRouteViaBifrost() && !model?.apiKey && organizationId) {
-      orgVirtualKey = await requireOrgVirtualKey(organizationId, {
+    if (shouldRouteViaGateway() && !model?.apiKey && organizationId) {
+      orgVirtualKey = await requireOrganizationApiKey(organizationId, {
         consumer: 'Claude Code agent',
       });
-    } else if (shouldRouteViaBifrost() && !model?.apiKey) {
-      orgVirtualKey = await requireOrgVirtualKey(organizationId ?? null, {
+    } else if (shouldRouteViaGateway() && !model?.apiKey) {
+      orgVirtualKey = await requireOrganizationApiKey(organizationId ?? null, {
         consumer: 'Claude Code agent',
       });
     }
@@ -414,7 +414,7 @@ function cleanReport(raw: string): string {
 /**
  * Build environment variables for Claude Code's Anthropic API auth.
  *
- * - Bifrost routing: ANTHROPIC_API_KEY=<virtual-key>, ANTHROPIC_BASE_URL=<bifrost>/anthropic
+ * - AI gateway routing: ANTHROPIC_API_KEY=<organization-key>, ANTHROPIC_BASE_URL=<gateway>/anthropic
  * - Direct Anthropic: ANTHROPIC_API_KEY=<key>
  * - ZAI provider: ANTHROPIC_API_KEY=<key>, ANTHROPIC_BASE_URL=https://api.z.ai/api/coding/paas/v4
  */
@@ -422,14 +422,14 @@ function buildProviderEnv(
   model?: { provider: string; apiKey?: string },
   orgVirtualKey?: string,
 ): Record<string, string> {
-  const bifrostBaseUrl = process.env.BIFROST_BASE_URL?.trim();
+  const gatewayBaseUrl = process.env.CHAT_AI_BASE_URL?.trim();
 
-  if (bifrostBaseUrl) {
+  if (gatewayBaseUrl) {
     const key = model?.apiKey || orgVirtualKey;
     return key
       ? {
           ANTHROPIC_API_KEY: key,
-          ANTHROPIC_BASE_URL: bifrostBaseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, ''),
+          ANTHROPIC_BASE_URL: gatewayBaseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, ''),
         }
       : {};
   }

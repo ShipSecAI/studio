@@ -42,7 +42,7 @@ export async function connectToHotplugTools(
 }
 
 // ---------------------------------------------------------------------------
-// Shared Bifrost helpers (used by ai-agent.ts and llm-generate-text.ts)
+// Shared AI gateway helpers (used by ai-agent.ts and llm-generate-text.ts)
 // ---------------------------------------------------------------------------
 
 function normalizeBackendOrigin(url: string): string {
@@ -72,62 +72,62 @@ function normalizeModel(provider: string, model: string): string {
 // Generic AI gateway key resolution
 // ---------------------------------------------------------------------------
 
-/** In-memory cache: orgId → resolved API key */
-const virtualKeyCache = new Map<string, string>();
+/** In-memory cache: orgId → resolved AI gateway key */
+const organizationApiKeyCache = new Map<string, string>();
 
 const defaultAiGatewayProvider: AiGatewayProvider = {
-  shouldRouteViaBifrost(): boolean {
-    return getBifrostBaseUrl().length > 0;
+  shouldRouteViaGateway(): boolean {
+    return getGatewayBaseUrl().length > 0;
   },
-  getBifrostBaseUrl(): string {
-    return process.env.CHAT_AI_BASE_URL?.trim() || process.env.BIFROST_BASE_URL?.trim() || '';
+  getGatewayBaseUrl(): string {
+    return process.env.CHAT_AI_BASE_URL?.trim() || '';
   },
-  getBifrostApiKey(): string {
-    return process.env.CHAT_AI_API_KEY?.trim() || process.env.BIFROST_API_KEY?.trim() || '';
+  getGatewayApiKey(): string {
+    return process.env.CHAT_AI_API_KEY?.trim() || '';
   },
   normalizeModel,
-  async fetchOrgVirtualKey(
+  async fetchOrganizationApiKey(
     orgId: string,
     options?: { backendUrl?: string; consumer?: string },
   ): Promise<string | null> {
-    const cached = virtualKeyCache.get(orgId);
+    const cached = organizationApiKeyCache.get(orgId);
     if (cached) return cached;
 
     const apiKey =
       options?.backendUrl && normalizeBackendOrigin(options.backendUrl).length > 0
-        ? this.getBifrostApiKey()
-        : this.getBifrostApiKey();
+        ? this.getGatewayApiKey()
+        : this.getGatewayApiKey();
     if (!apiKey) return null;
 
-    virtualKeyCache.set(orgId, apiKey);
+    organizationApiKeyCache.set(orgId, apiKey);
     return apiKey;
   },
   async resolve(input): Promise<AiGatewayResolution> {
-    const routeViaBifrost = this.shouldRouteViaBifrost();
-    const baseUrl = routeViaBifrost
-      ? this.getBifrostBaseUrl()
+    const routeViaGateway = this.shouldRouteViaGateway();
+    const baseUrl = routeViaGateway
+      ? this.getGatewayBaseUrl()
       : (process.env.CHAT_AI_BASE_URL?.trim() ?? '');
-    const apiKey = routeViaBifrost
-      ? this.getBifrostApiKey()
+    const apiKey = routeViaGateway
+      ? this.getGatewayApiKey()
       : (process.env.CHAT_AI_API_KEY?.trim() ?? '');
     const normalizedModel =
       input.provider && input.modelId
         ? this.normalizeModel(input.provider, input.modelId)
         : (input.modelId ?? null);
-    const virtualKey =
-      routeViaBifrost && input.organizationId
-        ? await this.fetchOrgVirtualKey(input.organizationId, {
+    const organizationApiKey =
+      routeViaGateway && input.organizationId
+        ? await this.fetchOrganizationApiKey(input.organizationId, {
             backendUrl: input.backendUrl,
             consumer: input.consumer,
           })
         : null;
 
     return {
-      routeViaBifrost,
+      routeViaGateway,
       baseUrl,
       apiKey,
       modelId: normalizedModel,
-      virtualKey,
+      organizationApiKey,
     };
   },
 };
@@ -142,41 +142,44 @@ export function resetAiGatewayProviderForTests(): void {
   aiGatewayProvider = defaultAiGatewayProvider;
 }
 
-export function shouldRouteViaBifrost(): boolean {
-  return aiGatewayProvider.shouldRouteViaBifrost();
+export function shouldRouteViaGateway(): boolean {
+  return aiGatewayProvider.shouldRouteViaGateway();
 }
 
-export function getBifrostBaseUrl(): string {
-  return aiGatewayProvider.getBifrostBaseUrl();
+export function getGatewayBaseUrl(): string {
+  return aiGatewayProvider.getGatewayBaseUrl();
 }
 
-export function getBifrostApiKey(): string {
-  return aiGatewayProvider.getBifrostApiKey();
+export function getGatewayApiKey(): string {
+  return aiGatewayProvider.getGatewayApiKey();
 }
 
-export function normalizeBifrostModel(provider: string, model: string): string {
+export function normalizeGatewayModel(provider: string, model: string): string {
   return aiGatewayProvider.normalizeModel(provider, model);
 }
 
-export async function fetchOrgVirtualKey(
+export async function fetchOrganizationApiKey(
   orgId: string,
   backendUrl?: string,
 ): Promise<string | null> {
-  return aiGatewayProvider.fetchOrgVirtualKey(orgId, { backendUrl });
+  return aiGatewayProvider.fetchOrganizationApiKey(orgId, { backendUrl });
 }
 
-export async function requireOrgVirtualKey(
+export async function requireOrganizationApiKey(
   orgId: string | null | undefined,
   options?: { backendUrl?: string; consumer?: string },
 ): Promise<string> {
-  if (!shouldRouteViaBifrost()) {
+  if (!shouldRouteViaGateway()) {
     throw new ConfigurationError('AI gateway routing is not enabled.', {
       configKey: 'CHAT_AI_BASE_URL',
     });
   }
 
-  const virtualKey = await fetchOrgVirtualKey(orgId?.trim() || 'default', options?.backendUrl);
-  if (!virtualKey) {
+  const organizationApiKey = await fetchOrganizationApiKey(
+    orgId?.trim() || 'default',
+    options?.backendUrl,
+  );
+  if (!organizationApiKey) {
     throw new ConfigurationError(
       `${options?.consumer ?? 'AI request'} could not resolve an AI gateway API key.`,
       {
@@ -186,7 +189,7 @@ export async function requireOrgVirtualKey(
     );
   }
 
-  return virtualKey;
+  return organizationApiKey;
 }
 
 // ---------------------------------------------------------------------------

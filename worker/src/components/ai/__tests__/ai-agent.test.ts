@@ -139,8 +139,8 @@ beforeEach(() => {
   createMCPClientMock.mockClear();
   vi.restoreAllMocks();
   process.env.INTERNAL_SERVICE_TOKEN = 'internal-token';
-  delete process.env.BIFROST_BASE_URL;
-  delete process.env.BIFROST_API_KEY;
+  delete process.env.CHAT_AI_BASE_URL;
+  delete process.env.CHAT_AI_API_KEY;
 });
 
 beforeAll(async () => {
@@ -327,8 +327,8 @@ describe('core.ai.agent (refactor)', () => {
     });
   });
 
-  test('routes gemini provider through Bifrost OpenAI-compatible path when enabled', async () => {
-    process.env.BIFROST_BASE_URL = 'http://bifrost.local:4000/v1';
+  test('routes gemini provider through the AI gateway OpenAI-compatible path when enabled', async () => {
+    process.env.CHAT_AI_BASE_URL = 'http://gateway.local:4000/v1';
 
     const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
     expect(component).toBeDefined();
@@ -367,7 +367,7 @@ describe('core.ai.agent (refactor)', () => {
     expect(createOpenAIMock.mock.calls.length).toBeGreaterThan(0);
 
     const openAiCall = (createOpenAIMock as any).mock.calls[0][0] as Record<string, unknown>;
-    expect(openAiCall.baseURL).toBe('http://bifrost.local:4000/v1');
+    expect(openAiCall.baseURL).toBe('http://gateway.local:4000/v1');
     expect(openAiCall.apiKey).toBe('provider-key');
     const modelInvocation = (toolLoopAgentSettings as { model?: Record<string, unknown> })?.model;
     expect(modelInvocation).toMatchObject({

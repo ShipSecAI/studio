@@ -6,14 +6,14 @@ import '../llm-generate-text';
 
 describe('core.ai.generate-text', () => {
   beforeEach(() => {
-    delete process.env.BIFROST_BASE_URL;
-    delete process.env.BIFROST_API_KEY;
+    delete process.env.CHAT_AI_BASE_URL;
+    delete process.env.CHAT_AI_API_KEY;
     process.env.INTERNAL_SERVICE_TOKEN = 'internal-token';
   });
 
-  // TODO: Bifrost routing (rewrite gemini → openai proxy) is not yet implemented
+  // TODO: AI gateway routing (rewrite gemini → openai proxy) is not yet implemented
   // in buildModelFactory. This test verifies current behavior: gemini provider
-  // always uses the Google client directly, regardless of BIFROST_BASE_URL.
+  // always uses the Google client directly, regardless of CHAT_AI_BASE_URL.
   test('calls gemini provider directly and emits usage trace', async () => {
     const component = componentRegistry.get('core.ai.generate-text');
     expect(component).toBeDefined();
@@ -82,9 +82,9 @@ describe('core.ai.generate-text', () => {
     expect(createOpenAIMock).not.toHaveBeenCalled();
   });
 
-  test('keeps a user-provided key when Bifrost routing is enabled', async () => {
-    process.env.BIFROST_BASE_URL = 'http://bifrost.local:4000/v1';
-    process.env.BIFROST_API_KEY = 'shared-bifrost-key';
+  test('keeps a user-provided key when AI gateway routing is enabled', async () => {
+    process.env.CHAT_AI_BASE_URL = 'http://gateway.local:4000/v1';
+    process.env.CHAT_AI_API_KEY = 'shared-gateway-key';
 
     const component = componentRegistry.get('core.ai.generate-text');
     expect(component).toBeDefined();
@@ -152,7 +152,7 @@ describe('core.ai.generate-text', () => {
     const openAiCall = (createOpenAIMock as any).mock.calls[0]?.[0] as Record<string, unknown>;
     expect(openAiCall).toMatchObject({
       apiKey: 'provider-key',
-      baseURL: 'http://bifrost.local:4000/v1',
+      baseURL: 'http://gateway.local:4000/v1',
     });
   });
 });

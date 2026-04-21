@@ -64,11 +64,11 @@ export interface AiGatewayResolutionInput {
 }
 
 export interface AiGatewayResolution {
-  routeViaBifrost: boolean;
+  routeViaGateway: boolean;
   baseUrl: string;
   apiKey: string;
   modelId?: string | null;
-  virtualKey?: string | null;
+  organizationApiKey?: string | null;
 }
 
 export interface BillingProvider {
@@ -84,11 +84,11 @@ export interface JiraDiscoveryProvider {
 }
 
 export interface AiGatewayProvider {
-  shouldRouteViaBifrost(): boolean;
-  getBifrostBaseUrl(): string;
-  getBifrostApiKey(): string;
+  shouldRouteViaGateway(): boolean;
+  getGatewayBaseUrl(): string;
+  getGatewayApiKey(): string;
   normalizeModel(provider: string, model: string): string;
-  fetchOrgVirtualKey(
+  fetchOrganizationApiKey(
     orgId: string,
     options?: { backendUrl?: string; consumer?: string },
   ): Promise<string | null>;

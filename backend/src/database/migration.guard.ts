@@ -11,7 +11,6 @@ const REQUIRED_TABLES = [
   'agent_trace_events',
   'organization_settings',
   'subscription_plans',
-  'litellm_virtual_keys',
 ];
 
 @Injectable()

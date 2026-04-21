@@ -45,13 +45,6 @@
       "breakpoints": true
     },
     {
-      "idx": 6,
-      "version": "7",
-      "when": 1772870400000,
-      "tag": "0006_litellm_virtual_keys",
-      "breakpoints": true
-    },
-    {
       "idx": 20,
       "version": "7",
       "when": 1772874000000,
