@@ -91,7 +91,12 @@ const instanceEnvPath = instanceNum
   ? join(workerRoot, '..', '.instances', `instance-${instanceNum}`, 'worker.env')
   : undefined;
 
-config({ path: instanceEnvPath ?? join(workerRoot, '.env') });
+const shouldLoadWorkerEnvFile =
+  process.env.NODE_ENV !== 'production' && process.env.SHIPSEC_ENV?.trim() !== 'production';
+
+if (shouldLoadWorkerEnvFile) {
+  config({ path: instanceEnvPath ?? join(workerRoot, '.env') });
+}
 validateWorkerEnv(process.env);
 
 const workerProviderOverrides = loadWorkerProviderOverrides();

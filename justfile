@@ -264,6 +264,51 @@ dev action="start":
 
 # === Production (Docker-based) ===
 
+# === Quickstart (public Docker Compose) ===
+
+# Run the public single-tenant quickstart stack from published images.
+# Backend startup applies migrations automatically, so there is no separate
+# migration step for quickstart users.
+quickstart action="start":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    COMPOSE_CMD="docker compose -f docker/docker-compose.quickstart.yml"
+
+    case "{{action}}" in
+        start)
+            echo "🚀  Starting ShipSec Studio quickstart..."
+            $COMPOSE_CMD up -d
+            echo ""
+            echo "✅  Quickstart stack starting"
+            echo "   App:              http://localhost:8080"
+            echo "   API (via nginx):  http://localhost:8080/api"
+            echo "   Temporal UI:      http://localhost:8081"
+            echo "   Redpanda Console: http://localhost:8082"
+            echo "   MinIO Console:    http://localhost:9001"
+            echo ""
+            echo "💡  Backend migrations run automatically on startup"
+            echo "💡  Optional AI config: export CHAT_AI_BASE_URL, CHAT_AI_API_KEY, CHAT_AI_MODEL_ID before starting"
+            ;;
+        stop)
+            $COMPOSE_CMD down
+            echo "✅  Quickstart stopped"
+            ;;
+        logs)
+            $COMPOSE_CMD logs -f
+            ;;
+        status)
+            $COMPOSE_CMD ps
+            ;;
+        clean)
+            $COMPOSE_CMD down -v
+            echo "✅  Quickstart cleaned"
+            ;;
+        *)
+            echo "Usage: just quickstart [start|stop|logs|status|clean]"
+            ;;
+    esac
+
 # Run production environment in Docker
 # Auto-detects security mode: if TLS certs exist (docker/certs/root-ca.pem) → secure mode with multitenancy
 # Otherwise → standard mode
@@ -630,6 +675,13 @@ help:
     @echo "  just dev logs     View application logs"
     @echo "  just dev status   Check service status"
     @echo "  just dev clean    Stop and remove all data"
+    @echo ""
+    @echo "Quickstart (public Docker Compose):"
+    @echo "  just quickstart          Start the single-tenant quickstart stack"
+    @echo "  just quickstart stop     Stop quickstart"
+    @echo "  just quickstart logs     View quickstart logs"
+    @echo "  just quickstart status   Check quickstart status"
+    @echo "  just quickstart clean    Remove quickstart data"
     @echo ""
     @echo "Production (Docker, auto-detects security mode):"
     @echo "  just prod          Start prod (TLS certs present → secure mode, otherwise standard)"

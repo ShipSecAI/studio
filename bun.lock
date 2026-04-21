@@ -7,7 +7,6 @@
       "dependencies": {
         "@googleapis/admin": "^30.2.0",
         "@grpc/grpc-js": "^1.14.3",
-        "@shipsecai/hotplug": "0.1.1",
         "chalk": "^5.6.2",
         "chalk-animation": "^2.0.3",
         "long": "^5.3.2",
@@ -52,6 +51,7 @@
         "@nestjs/throttler": "^6.5.0",
         "@shipsec/backend-client": "workspace:*",
         "@shipsec/component-sdk": "workspace:*",
+        "@shipsec/hotplug-sdk": "^0.1.1",
         "@shipsec/shared": "workspace:*",
         "@shipsec/studio-worker": "workspace:*",
         "@slack/web-api": "^7.15.0",
@@ -330,6 +330,7 @@
         "@shipsec/backend-client": "*",
         "@shipsec/component-sdk": "*",
         "@shipsec/contracts": "*",
+        "@shipsec/hotplug-sdk": "^0.1.1",
         "@shipsec/shared": "*",
         "@temporalio/activity": "^1.16.0",
         "@temporalio/ai-sdk": "^1.16.0",
@@ -750,9 +751,9 @@
 
     "@hey-api/json-schema-ref-parser": ["@hey-api/json-schema-ref-parser@1.3.1", "", { "dependencies": { "@jsdevtools/ono": "7.1.3", "@types/json-schema": "7.0.15", "js-yaml": "4.1.1" } }, "sha512-7atnpUkT8TyUPHYPLk91j/GyaqMuwTEHanLOe50Dlx0EEvNuQqFD52Yjg8x4KU0UFL1mWlyhE+sUE/wAtQ1N2A=="],
 
-    "@hey-api/openapi-ts": ["@hey-api/openapi-ts@0.95.0", "", { "dependencies": { "@hey-api/codegen-core": "0.7.4", "@hey-api/json-schema-ref-parser": "1.3.1", "@hey-api/shared": "0.3.0", "@hey-api/spec-types": "0.1.0", "@hey-api/types": "0.1.4", "ansi-colors": "4.1.3", "color-support": "1.1.3", "commander": "14.0.3", "get-tsconfig": "4.13.6" }, "peerDependencies": { "typescript": ">=5.5.3 || >=6.0.0 || 6.0.1-rc" }, "bin": { "openapi-ts": "bin/run.js" } }, "sha512-lk5C+WKl5yqEmliQihEyhX/jNcWlAykTSEqkDeKa9xSq5YDAzOFvx7oos8YTqiIzdc4TemtlEaB8Rns7+8A0qg=="],
+    "@hey-api/openapi-ts": ["@hey-api/openapi-ts@0.94.5", "", { "dependencies": { "@hey-api/codegen-core": "0.7.4", "@hey-api/json-schema-ref-parser": "1.3.1", "@hey-api/shared": "0.2.6", "@hey-api/spec-types": "0.1.0", "@hey-api/types": "0.1.4", "ansi-colors": "4.1.3", "color-support": "1.1.3", "commander": "14.0.3", "get-tsconfig": "4.13.6" }, "peerDependencies": { "typescript": ">=5.5.3 || >=6.0.0 || 6.0.1-rc" }, "bin": { "openapi-ts": "bin/run.js" } }, "sha512-fCR/kIexbDarnt/WGKvjJb4K30JaFzO2F/528kHpyWT7vopPS0JeqtRQMjJg+Gk09N/05nbv1OaFOQXcy0BiVQ=="],
 
-    "@hey-api/shared": ["@hey-api/shared@0.3.0", "", { "dependencies": { "@hey-api/codegen-core": "0.7.4", "@hey-api/json-schema-ref-parser": "1.3.1", "@hey-api/spec-types": "0.1.0", "@hey-api/types": "0.1.4", "ansi-colors": "4.1.3", "cross-spawn": "7.0.6", "open": "11.0.0", "semver": "7.7.3" } }, "sha512-G+4GPojdLEh9bUwRG88teMPM1HdqMm/IsJ38cbnNxhyDu1FkFGwilkA1EqnULCzfTam/ZoZkaLdmAd8xEh4Xsw=="],
+    "@hey-api/shared": ["@hey-api/shared@0.2.6", "", { "dependencies": { "@hey-api/codegen-core": "0.7.4", "@hey-api/json-schema-ref-parser": "1.3.1", "@hey-api/spec-types": "0.1.0", "@hey-api/types": "0.1.4", "ansi-colors": "4.1.3", "cross-spawn": "7.0.6", "open": "11.0.0", "semver": "7.7.3" } }, "sha512-ZZrsWbazJcJO688tJVEBeei03B4miPI7OauW+qLMYP/9KL6NadmA5MjqsIIwgfvb0HKMAR7lt4AINKzv0Zwdgw=="],
 
     "@hey-api/spec-types": ["@hey-api/spec-types@0.1.0", "", { "dependencies": { "@hey-api/types": "0.1.4" } }, "sha512-StS4RrAO5pyJCBwe6uF9MAuPflkztriW+FPnVb7oEjzDYv1sxPwP+f7fL6u6D+UVrKpZ/9bPNx/xXVdkeWPU6A=="],
 
@@ -1118,6 +1119,8 @@
 
     "@shipsec/contracts": ["@shipsec/contracts@workspace:packages/contracts"],
 
+    "@shipsec/hotplug-sdk": ["@shipsec/hotplug-sdk@0.1.1", "", { "dependencies": { "@hey-api/client-fetch": "^0.13.1" } }, "sha512-5hRaZRIcDMuM40W8qrrSvq1wMq03yUJESvkHMhENPcxF5clSbfFF4adb5uKjpUaJEpyfhgjHZLsUOiXcn6X8HQ=="],
+
     "@shipsec/shared": ["@shipsec/shared@workspace:packages/shared"],
 
     "@shipsec/studio-backend": ["@shipsec/studio-backend@workspace:backend"],
@@ -1125,8 +1128,6 @@
     "@shipsec/studio-frontend": ["@shipsec/studio-frontend@workspace:frontend"],
 
     "@shipsec/studio-worker": ["@shipsec/studio-worker@workspace:worker"],
-
-    "@shipsecai/hotplug": ["@shipsecai/hotplug@0.1.1", "https://npm.pkg.github.com/download/@shipsecai/hotplug/0.1.1/0b44595a611be1200dcaf87e60112c5bd2c2ed08", { "dependencies": { "@hey-api/client-fetch": "^0.13.1" } }, "sha512-cyERlGLa1nWIgRv6ftuZp4fxCrLVIQ1Gz2U1DpHLtqHGVZpR78iCjdy+xWAZwhfPUtUO1NPAjdRitVE0d72kTg=="],
 
     "@slack/logger": ["@slack/logger@4.0.1", "", { "dependencies": { "@types/node": ">=18" } }, "sha512-6cmdPrV/RYfd2U0mDGiMK8S7OJqpCTm7enMLRR3edccsPX8j7zXTLnaEF4fhxxJJTAIOil6+qZrnUPTuaLvwrQ=="],
 

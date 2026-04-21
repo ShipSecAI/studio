@@ -350,11 +350,13 @@ export async function runCartographyWithRunner(
     }
   }
 
+  const dockerNetwork = process.env.CARTOGRAPHY_DOCKER_NETWORK?.trim() || 'shipsec-network';
+
   const dockerRunner: DockerRunnerConfig = {
     kind: 'docker',
     image,
     platform: 'linux/amd64',
-    network: 'shipsec-network' as unknown as DockerRunnerConfig['network'],
+    network: dockerNetwork as unknown as DockerRunnerConfig['network'],
     timeoutSeconds: 1800,
     expectOutputFile: false,
     env,

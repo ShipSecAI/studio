@@ -22,6 +22,12 @@ import {
 } from './composition/backend-modules';
 
 function getEnvFilePaths(): string[] {
+  const isProductionRuntime =
+    process.env.NODE_ENV === 'production' || process.env.SHIPSEC_ENV?.trim() === 'production';
+  if (isProductionRuntime) {
+    return [];
+  }
+
   // In multi-instance dev, each instance has its own env file under:
   //   .instances/instance-N/backend.env
   // Backends run with cwd=backend/, so repo root is `..`.

@@ -15,7 +15,7 @@ import {
   type IdentityInput,
   type ScopePolicyInput,
   type LifecyclePolicyInput,
-} from '@shipsecai/hotplug';
+} from '@shipsec/hotplug-sdk';
 
 // Re-export SDK types for downstream consumers
 export type HotplugDiscoverRequest = DiscoverRequest;

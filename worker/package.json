@@ -57,6 +57,7 @@
     "@shipsec/backend-client": "*",
     "@shipsec/component-sdk": "*",
     "@shipsec/contracts": "*",
+    "@shipsec/hotplug-sdk": "^0.1.1",
     "@shipsec/shared": "*",
     "@temporalio/activity": "^1.16.0",
     "@temporalio/ai-sdk": "^1.16.0",

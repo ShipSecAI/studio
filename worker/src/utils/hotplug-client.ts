@@ -1,6 +1,6 @@
 /**
  * Hotplug client for Temporal worker activities.
- * Thin wrapper around @shipsecai/hotplug SDK with class-based API.
+ * Thin wrapper around the local Hotplug SDK with class-based API.
  */
 
 import {
@@ -16,7 +16,7 @@ import {
   type IdentityInput,
   type ScopePolicyInput,
   type LifecyclePolicyInput,
-} from '@shipsecai/hotplug';
+} from '@shipsec/hotplug-sdk';
 
 // --- Backwards-compatible type aliases ---
 

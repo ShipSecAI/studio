@@ -60,7 +60,6 @@
   "dependencies": {
     "@googleapis/admin": "^30.2.0",
     "@grpc/grpc-js": "^1.14.3",
-    "@shipsecai/hotplug": "0.1.1",
     "chalk": "^5.6.2",
     "chalk-animation": "^2.0.3",
     "long": "^5.3.2",

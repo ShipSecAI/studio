@@ -10,6 +10,17 @@ function getBackendEnvFilePaths(): string[] {
   return ['.env', '../.env'];
 }
 
+function shouldUseFileFallback(): boolean {
+  const explicit = process.env.SHIPSEC_ALLOW_FILE_ENV_FALLBACK?.trim().toLowerCase();
+  if (explicit) {
+    return explicit === 'true';
+  }
+
+  return !(
+    process.env.NODE_ENV === 'production' || process.env.SHIPSEC_ENV?.trim() === 'production'
+  );
+}
+
 function readEnvValueFromFile(filePath: string, key: string): string | null {
   if (!existsSync(filePath)) return null;
 
@@ -40,6 +51,10 @@ function readEnvValueFromFile(filePath: string, key: string): string | null {
 export function getBackendCloudEnvValue(key: string): string | null {
   const direct = process.env[key]?.trim();
   if (direct) return direct;
+
+  if (!shouldUseFileFallback()) {
+    return null;
+  }
 
   for (const filePath of getBackendEnvFilePaths()) {
     const value = readEnvValueFromFile(filePath, key);

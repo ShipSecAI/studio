@@ -12,6 +12,10 @@ out/
 .env
 .env.local
 .env.*.local
+backend/.env
+worker/.env
+frontend/.env
+.instances/
 *.log
 
 # IDE files
