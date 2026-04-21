@@ -1673,22 +1673,6 @@ export const api = {
     },
   },
 
-  billing: {
-    getUsage: async () => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/billing/usage`, { headers });
-      if (!response.ok) throw new Error('Failed to fetch billing usage');
-      return response.json();
-    },
-
-    getPlans: async () => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/billing/plans`, { headers });
-      if (!response.ok) throw new Error('Failed to fetch subscription plans');
-      return response.json();
-    },
-  },
-
   analyticsSettings: {
     getSettings: async (): Promise<components['schemas']['AnalyticsSettingsResponseDto']> => {
       const response = await apiClient.getAnalyticsSettings();
