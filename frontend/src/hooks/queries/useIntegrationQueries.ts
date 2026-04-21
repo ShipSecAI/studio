@@ -296,13 +296,3 @@ export function useDiscoverGcpProjects() {
     },
   });
 }
-
-export function useConnectJiraSite() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (siteHostname: string) => api.integrations.connectJiraSite(siteHostname),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
-    },
-  });
-}

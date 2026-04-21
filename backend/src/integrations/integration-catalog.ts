@@ -254,14 +254,21 @@ export const JIRA_PROVIDER: IntegrationProviderDefinition = {
   docsUrl: 'https://developer.atlassian.com/platform/forge/',
   iconUrl: '/icons/jira.svg',
   supportsMultipleConnections: false,
-  installUrl: process.env.JIRA_FORGE_INSTALL_URL || null,
   authMethods: [
     {
       type: 'forge_app',
-      label: 'Forge App',
+      label: 'Jira App',
       description:
-        'Install the ShipSec.ai Forge app on your Jira site. The app runs with its own identity — no personal credentials needed. Connection is created automatically after install.',
+        'Connect a self-managed Jira app by pasting its web trigger URL. Studio will call that endpoint directly when Jira components run.',
       fields: [
+        {
+          id: 'displayName',
+          label: 'Connection Name',
+          type: 'text',
+          required: true,
+          placeholder: 'Jira Production',
+          helpText: 'A friendly name for this Jira connection inside Studio.',
+        },
         {
           id: 'webTriggerUrl',
           label: 'Web Trigger URL',
@@ -269,7 +276,15 @@ export const JIRA_PROVIDER: IntegrationProviderDefinition = {
           required: true,
           placeholder: 'https://xxxx.hello.atlassian-dev.net/x1/...',
           helpText:
-            'Only needed if auto-registration did not complete. Run "forge webtrigger" to get this URL.',
+            'Run `forge webtrigger` (or the equivalent for your Jira app) and paste the resulting URL here.',
+        },
+        {
+          id: 'sharedSecret',
+          label: 'Shared Secret',
+          type: 'password',
+          required: false,
+          placeholder: 'Optional secret',
+          helpText: 'Optional shared secret sent as `x-shipsec-secret` when Studio calls your app.',
         },
       ],
     },
@@ -277,13 +292,14 @@ export const JIRA_PROVIDER: IntegrationProviderDefinition = {
   setupInstructions: {
     sections: [
       {
-        title: 'Install Forge App',
+        title: 'Connect Your Jira App',
         authMethodType: 'forge_app',
-        scenario: 'forge-app',
+        scenario: 'manual-app',
         steps: [
-          'Click "Install on Jira" to add the ShipSec.ai app to your Jira site.',
-          'Approve the requested permissions (read/write issues, read users).',
-          'The connection will be created automatically — no further configuration needed.',
+          'Deploy or install your own Jira app so it exposes a web trigger or equivalent callback endpoint.',
+          'Copy the web trigger URL from your app deployment.',
+          'Paste the URL into Studio and save the connection.',
+          'If your app expects a shared secret, paste that too so Studio can authenticate requests.',
         ],
       },
     ],

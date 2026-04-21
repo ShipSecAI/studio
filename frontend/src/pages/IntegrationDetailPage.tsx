@@ -30,13 +30,13 @@ import {
   useIntegrationConnections,
   useAwsSetupInfo,
   useCreateAwsConnection,
+  useCreateJiraForgeConnection,
   useCreateSlackWebhookConnection,
   useValidateGcpConnection,
   useValidateAwsConnection,
   useDiscoverGcpProjects,
   useTestSlackConnection,
   useDisconnectIntegration,
-  useConnectJiraSite,
 } from '@/hooks/queries/useIntegrationQueries';
 
 import { Button } from '@/components/ui/button';
@@ -119,7 +119,7 @@ function credentialTypeBadge(type: string) {
     service_account: 'Service Account',
     webhook: 'Webhook',
     oauth: 'OAuth',
-    forge_app: 'Forge App',
+    forge_app: 'Jira App',
   };
   return (
     <Badge variant="outline" className="capitalize">
@@ -930,44 +930,34 @@ interface JiraFormProps {
 
 function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
   const { toast } = useToast();
-  const { data: catalog = [] } = useIntegrationCatalog();
-  const connectJiraMutation = useConnectJiraSite();
-  const jiraEntry = catalog.find((c) => c.id === 'jira');
-  const installUrl = (jiraEntry as Record<string, unknown> | undefined)?.installUrl as
-    | string
-    | null
-    | undefined;
-
-  const [siteHostname, setSiteHostname] = useState('');
+  const createJiraMutation = useCreateJiraForgeConnection();
+  const [displayName, setDisplayName] = useState('Jira');
+  const [webTriggerUrl, setWebTriggerUrl] = useState('');
+  const [sharedSecret, setSharedSecret] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [step, setStep] = useState<'enter-site' | 'install' | 'success' | 'error'>('enter-site');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const attemptConnect = async () => {
-    if (!siteHostname.trim()) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!displayName.trim() || !webTriggerUrl.trim()) {
+      setErrorMessage('Connection name and web trigger URL are required.');
+      return;
+    }
     setSubmitting(true);
+    setErrorMessage('');
     try {
-      const fullHostname = `${siteHostname.trim()}.atlassian.net`;
-      await connectJiraMutation.mutateAsync(fullHostname);
-      setStep('success');
+      await createJiraMutation.mutateAsync({
+        displayName: displayName.trim(),
+        webTriggerUrl: webTriggerUrl.trim(),
+        sharedSecret: sharedSecret.trim() || undefined,
+      });
       toast({ title: 'Jira connected' });
       onCreated();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to connect.';
-      if (message.includes('not found')) {
-        setStep('install');
-      } else {
-        setStep('error');
-        setErrorMessage(message);
-      }
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to connect Jira.');
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    attemptConnect();
   };
 
   return (
@@ -977,125 +967,81 @@ function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
           <img src="/icons/jira.svg" alt="Jira" className="h-8 w-8" />
         </div>
         <p className="text-base font-semibold">Connect Jira</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Connect a self-managed Jira app by pasting its web trigger URL. Studio will call that
+          endpoint directly when Jira components run.
+        </p>
       </div>
-
-      {/* Step 1: Enter site */}
-      {step === 'enter-site' && (
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="jira-site">Jira Site</Label>
-            <div className="flex items-stretch">
-              <Input
-                id="jira-site"
-                value={siteHostname}
-                onChange={(e) => setSiteHostname(e.target.value.replace(/\.atlassian\.net$/i, ''))}
-                placeholder="yourcompany"
-                disabled={submitting}
-                className="rounded-r-none border-r-0 focus-visible:z-10"
-                autoFocus
-              />
-              <div className="flex items-center rounded-r-md border border-input bg-muted px-3 text-sm text-muted-foreground">
-                .atlassian.net
-              </div>
-            </div>
-          </div>
-          <Button type="submit" disabled={submitting || !siteHostname.trim()} className="w-full">
-            {submitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking...
-              </>
-            ) : (
-              'Connect'
-            )}
-          </Button>
-        </form>
-      )}
-
-      {/* Step 2: App not installed — guide through install */}
-      {step === 'install' && (
-        <div className="space-y-4">
-          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-            <div className="flex items-start gap-3">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900 text-xs font-bold text-blue-700 dark:text-blue-300">
-                1
-              </div>
-              <div className="space-y-2 flex-1">
-                <p className="text-sm font-medium">
-                  Install ShipSec.ai on{' '}
-                  <span className="font-semibold">{siteHostname.trim()}.atlassian.net</span>
-                </p>
-                {installUrl && (
-                  <Button asChild size="sm" className="w-full">
-                    <a href={installUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="mr-2 h-3 w-3" />
-                      Install on Jira
-                    </a>
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900 text-xs font-bold text-blue-700 dark:text-blue-300">
-                2
-              </div>
-              <div className="space-y-2 flex-1">
-                <p className="text-sm font-medium">After installing, verify the connection</p>
-                <Button
-                  onClick={attemptConnect}
-                  disabled={submitting}
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Verifying...
-                    </>
-                  ) : (
-                    'Verify Connection'
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setStep('enter-site')}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-center"
-          >
-            Use a different site
-          </button>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="jira-display-name">Connection Name</Label>
+          <Input
+            id="jira-display-name"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Jira Production"
+            disabled={submitting}
+            autoFocus
+          />
         </div>
-      )}
 
-      {/* Success */}
-      {step === 'success' && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30 p-4 text-sm text-emerald-700 dark:text-emerald-400">
-          <span className="flex items-center gap-2">
-            <CheckCircle className="h-4 w-4" /> Jira connected successfully!
-          </span>
+        <div className="space-y-2">
+          <Label htmlFor="jira-web-trigger">Web Trigger URL</Label>
+          <Input
+            id="jira-web-trigger"
+            value={webTriggerUrl}
+            onChange={(e) => setWebTriggerUrl(e.target.value)}
+            placeholder="https://xxxx.hello.atlassian-dev.net/x1/..."
+            disabled={submitting}
+          />
+          <p className="text-xs text-muted-foreground">
+            Run <code className="rounded bg-muted px-1 py-0.5">forge webtrigger</code> or the
+            equivalent for your Jira app, then paste the resulting URL here.
+          </p>
         </div>
-      )}
 
-      {/* Error */}
-      {step === 'error' && (
-        <div className="space-y-3">
-          <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30 p-3 text-sm text-red-700 dark:text-red-400">
+        <div className="space-y-2">
+          <Label htmlFor="jira-secret">Shared Secret</Label>
+          <Input
+            id="jira-secret"
+            type="password"
+            value={sharedSecret}
+            onChange={(e) => setSharedSecret(e.target.value)}
+            placeholder="Optional"
+            disabled={submitting}
+          />
+          <p className="text-xs text-muted-foreground">
+            Optional. If your Jira app validates a shared secret, Studio will send it as{' '}
+            <code className="rounded bg-muted px-1 py-0.5">x-shipsec-secret</code>.
+          </p>
+        </div>
+
+        {errorMessage && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
             <span className="flex items-center gap-2">
               <XCircle className="h-4 w-4" /> {errorMessage}
             </span>
           </div>
-          <Button variant="outline" className="w-full" onClick={() => setStep('enter-site')}>
-            Try again
-          </Button>
-        </div>
-      )}
+        )}
 
-      <Button type="button" variant="outline" className="w-full" onClick={onCancel}>
-        Close
-      </Button>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={submitting || !displayName.trim() || !webTriggerUrl.trim()}
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connecting...
+              </>
+            ) : (
+              'Connect Jira'
+            )}
+          </Button>
+        </DialogFooter>
+      </form>
     </div>
   );
 }

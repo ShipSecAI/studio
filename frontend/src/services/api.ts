@@ -629,39 +629,6 @@ export const api = {
       return response.data;
     },
 
-    // Jira site discovery
-    discoverJiraSite: async (
-      siteHostname: string,
-    ): Promise<{ found: boolean; hostname?: string; environment?: string }> => {
-      const res = await fetch('/api/v1/integrations/jira/discover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ siteHostname }),
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(
-          (err as { message?: string }).message || 'Failed to discover Jira installation',
-        );
-      }
-      return res.json();
-    },
-
-    connectJiraSite: async (siteHostname: string): Promise<IntegrationConnection> => {
-      const res = await fetch('/api/v1/integrations/jira/connect-site', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ siteHostname }),
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { message?: string }).message || 'Failed to connect Jira');
-      }
-      return res.json();
-    },
-
     testSlackConnection: async (id: string): Promise<{ ok: boolean; error?: string }> => {
       const response = await apiClient.testSlackIntegrationConnection(id);
       if (response.error || !response.data) throw new Error('Failed to test Slack connection');

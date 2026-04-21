@@ -4,10 +4,6 @@ import type { JsonRpcRequest, WebTriggerRequest, WebTriggerResponse } from './ty
 
 const SHARED_SECRET = process.env.SHIPSEC_MCP_SECRET || '';
 
-// ShipSec backend URL — receives installation callbacks
-// Set per environment via: forge variables set SHIPSEC_BACKEND_URL <url> -e <env>
-const SHIPSEC_BACKEND_URL = process.env.SHIPSEC_BACKEND_URL;
-
 // ---------------------------------------------------------------------------
 // Install lifecycle handler
 // ---------------------------------------------------------------------------
@@ -20,48 +16,16 @@ interface InstallEvent {
 }
 
 export async function onInstall(event: InstallEvent): Promise<void> {
-  console.log('[ShipSec Forge] App installed, registering with backend...', {
+  console.log('[ShipSec Forge] App installed.', {
     installationId: event.id,
     appId: event.app.id,
   });
 
-  if (!SHIPSEC_BACKEND_URL) {
-    console.error('[ShipSec Forge] SHIPSEC_BACKEND_URL not set — skipping registration');
-    return;
-  }
-
   try {
-    // Get our own web trigger URL
     const mcpUrl = await webTrigger.getUrl('mcp-endpoint');
-
-    console.log('[ShipSec Forge] Web trigger URL resolved:', mcpUrl);
-
-    // Register with ShipSec backend
-    const forgeSecret = process.env.SHIPSEC_FORGE_SECRET;
-    const response = await fetch(`${SHIPSEC_BACKEND_URL}/api/v1/integrations/jira/auto-register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(forgeSecret ? { 'x-forge-secret': forgeSecret } : {}),
-      },
-      body: JSON.stringify({
-        installationId: event.id,
-        appId: event.app.id,
-        appVersion: event.app.version,
-        environmentId: event.environment?.id,
-        webTriggerUrl: mcpUrl,
-        installerAccountId: event.installerAccountId,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('[ShipSec Forge] Backend registration failed:', response.status);
-    } else {
-      console.log('[ShipSec Forge] Successfully registered with ShipSec backend');
-    }
+    console.log('[ShipSec Forge] Web trigger URL resolved. Add this URL to Studio manually:', mcpUrl);
   } catch (err) {
-    // Don't fail the install — log and continue
-    console.error('[ShipSec Forge] Registration error (non-fatal):', err);
+    console.error('[ShipSec Forge] Failed to resolve web trigger URL (non-fatal):', err);
   }
 }
 
