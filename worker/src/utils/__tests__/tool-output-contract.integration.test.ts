@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+const repoRoot = join(import.meta.dir, '..', '..', '..', '..');
 const enableDockerIntegration = process.env.ENABLE_DOCKER_TESTS === 'true';
 const dockerAvailable = (() => {
   try {
@@ -36,7 +37,7 @@ async function runBash(command: string, timeoutMs = 120_000) {
   const proc = Bun.spawn(['bash', '-lc', command], {
     stdout: 'pipe',
     stderr: 'pipe',
-    cwd: '/Users/betterclever/shipsec/studio-wt5',
+    cwd: repoRoot,
   });
 
   const timedOut = new Promise<never>((_, reject) => {
