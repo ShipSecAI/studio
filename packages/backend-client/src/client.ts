@@ -4309,6 +4309,12 @@ export interface components {
             organizationId: string;
             analyticsRetentionDays: number;
             maxRetentionDays: number;
+            planId?: string | null;
+            planName?: string | null;
+            /** @enum {string|null} */
+            subscriptionTier?: "free" | "pro" | "team" | "enterprise" | null;
+            /** @enum {string} */
+            limitSource: "single_tenant" | "plan";
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import type { components } from '@shipsec/backend-client';
 
 type UpdateAnalyticsSettingsDto = components['schemas']['UpdateAnalyticsSettingsDto'];
+type AnalyticsSettingsResponseDto = components['schemas']['AnalyticsSettingsResponseDto'];
 
 function useCanFetch() {
   const provider = useAuthStore((s) => s.provider);
@@ -22,7 +23,7 @@ function useCanFetch() {
 export function useAnalyticsSettings() {
   const canFetch = useCanFetch();
 
-  return useQuery({
+  return useQuery<AnalyticsSettingsResponseDto>({
     queryKey: queryKeys.analyticsSettings.settings(),
     queryFn: canFetch ? () => api.analyticsSettings.getSettings() : skipToken,
     staleTime: 60_000,

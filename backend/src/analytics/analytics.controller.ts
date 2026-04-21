@@ -44,6 +44,9 @@ import {
 import { AuditLogService } from '../audit/audit-log.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
+import type { BillingProvider } from '@shipsec/shared';
+import { BILLING_PROVIDER } from '../providers/tokens';
+import { Inject } from '@nestjs/common';
 
 const MAX_QUERY_SIZE = 1000;
 const MAX_QUERY_FROM = 10000;
@@ -74,7 +77,35 @@ export class AnalyticsController {
     private readonly securityAnalyticsService: SecurityAnalyticsService,
     private readonly organizationSettingsService: OrganizationSettingsService,
     private readonly auditLogService: AuditLogService,
+    @Inject(BILLING_PROVIDER) private readonly billingProvider: BillingProvider,
   ) {}
+
+  private async resolveAnalyticsRetentionPolicy(organizationId: string): Promise<{
+    maxRetentionDays: number;
+    planId?: string | null;
+    planName?: string | null;
+    subscriptionTier?: 'free' | 'pro' | 'team' | 'enterprise' | null;
+    limitSource: 'single_tenant' | 'plan';
+  }> {
+    if (!this.billingProvider.isConfigured()) {
+      return {
+        maxRetentionDays: this.organizationSettingsService.getMaxRetentionDays(),
+        planId: null,
+        planName: null,
+        subscriptionTier: null,
+        limitSource: 'single_tenant',
+      };
+    }
+
+    const usage = await this.billingProvider.getUsageSummary({ organizationId });
+    return {
+      maxRetentionDays: usage.limits.analyticsRetentionDays,
+      planId: usage.plan.id,
+      planName: usage.plan.displayName,
+      subscriptionTier: usage.subscriptionTier,
+      limitSource: 'plan',
+    };
+  }
 
   @Post('query')
   @HttpCode(200)
@@ -247,12 +278,16 @@ export class AnalyticsController {
     const settings = await this.organizationSettingsService.getOrganizationSettings(
       auth.organizationId,
     );
-    const maxRetentionDays = this.organizationSettingsService.getMaxRetentionDays();
+    const retentionPolicy = await this.resolveAnalyticsRetentionPolicy(auth.organizationId);
 
     return {
       organizationId: settings.organizationId,
       analyticsRetentionDays: settings.analyticsRetentionDays,
-      maxRetentionDays,
+      maxRetentionDays: retentionPolicy.maxRetentionDays,
+      planId: retentionPolicy.planId ?? null,
+      planName: retentionPolicy.planName ?? null,
+      subscriptionTier: retentionPolicy.subscriptionTier ?? null,
+      limitSource: retentionPolicy.limitSource,
       createdAt: settings.createdAt.toISOString(),
       updatedAt: settings.updatedAt.toISOString(),
     };
@@ -277,6 +312,8 @@ export class AnalyticsController {
       throw new ForbiddenException('Only organization admins can update analytics settings');
     }
 
+    const retentionPolicy = await this.resolveAnalyticsRetentionPolicy(auth.organizationId);
+
     if (updateDto.analyticsRetentionDays !== undefined) {
       if (
         typeof updateDto.analyticsRetentionDays !== 'number' ||
@@ -289,9 +326,9 @@ export class AnalyticsController {
         updateDto.analyticsRetentionDays,
       );
 
-      if (!isValid) {
+      if (!isValid || updateDto.analyticsRetentionDays > retentionPolicy.maxRetentionDays) {
         throw new BadRequestException(
-          `Retention period of ${updateDto.analyticsRetentionDays} days exceeds the public maximum (${this.organizationSettingsService.getMaxRetentionDays()} days)`,
+          `Retention period of ${updateDto.analyticsRetentionDays} days exceeds the allowed maximum (${retentionPolicy.maxRetentionDays} days)`,
         );
       }
     }
@@ -303,12 +340,14 @@ export class AnalyticsController {
       },
     );
 
-    const maxRetentionDays = this.organizationSettingsService.getMaxRetentionDays();
-
     return {
       organizationId: updated.organizationId,
       analyticsRetentionDays: updated.analyticsRetentionDays,
-      maxRetentionDays,
+      maxRetentionDays: retentionPolicy.maxRetentionDays,
+      planId: retentionPolicy.planId ?? null,
+      planName: retentionPolicy.planName ?? null,
+      subscriptionTier: retentionPolicy.subscriptionTier ?? null,
+      limitSource: retentionPolicy.limitSource,
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
     };

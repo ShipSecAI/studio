@@ -30,6 +30,9 @@ import {
   useUpdateAnalyticsSettings,
   usePurgeAnalyticsData,
 } from '@/hooks/queries/useAnalyticsSettingsQueries';
+import type { components } from '@shipsec/backend-client';
+
+type AnalyticsSettingsResponseDto = components['schemas']['AnalyticsSettingsResponseDto'];
 
 // Retention period options in days
 const RETENTION_PERIODS = [
@@ -48,12 +51,18 @@ export function AnalyticsSettingsPage() {
   const isReadOnly = !canManageSettings;
   const { toast } = useToast();
 
-  const { data: settings, isPending: settingsLoading } = useAnalyticsSettings();
+  const analyticsSettingsQuery = useAnalyticsSettings();
+  const settings = analyticsSettingsQuery.data as AnalyticsSettingsResponseDto | undefined;
+  const settingsLoading = analyticsSettingsQuery.isPending;
   const { data: storageUsage } = useStorageUsage();
   const updateSettings = useUpdateAnalyticsSettings();
   const purgeData = usePurgeAnalyticsData();
 
   const maxAllowedRetention = settings?.maxRetentionDays ?? 365;
+  const planName = (settings as { planName?: string | null } | undefined)?.planName ?? null;
+  const limitSource =
+    (settings as { limitSource?: 'single_tenant' | 'plan' } | undefined)?.limitSource ??
+    'single_tenant';
 
   const [retentionPeriod, setRetentionPeriod] = useState<string | null>(null);
   const [showRetentionConfirm, setShowRetentionConfirm] = useState(false);
@@ -162,6 +171,15 @@ export function AnalyticsSettingsPage() {
               <p className="text-xs text-muted-foreground mt-0.5">
                 Maximum retention: {maxAllowedRetention} days
               </p>
+              {limitSource === 'plan' && planName ? (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Limit derived from your active plan: {planName}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Public self-hosted default limit for a single-tenant deployment
+                </p>
+              )}
             </div>
           </div>
         </div>

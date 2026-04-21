@@ -113,6 +113,9 @@ The analytics settings update API supports **partial updates**:
 
 Omit fields you don't want to change. The backend validates the retention days only when provided.
 
+In the open-source product, the retention limit comes from the public single-tenant default.
+When Studio is composed with `studio-cloud`, the same surface can report a plan-derived limit instead.
+
 ## Multi-Tenant Architecture
 
 Each organization's data is isolated by `organization_id`. The ClickHouse schema enforces tenant isolation at the query layer — all analytics API calls automatically scope queries to the authenticated organization.

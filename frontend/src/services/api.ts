@@ -1690,16 +1690,18 @@ export const api = {
   },
 
   analyticsSettings: {
-    getSettings: async () => {
+    getSettings: async (): Promise<components['schemas']['AnalyticsSettingsResponseDto']> => {
       const response = await apiClient.getAnalyticsSettings();
       if (response.error || !response.data) throw new Error('Failed to fetch analytics settings');
-      return response.data;
+      return response.data as components['schemas']['AnalyticsSettingsResponseDto'];
     },
 
-    updateSettings: async (body: components['schemas']['UpdateAnalyticsSettingsDto']) => {
+    updateSettings: async (
+      body: components['schemas']['UpdateAnalyticsSettingsDto'],
+    ): Promise<components['schemas']['AnalyticsSettingsResponseDto']> => {
       const response = await apiClient.updateAnalyticsSettings(body);
       if (response.error || !response.data) throw new Error('Failed to update analytics settings');
-      return response.data;
+      return response.data as components['schemas']['AnalyticsSettingsResponseDto'];
     },
 
     getStorageUsage: async () => {

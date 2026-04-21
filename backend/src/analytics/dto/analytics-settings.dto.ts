@@ -7,6 +7,10 @@ export const AnalyticsSettingsResponseSchema = z.object({
   organizationId: z.string(),
   analyticsRetentionDays: z.number(),
   maxRetentionDays: z.number(),
+  planId: z.string().nullable().optional(),
+  planName: z.string().nullable().optional(),
+  subscriptionTier: z.enum(['free', 'pro', 'team', 'enterprise']).nullable().optional(),
+  limitSource: z.enum(['single_tenant', 'plan']),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

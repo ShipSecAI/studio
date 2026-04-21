@@ -11922,6 +11922,31 @@
           "maxRetentionDays": {
             "type": "number"
           },
+          "planId": {
+            "type": "string",
+            "nullable": true
+          },
+          "planName": {
+            "type": "string",
+            "nullable": true
+          },
+          "subscriptionTier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "pro",
+              "team",
+              "enterprise"
+            ],
+            "nullable": true
+          },
+          "limitSource": {
+            "type": "string",
+            "enum": [
+              "single_tenant",
+              "plan"
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -11937,6 +11962,7 @@
           "organizationId",
           "analyticsRetentionDays",
           "maxRetentionDays",
+          "limitSource",
           "createdAt",
           "updatedAt"
         ]

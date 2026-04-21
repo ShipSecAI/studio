@@ -5,6 +5,8 @@ import { SecurityAnalyticsService } from './security-analytics.service';
 import { OrganizationSettingsService } from './organization-settings.service';
 import { ClickHouseTenantService } from './clickhouse-tenant.service';
 import { AnalyticsController } from './analytics.controller';
+import { BILLING_PROVIDER } from '../providers/tokens';
+import { createDefaultProviderRegistry, resolveProvider } from '../providers/provider-registry';
 
 @Module({
   imports: [ConfigModule],
@@ -14,6 +16,10 @@ import { AnalyticsController } from './analytics.controller';
     SecurityAnalyticsService,
     OrganizationSettingsService,
     ClickHouseTenantService,
+    {
+      provide: BILLING_PROVIDER,
+      useFactory: () => resolveProvider('billing', createDefaultProviderRegistry().billing),
+    },
   ],
   exports: [
     AnalyticsService,
