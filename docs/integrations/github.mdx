@@ -16,7 +16,7 @@ Use it when you need:
 ## OSS Setup Path
 
 For the actual Studio GitHub product surface, a GitHub App is the self-hosted
-path.
+model.
 
 That is the path required for:
 
@@ -31,10 +31,6 @@ In practice, self-hosted Studio already works as BYOA:
 - you create or own the GitHub App
 - you set the app credentials in Studio config
 - you install that app into the repositories or organizations you want Studio to manage
-
-PATs still make sense for narrower custom automation outside the main GitHub App
-surface, but they are not the built-in path for PR-triggered GitHub workflows in
-Studio.
 
 ## What The GitHub Surface Covers
 
@@ -82,20 +78,6 @@ In self-hosted Studio, the GitHub App model is BYOA:
 
 That gives self-hosted users the same GitHub capability surface while keeping
 app ownership in their own GitHub environment.
-
-## What PAT Can And Cannot Do
-
-PAT-based access is not enough for the full GitHub product surface.
-
-What a PAT does **not** give you:
-
-- inbound GitHub App installation events
-- GitHub App webhooks
-- installation-token-based repository access
-- the main repository/trigger-rule/check-run product flow in Studio
-
-If you want PR webhooks and the richer GitHub automation surface, use BYOA via
-GitHub App.
 
 ## Related Docs
 
