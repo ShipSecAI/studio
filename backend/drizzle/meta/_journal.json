@@ -52,13 +52,6 @@
       "breakpoints": true
     },
     {
-      "idx": 22,
-      "version": "7",
-      "when": 1772877600000,
-      "tag": "0022_create-subscription-plans",
-      "breakpoints": true
-    },
-    {
       "idx": 23,
       "version": "7",
       "when": 1772882400000,

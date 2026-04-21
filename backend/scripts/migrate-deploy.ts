@@ -1,55 +1,8 @@
-import { createHash } from 'crypto';
-import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { Pool, type PoolClient } from 'pg';
-
-interface JournalEntry {
-  idx: number;
-  when: number;
-  tag: string;
-}
-
-interface Journal {
-  entries?: JournalEntry[];
-}
-
-interface Migration {
-  tag: string;
-  when: number;
-  file: string;
-  sql: string;
-  hash: string;
-}
+import { loadAllMigrations, type LoadedMigration } from './lib/migrations';
 
 const DEFAULT_DATABASE_URL = 'postgresql://shipsec:shipsec@localhost:5433/shipsec';
-
-function readJournal(drizzleDir: string): JournalEntry[] {
-  const journalPath = resolve(drizzleDir, 'meta/_journal.json');
-  const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as Journal;
-  return [...(journal.entries ?? [])].sort((a, b) => a.idx - b.idx);
-}
-
-function loadMigrations(drizzleDir: string): Migration[] {
-  const entries = readJournal(drizzleDir);
-
-  if (entries.length === 0) {
-    throw new Error(`No migration entries found in ${resolve(drizzleDir, 'meta/_journal.json')}`);
-  }
-
-  return entries.map((entry) => {
-    const file = `${entry.tag}.sql`;
-    const sql = readFileSync(resolve(drizzleDir, file), 'utf8');
-    const hash = createHash('sha256').update(sql).digest('hex');
-
-    return {
-      tag: entry.tag,
-      when: entry.when,
-      file,
-      sql,
-      hash,
-    };
-  });
-}
 
 async function ensureMigrationsTable(client: PoolClient): Promise<void> {
   await client.query('CREATE SCHEMA IF NOT EXISTS drizzle');
@@ -84,7 +37,7 @@ async function hasPublicTables(client: PoolClient): Promise<boolean> {
 
 async function stampBaselineIfNeeded(
   client: PoolClient,
-  baseline: Migration,
+  baseline: LoadedMigration,
   knownHashes: Set<string>,
 ): Promise<void> {
   if (knownHashes.has(baseline.hash)) {
@@ -107,7 +60,7 @@ async function stampBaselineIfNeeded(
 
 async function applyMigration(
   client: PoolClient,
-  migration: Migration,
+  migration: LoadedMigration,
   knownHashes: Set<string>,
 ): Promise<void> {
   if (knownHashes.has(migration.hash)) {
@@ -135,7 +88,7 @@ async function applyMigration(
 async function main() {
   const connectionString = process.env.DATABASE_URL || DEFAULT_DATABASE_URL;
   const drizzleDir = resolve(__dirname, '../drizzle');
-  const migrations = loadMigrations(drizzleDir);
+  const migrations = loadAllMigrations(drizzleDir);
 
   const pool = new Pool({ connectionString });
   const client = await pool.connect();

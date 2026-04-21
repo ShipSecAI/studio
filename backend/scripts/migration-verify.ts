@@ -1,47 +1,15 @@
-import { createHash } from 'crypto';
-import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { Pool } from 'pg';
-
-interface JournalEntry {
-  idx: number;
-  when: number;
-  tag: string;
-}
-
-interface Journal {
-  entries?: JournalEntry[];
-}
+import { loadAllMigrations } from './lib/migrations';
 
 const DEFAULT_DATABASE_URL = 'postgresql://shipsec:shipsec@localhost:5433/shipsec';
-
-function readJournalEntries(drizzleDir: string): JournalEntry[] {
-  const journalPath = resolve(drizzleDir, 'meta/_journal.json');
-  const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as Journal;
-  return [...(journal.entries ?? [])].sort((a, b) => a.idx - b.idx);
-}
-
-function expectedMigrationHashes(drizzleDir: string): Map<string, string> {
-  const entries = readJournalEntries(drizzleDir);
-
-  if (entries.length === 0) {
-    throw new Error(`No migration entries found in ${resolve(drizzleDir, 'meta/_journal.json')}`);
-  }
-
-  return new Map(
-    entries.map((entry) => {
-      const file = `${entry.tag}.sql`;
-      const sql = readFileSync(resolve(drizzleDir, file), 'utf8');
-      const hash = createHash('sha256').update(sql).digest('hex');
-      return [entry.tag, hash];
-    }),
-  );
-}
 
 async function main() {
   const connectionString = process.env.DATABASE_URL || DEFAULT_DATABASE_URL;
   const drizzleDir = resolve(__dirname, '../drizzle');
-  const expected = expectedMigrationHashes(drizzleDir);
+  const expected = new Map(
+    loadAllMigrations(drizzleDir).map((migration) => [migration.tag, migration.hash]),
+  );
 
   const pool = new Pool({ connectionString });
 

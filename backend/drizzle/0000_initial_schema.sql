@@ -154,31 +154,6 @@ CREATE TABLE "audit_logs" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "billing_usage_events" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"idempotency_key" varchar(191) NOT NULL,
-	"organization_id" varchar(191) NOT NULL,
-	"occurred_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"channel" varchar(64) NOT NULL,
-	"meter_key" varchar(64) NOT NULL,
-	"units" bigint NOT NULL,
-	"model" varchar(191),
-	"provider" varchar(64),
-	"workflow_id" uuid,
-	"run_id" text,
-	"node_ref" text,
-	"agent_run_id" text,
-	"actor_id" varchar(191),
-	"request_id" text,
-	"trace_id" text,
-	"cost_micros" bigint,
-	"pricing_version" varchar(32),
-	"settlement_status" varchar(32) DEFAULT 'pending' NOT NULL,
-	"settled_at" timestamp with time zone,
-	"raw_payload" jsonb
-);
---> statement-breakpoint
 CREATE TABLE "chat_messages" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"session_id" uuid NOT NULL,
@@ -647,7 +622,6 @@ CREATE TABLE "node_io" (
 --> statement-breakpoint
 CREATE TABLE "organization_settings" (
 	"organization_id" varchar(191) PRIMARY KEY NOT NULL,
-	"subscription_tier" varchar(50) DEFAULT 'free' NOT NULL,
 	"analytics_retention_days" integer DEFAULT 30 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -673,20 +647,6 @@ CREATE TABLE "workflow_templates" (
 CREATE TABLE "user_settings" (
 	"user_id" varchar(191) PRIMARY KEY NOT NULL,
 	"aws_external_id" text NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "subscription_plans" (
-	"id" varchar(50) PRIMARY KEY NOT NULL,
-	"display_name" varchar(100) NOT NULL,
-	"price_usd_cents" integer NOT NULL,
-	"workflow_runs_per_month" integer NOT NULL,
-	"ai_budget_usd_cents" integer NOT NULL,
-	"max_concurrent_runs" integer NOT NULL,
-	"analytics_retention_days" integer NOT NULL,
-	"max_workflows" integer NOT NULL,
-	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -729,12 +689,6 @@ CREATE INDEX "audit_logs_org_created_at_idx" ON "audit_logs" USING btree ("organ
 CREATE INDEX "audit_logs_org_resource_idx" ON "audit_logs" USING btree ("organization_id","resource_type","resource_id");--> statement-breakpoint
 CREATE INDEX "audit_logs_org_action_created_at_idx" ON "audit_logs" USING btree ("organization_id","action","created_at");--> statement-breakpoint
 CREATE INDEX "audit_logs_org_actor_created_at_idx" ON "audit_logs" USING btree ("organization_id","actor_id","created_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "billing_usage_events_idempotency_unique" ON "billing_usage_events" USING btree ("idempotency_key");--> statement-breakpoint
-CREATE INDEX "billing_usage_events_org_occurred_idx" ON "billing_usage_events" USING btree ("organization_id","occurred_at");--> statement-breakpoint
-CREATE INDEX "billing_usage_events_org_run_occurred_idx" ON "billing_usage_events" USING btree ("organization_id","run_id","occurred_at");--> statement-breakpoint
-CREATE INDEX "billing_usage_events_org_workflow_occurred_idx" ON "billing_usage_events" USING btree ("organization_id","workflow_id","occurred_at");--> statement-breakpoint
-CREATE INDEX "billing_usage_events_org_channel_occurred_idx" ON "billing_usage_events" USING btree ("organization_id","channel","occurred_at");--> statement-breakpoint
-CREATE INDEX "billing_usage_events_request_idx" ON "billing_usage_events" USING btree ("organization_id","request_id");--> statement-breakpoint
 CREATE INDEX "chat_messages_session_created_idx" ON "chat_messages" USING btree ("session_id","created_at");--> statement-breakpoint
 CREATE INDEX "chat_sessions_user_org_status_idx" ON "chat_sessions" USING btree ("user_id","organization_id","status");--> statement-breakpoint
 CREATE INDEX "chat_stream_events_session_run_seq_idx" ON "chat_stream_events" USING btree ("session_id","run_id","seq");--> statement-breakpoint

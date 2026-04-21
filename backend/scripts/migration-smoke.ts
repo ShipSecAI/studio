@@ -1,6 +1,6 @@
-import { readFileSync, readdirSync } from 'fs';
-import { join, resolve } from 'path';
+import { resolve } from 'path';
 import { Pool } from 'pg';
+import { loadAllMigrations } from './lib/migrations';
 
 async function main() {
   const connectionString =
@@ -9,18 +9,15 @@ async function main() {
   const pool = new Pool({ connectionString });
   const client = await pool.connect();
   const migrationsDir = resolve(__dirname, '../drizzle');
-  const files = readdirSync(migrationsDir)
-    .filter((file) => /^\d+_.*\.sql$/i.test(file))
-    .sort();
+  const migrations = loadAllMigrations(migrationsDir);
 
-  console.log(`🧪 Migration smoke test starting (found ${files.length} files)`);
+  console.log(`🧪 Migration smoke test starting (found ${migrations.length} files)`);
 
   try {
     await client.query('BEGIN');
-    for (const file of files) {
-      const sql = readFileSync(join(migrationsDir, file), 'utf8');
-      console.log(`→ Applying ${file}`);
-      await client.query(sql);
+    for (const migration of migrations) {
+      console.log(`→ Applying ${migration.file}`);
+      await client.query(migration.sql);
     }
     await client.query('ROLLBACK');
     console.log('✅ Migration smoke test passed (changes rolled back)');
