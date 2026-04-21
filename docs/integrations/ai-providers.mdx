@@ -1,0 +1,47 @@
+---
+title: "AI Providers"
+description: "Configure AI providers directly in OSS and understand the high-level managed path in ShipSec Cloud"
+---
+
+Studio’s public AI model is intentionally direct and single-tenant.
+
+For OSS, the default path is:
+
+```bash
+export CHAT_AI_BASE_URL="https://api.openai.com/v1"
+export CHAT_AI_API_KEY="..."
+export CHAT_AI_MODEL_ID="gpt-5.4-mini"
+```
+
+## What This Controls
+
+These settings are used by AI-enabled workflow and agent surfaces so the
+deployment can call your chosen provider directly.
+
+## Provider Surfaces In Studio
+
+Current public AI docs should map to:
+
+- provider nodes in workflows
+- AI text-generation steps
+- AI agent steps
+- MCP-enabled tool use
+
+## OSS Principle
+
+The open-source product should be documented as:
+
+- direct provider configuration
+- operator-owned credentials
+- model/base URL/API key under your control
+
+## ShipSec Cloud Callout
+
+ShipSec Cloud can expose a more managed provider path, but public docs should
+keep that description high-level. The detailed public setup path remains the
+direct `CHAT_AI_*` configuration above.
+
+## Related Docs
+
+- [Product / Agents & Tools](/product/agents-and-tools)
+- [Components / AI](/components/ai)

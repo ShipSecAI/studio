@@ -1,0 +1,46 @@
+---
+title: "Human In The Loop"
+description: "Pause workflows for approvals, forms, selections, and action-center style intervention"
+---
+
+Studio is built for workflows that sometimes need a human decision.
+
+That is why human input is part of the runtime model, not bolted on afterward.
+
+## What Human Input Looks Like
+
+Current human-in-the-loop surfaces include:
+
+- approvals
+- forms
+- selections
+- acknowledgements
+- action-center style follow-up
+
+## Why It Matters
+
+Security automation often needs judgment at the exact point where risk is
+highest:
+
+- before escalating an incident
+- before sending a destructive action
+- before publishing a report
+- before approving a remediation path
+
+Studio can pause the workflow safely and resume later when that input arrives.
+
+## Runtime Behavior
+
+When a workflow is waiting on a human step, the run can enter
+`AWAITING_INPUT`.
+
+That means:
+
+- the run is durable
+- the context is preserved
+- the workflow can resume without starting over
+
+## Related Docs
+
+- [Workflows](/product/workflows)
+- [Architecture / Human-in-the-Loop](/architecture/human-in-the-loop)

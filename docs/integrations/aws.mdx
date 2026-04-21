@@ -1,0 +1,56 @@
+---
+title: "AWS"
+description: "Connect AWS accounts, resolve credentials at runtime, and run cloud-security workflows from Studio"
+---
+
+Studio’s AWS integration model is built for runtime credential resolution inside
+workflows.
+
+Use it when you need:
+
+- cloud posture scans
+- organization account discovery
+- cross-account AssumeRole flows
+- inventory and cloud graph ingestion
+
+## OSS Setup Path
+
+Common self-hosted paths:
+
+- access keys
+- IAM role or AssumeRole configuration
+- AWS Organizations discovery for multi-account workflows
+
+## How AWS Fits Into Workflows
+
+A common public flow is:
+
+1. configure an AWS connection
+2. resolve credentials at runtime inside a workflow
+3. feed those credentials into scanners or inventory steps
+4. write findings into analytics or downstream notifications
+
+## Common AWS Workflows
+
+- Prowler-based cloud posture scans
+- organization account discovery
+- inventory and graph indexing
+- alerting and reporting on cloud findings
+
+## Recommended Mental Model
+
+The workflow should reference the AWS connection, not long-lived raw secrets in
+the graph itself.
+
+That keeps the AWS setup reusable and easier to rotate.
+
+## ShipSec Cloud Callout
+
+ShipSec Cloud can provide a more managed onboarding path for the same AWS
+capability class, but public docs should focus on direct self-managed setup.
+
+## Related Docs
+
+- [Components / Core](/components/core)
+- [Components / Security](/components/security)
+- [Product / Analytics & Findings](/product/analytics-and-findings)

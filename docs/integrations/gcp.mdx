@@ -1,0 +1,48 @@
+---
+title: "GCP"
+description: "Connect GCP projects and organizations for inventory, graph indexing, and security workflows"
+---
+
+Studio supports GCP as a first-class cloud integration surface.
+
+Use it when you need:
+
+- project or organization inventory
+- graph-style cloud indexing
+- workflow access to GCP APIs
+
+## OSS Setup Path
+
+The public product assumes self-managed GCP setup.
+
+Typical approaches:
+
+- service account access
+- impersonation where appropriate for your environment
+
+The exact choice depends on how your organization manages GCP credentials and
+least-privilege boundaries.
+
+## What The Surface Covers
+
+Current GCP-related product areas include:
+
+- integration setup
+- inventory and cloud-security workflows
+- graph and analytics-oriented processing
+
+## Recommended Pattern
+
+As with AWS, keep the workflow graph focused on connection references and
+runtime resolution rather than embedding provider credentials directly in the
+graph definition.
+
+## ShipSec Cloud Callout
+
+ShipSec Cloud can offer a smoother hosted setup path for GCP onboarding, but
+the public docs should explain the direct OSS model first.
+
+## Related Docs
+
+- [Integrations](/integrations)
+- [Product / Workflows](/product/workflows)

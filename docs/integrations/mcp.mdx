@@ -1,0 +1,49 @@
+---
+title: "MCP"
+description: "Register MCP servers, group tools, and hand them to agents and workflows"
+---
+
+MCP is the main tool-attachment model for Studio’s agent-native workflows.
+
+Use MCP when you want agents to work with real tools instead of only producing
+text output.
+
+## What Studio Supports
+
+Studio supports:
+
+- MCP server registration
+- MCP discovery
+- MCP library and grouping
+- workflow and agent consumption of MCP tools
+
+## Typical Flow
+
+1. register or expose MCP servers in your deployment
+2. choose which servers are available in Studio
+3. use the MCP Library or related tooling surface to hand tools to an agent
+4. let the workflow orchestrate the rest of the run
+
+## OSS Expectations
+
+In OSS, MCP server management is self-hosted and operator-controlled.
+
+That usually means:
+
+- you run or register the servers
+- you decide which ones are trusted
+- you control network access and credentials
+
+## Why MCP Matters
+
+It is a core part of the harness story:
+
+- workflows provide the execution frame
+- MCP provides the tool surface
+- agents consume the tools
+- Studio keeps the run observable and governable
+
+## Related Docs
+
+- [Product / Agents & Tools](/product/agents-and-tools)
+- [Examples / MCP Library Example](/examples/mcp-library-example)

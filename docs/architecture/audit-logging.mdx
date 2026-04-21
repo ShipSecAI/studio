@@ -1,0 +1,69 @@
+---
+title: "Audit Logging"
+description: "Audit events for important platform actions so teams can answer who did what, when, and where"
+---
+
+ShipSec Studio emits audit events for important platform actions so teams can
+answer: who did what, when, and in which organization.
+
+## Event Naming
+
+Use the pattern:
+
+- `{resource}.{verb}`
+
+Examples:
+
+- `workflow.create`
+- `workflow.update`
+- `workflow.run`
+- `secret.create`
+- `secret.rotate`
+- `secret.access`
+- `api_key.create`
+- `webhook.update`
+- `artifact.download`
+- `analytics.query`
+
+## Required Fields
+
+Every audit event should include:
+
+- `organizationId`
+- `actorId`
+- `actorType`
+- `action`
+- `resourceType`
+- `resourceId`
+- `createdAt`
+
+Optional fields:
+
+- `resourceName`
+- `metadata`
+- `ip`
+- `userAgent`
+
+## Safety Rules
+
+- never log secret values or plaintext credentials
+- avoid large payloads such as workflow graphs or raw analytics queries
+- prefer small explicit metadata like counts, IDs, versions, and booleans
+- audit logging must be non-blocking
+
+## Backend Pattern
+
+Prefer emitting audit events in the service layer right after a successful
+action.
+
+```ts
+this.auditLogService.record(auth, {
+  action: 'secret.rotate',
+  resourceType: 'secret',
+  resourceId: secret.id,
+  resourceName: secret.name,
+  metadata: {
+    resolvedVersion: secret.activeVersion,
+  },
+});
+```

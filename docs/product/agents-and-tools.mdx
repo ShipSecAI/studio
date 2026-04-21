@@ -1,0 +1,92 @@
+---
+title: "Agents & Tools"
+description: "Use AI agents, MCP tools, and provider-backed runtime credentials inside workflows"
+---
+
+ShipSec Studio is agent-native, but the agent model is embedded inside real
+workflow execution.
+
+That means agents are not isolated chats. They run with:
+
+- workflow context
+- runtime inputs
+- attached MCP tools
+- provider configuration
+- traceability and run history
+
+## Agent Surfaces In Studio
+
+Current public surfaces include:
+
+- chat sessions
+- AI workflow components
+- agent skills
+- MCP-enabled tool access
+- agent trace and run visibility
+
+## Tool Model
+
+Agents and workflows can use:
+
+- MCP servers
+- HTTP/API integrations
+- security scanners
+- cloud credential resolvers
+- runtime secrets and storage
+
+Studio handles the orchestration and visibility around those tools, rather than
+treating them as one-off shell calls.
+
+## MCP In Practice
+
+MCP is the main way to expose tool-bearing servers to agents.
+
+Studio supports:
+
+- MCP server registration
+- MCP discovery
+- grouping and library-style selection
+- tool handoff into AI-capable components
+
+Use MCP when you want agents to work with real tools instead of only generating
+text.
+
+## AI In Open Source
+
+The open-source path is direct and single-tenant.
+
+Typical configuration:
+
+```bash
+export CHAT_AI_BASE_URL="https://api.openai.com/v1"
+export CHAT_AI_API_KEY="..."
+export CHAT_AI_MODEL_ID="gpt-5.4-mini"
+```
+
+That keeps the public product simple:
+
+- you choose the provider
+- you control the API key
+- you control the model
+
+## ShipSec Cloud Callout
+
+ShipSec Cloud can offer a more managed provider path, but public docs should
+describe the OSS path in detail and keep hosted implementation details out of
+scope.
+
+## Best Fit Use Cases
+
+Use agents and tools together when you need:
+
+- investigative workflows
+- context-aware code or cloud review
+- tool-using triage flows
+- multi-step automation that mixes scanner output with AI reasoning
+
+## Related Docs
+
+- [Integrations / MCP](/integrations/mcp)
+- [Integrations / AI Providers](/integrations/ai-providers)
+- [Components / AI](/components/ai)
+- [Architecture / Run Context](/architecture/run-context)

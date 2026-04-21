@@ -1,0 +1,62 @@
+---
+title: "Performance Patterns"
+description: "Performance patterns used across ShipSec Studio for frontend, backend, and execution-heavy surfaces"
+---
+
+# Performance Patterns
+
+This document describes the performance patterns used across ShipSec Studio. All
+new features should follow these patterns.
+
+## 1. Temporal RPC Caching
+
+Terminal run statuses are cached in the `workflow_runs` table. Use the shared
+terminal status helpers instead of hardcoding status lists.
+
+Rules:
+
+- never call Temporal if the DB already has a terminal status
+- never cache non-terminal statuses
+- keep cache writes fire-and-forget
+
+## 2. Lightweight List Endpoints
+
+List pages should use summary endpoints rather than full graph payloads.
+
+Rules:
+
+- use explicit column selection for summaries
+- fetch full objects only on detail/edit pages
+
+## 3. Frontend Lazy Loading
+
+Every new page in `App.tsx` should be lazy-loaded.
+
+## 4. Store Fetch Deduplication
+
+Use:
+
+- skip-if-loaded for static data
+- cooldown windows for refreshable data
+- inflight promise dedup when a fetch is already active
+
+## 5. Paginated Loading
+
+Prefer:
+
+- small initial fetch
+- explicit load-more behavior
+- backend support for `limit` and `offset`
+
+## 6. Smart Polling
+
+Poll only live runs, not terminal ones.
+
+## 7. Conditional Fetching
+
+Fetch for the current mode or view, not for every possible tab “just in case.”
+
+## 8. Batched Run Summaries
+
+Use batch summary resolution for run lists to avoid N+1 queries and excessive
+Temporal RPCs.

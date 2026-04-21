@@ -1,0 +1,64 @@
+---
+title: "Analytics & Findings"
+description: "Store, query, and operate on workflow findings through ClickHouse-backed analytics surfaces"
+---
+
+Studio includes a findings and analytics layer for security workflows.
+
+That layer is what turns scanner output and workflow results into something you
+can:
+
+- search
+- filter
+- summarize
+- visualize
+- retain with policy
+
+## Core Model
+
+The public product uses ClickHouse for security findings and analytics queries.
+
+Common flow:
+
+1. a scanner or workflow step emits findings
+2. an analytics sink or related pipeline indexes the result
+3. the backend exposes query and metadata APIs
+4. the frontend renders findings, dashboards, and settings around that data
+
+## What Users See
+
+Relevant product surfaces include:
+
+- security dashboards
+- scan result views
+- findings tables and detail views
+- analytics settings
+
+## Retention
+
+Retention is intentionally simple in OSS:
+
+- public self-hosted Studio uses a single-tenant default ceiling
+- the public API can still expose plan-shaped fields as nullable compatibility
+  fields
+
+## ShipSec Cloud Callout
+
+In ShipSec Cloud, the same analytics settings surface can report a plan-derived
+retention limit. Public docs should mention that capability at a product level
+without documenting private billing implementation details.
+
+## Product Analytics vs Security Analytics
+
+There are two different analytics concepts in the repo:
+
+- **security/workflow analytics** for findings and execution results
+- **product analytics** for frontend telemetry such as PostHog
+
+This page is about the security/workflow side.
+
+## Related Docs
+
+- [Development / Workflow Analytics](/development/workflow-analytics)
+- [Development / Analytics](/development/analytics)
+- [Architecture / Streaming Pipelines](/architecture/streaming-pipelines)

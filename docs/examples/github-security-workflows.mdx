@@ -1,0 +1,58 @@
+---
+title: "GitHub Security Workflows"
+description: "Curated example workflows for GitHub-triggered security scans, PR checks, and AI review"
+---
+
+The repo already includes a set of useful GitHub-oriented sample workflows.
+
+Use them as starting points for:
+
+- repository scans
+- PR security scans
+- check-run reporting
+- AI-assisted review
+- combined scanner + AI workflows
+
+## High-Value Examples
+
+### Repository Scan
+
+Start with a simple repository clone and scan flow to validate your GitHub and
+scanner setup.
+
+### PR Security Scan
+
+A stronger production pattern:
+
+- get PR context
+- clone the relevant commit
+- run scanners
+- normalize findings
+- comment or report back into GitHub
+
+### Check Run Integration
+
+Use check runs when you want scan status to appear directly in the GitHub PR UI.
+
+### AI Review
+
+Combine PR context with AI review when you want more than static scanner output.
+
+### Unified AI Security Review
+
+The most comprehensive example combines:
+
+- PR context
+- scanner output
+- AI synthesis
+- one final report back to GitHub
+
+## Where The Sample JSON Lives
+
+The repo keeps workflow JSON examples under the docs asset directories. Treat
+them as starting points, not one-click production truth.
+
+## Related Docs
+
+- [Integrations / GitHub](/integrations/github)
+- [Product / Workflows](/product/workflows)

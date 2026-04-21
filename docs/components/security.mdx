@@ -285,7 +285,7 @@ For each member account:
 Aggregate Results → Analytics Sink
 ```
 
-**Sample workflow:** [`docs/sample/aws-cspm-org-prowler-to-analytics.json`](/docs/sample/aws-cspm-org-prowler-to-analytics.json)
+**Sample workflow:** see the AWS example workflows under `docs/examples/workflow-json/aws/` in the repository.
 
 #### Remediation Metadata
 
@@ -294,7 +294,7 @@ Prowler checks include detailed remediation guidance (CLI commands, Terraform co
 **How it works:**
 
 1. `scripts/generate-prowler-metadata.ts` extracts remediation code from the Prowler Docker image into `backend/src/assets/prowler-checks.json` (1,173 checks).
-2. The backend serves this file via `GET /analytics/prowler-checks-metadata` with 30-day browser caching.
+2. The backend serves this file via `GET /api/v1/analytics/prowler-checks-metadata` with 30-day browser caching.
 3. The frontend `FindingDetailSheet` shows a tabbed remediation UI (CLI, Terraform, CloudFormation, Manual) when metadata is available.
 
 **Updating metadata:** Run the generation script whenever the Prowler Docker image is updated:

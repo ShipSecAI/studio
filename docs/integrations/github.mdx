@@ -1,0 +1,68 @@
+---
+title: "GitHub"
+description: "Use GitHub Apps, repository scanning, trigger rules, comments, check runs, and reviews inside Studio workflows"
+---
+
+GitHub is one of Studio’s richest integration surfaces.
+
+Use it when you need:
+
+- repository access
+- pull-request scanning
+- check runs and PR comments
+- trigger rules for automated scans
+- AI review or security workflows tied to GitHub events
+
+## OSS Setup Path
+
+In OSS, the common setup options are:
+
+- a GitHub App for richer repository access and PR workflows
+- a PAT for simpler direct access in narrower scenarios
+
+For the full workflow experience, GitHub App setup is usually the better fit.
+
+## What The GitHub Surface Covers
+
+Studio’s GitHub features include:
+
+- repository sync and scan targets
+- PR-triggered workflows
+- PR comments
+- check runs
+- optional inline review-style feedback
+
+## Typical Flow
+
+A common GitHub security workflow looks like:
+
+1. pull request or repository event enters Studio
+2. Studio clones or reads the relevant repository context
+3. scanners and AI steps analyze the code or diff
+4. results are posted back to GitHub as comments, checks, or reviews
+
+## Trigger Rules
+
+Trigger rules connect GitHub events to workflows.
+
+Typical uses:
+
+- run a security scan on every PR
+- comment on findings when a PR changes
+- fail checks above a severity threshold
+
+## Examples
+
+See [Examples / GitHub Security Workflows](/examples/github-security-workflows) for
+the curated sample workflows that live in the repo.
+
+## ShipSec Cloud Callout
+
+ShipSec Cloud may provide a smoother onboarding path for the same GitHub
+capabilities, but the public docs should focus on the self-managed GitHub App
+or PAT path.
+
+## Related Docs
+
+- [Components / Core](/components/core)
+- [Examples / GitHub Security Workflows](/examples/github-security-workflows)

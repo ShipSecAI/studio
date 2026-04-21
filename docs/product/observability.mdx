@@ -1,0 +1,74 @@
+---
+title: "Observability"
+description: "Inspect workflow runs through logs, terminal streams, traces, artifacts, and audit records"
+---
+
+Studio is designed so runs are inspectable, not opaque.
+
+The runtime gives you multiple ways to understand what happened:
+
+- event timelines
+- terminal output
+- logs
+- artifacts
+- activity history
+- audit records
+
+## Run Visibility
+
+For workflow runs and agent activity, Studio exposes:
+
+- current status
+- step-by-step execution progress
+- failure states and error messages
+- terminal output where applicable
+- trace and event context
+
+That makes long-running automation far easier to debug than “fire and forget”
+glue scripts.
+
+## Artifacts
+
+Artifacts are the durable outputs of a run.
+
+Common artifact types include:
+
+- generated files
+- scanner outputs
+- normalized findings
+- rendered reports
+
+The artifact surface lets users inspect and reuse outputs after the run is over.
+
+## Activity And Audit
+
+Two different visibility layers matter:
+
+- **Activity** for operational awareness and what is happening in the product
+- **Audit logs** for who did what, when, and in which organization
+
+Audit logs are especially important for:
+
+- workflow changes
+- secret operations
+- API key lifecycle events
+- webhook and integration changes
+- analytics access
+
+## Why This Matters
+
+Security workflows often need post-run review:
+
+- what did the agent actually do?
+- which tool produced this result?
+- what got uploaded or stored?
+- where did the run fail?
+- who changed a configuration before the run?
+
+Studio’s observability model is built around answering those questions directly.
+
+## Related Docs
+
+- [Analytics & Findings](/product/analytics-and-findings)
+- [Architecture / Streaming Pipelines](/architecture/streaming-pipelines)
+- [Architecture / Audit Logging](/architecture/audit-logging)

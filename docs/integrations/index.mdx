@@ -1,0 +1,61 @@
+---
+title: "Integrations"
+description: "Connect workflows and agents to external providers without hardcoding credentials into graph definitions"
+---
+
+Integrations let Studio workflows and agents work with external systems without
+embedding raw credentials into workflow graphs.
+
+The integration model is consistent across providers:
+
+1. configure a provider connection
+2. store credentials or access configuration once
+3. resolve what the workflow needs at runtime
+
+## Public OSS Model
+
+In the public product, integrations are operator-managed and direct.
+
+That usually means:
+
+- you create your own provider apps or roles
+- you manage your own credentials
+- you decide which connections are available in your deployment
+
+## Provider Categories
+
+Studio currently exposes integration surfaces around:
+
+- GitHub
+- AWS
+- GCP
+- Jira
+- Slack
+- MCP servers
+- AI providers
+
+## Runtime Resolution
+
+The important design rule is that workflows reference connections, not raw
+provider secrets.
+
+That lets Studio:
+
+- reuse connections across workflows
+- resolve credentials only at execution time
+- rotate credentials without rewriting graphs
+
+## ShipSec Cloud Callout
+
+ShipSec Cloud may offer smoother onboarding or managed setup paths for some
+providers, but public docs should always explain the OSS path first.
+
+## Browse By Provider
+
+- [GitHub](/integrations/github)
+- [AWS](/integrations/aws)
+- [GCP](/integrations/gcp)
+- [Jira](/integrations/jira)
+- [Slack](/integrations/slack)
+- [MCP](/integrations/mcp)
+- [AI Providers](/integrations/ai-providers)

@@ -26,6 +26,33 @@
             ]
           },
           {
+            "group": "Product",
+            "pages": [
+              "product/workflows",
+              "product/agents-and-tools",
+              "product/human-in-the-loop",
+              "product/security-operations",
+              "product/observability",
+              "product/templates",
+              "product/report-templates",
+              "product/analytics-and-findings",
+              "product/secrets-and-api-keys"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/index",
+              "integrations/github",
+              "integrations/aws",
+              "integrations/gcp",
+              "integrations/jira",
+              "integrations/slack",
+              "integrations/mcp",
+              "integrations/ai-providers"
+            ]
+          },
+          {
             "group": "Architecture",
             "pages": [
               "architecture",
@@ -33,7 +60,9 @@
               "architecture/temporal-orchestration",
               "architecture/streaming-pipelines",
               "architecture/human-in-the-loop",
-              "architecture/run-context"
+              "architecture/run-context",
+              "architecture/audit-logging",
+              "architecture/execution-status"
             ]
           },
           {
@@ -53,8 +82,14 @@
               "development/isolated-volumes",
               "development/workflow-analytics",
               "development/analytics",
+              "development/performance-patterns",
+              "development/troubleshooting",
               "development/release-process"
             ]
+          },
+          {
+            "group": "Examples",
+            "pages": ["examples/github-security-workflows", "examples/mcp-library-example"]
           }
         ]
       }

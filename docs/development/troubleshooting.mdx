@@ -1,0 +1,33 @@
+---
+title: "Troubleshooting"
+description: "Common issues and resolutions for local source development"
+---
+
+# Troubleshooting
+
+Common issues and their resolutions for local development.
+
+## Credential Resolution 404
+
+**Symptom:** workflow runs fail because a referenced connection no longer
+exists.
+
+**Likely cause:** a schedule still points at an old integration connection ID
+after the connection was deleted and recreated.
+
+**Fix:** recreate the schedule so it picks up the current connection ID.
+
+## Backend Restart Loop
+
+**Symptom:** the backend keeps restarting under `bun --watch`.
+
+**Likely cause:** many file changes landed at once and the watch process is
+still settling.
+
+**Fix:** let the sync/watch cycle settle, then inspect PM2 logs only if the
+process keeps crashing afterward.
+
+## KafkaJS TimeoutNegativeWarning
+
+This warning is noisy but non-fatal. If the backend is also restarting, the
+watch process is the more likely cause.

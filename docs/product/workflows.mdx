@@ -1,0 +1,101 @@
+---
+title: "Workflows"
+description: "Design, trigger, run, and govern security workflows in ShipSec Studio"
+---
+
+ShipSec Studio workflows are visual graphs that compile into durable executions.
+
+They are the core unit of automation in Studio:
+
+- design a graph in the builder
+- trigger it manually, on a schedule, or from a webhook
+- execute it durably with retries and pause/resume behavior
+- inspect the run through logs, traces, artifacts, and status
+
+## What A Workflow Contains
+
+A workflow typically combines:
+
+- entrypoints and runtime inputs
+- data transformation and file handling
+- AI and MCP tool steps
+- scanners and security tools
+- integration-aware steps for GitHub, cloud, Jira, or Slack
+- human approvals or forms when a decision should not be fully automated
+
+## Design Surface
+
+The workflow builder is where you:
+
+- add nodes and connect inputs and outputs
+- configure parameters and secrets
+- choose runtime inputs for operators
+- preview the graph before execution
+
+Studio stores workflow definitions separately from workflow runs, which lets you
+iterate on a design without losing run history.
+
+## Triggering Workflows
+
+Common public triggering paths:
+
+- manual start from the UI
+- schedules
+- webhooks
+- integration-driven workflows, such as GitHub-triggered scans
+
+The public repo focuses on the self-hosted setup path for these triggers. The
+managed offering may streamline onboarding, but the capability model is the
+same.
+
+## Execution Model
+
+Workflow execution is backed by Temporal, which gives Studio:
+
+- retries
+- resumability
+- long-running waits
+- durable state between steps
+- safe pause/resume when human input is required
+
+That durability is why Studio is better understood as a harness than a simple
+workflow editor.
+
+## Run Status
+
+Workflow runs move through a small set of states:
+
+- `QUEUED`
+- `RUNNING`
+- `COMPLETED`
+- `FAILED`
+- `CANCELLED`
+- `TERMINATED`
+- `TIMED_OUT`
+- `AWAITING_INPUT`
+
+In practice:
+
+- active runs are observable and pollable
+- terminal runs are cached and summarized efficiently
+- human-input runs can pause safely and resume later
+
+## Human Steps
+
+Workflows can stop and wait for:
+
+- approvals
+- forms
+- selections
+- acknowledgements
+
+That makes Studio suitable for security workflows where automated detection is
+useful, but human judgment still matters.
+
+## Related Product Surfaces
+
+- [Agents & Tools](/product/agents-and-tools)
+- [Observability](/product/observability)
+- [Templates](/product/templates)
+- [Analytics & Findings](/product/analytics-and-findings)
+- [Architecture / Temporal Orchestration](/architecture/temporal-orchestration)

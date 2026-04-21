@@ -1,0 +1,53 @@
+---
+title: "Execution Status"
+description: "How workflow run statuses are represented and inferred in Studio"
+---
+
+Workflow runs move through a small set of execution states.
+
+## Statuses
+
+| Status | Meaning |
+| --- | --- |
+| `QUEUED` | Waiting to be executed |
+| `RUNNING` | Currently executing |
+| `COMPLETED` | Finished successfully |
+| `FAILED` | Ended in failure |
+| `CANCELLED` | Cancelled by a user |
+| `TERMINATED` | Forcefully terminated |
+| `TIMED_OUT` | Exceeded its allowed execution time |
+| `AWAITING_INPUT` | Paused for human input |
+| `STALE` | Orphaned record with no real execution evidence |
+
+## Why `STALE` Exists
+
+`STALE` is a special inconsistency state.
+
+It usually means:
+
+- the run record exists in the database
+- there are no matching trace events
+- Temporal has no record of the workflow
+
+That can happen after environment resets or failed workflow starts.
+
+## Status Resolution
+
+At a high level, Studio resolves status by:
+
+1. asking Temporal when the workflow exists there
+2. using terminal status cache where appropriate
+3. inferring best-effort state from trace events when Temporal has no record
+
+## Why This Matters
+
+Execution status is more than badge color:
+
+- it drives polling behavior
+- it affects run summaries and timeline views
+- it distinguishes terminal runs from human-input waits
+
+## Related Docs
+
+- [Workflows](/product/workflows)
+- [Architecture / Temporal Orchestration](/architecture/temporal-orchestration)
