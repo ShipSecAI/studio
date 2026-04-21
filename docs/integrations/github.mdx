@@ -15,12 +15,26 @@ Use it when you need:
 
 ## OSS Setup Path
 
-In OSS, the common setup options are:
+For the actual Studio GitHub product surface, a GitHub App is the primary
+self-hosted path.
 
-- a GitHub App for richer repository access and PR workflows
-- a PAT for simpler direct access in narrower scenarios
+That is the path required for:
 
-For the full workflow experience, GitHub App setup is usually the better fit.
+- installation-aware repository access
+- PR webhooks
+- trigger rules
+- check runs
+- PR comments and review-style feedback
+
+In practice, self-hosted Studio already works as BYOA:
+
+- you create or own the GitHub App
+- you set the app credentials in Studio config
+- you install that app into the repositories or organizations you want Studio to manage
+
+A PAT can still make sense for narrower custom automation outside this main App
+surface, but it is not the first-class path for PR-triggered GitHub workflows in
+Studio today.
 
 ## What The GitHub Surface Covers
 
@@ -56,11 +70,32 @@ Typical uses:
 See [Examples / GitHub Security Workflows](/examples/github-security-workflows) for
 the curated sample workflows that live in the repo.
 
-## ShipSec Cloud Callout
+## Self-Hosted vs ShipSec Cloud
 
-ShipSec Cloud may provide a smoother onboarding path for the same GitHub
-capabilities, but the public docs should focus on the self-managed GitHub App
-or PAT path.
+In ShipSec Cloud, the onboarding flow can be more managed.
+
+In self-hosted Studio, the GitHub App model is still the right mental model:
+
+- bring your own app
+- configure Studio with that app’s credentials
+- install the app where you want repository and PR automation
+
+That gives self-hosted users the same core GitHub capability surface without
+requiring a ShipSec-managed app.
+
+## What PAT Can And Cannot Do
+
+PAT-based access is not enough for the full GitHub product surface.
+
+What a PAT does **not** give you:
+
+- inbound GitHub App installation events
+- GitHub App webhooks
+- installation-token-based repository access
+- the main repository/trigger-rule/check-run product flow in Studio
+
+So if you want PR webhooks and the richer GitHub automation surface, the answer
+is BYOA via GitHub App, not PAT-only setup.
 
 ## Related Docs
 
