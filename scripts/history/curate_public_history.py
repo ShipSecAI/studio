@@ -80,7 +80,6 @@ PRIVATE_MESSAGE_PATTERNS = [
     r"\bforge\b",
     r"\bjira\b",
     r"\bhotplug\b",
-    r"\bvirtual key\b",
     r"\binternal/billing\b",
     r"\bhosted-only\b",
     r"\bcloud-only\b",

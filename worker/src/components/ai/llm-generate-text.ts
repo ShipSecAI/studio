@@ -171,7 +171,7 @@ const definition = defineComponent({
 
     const userProvidedKey = modelApiKey?.trim() || chatModel.apiKey?.trim();
 
-    // When Bifrost is enabled and no user-provided key (BYOK), use the org's virtual key
+    // When the AI gateway is enabled and no user-provided key (BYOK), use the org key.
     let resolvedOrganizationApiKey: string | null = null;
     if (gatewayEnabled && !userProvidedKey) {
       resolvedOrganizationApiKey = await requireOrganizationApiKey(

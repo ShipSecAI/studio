@@ -45,7 +45,6 @@ SANITIZE_REPLACEMENTS = [
     (re.compile(r"\bbifrost\b", re.I), "ai gateway"),
     (re.compile(r"\bforge\b", re.I), "jira"),
     (re.compile(r"\bhotplug\b", re.I), "tool runtime"),
-    (re.compile(r"\bvirtual key\b", re.I), "organization key"),
 ]
 
 
