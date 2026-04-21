@@ -11,6 +11,9 @@ async function generateOpenApi() {
   // Skip ingest services that require external connections during OpenAPI generation
   process.env.SKIP_INGEST_SERVICES = 'true';
   process.env.SHIPSEC_SKIP_MIGRATION_CHECK = 'true';
+  process.env.SHIPSEC_ALLOW_FILE_ENV_FALLBACK = 'false';
+  process.env.SHIPSEC_CLOUD_BACKEND_MODULE = '';
+  process.env.SHIPSEC_PROVIDER_OVERRIDES_MODULE = '';
   // Ensure encryption services can bootstrap during schema generation.
   // This key is only used to construct the Nest application for OpenAPI output.
   process.env.SECRET_STORE_MASTER_KEY =
