@@ -82,7 +82,6 @@ function createService(opts: {
   const slackService = {} as SlackService;
   const setupTokenService = {} as SetupTokenService;
   const eventEmitter = new EventEmitter2();
-  const forgeDiscovery = {} as any;
 
   return new IntegrationsService(
     repository,
@@ -92,7 +91,6 @@ function createService(opts: {
     slackService,
     setupTokenService,
     eventEmitter,
-    forgeDiscovery,
   );
 }
 

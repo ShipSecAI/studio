@@ -110,7 +110,6 @@ function createService(opts: {
     {} as SlackService,
     {} as SetupTokenService,
     new EventEmitter2(),
-    {} as any,
   );
 }
 

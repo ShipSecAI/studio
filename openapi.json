@@ -3325,41 +3325,6 @@
         ]
       }
     },
-    "/api/v1/integrations/jira/discover": {
-      "post": {
-        "operationId": "IntegrationsController_discoverJiraInstallation",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Discover Jira Forge installation for a site"
-          }
-        },
-        "tags": [
-          "integrations"
-        ]
-      }
-    },
-    "/api/v1/integrations/jira/connect-site": {
-      "post": {
-        "operationId": "IntegrationsController_connectJiraViaSite",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IntegrationConnectionResponse"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "integrations"
-        ]
-      }
-    },
     "/api/v1/integrations/jira/connections": {
       "post": {
         "operationId": "IntegrationsController_createJiraForgeConnection",
