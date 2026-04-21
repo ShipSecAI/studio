@@ -33,6 +33,10 @@ Run migrations:
 bun --cwd backend run migration:migrate
 ```
 
+This uses the repo-aware migration runner. By default it applies the committed
+public migrations in `backend/drizzle`. If your environment provides extra
+migration directories, those are layered on top by configuration.
+
 Generate migration SQL:
 
 ```bash

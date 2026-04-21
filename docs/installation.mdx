@@ -90,4 +90,6 @@ The open-source model is direct configuration, not hosted indirection.
 
 ## Migration Behavior
 
-`just dev` applies the committed migrations before starting the app services.
+`just dev` applies the committed repo migrations before starting the app
+services. If your environment layers in extra migration directories, those are
+picked up by configuration rather than being hardcoded into the public repo.

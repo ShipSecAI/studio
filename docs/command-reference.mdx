@@ -80,6 +80,10 @@ bun --cwd backend run migration:generate
 bun --cwd backend run migration:migrate
 ```
 
+`migration:migrate` runs the repo-aware migration runner. In the public repo it
+applies the committed public drizzle SQL, plus any extra migration directories
+your environment explicitly configures.
+
 ## Validation
 
 ```bash
