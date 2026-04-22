@@ -161,27 +161,6 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-  hotplug:
-    image: ghcr.io/shipsecai/hotplug:v0.1.0
-    user: root
-    command: ['hotplug', 'serve', '--bind', '0.0.0.0:10010']
-    environment:
-      HOTPLUG_CONTROL_TOKEN: ${HOTPLUG_CONTROL_TOKEN:-hotplug-local-dev-token}
-      RUST_LOG: ${HOTPLUG_LOG_LEVEL:-info}
-    ports:
-      - '127.0.0.1:10011:10010'
-    volumes:
-      - hotplug_data:/data
-      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
-      - /tmp/hotplug-host-runtime-secrets:/tmp/hotplug-host-runtime-secrets
-    healthcheck:
-      test: ['CMD-SHELL', 'kill -0 1 || exit 1']
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-    restart: unless-stopped
-
   neo4j:
     image: neo4j:5-community
     environment:
@@ -214,5 +193,4 @@ volumes:
   loki_data:
   redpanda_data:
   clickhouse_data:
-  hotplug_data:
   neo4j_data:
