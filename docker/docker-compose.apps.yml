@@ -80,6 +80,7 @@ services:
       dockerfile: Dockerfile
       target: worker
     image: shipsec-worker:ce
+    user: root
     depends_on:
       backend:
         condition: service_healthy
@@ -129,6 +130,9 @@ services:
       CARTOGRAPHY_NEO4J_URI: bolt://neo4j:7687
       CARTOGRAPHY_DOCKER_NETWORK: shipsec-ce-network
       NAPI_RS_FORCE_WASI: '1'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp:/tmp
     restart: unless-stopped
 
   frontend:
