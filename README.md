@@ -19,9 +19,10 @@ This repository is the **public product tree**:
 - application code
 - shared packages
 - image build surface
+- minimal CE runtime compose files for local and single-node validation
 - CI and release automation for those images
 
-It does **not** ship the full deployment overlays or environment-specific runtime setup.
+It does **not** ship the private deployment overlays, Helm charts, or hosted environment setup.
 
 ## Why Studio
 
@@ -55,10 +56,15 @@ For source-level development:
 
 ```bash
 just init
+just infra up
 just dev
 ```
 
-The public repo assumes runtime infrastructure is provided separately through your own local or deployment setup.
+For the full CE Docker stack:
+
+```bash
+just ce up
+```
 
 ## OSS vs ShipSec Cloud
 

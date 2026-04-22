@@ -24,6 +24,7 @@ That lets contributors run multiple worktrees or app instances side by side.
 ## Typical Flow
 
 ```bash
+just infra up
 just instance show
 just instance use 4
 just dev
@@ -53,6 +54,10 @@ Use multi-instance dev when you are:
 - testing multiple branches or worktrees
 - running E2E/tests against a specific local instance
 - comparing feature work side by side
+
+The shared Docker infra stays on fixed localhost ports. Each PM2-managed app
+instance gets its own frontend port, backend port, database name, and Temporal
+namespace on top of that shared layer.
 
 ## Related Commands
 

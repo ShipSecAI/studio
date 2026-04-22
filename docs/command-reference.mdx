@@ -27,6 +27,25 @@ just init
 
 Installs dependencies and creates service `.env` files from examples.
 
+### Start Shared CE Infra
+
+```bash
+just infra up
+```
+
+### Stop Shared CE Infra
+
+```bash
+just infra down
+```
+
+### Infra Logs
+
+```bash
+just infra logs
+just infra logs postgres
+```
+
 ### Start Development
 
 ```bash
@@ -34,6 +53,14 @@ just dev
 ```
 
 Starts the Studio app processes from source using the env configuration in your workspace.
+
+### Full CE Docker Stack
+
+```bash
+just ce up
+just ce down
+just ce logs
+```
 
 ### Stop Development
 
@@ -97,6 +124,10 @@ bun run test
 | Command | Purpose |
 | --- | --- |
 | `just init` | Install deps and create env files |
+| `just infra up` | Start the shared CE infra services |
+| `just infra down` | Stop the shared CE infra services |
+| `just ce up` | Start the full CE Docker stack |
+| `just ce down` | Stop the full CE Docker stack |
 | `just dev` | Start contributor development mode |
 | `just dev stop` | Stop contributor development mode |
 | `just dev logs` | View app logs |

@@ -1,23 +1,13 @@
 ---
 title: "Installation"
-description: "Install Studio for source development or use the published images in your own deployment"
+description: "Install Studio with the public CE runtime paths or use the published images in your own deployment"
 ---
 
 ## Choose Your Path
 
-ShipSec Studio has two public setup paths:
+ShipSec Studio has three public setup paths:
 
-### 1. Use The Published Images In Your Own Deployment
-
-Best for:
-
-- self-hosting
-- running Studio on your own infrastructure
-- building your own runtime model around the published images
-
-The public repo publishes the Studio application images. Pair them with the required backing services described in [Self-Hosting](/self-hosting).
-
-### 2. Source Development
+### 1. Source Development With Docker-Backed Infra
 
 Best for:
 
@@ -29,10 +19,37 @@ Best for:
 git clone https://github.com/ShipSecAI/studio.git
 cd studio
 just init
+just infra up
 just dev
 ```
 
-This starts the Studio app processes from source. Runtime services must be provided separately by your local or deployment environment.
+This keeps the backing services in Docker and runs frontend, backend, and worker from source with PM2.
+
+### 2. Full CE Docker Stack
+
+Best for:
+
+- validating the public CE deployment path
+- running the product on one machine without a source workflow
+- smoke testing the published repo end to end
+
+```bash
+git clone https://github.com/ShipSecAI/studio.git
+cd studio
+just ce up
+```
+
+This brings up infra plus frontend, backend, and worker in Docker.
+
+### 3. Use The Published Images In Your Own Deployment
+
+Best for:
+
+- self-hosting
+- running Studio on your own infrastructure
+- building your own runtime model around the published images
+
+The public repo publishes the Studio application images. Pair them with the required backing services described in [Self-Hosting](/self-hosting).
 
 ## Source Development
 
@@ -40,12 +57,14 @@ Requirements:
 
 - Bun
 - just
-- access to the services your env files point at
+- Docker
+- Docker Compose
 
 Start:
 
 ```bash
 just init
+just infra up
 ```
 
 This installs dependencies and creates:
@@ -60,9 +79,25 @@ Start:
 just dev
 ```
 
-The public repo no longer ships the full local runtime overlay. `just dev` assumes your configured backing services already exist.
+The public repo now ships a minimal CE runtime stack for local source development:
+
+- `docker/docker-compose.infra.yml` for shared services
+- `docker/docker-compose.apps.yml` for the full Docker app overlay
 
 See [Development / Multi-Instance Dev](/development/multi-instance-dev) for contributor-oriented local instance details.
+
+## Full CE Docker Stack
+
+```bash
+just ce up
+```
+
+This uses:
+
+- `docker/docker-compose.infra.yml`
+- `docker/docker-compose.apps.yml`
+
+The default frontend URL is `http://localhost:5173` and the default backend URL is `http://localhost:3211`.
 
 ## Environment Basics
 
@@ -93,3 +128,6 @@ The open-source model is direct configuration, not hosted indirection.
 `just dev` applies the committed repo migrations before starting the app
 services. If your environment layers in extra migration directories, those are
 picked up by configuration rather than being hardcoded into the public repo.
+
+In the source-development path, `just dev` also creates the active instance
+database automatically when the local CE Postgres container is running.

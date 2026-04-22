@@ -1,0 +1,35 @@
+<clickhouse>
+    <max_server_memory_usage_to_ram_ratio>0.8</max_server_memory_usage_to_ram_ratio>
+    <mark_cache_size>536870912</mark_cache_size>
+    <shutdown_wait_unfinished>5</shutdown_wait_unfinished>
+
+    <logger>
+        <level>warning</level>
+        <console>1</console>
+    </logger>
+
+    <asynchronous_metric_log remove="1"/>
+    <metric_log remove="1"/>
+    <text_log remove="1"/>
+    <trace_log remove="1"/>
+    <query_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </query_log>
+
+    <profiles>
+        <default>
+            <max_memory_usage>1500000000</max_memory_usage>
+            <async_insert_busy_timeout_ms>500</async_insert_busy_timeout_ms>
+            <async_insert_max_data_size>5242880</async_insert_max_data_size>
+            <use_query_condition_cache>1</use_query_condition_cache>
+            <use_skip_indexes_for_disjunctions>1</use_skip_indexes_for_disjunctions>
+            <optimize_move_to_prewhere_if_final>1</optimize_move_to_prewhere_if_final>
+            <do_not_merge_across_partitions_select_final>1</do_not_merge_across_partitions_select_final>
+            <max_threads>2</max_threads>
+            <max_final_threads>2</max_final_threads>
+            <max_bytes_before_external_group_by>500000000</max_bytes_before_external_group_by>
+            <input_format_parallel_parsing>0</input_format_parallel_parsing>
+            <output_format_parallel_formatting>0</output_format_parallel_formatting>
+        </default>
+    </profiles>
+</clickhouse>

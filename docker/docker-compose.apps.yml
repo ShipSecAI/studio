@@ -1,0 +1,164 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: backend
+    image: shipsec-backend:ce
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      hotplug:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      SHIPSEC_ENV: local
+      PORT: '3211'
+      DATABASE_URL: postgresql://shipsec:shipsec@postgres:5432/shipsec
+      SECRET_STORE_MASTER_KEY: ${SECRET_STORE_MASTER_KEY:-12345678901234567890123456789012}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-internal-token}
+      AUTH_PROVIDER: local
+      AUTH_LOCAL_ALLOW_UNAUTHENTICATED: 'true'
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-http://localhost:3211}
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: shipsec-ce
+      TEMPORAL_TASK_QUEUE: shipsec-ce
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: '9000'
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET_NAME: shipsec-files
+      LOKI_URL: http://loki:3100
+      LOG_KAFKA_BROKERS: redpanda:9092
+      LOG_KAFKA_CLIENT_ID: shipsec-ce-backend
+      LOG_KAFKA_GROUP_ID: shipsec-ce-log-consumer
+      LOG_KAFKA_TOPIC: telemetry.logs
+      EVENT_KAFKA_CLIENT_ID: shipsec-ce-backend-events
+      EVENT_KAFKA_GROUP_ID: shipsec-ce-event-consumer
+      EVENT_KAFKA_TOPIC: telemetry.events
+      AGENT_TRACE_KAFKA_CLIENT_ID: shipsec-ce-agent-trace
+      AGENT_TRACE_KAFKA_GROUP_ID: shipsec-ce-agent-trace
+      AGENT_TRACE_KAFKA_TOPIC: telemetry.agent-trace
+      NODE_IO_KAFKA_CLIENT_ID: shipsec-ce-node-io
+      NODE_IO_KAFKA_GROUP_ID: shipsec-ce-node-io
+      NODE_IO_KAFKA_TOPIC: telemetry.node-io
+      ASSET_EVENT_KAFKA_TOPIC: asset.events
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_DATABASE: shipsec
+      NEO4J_URI: bolt://neo4j:7687
+      HOTPLUG_URL: http://hotplug:10010
+      HOTPLUG_CONTROL_TOKEN: ${HOTPLUG_CONTROL_TOKEN:-hotplug-local-dev-token}
+      SHIPSEC_AWS_STRICT_IDENTITY_CHECK: 'false'
+      SHIPSEC_VERSION_CHECK_DISABLED: 'true'
+      CORS_EXTRA_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+    ports:
+      - '127.0.0.1:3211:3211'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:3211/api/v1/health >/dev/null || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: worker
+    image: shipsec-worker:ce
+    depends_on:
+      backend:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      hotplug:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://shipsec:shipsec@postgres:5432/shipsec
+      SECRET_STORE_MASTER_KEY: ${SECRET_STORE_MASTER_KEY:-12345678901234567890123456789012}
+      LOG_KAFKA_BROKERS: redpanda:9092
+      LOG_KAFKA_CLIENT_ID: shipsec-ce-worker
+      LOG_KAFKA_TOPIC: telemetry.logs
+      EVENT_KAFKA_CLIENT_ID: shipsec-ce-worker-events
+      EVENT_KAFKA_TOPIC: telemetry.events
+      AGENT_TRACE_KAFKA_CLIENT_ID: shipsec-ce-worker-agent-trace
+      AGENT_TRACE_KAFKA_TOPIC: telemetry.agent-trace
+      NODE_IO_KAFKA_CLIENT_ID: shipsec-ce-worker-node-io
+      NODE_IO_KAFKA_TOPIC: telemetry.node-io
+      ASSET_EVENT_KAFKA_TOPIC: asset.events
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-internal-token}
+      REDIS_URL: redis://redis:6379
+      LOKI_URL: http://loki:3100
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_DATABASE: shipsec
+      BACKEND_URL: http://backend:3211
+      STUDIO_API_BASE_URL: http://backend:3211/api/v1
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: shipsec-ce
+      TEMPORAL_TASK_QUEUE: shipsec-ce
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: '9000'
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET_NAME: shipsec-files
+      HOTPLUG_URL: http://hotplug:10010
+      HOTPLUG_CONTROL_TOKEN: ${HOTPLUG_CONTROL_TOKEN:-hotplug-local-dev-token}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_DATABASE: neo4j
+      CARTOGRAPHY_NEO4J_URI: bolt://neo4j:7687
+      CARTOGRAPHY_DOCKER_NETWORK: shipsec-ce-network
+      NAPI_RS_FORCE_WASI: '1'
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: frontend
+      args:
+        VITE_AUTH_PROVIDER: ${VITE_AUTH_PROVIDER:-local}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3211}
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:3211}
+    image: shipsec-frontend:ce
+    command: ['bun', 'run', 'preview', '--host', '0.0.0.0', '--port', '5173']
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:5173:5173'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:5173 >/dev/null || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped

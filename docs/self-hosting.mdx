@@ -15,6 +15,11 @@ That means:
 
 This public repo intentionally focuses on the application and image build surface.
 
+It also ships a minimal CE runtime path for local and single-node validation:
+
+- `docker/docker-compose.infra.yml`
+- `docker/docker-compose.apps.yml`
+
 ## What A Studio Deployment Needs
 
 Studio expects a deployment to provide these service classes:
@@ -67,6 +72,27 @@ Typical self-hosted customizations:
 - inject external auth configuration
 - add provider credentials and integrations
 - change ingress, networking, and persistence policies
+
+## Public CE Runtime In This Repo
+
+For a single machine or VM, the public repo supports two direct paths:
+
+### Infra In Docker, Apps From Source
+
+```bash
+just init
+just infra up
+just dev
+```
+
+### Infra And Apps In Docker
+
+```bash
+just ce up
+```
+
+These are the public CE bootstrap paths. More customized deployments should use
+the published images and your own runtime layout.
 
 ## Related Docs
 

@@ -1,6 +1,6 @@
 ---
 title: "Quickstart"
-description: "Get oriented with the public Studio repo and the published application images"
+description: "Get Studio running quickly with the public CE runtime paths"
 ---
 
 ## Start Here
@@ -10,29 +10,47 @@ git clone https://github.com/ShipSecAI/studio.git
 cd studio
 ```
 
-Then choose your lane:
+Then choose your lane.
 
-- **Self-hosting**: use the published Studio images in your own deployment model
-- **Source development**: run `just init` and `just dev`
+## Source Development With Docker-Backed Infra
 
-## If You Are Self-Hosting
+```bash
+just init
+just infra up
+just dev
+```
 
-Use the published images:
+This starts the shared backing services in Docker and the Studio apps from source with PM2.
+
+Default local ports:
+
+- frontend: `http://localhost:5173`
+- backend: `http://localhost:3211`
+- Temporal UI: `http://localhost:8081`
+
+## Full CE Docker Stack
+
+```bash
+just ce up
+```
+
+This starts infra plus frontend, backend, and worker in Docker.
+
+Default local ports:
+
+- frontend: `http://localhost:5173`
+- backend: `http://localhost:3211`
+- Temporal UI: `http://localhost:8081`
+
+## Self-Hosting Beyond One Machine
+
+Use the published Studio images:
 
 - `ghcr.io/shipsecai/studio-backend:latest`
 - `ghcr.io/shipsecai/studio-worker:latest`
 - `ghcr.io/shipsecai/studio-frontend:latest`
 
 Then provide the required service classes described in [Self-Hosting](/self-hosting).
-
-## If You Are Developing From Source
-
-```bash
-just init
-just dev
-```
-
-This starts the Studio app processes from source against the runtime services configured in your env files.
 
 ## AI Setup
 
@@ -56,7 +74,9 @@ export CHAT_AI_MODEL_ID="gpt-5.4-mini"
 
 ```bash
 just init
+just infra up
 just dev
+just ce up
 just dev stop
 just dev logs
 ```

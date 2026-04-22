@@ -22,7 +22,8 @@ init:
 
     echo ""
     echo "🎉  Setup complete!"
-    echo "   Provide runtime services separately, then run: just dev"
+    echo "   Contributor path: just infra up && just dev"
+    echo "   Full CE Docker path: just ce up"
 
 # Start/stop app processes only. Runtime services are expected to be provided externally.
 dev action="start":
@@ -60,8 +61,21 @@ dev action="start":
             bun --env-file="$WK_ENV" worker/scripts/validate-env.ts
             bun --env-file="$FE_ENV" frontend/scripts/validate-env.ts
 
+            ./scripts/ensure-local-instance-db.sh "$INST"
+
             echo "🗄️  Running database migrations against configured DATABASE_URL..."
-            bun --env-file="$BE_ENV" --cwd=backend run migration:migrate
+            DB_URL="$(bun --env-file="$BE_ENV" -e 'console.log(process.env.DATABASE_URL ?? "")')"
+            EXTRA_DRIZZLE_DIRS="$(bun --env-file="$BE_ENV" -e 'console.log(process.env.SHIPSEC_EXTRA_DRIZZLE_DIRS ?? "")')"
+            if [ -z "$DB_URL" ]; then
+                echo "❌  DATABASE_URL is missing from the resolved backend env."
+                exit 1
+            fi
+            if [ -n "$EXTRA_DRIZZLE_DIRS" ]; then
+                DATABASE_URL="$DB_URL" SHIPSEC_EXTRA_DRIZZLE_DIRS="$EXTRA_DRIZZLE_DIRS" \
+                    bun --cwd=backend scripts/migrate-deploy.ts
+            else
+                DATABASE_URL="$DB_URL" bun --cwd=backend scripts/migrate-deploy.ts
+            fi
 
             ./scripts/set-git-sha.sh || true
             SHIPSEC_INSTANCE="$INST" SHIPSEC_ENV=development NODE_ENV=development \
@@ -70,6 +84,7 @@ dev action="start":
             echo ""
             echo "✅  Studio app processes started for instance ${INST}"
             echo "   Runtime services must already be available via your configured envs."
+            echo "   For the public CE stack, run: just infra up"
             ;;
         stop)
             pm2 delete shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST} 2>/dev/null || true
@@ -104,6 +119,66 @@ db-reset:
 build:
     @echo "Build published images with the root Dockerfile, for example:"
     @echo "  docker build --target backend -t ghcr.io/shipsecai/studio-backend:latest ."
+
+infra action="up" service="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    FILES=(-f docker/docker-compose.infra.yml)
+    case "{{action}}" in
+        up)
+            docker compose "${FILES[@]}" up -d --wait
+            ;;
+        down)
+            docker compose "${FILES[@]}" down
+            ;;
+        clean)
+            docker compose "${FILES[@]}" down -v
+            ;;
+        ps)
+            docker compose "${FILES[@]}" ps
+            ;;
+        logs)
+            if [ -n "{{service}}" ]; then
+                docker compose "${FILES[@]}" logs -f "{{service}}"
+            else
+                docker compose "${FILES[@]}" logs -f
+            fi
+            ;;
+        *)
+            echo "Usage: just infra [up|down|clean|ps|logs [service]]"
+            exit 1
+            ;;
+    esac
+
+ce action="up" service="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    FILES=(-f docker/docker-compose.infra.yml -f docker/docker-compose.apps.yml)
+    case "{{action}}" in
+        up)
+            docker compose "${FILES[@]}" up -d --build --wait
+            ;;
+        down)
+            docker compose "${FILES[@]}" down
+            ;;
+        clean)
+            docker compose "${FILES[@]}" down -v
+            ;;
+        ps)
+            docker compose "${FILES[@]}" ps
+            ;;
+        logs)
+            if [ -n "{{service}}" ]; then
+                docker compose "${FILES[@]}" logs -f "{{service}}"
+            else
+                docker compose "${FILES[@]}" logs -f
+            fi
+            ;;
+        *)
+            echo "Usage: just ce [up|down|clean|ps|logs [service]]"
+            exit 1
+            ;;
+    esac
 
 instance action="show" value="":
     #!/usr/bin/env bash
@@ -144,6 +219,18 @@ help:
     @echo ""
     @echo "Setup:"
     @echo "  just init                  Install deps and create env files"
+    @echo ""
+    @echo "CE Runtime:"
+    @echo "  just infra up              Start shared CE infra services in Docker"
+    @echo "  just infra down            Stop shared CE infra services"
+    @echo "  just infra clean           Stop shared CE infra services and remove volumes"
+    @echo "  just infra ps              Show CE infra service status"
+    @echo "  just infra logs [service]  Tail CE infra logs"
+    @echo "  just ce up                 Start the full CE Docker stack"
+    @echo "  just ce down               Stop the full CE Docker stack"
+    @echo "  just ce clean              Stop the full CE Docker stack and remove volumes"
+    @echo "  just ce ps                 Show full CE stack status"
+    @echo "  just ce logs [service]     Tail full CE stack logs"
     @echo ""
     @echo "Source Development:"
     @echo "  just dev                   Start app processes from source"
