@@ -10,7 +10,7 @@ init:
     echo "🔧  Setting up ShipSec Studio..."
     if [ ! -d "node_modules" ]; then
         echo "📦  Installing dependencies..."
-        HUSKY=0 bun install
+        bun install --ignore-scripts
         echo "✅  Dependencies installed"
     else
         echo "✅  Dependencies already installed"
