@@ -10,7 +10,7 @@ init:
     echo "🔧  Setting up ShipSec Studio..."
     if [ ! -d "node_modules" ]; then
         echo "📦  Installing dependencies..."
-        bun install
+        HUSKY=0 bun install
         echo "✅  Dependencies installed"
     else
         echo "✅  Dependencies already installed"
@@ -79,7 +79,7 @@ dev action="start":
 
             ./scripts/set-git-sha.sh || true
             SHIPSEC_INSTANCE="$INST" SHIPSEC_ENV=development NODE_ENV=development \
-                pm2 startOrReload pm2.config.cjs --only "$PM2_APPS" --update-env
+                bun x pm2 startOrReload pm2.config.cjs --only "$PM2_APPS" --update-env
 
             echo ""
             echo "✅  Studio app processes started for instance ${INST}"
@@ -87,17 +87,17 @@ dev action="start":
             echo "   For the public CE stack, run: just infra up"
             ;;
         stop)
-            pm2 delete shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST} 2>/dev/null || true
+            bun x pm2 delete shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST} 2>/dev/null || true
             echo "✅  Stopped instance ${INST}"
             ;;
         logs)
-            pm2 logs shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST}
+            bun x pm2 logs shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST}
             ;;
         status)
-            pm2 status
+            bun x pm2 status
             ;;
         clean)
-            pm2 delete shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST} 2>/dev/null || true
+            bun x pm2 delete shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST} 2>/dev/null || true
             echo "✅  Cleared PM2 app processes for instance ${INST}"
             ;;
         *)
@@ -109,7 +109,7 @@ dev action="start":
 status:
     #!/usr/bin/env bash
     set -euo pipefail
-    pm2 status 2>/dev/null || echo "PM2 not running"
+    bun x pm2 status 2>/dev/null || echo "PM2 not running"
 
 db-reset:
     @echo "Database reset helpers tied to runtime orchestration were removed from the public repo."
