@@ -25,24 +25,6 @@ function resolveEnvFile(appName, instance) {
   return fs.existsSync(instancePath) ? instancePath : rootPath;
 }
 
-function resolveTsxScriptPath() {
-  const packageCliPath = path.join(__dirname, 'node_modules', 'tsx', 'dist', 'cli.mjs');
-  if (fs.existsSync(packageCliPath)) {
-    return packageCliPath;
-  }
-
-  const directBinPath = path.join(__dirname, 'node_modules', '.bin', 'tsx');
-  if (fs.existsSync(directBinPath)) {
-    return directBinPath;
-  }
-
-  try {
-    return require.resolve('tsx/dist/cli.mjs', { paths: [__dirname] });
-  } catch (_) {
-    return directBinPath;
-  }
-}
-
 function getBackendEnv(instance) {
   const port = getInstancePort(3211, instance);
   const databaseUrl = `postgresql://shipsec:shipsec@localhost:5433/${getDatabaseName(instance)}`;
@@ -112,7 +94,7 @@ module.exports = {
       name: `shipsec-frontend-${instanceNum}`,
       cwd: path.join(__dirname, 'frontend'),
       script: 'bun',
-      args: 'run dev',
+      args: 'x --bun vite',
       interpreter: 'none',
       env_file: resolveEnvFile('frontend', instanceNum),
       env: {
@@ -126,8 +108,9 @@ module.exports = {
     {
       name: `shipsec-worker-${instanceNum}`,
       cwd: path.join(__dirname, 'worker'),
-      script: resolveTsxScriptPath(),
-      args: 'src/temporal/workers/dev.worker.ts',
+      script: 'bun',
+      args: 'x --bun tsx src/temporal/workers/dev.worker.ts',
+      interpreter: 'none',
       env_file: resolveEnvFile('worker', instanceNum),
       env: getWorkerEnv(instanceNum),
       time: true,
@@ -138,8 +121,9 @@ module.exports = {
     {
       name: 'shipsec-test-worker',
       cwd: path.join(__dirname, 'worker'),
-      script: resolveTsxScriptPath(),
-      args: 'src/temporal/workers/dev.worker.ts',
+      script: 'bun',
+      args: 'x --bun tsx src/temporal/workers/dev.worker.ts',
+      interpreter: 'none',
       env_file: path.join(__dirname, 'worker', '.env'),
       env: {
         NODE_ENV: 'development',
