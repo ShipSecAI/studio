@@ -324,7 +324,7 @@ export class IntegrationsRepository {
       .where(
         and(
           eq(integrationTokens.provider, 'aws'),
-          eq(integrationTokens.credentialType, 'iam_role'),
+          sql`${integrationTokens.credentialType} in ('iam_role', 'access_key')`,
           sql`${integrationTokens.metadata}->>'accountId' = ${accountId}`,
         ),
       )
@@ -339,7 +339,7 @@ export class IntegrationsRepository {
       .where(
         and(
           eq(integrationTokens.provider, 'gcp'),
-          eq(integrationTokens.credentialType, 'service_account'),
+          sql`${integrationTokens.credentialType} in ('service_account', 'service_account_key')`,
         ),
       );
   }

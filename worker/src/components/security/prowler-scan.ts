@@ -463,11 +463,34 @@ function buildAwsEnv(
   return awsEnv;
 }
 
-function buildGcpEnv(gcpCredential: NonNullable<ParsedInputs['gcpCredential']>): {
+function buildGcpEnv(
+  gcpCredential: NonNullable<ParsedInputs['gcpCredential']> & {
+    authMode?: 'impersonation' | 'service_account_key';
+    serviceAccountJson?: string;
+  },
+): {
   env: Record<string, string>;
   files: Record<string, string>;
 } {
   const keyPath = '/home/prowler/.gcp/application_default_credentials.json';
+  if (gcpCredential.authMode === 'service_account_key' && gcpCredential.serviceAccountJson) {
+    const env: Record<string, string> = {
+      GOOGLE_APPLICATION_CREDENTIALS: keyPath,
+    };
+
+    if (gcpCredential.defaultProjectId) {
+      env.GOOGLE_CLOUD_PROJECT = gcpCredential.defaultProjectId;
+      env.CLOUDSDK_CORE_PROJECT = gcpCredential.defaultProjectId;
+    }
+
+    return {
+      env,
+      files: {
+        'application_default_credentials.json': gcpCredential.serviceAccountJson,
+      },
+    };
+  }
+
   let sourceCredentialJson = process.env[GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV]?.trim();
   if (!sourceCredentialJson && process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()) {
     sourceCredentialJson = readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS.trim(), 'utf8');

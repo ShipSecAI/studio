@@ -22,16 +22,18 @@ export interface ResolvedAwsCredentials {
 }
 
 export interface ResolvedGcpCredentials {
+  authMode?: 'impersonation' | 'service_account_key';
   targetServiceAccountEmail: string;
   defaultProjectId?: string;
   organizationId?: string;
   clientEmail?: string;
+  serviceAccountJson?: string;
 }
 
 type ResolvedConnectionCredentials =
   | {
       provider: 'aws';
-      credentialType: 'iam_role';
+      credentialType: 'iam_role' | 'access_key';
       accountId?: string | null;
       region?: string | null;
       data: {
@@ -43,14 +45,16 @@ type ResolvedConnectionCredentials =
     }
   | {
       provider: 'gcp';
-      credentialType: 'service_account';
+      credentialType: 'service_account' | 'service_account_key';
       accountId?: string | null;
       region?: string | null;
       data: {
+        authMode?: 'impersonation' | 'service_account_key';
         targetServiceAccountEmail?: string;
         defaultProjectId?: string;
         organizationId?: string;
         clientEmail?: string;
+        serviceAccountJson?: string;
       };
     };
 
@@ -185,16 +189,21 @@ export async function resolveConnectionCredentials(
       secretAccessKey?: string;
       sessionToken?: string;
       region?: string;
+      authMode?: 'impersonation' | 'service_account_key';
       targetServiceAccountEmail?: string;
       defaultProjectId?: string;
       organizationId?: string;
       clientEmail?: string;
+      serviceAccountJson?: string;
     };
   }>(`/integrations/connections/${connectionId}/credentials`, {
     organizationId,
   });
 
-  if (payload.provider === 'aws' && payload.credentialType === 'iam_role') {
+  if (
+    payload.provider === 'aws' &&
+    (payload.credentialType === 'iam_role' || payload.credentialType === 'access_key')
+  ) {
     const accessKeyId = payload.data?.accessKeyId;
     const secretAccessKey = payload.data?.secretAccessKey;
     if (!accessKeyId || !secretAccessKey) {
@@ -203,7 +212,7 @@ export async function resolveConnectionCredentials(
 
     return {
       provider: 'aws',
-      credentialType: 'iam_role',
+      credentialType: payload.credentialType,
       accountId: payload.accountId,
       region: payload.region,
       data: {
@@ -215,7 +224,11 @@ export async function resolveConnectionCredentials(
     };
   }
 
-  if (payload.provider === 'gcp' && payload.credentialType === 'service_account') {
+  if (
+    payload.provider === 'gcp' &&
+    (payload.credentialType === 'service_account' ||
+      payload.credentialType === 'service_account_key')
+  ) {
     const targetServiceAccountEmail = payload.data?.targetServiceAccountEmail;
     if (!targetServiceAccountEmail) {
       throw new Error(
@@ -225,14 +238,16 @@ export async function resolveConnectionCredentials(
 
     return {
       provider: 'gcp',
-      credentialType: 'service_account',
+      credentialType: payload.credentialType,
       accountId: payload.accountId,
       region: payload.region,
       data: {
+        authMode: payload.data?.authMode,
         targetServiceAccountEmail,
         defaultProjectId: payload.data?.defaultProjectId,
         organizationId: payload.data?.organizationId,
         clientEmail: payload.data?.clientEmail,
+        serviceAccountJson: payload.data?.serviceAccountJson,
       },
     };
   }

@@ -20,10 +20,12 @@ export const gcpCredentialContractName = 'core.credential.gcp';
 export const gcpCredentialSchema = () =>
   withPortMeta(
     z.object({
+      authMode: z.enum(['impersonation', 'service_account_key']).optional(),
       targetServiceAccountEmail: z.string().email(),
       defaultProjectId: z.string().optional(),
       organizationId: z.string().optional(),
       clientEmail: z.string().optional(),
+      serviceAccountJson: z.string().optional(),
     }),
     { schemaName: gcpCredentialContractName, isCredential: true },
   );

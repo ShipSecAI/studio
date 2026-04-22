@@ -49,6 +49,10 @@ export function loadIntegrationProviders(): Record<string, IntegrationProviderCo
     'team:read',
   ];
 
+  const jiraScopes = process.env.JIRA_OAUTH_SCOPES?.split(',')
+    .map((scope) => scope.trim())
+    .filter(Boolean) ?? ['read:jira-user', 'read:jira-work', 'write:jira-work', 'offline_access'];
+
   return {
     zoom: {
       id: 'zoom',
@@ -85,6 +89,26 @@ export function loadIntegrationProviders(): Record<string, IntegrationProviderCo
       tokenAuthMethod: 'client_secret_post',
       clientId: process.env.SLACK_OAUTH_CLIENT_ID ?? null,
       clientSecret: process.env.SLACK_OAUTH_CLIENT_SECRET ?? null,
+    },
+    jira: {
+      id: 'jira',
+      name: 'Jira',
+      description: 'Create and manage Jira issues through Atlassian OAuth.',
+      docsUrl: 'https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/',
+      authorizeUrl: 'https://auth.atlassian.com/authorize',
+      tokenUrl: 'https://auth.atlassian.com/oauth/token',
+      defaultScopes: jiraScopes,
+      scopeSeparator: ' ',
+      supportsRefresh: true,
+      usesPkce: false,
+      tokenRequestEncoding: 'json',
+      tokenAuthMethod: 'client_secret_post',
+      extraAuthorizeParams: {
+        audience: 'api.atlassian.com',
+        prompt: 'consent',
+      },
+      clientId: process.env.JIRA_OAUTH_CLIENT_ID ?? null,
+      clientSecret: process.env.JIRA_OAUTH_CLIENT_SECRET ?? null,
     },
   };
 }

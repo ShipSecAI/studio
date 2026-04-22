@@ -18,7 +18,9 @@ const ASSET_DISCOVERY_ENABLED = process.env.ASSET_DISCOVERY_ENABLED !== 'false';
 const SYNC_RATE_LIMIT_MS = 5 * 60 * 1000; // 5 minutes
 const SUPPORTED_CLOUD_CREDENTIALS: readonly { provider: string; credentialType: string }[] = [
   { provider: 'aws', credentialType: 'iam_role' },
+  { provider: 'aws', credentialType: 'access_key' },
   { provider: 'gcp', credentialType: 'service_account' },
+  { provider: 'gcp', credentialType: 'service_account_key' },
 ];
 
 @Injectable()
@@ -59,7 +61,7 @@ export class AssetSyncService {
 
     if (!isSupportedCloudConnection(connection)) {
       throw new BadRequestException(
-        'Only AWS IAM role and GCP service account connections support asset sync',
+        'Only supported AWS and GCP integration connections support asset sync',
       );
     }
 
@@ -118,7 +120,7 @@ export class AssetSyncService {
       );
       if (!isSupportedCloudConnection(selectedConnection)) {
         throw new BadRequestException(
-          'Only AWS IAM role and GCP service account connections support asset sync',
+          'Only supported AWS and GCP integration connections support asset sync',
         );
       }
     }
@@ -232,7 +234,7 @@ function extractConnectionIdentifiers(
   credentialType: string,
   metadata: Record<string, unknown>,
 ): string[] {
-  if (provider === 'aws' && credentialType === 'iam_role') {
+  if (provider === 'aws' && (credentialType === 'iam_role' || credentialType === 'access_key')) {
     const accountId =
       (typeof metadata.accountId === 'string' && metadata.accountId.trim()) ||
       (typeof metadata.roleArn === 'string'
@@ -241,7 +243,10 @@ function extractConnectionIdentifiers(
     return accountId ? [accountId] : [];
   }
 
-  if (provider !== 'gcp' || credentialType !== 'service_account') {
+  if (
+    provider !== 'gcp' ||
+    (credentialType !== 'service_account' && credentialType !== 'service_account_key')
+  ) {
     return [];
   }
 

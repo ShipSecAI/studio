@@ -3120,6 +3120,37 @@
         ]
       }
     },
+    "/api/v1/integrations/aws/connections/access-key": {
+      "post": {
+        "operationId": "IntegrationsController_createAwsAccessKeyConnection",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAwsAccessKeyConnectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationConnectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/api/v1/integrations/aws/connections/{id}/validate": {
       "post": {
         "operationId": "IntegrationsController_validateAwsConnection",
@@ -3160,6 +3191,37 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateGcpConnectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationConnectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/gcp/connections/service-account-key": {
+      "post": {
+        "operationId": "IntegrationsController_createGcpServiceAccountKeyConnection",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGcpServiceAccountKeyConnectionDto"
               }
             }
           }
@@ -14858,6 +14920,39 @@
           "setupToken"
         ]
       },
+      "CreateAwsAccessKeyConnectionDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Display name for this connection"
+          },
+          "accessKeyId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "AWS access key ID"
+          },
+          "secretAccessKey": {
+            "type": "string",
+            "minLength": 1,
+            "description": "AWS secret access key"
+          },
+          "sessionToken": {
+            "description": "Optional AWS session token",
+            "type": "string"
+          },
+          "region": {
+            "description": "Default AWS region",
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "accessKeyId",
+          "secretAccessKey"
+        ]
+      },
       "ValidateAwsResponseDto": {
         "type": "object",
         "properties": {
@@ -14906,6 +15001,35 @@
         "required": [
           "displayName",
           "targetServiceAccountEmail"
+        ]
+      },
+      "CreateGcpServiceAccountKeyConnectionDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Display name for this connection"
+          },
+          "serviceAccountJson": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Raw Google service-account JSON key payload"
+          },
+          "defaultProjectId": {
+            "description": "Optional default GCP project ID",
+            "type": "string",
+            "minLength": 1
+          },
+          "organizationId": {
+            "description": "Optional GCP organization ID",
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "displayName",
+          "serviceAccountJson"
         ]
       },
       "ValidateGcpResponseDto": {

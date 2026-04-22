@@ -25,8 +25,10 @@ import {
   CompleteOAuthDto,
   ConnectionCredentialsResponseDto,
   ConnectionTokenResponseDto,
+  CreateAwsAccessKeyConnectionDto,
   CreateAwsConnectionDto,
   CreateGcpConnectionDto,
+  CreateGcpServiceAccountKeyConnectionDto,
   CreateSlackWebhookConnectionDto,
   CreateJiraForgeConnectionDto,
   DiscoverGcpProjectsResponseDto,
@@ -339,6 +341,20 @@ export class IntegrationsController {
     return this.toConnectionResponse(connection);
   }
 
+  @Post('aws/connections/access-key')
+  @ApiOkResponse({ type: IntegrationConnectionResponse })
+  async createAwsAccessKeyConnection(
+    @CurrentAuth() auth: AuthContext | null,
+    @Body() body: CreateAwsAccessKeyConnectionDto,
+  ): Promise<IntegrationConnectionResponse> {
+    if (!auth?.userId || !auth?.organizationId) {
+      throw new BadRequestException('Authentication with organization context required');
+    }
+
+    const connection = await this.integrations.createAwsAccessKeyConnection(auth, body);
+    return this.toConnectionResponse(connection);
+  }
+
   @Post('aws/connections/:id/validate')
   @ApiOkResponse({ type: ValidateAwsResponseDto })
   async validateAwsConnection(
@@ -369,6 +385,20 @@ export class IntegrationsController {
     }
 
     const connection = await this.integrations.createGcpConnection(auth, body);
+    return this.toConnectionResponse(connection);
+  }
+
+  @Post('gcp/connections/service-account-key')
+  @ApiOkResponse({ type: IntegrationConnectionResponse })
+  async createGcpServiceAccountKeyConnection(
+    @CurrentAuth() auth: AuthContext | null,
+    @Body() body: CreateGcpServiceAccountKeyConnectionDto,
+  ): Promise<IntegrationConnectionResponse> {
+    if (!auth?.userId || !auth?.organizationId) {
+      throw new BadRequestException('Authentication with organization context required');
+    }
+
+    const connection = await this.integrations.createGcpServiceAccountKeyConnection(auth, body);
     return this.toConnectionResponse(connection);
   }
 

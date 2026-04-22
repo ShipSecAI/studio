@@ -42,10 +42,12 @@ export interface CartographyAwsProfileInput {
 }
 
 export interface CartographyGcpCredentialInput {
+  authMode?: 'impersonation' | 'service_account_key';
   targetServiceAccountEmail: string;
   defaultProjectId?: string;
   organizationId?: string;
   clientEmail?: string;
+  serviceAccountJson?: string;
 }
 
 export interface CartographyRunnerInput {
@@ -71,15 +73,12 @@ const inputSchema = inputs({
       connectionType: { kind: 'contract', name: 'core.credential.aws', credential: true },
     },
   ),
-  gcpCredential: port(
-    gcpCredentialSchema().optional().describe('GCP impersonation credentials for GCP sync.'),
-    {
-      label: 'GCP Credentials',
-      description:
-        'Structured GCP credential object (`{ targetServiceAccountEmail, defaultProjectId?, organizationId?, clientEmail? }`). Required when syncing GCP.',
-      connectionType: { kind: 'contract', name: 'core.credential.gcp', credential: true },
-    },
-  ),
+  gcpCredential: port(gcpCredentialSchema().optional().describe('GCP credentials for GCP sync.'), {
+    label: 'GCP Credentials',
+    description:
+      'Structured GCP credential object for either impersonation or service-account-key access. Required when syncing GCP.',
+    connectionType: { kind: 'contract', name: 'core.credential.gcp', credential: true },
+  }),
   githubToken: port(
     z.string().optional().describe('GitHub personal access token for the GitHub module.'),
     {
@@ -242,6 +241,13 @@ async function writeGcpCredentialVolume(
   volume: IsolatedVolume,
   credential: CartographyGcpCredentialInput,
 ): Promise<void> {
+  if (credential.authMode === 'service_account_key' && credential.serviceAccountJson) {
+    await volume.initialize({
+      [GCP_APPLICATION_CREDENTIALS_FILENAME]: credential.serviceAccountJson,
+    });
+    return;
+  }
+
   let sourceCredentialJson = process.env[GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV]?.trim();
   if (!sourceCredentialJson && process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()) {
     sourceCredentialJson = await readFile(
@@ -523,7 +529,7 @@ const definition = defineComponent({
     }
     if (selectedModules.includes('gcp') && !parsedInputs.gcpCredential) {
       throw new Error(
-        'GCP module requires impersonation credentials. Connect a GCP Credentials component to the gcpCredential input.',
+        'GCP module requires GCP credentials. Connect a GCP credential source to the gcpCredential input.',
       );
     }
     if (selectedModules.includes('github') && !parsedInputs.githubToken) {

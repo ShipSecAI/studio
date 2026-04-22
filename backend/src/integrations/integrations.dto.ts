@@ -109,6 +109,17 @@ export const CreateAwsConnectionSchema = z.object({
 });
 export class CreateAwsConnectionDto extends createZodDto(CreateAwsConnectionSchema) {}
 
+export const CreateAwsAccessKeyConnectionSchema = z.object({
+  displayName: z.string().min(1).describe('Display name for this connection'),
+  accessKeyId: z.string().min(1).describe('AWS access key ID'),
+  secretAccessKey: z.string().min(1).describe('AWS secret access key'),
+  sessionToken: z.string().optional().describe('Optional AWS session token'),
+  region: z.string().optional().describe('Default AWS region'),
+});
+export class CreateAwsAccessKeyConnectionDto extends createZodDto(
+  CreateAwsAccessKeyConnectionSchema,
+) {}
+
 // --- GCP connection DTOs ---
 
 export const CreateGcpConnectionSchema = z.object({
@@ -121,6 +132,16 @@ export const CreateGcpConnectionSchema = z.object({
   organizationId: z.string().min(1).optional().describe('Optional GCP organization ID'),
 });
 export class CreateGcpConnectionDto extends createZodDto(CreateGcpConnectionSchema) {}
+
+export const CreateGcpServiceAccountKeyConnectionSchema = z.object({
+  displayName: z.string().min(1).describe('Display name for this connection'),
+  serviceAccountJson: z.string().min(1).describe('Raw Google service-account JSON key payload'),
+  defaultProjectId: z.string().min(1).optional().describe('Optional default GCP project ID'),
+  organizationId: z.string().min(1).optional().describe('Optional GCP organization ID'),
+});
+export class CreateGcpServiceAccountKeyConnectionDto extends createZodDto(
+  CreateGcpServiceAccountKeyConnectionSchema,
+) {}
 
 export const ValidateGcpResponseSchema = z.object({
   valid: z.boolean(),

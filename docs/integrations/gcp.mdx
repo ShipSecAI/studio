@@ -13,15 +13,28 @@ Use it when you need:
 
 ## OSS Setup Path
 
-The public product assumes self-managed GCP setup.
+The public product supports two self-managed GCP routes:
 
-Typical approaches:
+- service account JSON for the simplest community-edition setup
+- impersonation for short-lived access without sharing customer keys
 
-- service account access
-- impersonation where appropriate for your environment
+## Two Public GCP Routes
 
-The exact choice depends on how your organization manages GCP credentials and
-least-privilege boundaries.
+### Service Account JSON
+
+Use this when you want the simplest self-hosted path:
+
+- create a service account
+- create a JSON key
+- store that key as the Studio connection backend
+
+### Impersonation
+
+Use this when you want:
+
+- no customer key JSON stored in Studio
+- short-lived access tokens
+- a cleaner least-privilege setup for larger environments
 
 ## What The Surface Covers
 

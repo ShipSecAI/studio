@@ -1236,6 +1236,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/aws/connections/access-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_createAwsAccessKeyConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/integrations/aws/connections/{id}/validate": {
         parameters: {
             query?: never;
@@ -1262,6 +1278,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["IntegrationsController_createGcpConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/gcp/connections/service-account-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_createGcpServiceAccountKeyConnection"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5071,6 +5103,18 @@ export interface components {
             /** @description Signed setup token from setup-info endpoint */
             setupToken: string;
         };
+        CreateAwsAccessKeyConnectionDto: {
+            /** @description Display name for this connection */
+            displayName: string;
+            /** @description AWS access key ID */
+            accessKeyId: string;
+            /** @description AWS secret access key */
+            secretAccessKey: string;
+            /** @description Optional AWS session token */
+            sessionToken?: string;
+            /** @description Default AWS region */
+            region?: string;
+        };
         ValidateAwsResponseDto: {
             valid: boolean;
             accountId?: string;
@@ -5085,6 +5129,16 @@ export interface components {
              * @description GCP service account email that ShipSec should impersonate
              */
             targetServiceAccountEmail: string;
+            /** @description Optional default GCP project ID */
+            defaultProjectId?: string;
+            /** @description Optional GCP organization ID */
+            organizationId?: string;
+        };
+        CreateGcpServiceAccountKeyConnectionDto: {
+            /** @description Display name for this connection */
+            displayName: string;
+            /** @description Raw Google service-account JSON key payload */
+            serviceAccountJson: string;
             /** @description Optional default GCP project ID */
             defaultProjectId?: string;
             /** @description Optional GCP organization ID */
@@ -9119,6 +9173,29 @@ export interface operations {
             };
         };
     };
+    IntegrationsController_createAwsAccessKeyConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAwsAccessKeyConnectionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationConnectionResponse"];
+                };
+            };
+        };
+    };
     IntegrationsController_validateAwsConnection: {
         parameters: {
             query?: never;
@@ -9150,6 +9227,29 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CreateGcpConnectionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationConnectionResponse"];
+                };
+            };
+        };
+    };
+    IntegrationsController_createGcpServiceAccountKeyConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGcpServiceAccountKeyConnectionDto"];
             };
         };
         responses: {

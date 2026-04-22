@@ -9,6 +9,7 @@ import {
   param,
   ConfigurationError,
 } from '@shipsec/component-sdk';
+import { fetchConnectionCredentials } from '../core/integration-credential-resolver.shared';
 
 const LOG_PREFIX = '[Jira Create Issue]';
 
@@ -21,9 +22,20 @@ const inputSchema = inputs({
     allowAny: true,
     reason: 'Accepts any structured security findings data from upstream scanners.',
   }),
+  connectionId: port(z.string().trim().optional(), {
+    label: 'Connection ID',
+    description: 'Optional Jira integration connection ID.',
+    connectionType: { kind: 'primitive', name: 'text' },
+  }),
 });
 
 const parameterSchema = parameters({
+  connectionId: param(z.string().trim().optional(), {
+    label: 'Connection ID',
+    editor: 'text',
+    description:
+      'Optional Jira connection ID. When set, Studio resolves the Jira backend automatically.',
+  }),
   webTriggerUrl: param(z.string().url(), {
     label: 'Jira Web Trigger URL',
     editor: 'secret',
@@ -146,6 +158,82 @@ async function callJiraMcp(
   return text ? JSON.parse(text) : null;
 }
 
+function toAdfParagraphs(text: string) {
+  return text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => ({
+      type: 'paragraph',
+      content: [{ type: 'text', text: paragraph }],
+    }));
+}
+
+function toAdfDoc(text: string) {
+  return {
+    type: 'doc',
+    version: 1,
+    content: toAdfParagraphs(text),
+  };
+}
+
+async function createIssueViaOAuth(input: {
+  accessToken: string;
+  cloudId: string;
+  siteUrl?: string;
+  projectKey: string;
+  issueType: string;
+  summary: string;
+  description?: string;
+  labels?: string[];
+  priority?: string;
+  assigneeAccountId?: string;
+}) {
+  const fields: Record<string, unknown> = {
+    project: { key: input.projectKey },
+    issuetype: { name: input.issueType },
+    summary: input.summary,
+  };
+
+  if (input.description?.trim()) {
+    fields.description = toAdfDoc(input.description.trim());
+  }
+  if (input.labels && input.labels.length > 0) {
+    fields.labels = input.labels;
+  }
+  if (input.priority?.trim()) {
+    fields.priority = { name: input.priority.trim() };
+  }
+  if (input.assigneeAccountId?.trim()) {
+    fields.assignee = { id: input.assigneeAccountId.trim() };
+  }
+
+  const response = await fetch(
+    `https://api.atlassian.com/ex/jira/${encodeURIComponent(input.cloudId)}/rest/api/3/issue`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.accessToken}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ fields }),
+    },
+  );
+
+  if (!response.ok) {
+    const raw = await response.text();
+    throw new Error(`Jira OAuth request failed: ${response.status} ${raw}`);
+  }
+
+  const result = (await response.json()) as { id: string; key: string; self: string };
+  const issueUrl = input.siteUrl
+    ? `${input.siteUrl.replace(/\/$/, '')}/browse/${result.key}`
+    : result.self;
+
+  return { ...result, issueUrl };
+}
+
 const definition = defineComponent({
   id: 'jira.create-issue',
   label: 'Jira: Create Issue',
@@ -186,13 +274,11 @@ const definition = defineComponent({
       labels,
       priority,
       assigneeAccountId,
+      connectionId: parameterConnectionId,
     } = params;
 
-    if (!webTriggerUrl) {
-      throw new ConfigurationError(
-        'Jira Web Trigger URL is required. Configure it in Integrations → Jira.',
-      );
-    }
+    const connectionId = (inputs.connectionId || parameterConnectionId || '').trim();
+
     if (!projectKey) {
       throw new ConfigurationError('Jira Project Key is required.');
     }
@@ -218,31 +304,116 @@ const definition = defineComponent({
       fullDescription += `**Security Findings:**\n\`\`\`\n${findingsText}\n\`\`\``;
     }
 
-    const createArgs: Record<string, unknown> = {
-      projectKey,
-      issueType,
-      summary,
-      priority,
-    };
+    const parsedLabels = labels
+      ? labels
+          .split(',')
+          .map((l: string) => l.trim())
+          .filter(Boolean)
+      : [];
 
-    if (fullDescription) createArgs.description = fullDescription;
-    if (labels)
-      createArgs.labels = labels
-        .split(',')
-        .map((l: string) => l.trim())
-        .filter(Boolean);
-    if (assigneeAccountId) createArgs.assigneeAccountId = assigneeAccountId;
+    let result:
+      | {
+          id: string;
+          key: string;
+          self: string;
+          issueUrl?: string;
+        }
+      | undefined;
 
-    const result = (await callJiraMcp(
-      webTriggerUrl,
-      sharedSecret,
-      'createJiraIssue',
-      createArgs,
-    )) as {
-      id: string;
-      key: string;
-      self: string;
-    };
+    if (connectionId) {
+      const payload = await fetchConnectionCredentials(
+        connectionId,
+        context.metadata.organizationId ?? null,
+        context,
+      );
+
+      if (payload.provider !== 'jira') {
+        throw new ConfigurationError(
+          `Expected a Jira connection but received provider '${payload.provider}'.`,
+          { configKey: 'connectionId' },
+        );
+      }
+
+      if (payload.credentialType === 'forge_app') {
+        const resolvedWebTriggerUrl =
+          typeof payload.data.webTriggerUrl === 'string' ? payload.data.webTriggerUrl : '';
+        const resolvedSharedSecret =
+          typeof payload.data.sharedSecret === 'string' ? payload.data.sharedSecret : '';
+        if (!resolvedWebTriggerUrl) {
+          throw new ConfigurationError('Resolved Jira app connection is missing webTriggerUrl.', {
+            configKey: 'connectionId',
+          });
+        }
+
+        result = (await callJiraMcp(
+          resolvedWebTriggerUrl,
+          resolvedSharedSecret,
+          'createJiraIssue',
+          {
+            projectKey,
+            issueType,
+            summary,
+            priority,
+            ...(fullDescription ? { description: fullDescription } : {}),
+            ...(parsedLabels.length > 0 ? { labels: parsedLabels } : {}),
+            ...(assigneeAccountId ? { assigneeAccountId } : {}),
+          },
+        )) as {
+          id: string;
+          key: string;
+          self: string;
+        };
+      } else if (payload.credentialType === 'oauth') {
+        const accessToken =
+          typeof payload.data.accessToken === 'string' ? payload.data.accessToken : '';
+        const cloudId = typeof payload.data.cloudId === 'string' ? payload.data.cloudId : '';
+        const siteUrl = typeof payload.data.siteUrl === 'string' ? payload.data.siteUrl : undefined;
+        if (!accessToken || !cloudId) {
+          throw new ConfigurationError(
+            'Resolved Jira OAuth connection is missing access token or site information.',
+            { configKey: 'connectionId' },
+          );
+        }
+
+        result = await createIssueViaOAuth({
+          accessToken,
+          cloudId,
+          siteUrl,
+          projectKey,
+          issueType,
+          summary,
+          description: fullDescription,
+          labels: parsedLabels,
+          priority,
+          assigneeAccountId,
+        });
+      } else {
+        throw new ConfigurationError(
+          `Unsupported Jira credential type '${payload.credentialType}'.`,
+          { configKey: 'connectionId' },
+        );
+      }
+    } else {
+      if (!webTriggerUrl) {
+        throw new ConfigurationError(
+          'Jira Web Trigger URL is required. Configure it in Integrations → Jira.',
+        );
+      }
+
+      result = (await callJiraMcp(webTriggerUrl, sharedSecret, 'createJiraIssue', {
+        projectKey,
+        issueType,
+        summary,
+        priority,
+        ...(fullDescription ? { description: fullDescription } : {}),
+        ...(parsedLabels.length > 0 ? { labels: parsedLabels } : {}),
+        ...(assigneeAccountId ? { assigneeAccountId } : {}),
+      })) as {
+        id: string;
+        key: string;
+        self: string;
+      };
+    }
 
     if (!result?.key) {
       throw new Error(`Unexpected Jira response: ${JSON.stringify(result)}`);
@@ -251,7 +422,8 @@ const definition = defineComponent({
     // Extract the site URL from the self link
     // self: "https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3/issue/12345"
     // We want: "https://{site}.atlassian.net/browse/{key}"
-    const issueUrl = result.self.replace(/\/rest\/api\/3\/issue\/.*$/, `/browse/${result.key}`);
+    const issueUrl =
+      result.issueUrl ?? result.self.replace(/\/rest\/api\/3\/issue\/.*$/, `/browse/${result.key}`);
 
     context.logger.info(`${LOG_PREFIX} Created ${result.key}`);
     context.emitProgress({

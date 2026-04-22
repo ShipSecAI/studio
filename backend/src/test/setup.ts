@@ -10,5 +10,3 @@ if (!process.env.DATABASE_URL) {
 if (!process.env.LOG_KAFKA_BROKERS) {
   process.env.LOG_KAFKA_BROKERS = 'localhost:9092';
 }
-
-import '../../../frontend/src/test/setup.ts';

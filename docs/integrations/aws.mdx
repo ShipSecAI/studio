@@ -17,9 +17,27 @@ Use it when you need:
 
 Common self-hosted paths:
 
-- access keys
-- IAM role or AssumeRole configuration
+- access keys for the simplest community-edition setup
+- IAM role or AssumeRole configuration for short-lived credentials and stronger isolation
 - AWS Organizations discovery for multi-account workflows
+
+## Two Public AWS Routes
+
+### Access Key
+
+Use this when you want the simplest self-hosted setup:
+
+- create an AWS access key and secret key
+- store that connection in Studio
+- let workflows resolve those credentials at runtime
+
+### IAM Role / AssumeRole
+
+Use this when you want:
+
+- short-lived credentials
+- stronger separation between Studio and the target account
+- easier revocation through IAM trust policy changes
 
 ## How AWS Fits Into Workflows
 
@@ -42,7 +60,8 @@ A common public flow is:
 The workflow should reference the AWS connection, not long-lived raw secrets in
 the graph itself.
 
-That keeps the AWS setup reusable and easier to rotate.
+That keeps the AWS setup reusable regardless of whether the backend is a stored
+access key or an assumed role.
 
 ## Self-Hosted vs ShipSec Cloud
 

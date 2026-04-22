@@ -24,11 +24,20 @@ import { getCatalog, type IntegrationProviderDefinition } from './integration-ca
 import { IntegrationsRepository } from './integrations.repository';
 import { TokenEncryptionService } from './token.encryption';
 import { AwsService } from './aws.service';
-import { GcpService, type GcpValidationMetadata } from './gcp.service';
+import {
+  GcpService,
+  type GcpValidationMetadata,
+  type ServiceAccountKeyValidationResult,
+} from './gcp.service';
 import { SlackService } from './slack.service';
 import { SetupTokenService } from './setup-token.service';
 import { generateExternalId, formatExternalIdForDisplay } from './external-id-generator';
-import type { CreateAwsConnectionDto, CreateGcpConnectionDto } from './integrations.dto';
+import type {
+  CreateAwsAccessKeyConnectionDto,
+  CreateAwsConnectionDto,
+  CreateGcpConnectionDto,
+  CreateGcpServiceAccountKeyConnectionDto,
+} from './integrations.dto';
 import type { IntegrationTokenRecord } from '../database/schema';
 import type { AuthContext } from '../auth/types';
 
@@ -85,6 +94,14 @@ interface TokenRequestOptions {
   codeVerifier?: string | null;
   scopes?: string[];
   additionalParams?: Record<string, string>;
+}
+
+interface JiraAccessibleResource {
+  id: string;
+  url: string;
+  name: string;
+  scopes?: string[];
+  avatarUrl?: string;
 }
 
 function extractGcpScopeIdentifiers(metadata: Record<string, unknown>): Set<string> {
@@ -391,30 +408,19 @@ export class IntegrationsService implements OnModuleInit {
       scopes,
     });
 
-    // For Slack, extract workspace name from the token response for a better display name
-    const displayName = rawResponse?.team?.name ?? rawResponse?.team_name ?? providerId;
-
-    // For Slack, fetch the workspace icon via team.info (best-effort, non-blocking)
-    if (providerId === 'slack' && rawResponse?.access_token) {
-      try {
-        const teamInfo = await this.slackService.getTeamInfo(rawResponse.access_token);
-        if (teamInfo.ok && teamInfo.icon) {
-          rawResponse._teamIcon = teamInfo.icon;
-        }
-      } catch {
-        // Non-critical — icon will simply be absent
-      }
-    }
+    const oauthContext = await this.buildOAuthConnectionContext(providerId, rawResponse);
 
     const previous = await this.repository.findByUserAndProvider(userId, providerId);
     const persisted = await this.persistTokenResponse({
       userId,
       organizationId,
       credentialType: 'oauth',
-      displayName,
+      displayName: oauthContext.displayName,
+      naturalKey: oauthContext.naturalKey,
       provider,
       scopes,
       rawResponse,
+      metadataPatch: oauthContext.metadata,
       previous,
     });
     this.logger.log(`[completeOAuth] Connection persisted: ${persisted.id}`);
@@ -670,6 +676,71 @@ export class IntegrationsService implements OnModuleInit {
     return this.toConnection(record);
   }
 
+  async createAwsAccessKeyConnection(
+    auth: AuthContext,
+    input: CreateAwsAccessKeyConnectionDto,
+  ): Promise<IntegrationConnection> {
+    const orgId = auth.organizationId!;
+    const userId = auth.userId!;
+
+    const identity = await this.awsService.getCallerIdentity({
+      accessKeyId: input.accessKeyId.trim(),
+      secretAccessKey: input.secretAccessKey.trim(),
+      sessionToken: input.sessionToken?.trim() || undefined,
+      region: input.region?.trim() || undefined,
+    });
+
+    if (identity.accountId) {
+      const existing = await this.repository.findAwsConnectionByAccountId(identity.accountId);
+      if (existing && existing.organizationId !== orgId) {
+        throw new BadRequestException(
+          `AWS account ${identity.accountId} is already connected to another organization. Shared-account isolation is not supported in the current Cartography model.`,
+        );
+      }
+    }
+
+    const encryptedCreds = await this.encryption.encrypt(
+      JSON.stringify({
+        accessKeyId: input.accessKeyId.trim(),
+        secretAccessKey: input.secretAccessKey.trim(),
+        sessionToken: input.sessionToken?.trim() || undefined,
+        region: input.region?.trim() || undefined,
+      }),
+    );
+
+    const { record, isNew } = await this.repository.insertConnection({
+      userId,
+      provider: 'aws',
+      organizationId: orgId,
+      credentialType: 'access_key',
+      displayName: input.displayName,
+      scopes: [],
+      accessToken: encryptedCreds,
+      refreshToken: null,
+      tokenType: 'Bearer',
+      expiresAt: null,
+      lastValidatedAt: new Date(),
+      lastValidationStatus: 'valid',
+      metadata: {
+        accountId: identity.accountId || null,
+        arn: identity.arn || null,
+        region: input.region?.trim() || null,
+      },
+    });
+
+    this.emitConnectionEvent({
+      connectionId: record.id,
+      provider: 'aws',
+      credentialType: 'access_key',
+      organizationId: orgId,
+      userId,
+      isReconnect: !isNew,
+      region: input.region,
+    });
+
+    return this.toConnection(record);
+  }
+
   async createGcpConnection(
     auth: AuthContext,
     input: CreateGcpConnectionDto,
@@ -752,6 +823,92 @@ export class IntegrationsService implements OnModuleInit {
     });
   }
 
+  async createGcpServiceAccountKeyConnection(
+    auth: AuthContext,
+    input: CreateGcpServiceAccountKeyConnectionDto,
+  ): Promise<IntegrationConnection> {
+    const orgId = auth.organizationId!;
+    const userId = auth.userId!;
+
+    const validation = await this.gcpService.validateServiceAccountKey({
+      serviceAccountJson: input.serviceAccountJson,
+      defaultProjectId: input.defaultProjectId,
+      organizationId: input.organizationId,
+    });
+
+    const encryptedCreds = await this.encryption.encrypt(
+      JSON.stringify({
+        authMode: 'service_account_key',
+        serviceAccountJson: input.serviceAccountJson,
+      }),
+    );
+
+    const metadata: GcpValidationMetadata = {
+      defaultProjectId: input.defaultProjectId?.trim() || validation.defaultProjectId || null,
+      organizationId: input.organizationId?.trim() || validation.organizationId || null,
+      clientEmail: validation.serviceAccountEmail,
+      targetServiceAccountEmail: validation.serviceAccountEmail,
+      discoveredResources: validation.projects,
+    };
+
+    await this.assertGcpScopeIsolation(orgId, metadata);
+    const naturalKey = buildGcpConnectionNaturalKey({
+      serviceAccountEmail: validation.serviceAccountEmail,
+      defaultProjectId: metadata.defaultProjectId,
+      organizationId: metadata.organizationId,
+    });
+
+    const existing = await this.repository.findConnectionByNaturalKey({
+      organizationId: orgId,
+      provider: 'gcp',
+      credentialType: 'service_account_key',
+      naturalKey,
+    });
+    const now = new Date();
+    const record = await this.repository.upsertConnection({
+      userId,
+      provider: 'gcp',
+      organizationId: orgId,
+      credentialType: 'service_account_key',
+      displayName: input.displayName,
+      naturalKey,
+      scopes: [],
+      accessToken: encryptedCreds,
+      refreshToken: null,
+      tokenType: 'Bearer',
+      expiresAt: null,
+      metadata,
+    });
+
+    await this.repository.updateConnectionHealth(record.id, {
+      lastValidatedAt: now,
+      lastValidationStatus: 'valid',
+      lastValidationError: null,
+      metadata,
+    });
+
+    this.emitConnectionEvent({
+      connectionId: record.id,
+      provider: 'gcp',
+      credentialType: 'service_account_key',
+      organizationId: orgId,
+      userId,
+      isReconnect: Boolean(existing),
+    });
+
+    return this.toConnection({
+      ...record,
+      lastValidatedAt: now,
+      lastValidationStatus: 'valid',
+      lastValidationError: null,
+      metadata: this.redactConnectionMetadata({
+        ...record,
+        credentialType: 'service_account_key',
+        metadata,
+      }),
+    });
+  }
+
   async validateGcpConnection(connectionId: string): Promise<{
     valid: boolean;
     serviceAccountEmail?: string;
@@ -776,14 +933,27 @@ export class IntegrationsService implements OnModuleInit {
     const metadata = this.coerceMetadata(record.metadata);
 
     try {
-      const result = await this.gcpService.validateServiceAccount({
-        targetServiceAccountEmail:
-          this.parseGcpCredentialPayload(decrypted).targetServiceAccountEmail,
-        defaultProjectId:
-          typeof metadata.defaultProjectId === 'string' ? metadata.defaultProjectId : undefined,
-        organizationId:
-          typeof metadata.organizationId === 'string' ? metadata.organizationId : undefined,
-      });
+      const parsed = this.parseGcpCredentialPayload(decrypted);
+      const result: ServiceAccountKeyValidationResult | GcpValidationMetadata =
+        parsed.authMode === 'service_account_key'
+          ? await this.gcpService.validateServiceAccountKey({
+              serviceAccountJson: parsed.serviceAccountJson,
+              defaultProjectId:
+                typeof metadata.defaultProjectId === 'string'
+                  ? metadata.defaultProjectId
+                  : undefined,
+              organizationId:
+                typeof metadata.organizationId === 'string' ? metadata.organizationId : undefined,
+            })
+          : await this.gcpService.validateServiceAccount({
+              targetServiceAccountEmail: parsed.targetServiceAccountEmail,
+              defaultProjectId:
+                typeof metadata.defaultProjectId === 'string'
+                  ? metadata.defaultProjectId
+                  : undefined,
+              organizationId:
+                typeof metadata.organizationId === 'string' ? metadata.organizationId : undefined,
+            });
 
       await this.repository.updateConnectionHealth(connectionId, {
         lastValidatedAt: new Date(),
@@ -792,7 +962,8 @@ export class IntegrationsService implements OnModuleInit {
           ...metadata,
           clientEmail: result.serviceAccountEmail,
           targetServiceAccountEmail: result.serviceAccountEmail,
-          serviceAccountUniqueId: result.serviceAccountUniqueId ?? null,
+          serviceAccountUniqueId:
+            'serviceAccountUniqueId' in result ? (result.serviceAccountUniqueId ?? null) : null,
           discoveredResources: result.projects,
           defaultProjectId: result.defaultProjectId ?? metadata.defaultProjectId ?? null,
           organizationId: result.organizationId ?? metadata.organizationId ?? null,
@@ -834,10 +1005,15 @@ export class IntegrationsService implements OnModuleInit {
 
     const decrypted = await this.encryption.decrypt(record.accessToken as SecretEncryptionMaterial);
     const metadata = this.coerceMetadata(record.metadata);
-    const resources = await this.gcpService.discoverProjects({
-      targetServiceAccountEmail:
-        this.parseGcpCredentialPayload(decrypted).targetServiceAccountEmail,
-    });
+    const parsed = this.parseGcpCredentialPayload(decrypted);
+    const resources =
+      parsed.authMode === 'service_account_key'
+        ? await this.gcpService.discoverProjectsWithServiceAccountKey({
+            serviceAccountJson: parsed.serviceAccountJson,
+          })
+        : await this.gcpService.discoverProjects({
+            targetServiceAccountEmail: parsed.targetServiceAccountEmail,
+          });
     await this.repository.updateConnectionHealth(connectionId, {
       lastValidatedAt: new Date(),
       lastValidationStatus: 'valid',
@@ -854,7 +1030,7 @@ export class IntegrationsService implements OnModuleInit {
     const accountIds = new Set<string>();
 
     for (const record of records) {
-      if (record.credentialType !== 'iam_role') continue;
+      if (!['iam_role', 'access_key'].includes(record.credentialType)) continue;
       const metadata = this.coerceMetadata(record.metadata);
 
       const accountId =
@@ -1012,6 +1188,30 @@ export class IntegrationsService implements OnModuleInit {
       } catch (error: any) {
         result = { valid: false, error: error.message };
       }
+    } else if (record.provider === 'aws' && record.credentialType === 'access_key') {
+      const creds = JSON.parse(decrypted);
+      try {
+        const identity = await this.awsService.getCallerIdentity({
+          accessKeyId: creds.accessKeyId,
+          secretAccessKey: creds.secretAccessKey,
+          sessionToken: creds.sessionToken,
+          region: creds.region,
+        });
+        result = { valid: true };
+        await this.repository.updateConnectionHealth(connectionId, {
+          lastValidatedAt: new Date(),
+          lastValidationStatus: 'valid',
+          metadata: {
+            ...this.coerceMetadata(record.metadata),
+            accountId: identity.accountId || null,
+            arn: identity.arn || null,
+            region: creds.region ?? null,
+          },
+        });
+        return result;
+      } catch (error: any) {
+        result = { valid: false, error: error.message };
+      }
     } else if (record.provider === 'gcp' && record.credentialType === 'service_account') {
       const metadata = this.coerceMetadata(record.metadata);
       try {
@@ -1035,6 +1235,39 @@ export class IntegrationsService implements OnModuleInit {
             discoveredResources: validation.projects,
             defaultProjectId: validation.defaultProjectId ?? metadata.defaultProjectId ?? null,
             organizationId: validation.organizationId ?? metadata.organizationId ?? null,
+          },
+        });
+        return result;
+      } catch (error: any) {
+        result = { valid: false, error: error.message };
+      }
+    } else if (record.provider === 'gcp' && record.credentialType === 'service_account_key') {
+      const metadata = this.coerceMetadata(record.metadata);
+      try {
+        const parsed = this.parseGcpCredentialPayload(decrypted);
+        if (parsed.authMode !== 'service_account_key') {
+          throw new UnprocessableEntityException(
+            'Stored GCP service account key credentials are malformed.',
+          );
+        }
+        const validation = await this.gcpService.validateServiceAccountKey({
+          serviceAccountJson: parsed.serviceAccountJson,
+          defaultProjectId:
+            typeof metadata.defaultProjectId === 'string' ? metadata.defaultProjectId : undefined,
+          organizationId:
+            typeof metadata.organizationId === 'string' ? metadata.organizationId : undefined,
+        });
+        result = { valid: true };
+        await this.repository.updateConnectionHealth(connectionId, {
+          lastValidatedAt: new Date(),
+          lastValidationStatus: 'valid',
+          metadata: {
+            ...metadata,
+            clientEmail: validation.serviceAccountEmail,
+            targetServiceAccountEmail: validation.serviceAccountEmail,
+            defaultProjectId: validation.defaultProjectId ?? metadata.defaultProjectId ?? null,
+            organizationId: validation.organizationId ?? metadata.organizationId ?? null,
+            discoveredResources: validation.projects,
           },
         });
         return result;
@@ -1071,6 +1304,36 @@ export class IntegrationsService implements OnModuleInit {
         } catch {
           // Non-critical — icon enrichment failure doesn't affect validation
         }
+      }
+    } else if (record.provider === 'jira' && record.credentialType === 'oauth') {
+      try {
+        const hydratedRecord = await this.ensureFreshToken(record, this.requireProvider('jira'));
+        const accessToken = await this.encryption.decrypt(
+          hydratedRecord.accessToken as SecretEncryptionMaterial,
+        );
+        const resources = await this.listJiraAccessibleResources(accessToken);
+        const selected = this.selectPreferredJiraResource(
+          resources,
+          this.coerceMetadata(record.metadata),
+        );
+        if (!selected) {
+          throw new Error('No accessible Jira sites were returned by Atlassian.');
+        }
+        await this.repository.updateConnectionHealth(connectionId, {
+          lastValidatedAt: new Date(),
+          lastValidationStatus: 'valid',
+          metadata: {
+            ...this.coerceMetadata(record.metadata),
+            cloudId: selected.id,
+            siteUrl: selected.url,
+            siteName: selected.name,
+            accessibleResources: resources,
+          },
+        });
+        result = { valid: true };
+        return result;
+      } catch (error: any) {
+        result = { valid: false, error: error.message };
       }
     } else {
       // For other types, we cannot generically validate; treat as valid.
@@ -1174,6 +1437,15 @@ export class IntegrationsService implements OnModuleInit {
           accessToken,
           tokenType: hydratedRecord.tokenType ?? 'Bearer',
         };
+        if (record.provider === 'jira') {
+          const metadata = this.coerceMetadata(hydratedRecord.metadata);
+          data = {
+            ...data,
+            cloudId: typeof metadata.cloudId === 'string' ? metadata.cloudId : undefined,
+            siteUrl: typeof metadata.siteUrl === 'string' ? metadata.siteUrl : undefined,
+            siteName: typeof metadata.siteName === 'string' ? metadata.siteName : undefined,
+          };
+        }
         break;
       }
       case 'service_account': {
@@ -1184,6 +1456,7 @@ export class IntegrationsService implements OnModuleInit {
         const metadata = this.coerceMetadata(record.metadata);
         const parsed = this.parseGcpCredentialPayload(decrypted);
         data = {
+          authMode: 'impersonation',
           targetServiceAccountEmail: parsed.targetServiceAccountEmail,
           defaultProjectId:
             typeof metadata.defaultProjectId === 'string' ? metadata.defaultProjectId : undefined,
@@ -1200,6 +1473,41 @@ export class IntegrationsService implements OnModuleInit {
             : typeof metadata.defaultProjectId === 'string'
               ? metadata.defaultProjectId
               : parsed.targetServiceAccountEmail;
+        break;
+      }
+      case 'service_account_key': {
+        if (record.provider !== 'gcp') {
+          throw new BadRequestException(
+            `Unsupported service account key provider: ${record.provider}`,
+          );
+        }
+        const metadata = this.coerceMetadata(record.metadata);
+        const parsed = this.parseGcpCredentialPayload(decrypted);
+        if (parsed.authMode !== 'service_account_key') {
+          throw new UnprocessableEntityException(
+            'Stored GCP service account key credentials are malformed.',
+          );
+        }
+        data = {
+          authMode: 'service_account_key',
+          serviceAccountJson: parsed.serviceAccountJson,
+          defaultProjectId:
+            typeof metadata.defaultProjectId === 'string' ? metadata.defaultProjectId : undefined,
+          organizationId:
+            typeof metadata.organizationId === 'string' ? metadata.organizationId : undefined,
+          clientEmail:
+            typeof metadata.clientEmail === 'string' ? metadata.clientEmail : parsed.clientEmail,
+          targetServiceAccountEmail:
+            typeof metadata.targetServiceAccountEmail === 'string'
+              ? metadata.targetServiceAccountEmail
+              : parsed.clientEmail,
+        };
+        accountId =
+          typeof metadata.organizationId === 'string'
+            ? metadata.organizationId
+            : typeof metadata.defaultProjectId === 'string'
+              ? metadata.defaultProjectId
+              : parsed.clientEmail;
         break;
       }
       case 'iam_role': {
@@ -1253,6 +1561,34 @@ export class IntegrationsService implements OnModuleInit {
         region = creds.region ?? undefined;
         break;
       }
+      case 'access_key': {
+        if (record.provider !== 'aws') {
+          throw new BadRequestException(`Unsupported access key provider: ${record.provider}`);
+        }
+        let creds: {
+          accessKeyId: string;
+          secretAccessKey: string;
+          sessionToken?: string;
+          region?: string;
+        };
+        try {
+          creds = JSON.parse(decrypted);
+        } catch {
+          throw new UnprocessableEntityException(
+            `Failed to parse AWS access key credentials for connection ${connectionId}. The stored credentials are malformed.`,
+          );
+        }
+        data = {
+          accessKeyId: creds.accessKeyId,
+          secretAccessKey: creds.secretAccessKey,
+          sessionToken: creds.sessionToken,
+          region: creds.region,
+        };
+        const metadata = this.coerceMetadata(record.metadata);
+        accountId = typeof metadata.accountId === 'string' ? metadata.accountId : undefined;
+        region = creds.region ?? undefined;
+        break;
+      }
       case 'webhook': {
         let creds: { webhookUrl: string };
         try {
@@ -1264,6 +1600,24 @@ export class IntegrationsService implements OnModuleInit {
         }
         data = {
           webhookUrl: creds.webhookUrl,
+        };
+        break;
+      }
+      case 'forge_app': {
+        if (record.provider !== 'jira') {
+          throw new BadRequestException(`Unsupported forge app provider: ${record.provider}`);
+        }
+        let creds: { webTriggerUrl: string; sharedSecret?: string };
+        try {
+          creds = JSON.parse(decrypted);
+        } catch {
+          throw new UnprocessableEntityException(
+            `Failed to parse Jira app credentials for connection ${connectionId}. The stored credentials are malformed.`,
+          );
+        }
+        data = {
+          webTriggerUrl: creds.webTriggerUrl,
+          sharedSecret: creds.sharedSecret,
         };
         break;
       }
@@ -1450,9 +1804,17 @@ export class IntegrationsService implements OnModuleInit {
     return metadata as Record<string, unknown>;
   }
 
-  private parseGcpCredentialPayload(decrypted: string): {
-    targetServiceAccountEmail: string;
-  } {
+  private parseGcpCredentialPayload(decrypted: string):
+    | {
+        authMode: 'impersonation';
+        targetServiceAccountEmail: string;
+      }
+    | {
+        authMode: 'service_account_key';
+        targetServiceAccountEmail: string;
+        clientEmail: string;
+        serviceAccountJson: string;
+      } {
     let parsed: unknown;
     try {
       parsed = JSON.parse(decrypted);
@@ -1467,6 +1829,38 @@ export class IntegrationsService implements OnModuleInit {
     }
 
     const record = parsed as Record<string, unknown>;
+    if (record.authMode === 'service_account_key') {
+      const serviceAccountJson =
+        typeof record.serviceAccountJson === 'string' ? record.serviceAccountJson : '';
+      if (!serviceAccountJson.trim()) {
+        throw new UnprocessableEntityException(
+          'Stored GCP credentials are missing serviceAccountJson.',
+        );
+      }
+      let keyPayload: unknown;
+      try {
+        keyPayload = JSON.parse(serviceAccountJson);
+      } catch {
+        throw new UnprocessableEntityException('Stored GCP service account key JSON is malformed.');
+      }
+      if (!keyPayload || typeof keyPayload !== 'object' || Array.isArray(keyPayload)) {
+        throw new UnprocessableEntityException('Stored GCP service account key JSON is malformed.');
+      }
+      const clientEmailValue = (keyPayload as Record<string, unknown>).client_email;
+      const clientEmail = typeof clientEmailValue === 'string' ? clientEmailValue.trim() : '';
+      if (!clientEmail) {
+        throw new UnprocessableEntityException(
+          'Stored GCP service account key JSON is missing client_email.',
+        );
+      }
+      return {
+        authMode: 'service_account_key',
+        targetServiceAccountEmail: clientEmail,
+        clientEmail,
+        serviceAccountJson,
+      };
+    }
+
     const targetFromImpersonation =
       typeof record.targetServiceAccountEmail === 'string'
         ? record.targetServiceAccountEmail.trim()
@@ -1482,6 +1876,7 @@ export class IntegrationsService implements OnModuleInit {
     }
 
     return {
+      authMode: 'impersonation',
       targetServiceAccountEmail,
     };
   }
@@ -1519,7 +1914,10 @@ export class IntegrationsService implements OnModuleInit {
 
   private redactConnectionMetadata(record: IntegrationTokenRecord): Record<string, unknown> {
     const metadata = this.coerceMetadata(record.metadata);
-    if (record.provider !== 'gcp' || record.credentialType !== 'service_account') {
+    if (
+      record.provider !== 'gcp' ||
+      !['service_account', 'service_account_key'].includes(record.credentialType ?? '')
+    ) {
       return metadata;
     }
 
@@ -1537,6 +1935,46 @@ export class IntegrationsService implements OnModuleInit {
       }
     }
     return redacted;
+  }
+
+  private async listJiraAccessibleResources(
+    accessToken: string,
+  ): Promise<JiraAccessibleResource[]> {
+    const response = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new BadRequestException(
+        `Failed to list Jira accessible resources (${response.status}): ${text}`,
+      );
+    }
+
+    const payload = (await response.json()) as JiraAccessibleResource[];
+    return Array.isArray(payload) ? payload : [];
+  }
+
+  private selectPreferredJiraResource(
+    resources: JiraAccessibleResource[],
+    metadata?: Record<string, unknown>,
+  ): JiraAccessibleResource | null {
+    const preferredCloudId =
+      metadata && typeof metadata.cloudId === 'string' ? metadata.cloudId : undefined;
+    if (preferredCloudId) {
+      const preferred = resources.find((resource) => resource.id === preferredCloudId);
+      if (preferred) {
+        return preferred;
+      }
+    }
+
+    const jiraResources = resources.filter(
+      (resource) => typeof resource.url === 'string' && resource.url.includes('.atlassian.net'),
+    );
+    return jiraResources[0] ?? resources[0] ?? null;
   }
 
   /* ------------------------------------------------------------------ */
@@ -1653,9 +2091,11 @@ export class IntegrationsService implements OnModuleInit {
     organizationId: string;
     credentialType: string;
     displayName: string;
+    naturalKey?: string;
     provider: IntegrationProviderConfig;
     scopes: string[];
     rawResponse: Record<string, any>;
+    metadataPatch?: Record<string, unknown>;
     previous?: IntegrationTokenRecord | undefined;
   }): Promise<IntegrationTokenRecord> {
     const accessToken = this.extractToken(input.rawResponse.access_token, 'access_token');
@@ -1679,6 +2119,7 @@ export class IntegrationsService implements OnModuleInit {
       providerPayload: this.safeProviderPayload(input.rawResponse),
       lastTokenSync: new Date().toISOString(),
       lastGrantType: 'authorization_code',
+      ...(input.metadataPatch ?? {}),
     });
 
     return this.repository.upsertConnection({
@@ -1686,7 +2127,7 @@ export class IntegrationsService implements OnModuleInit {
       organizationId: input.organizationId,
       credentialType: input.credentialType,
       displayName: input.displayName,
-      naturalKey: input.displayName,
+      naturalKey: input.naturalKey ?? input.displayName,
       provider: input.provider.id,
       scopes: grantedScopes,
       accessToken: accessMaterial,
@@ -1695,6 +2136,52 @@ export class IntegrationsService implements OnModuleInit {
       expiresAt,
       metadata,
     });
+  }
+
+  private async buildOAuthConnectionContext(
+    providerId: string,
+    rawResponse: Record<string, any>,
+  ): Promise<{ displayName: string; naturalKey?: string; metadata?: Record<string, unknown> }> {
+    if (providerId === 'slack') {
+      if (rawResponse?.access_token) {
+        try {
+          const teamInfo = await this.slackService.getTeamInfo(rawResponse.access_token);
+          if (teamInfo.ok && teamInfo.icon) {
+            rawResponse._teamIcon = teamInfo.icon;
+          }
+        } catch {
+          // Non-critical — icon will simply be absent
+        }
+      }
+
+      return {
+        displayName: rawResponse?.team?.name ?? rawResponse?.team_name ?? providerId,
+      };
+    }
+
+    if (providerId === 'jira') {
+      const accessToken = this.extractToken(rawResponse.access_token, 'access_token');
+      const resources = await this.listJiraAccessibleResources(accessToken);
+      const selected = this.selectPreferredJiraResource(resources);
+      if (!selected) {
+        throw new BadRequestException('No accessible Jira sites were returned for this OAuth app.');
+      }
+
+      return {
+        displayName: selected.name || 'Jira',
+        naturalKey: selected.id,
+        metadata: {
+          cloudId: selected.id,
+          siteUrl: selected.url,
+          siteName: selected.name,
+          accessibleResources: resources,
+        },
+      };
+    }
+
+    return {
+      displayName: rawResponse?.team?.name ?? rawResponse?.team_name ?? providerId,
+    };
   }
 
   private async refreshTokenRecord(

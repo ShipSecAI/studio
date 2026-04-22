@@ -65,10 +65,21 @@ const PROVIDER_META: Record<
     category: 'Notifications',
     hoverGradient: 'linear-gradient(to right, #a855f7, #ec4899)',
   },
+  jira: {
+    name: 'Jira',
+    description: 'Create and manage Jira issue workflows from Studio.',
+    logo: '/icons/jira.svg',
+    route: '/integrations/jira',
+    gradient: 'from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20',
+    borderAccent: 'hover:border-blue-300 dark:hover:border-blue-700',
+    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    category: 'Ticketing',
+    hoverGradient: 'linear-gradient(to right, #3b82f6, #6366f1)',
+  },
 };
 
 /** IDs of the providers shown on this page, in display order. */
-const VISIBLE_PROVIDERS = ['aws', 'gcp', 'slack'] as const;
+const VISIBLE_PROVIDERS = ['aws', 'gcp', 'slack', 'jira'] as const;
 
 export function IntegrationsManager() {
   const navigate = useNavigate();
@@ -236,34 +247,6 @@ export function IntegrationsManager() {
                 </div>
               );
             })}
-          </div>
-        )}
-
-        {/* Coming soon section */}
-        {!isLoading && (
-          <div className="mt-12">
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4">
-              Coming Soon
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {[{ name: 'Jira', icon: '/icons/jira.svg' }].map((item) => (
-                <div
-                  key={item.name}
-                  className="flex items-center gap-3 rounded-lg border border-dashed border-border/60 bg-muted/30 p-3 opacity-50 grayscale"
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/50 flex-shrink-0 p-1.5">
-                    <img
-                      src={item.icon}
-                      alt={item.name}
-                      className="h-full w-full object-contain dark:invert-[0.5]"
-                    />
-                  </div>
-                  <span className="text-sm font-medium text-muted-foreground truncate">
-                    {item.name}
-                  </span>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>

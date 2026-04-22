@@ -19,6 +19,14 @@ interface ServiceAccountSourceCredential {
   token_uri?: string;
 }
 
+export interface ServiceAccountKeyValidationResult {
+  serviceAccountEmail: string;
+  serviceAccountUniqueId?: string;
+  defaultProjectId?: string;
+  organizationId?: string;
+  projects: GcpDiscoveredResource[];
+}
+
 type GoogleAuthConstructor = new (options: {
   credentials?: ServiceAccountSourceCredential;
   scopes?: string[];
@@ -118,6 +126,36 @@ export class GcpService {
     return this.discoverResources(accessToken);
   }
 
+  async validateServiceAccountKey(input: {
+    serviceAccountJson: string;
+    defaultProjectId?: string;
+    organizationId?: string;
+  }): Promise<ServiceAccountKeyValidationResult> {
+    const credentials = this.parseServiceAccountKeyJson(input.serviceAccountJson);
+    const accessToken = await this.getAccessTokenForCredentials(credentials, [
+      CLOUD_PLATFORM_SCOPE,
+    ]);
+    const discovery = await this.discoverResources(accessToken);
+
+    return {
+      serviceAccountEmail: credentials.client_email,
+      serviceAccountUniqueId: credentials.client_id || undefined,
+      defaultProjectId: input.defaultProjectId?.trim() || credentials.project_id || undefined,
+      organizationId: input.organizationId?.trim() || undefined,
+      projects: discovery,
+    };
+  }
+
+  async discoverProjectsWithServiceAccountKey(input: {
+    serviceAccountJson: string;
+  }): Promise<GcpDiscoveredResource[]> {
+    const credentials = this.parseServiceAccountKeyJson(input.serviceAccountJson);
+    const accessToken = await this.getAccessTokenForCredentials(credentials, [
+      CLOUD_PLATFORM_SCOPE,
+    ]);
+    return this.discoverResources(accessToken);
+  }
+
   async generateImpersonatedAccessToken(
     targetServiceAccountEmail: string,
     scopes: string[],
@@ -177,6 +215,23 @@ export class GcpService {
 
     return new GoogleAuth({
       ...(sourceCredentials ? { credentials: sourceCredentials } : {}),
+      scopes,
+    });
+  }
+
+  private async createAuthWithCredentials(
+    credentials: ServiceAccountSourceCredential,
+    scopes: string[],
+  ): Promise<GoogleAuthLike> {
+    if (!GoogleAuthImplPromise) {
+      GoogleAuthImplPromise = import('google-auth-library').then(
+        (mod) => mod.GoogleAuth as GoogleAuthConstructor,
+      );
+    }
+
+    const GoogleAuth = await GoogleAuthImplPromise;
+    return new GoogleAuth({
+      credentials,
       scopes,
     });
   }
@@ -250,6 +305,45 @@ export class GcpService {
     const token = typeof tokenResponse === 'string' ? tokenResponse : tokenResponse?.token;
     if (!token) {
       throw new Error('Unable to obtain source GCP access token for impersonation');
+    }
+    return token;
+  }
+
+  private parseServiceAccountKeyJson(rawJson: string): ServiceAccountSourceCredential {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawJson);
+    } catch {
+      throw new Error('GCP service account JSON is not valid JSON');
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('GCP service account JSON must be an object');
+    }
+
+    const value = parsed as Record<string, unknown>;
+    if (
+      value.type !== 'service_account' ||
+      typeof value.project_id !== 'string' ||
+      typeof value.private_key !== 'string' ||
+      typeof value.client_email !== 'string'
+    ) {
+      throw new Error('GCP service account JSON must be a valid service account key payload');
+    }
+
+    return value as unknown as ServiceAccountSourceCredential;
+  }
+
+  private async getAccessTokenForCredentials(
+    credentials: ServiceAccountSourceCredential,
+    scopes: string[],
+  ): Promise<string> {
+    const auth = await this.createAuthWithCredentials(credentials, scopes);
+    const client = await auth.getClient();
+    const tokenResponse = await client.getAccessToken();
+    const token = typeof tokenResponse === 'string' ? tokenResponse : tokenResponse?.token;
+    if (!token) {
+      throw new Error('Unable to obtain access token from GCP service account credentials');
     }
     return token;
   }

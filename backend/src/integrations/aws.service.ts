@@ -9,6 +9,12 @@ interface AwsCredentials {
   region?: string;
 }
 
+interface CallerIdentityResult {
+  accountId: string;
+  arn: string;
+  userId?: string;
+}
+
 interface OrgAccount {
   id: string;
   name: string;
@@ -309,5 +315,23 @@ export class AwsService implements OnModuleInit {
       this.logger.error('Failed to discover organization accounts', error);
       throw new Error((error as Error).message || 'Failed to discover organization accounts');
     }
+  }
+
+  async getCallerIdentity(credentials: AwsCredentials): Promise<CallerIdentityResult> {
+    const client = new STSClient({
+      region: this.resolveRegion(credentials.region),
+      credentials: {
+        accessKeyId: credentials.accessKeyId,
+        secretAccessKey: credentials.secretAccessKey,
+        ...(credentials.sessionToken ? { sessionToken: credentials.sessionToken } : {}),
+      },
+    });
+
+    const identity = await client.send(new GetCallerIdentityCommand({}));
+    return {
+      accountId: identity.Account || '',
+      arn: identity.Arn || '',
+      userId: identity.UserId || undefined,
+    };
   }
 }

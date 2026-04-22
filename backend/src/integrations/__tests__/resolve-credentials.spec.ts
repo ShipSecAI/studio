@@ -252,6 +252,44 @@ describe('resolveConnectionCredentials', () => {
       expect(result.region).toBe('us-east-1');
     });
 
+    it('returns resolved credentials for aws access keys', async () => {
+      const service = createService({
+        findById: mock(() =>
+          Promise.resolve(
+            makeRecord({
+              provider: 'aws',
+              credentialType: 'access_key',
+              metadata: {
+                accountId: '123456789012',
+              },
+            }),
+          ),
+        ),
+        decrypt: mock(() =>
+          Promise.resolve(
+            JSON.stringify({
+              accessKeyId: 'AKIA_TEST',
+              secretAccessKey: 'SECRET_TEST',
+              sessionToken: 'TOKEN_TEST',
+              region: 'us-west-2',
+            }),
+          ),
+        ),
+      });
+
+      const result = await service.resolveConnectionCredentials('conn-1');
+      expect(result.credentialType).toBe('access_key');
+      expect(result.provider).toBe('aws');
+      expect(result.data).toEqual({
+        accessKeyId: 'AKIA_TEST',
+        secretAccessKey: 'SECRET_TEST',
+        sessionToken: 'TOKEN_TEST',
+        region: 'us-west-2',
+      });
+      expect(result.accountId).toBe('123456789012');
+      expect(result.region).toBe('us-west-2');
+    });
+
     it('returns resolved credentials for gcp service accounts', async () => {
       const service = createService({
         findById: mock(() =>
@@ -282,6 +320,117 @@ describe('resolveConnectionCredentials', () => {
         defaultProjectId: 'project-1',
         organizationId: 'org-1',
         clientEmail: 'svc@example.iam.gserviceaccount.com',
+      });
+    });
+
+    it('returns resolved credentials for gcp service account keys', async () => {
+      const service = createService({
+        findById: mock(() =>
+          Promise.resolve(
+            makeRecord({
+              provider: 'gcp',
+              credentialType: 'service_account_key',
+              metadata: {
+                defaultProjectId: 'project-key',
+                organizationId: 'org-key',
+                clientEmail: 'svc-key@example.iam.gserviceaccount.com',
+                targetServiceAccountEmail: 'svc-key@example.iam.gserviceaccount.com',
+              },
+            }),
+          ),
+        ),
+        decrypt: mock(() =>
+          Promise.resolve(
+            JSON.stringify({
+              authMode: 'service_account_key',
+              serviceAccountJson: JSON.stringify({
+                type: 'service_account',
+                project_id: 'project-key',
+                private_key: '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n',
+                client_email: 'svc-key@example.iam.gserviceaccount.com',
+              }),
+            }),
+          ),
+        ),
+      });
+
+      const result = await service.resolveConnectionCredentials('conn-1');
+
+      expect(result.credentialType).toBe('service_account_key');
+      expect(result.provider).toBe('gcp');
+      expect(result.accountId).toBe('org-key');
+      expect(result.data).toEqual({
+        authMode: 'service_account_key',
+        targetServiceAccountEmail: 'svc-key@example.iam.gserviceaccount.com',
+        defaultProjectId: 'project-key',
+        organizationId: 'org-key',
+        clientEmail: 'svc-key@example.iam.gserviceaccount.com',
+        serviceAccountJson: JSON.stringify({
+          type: 'service_account',
+          project_id: 'project-key',
+          private_key: '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n',
+          client_email: 'svc-key@example.iam.gserviceaccount.com',
+        }),
+      });
+    });
+
+    it('returns resolved credentials for jira forge app connections', async () => {
+      const service = createService({
+        findById: mock(() =>
+          Promise.resolve(
+            makeRecord({
+              provider: 'jira',
+              credentialType: 'forge_app',
+            }),
+          ),
+        ),
+        decrypt: mock(() =>
+          Promise.resolve(
+            JSON.stringify({
+              webTriggerUrl: 'https://example.atlassian.net/x1/shipsec',
+              sharedSecret: 'secret-123',
+            }),
+          ),
+        ),
+      });
+
+      const result = await service.resolveConnectionCredentials('conn-1');
+      expect(result.credentialType).toBe('forge_app');
+      expect(result.provider).toBe('jira');
+      expect(result.data).toEqual({
+        webTriggerUrl: 'https://example.atlassian.net/x1/shipsec',
+        sharedSecret: 'secret-123',
+      });
+    });
+
+    it('returns resolved credentials for jira oauth connections', async () => {
+      const service = createService({
+        findById: mock(() =>
+          Promise.resolve(
+            makeRecord({
+              provider: 'jira',
+              credentialType: 'oauth',
+              tokenType: 'Bearer',
+              metadata: {
+                cloudId: 'cloud-123',
+                siteUrl: 'https://example.atlassian.net',
+                siteName: 'Example Jira',
+              },
+            }),
+          ),
+        ),
+        decrypt: mock(() => Promise.resolve('oauth-token-123')),
+      });
+
+      const result = await service.resolveConnectionCredentials('conn-1');
+      expect(result.credentialType).toBe('oauth');
+      expect(result.provider).toBe('jira');
+      expect(result.data).toEqual({
+        accessToken: 'oauth-token-123',
+        tokenType: 'Bearer',
+        cloudId: 'cloud-123',
+        siteUrl: 'https://example.atlassian.net',
+        siteName: 'Example Jira',
       });
     });
   });

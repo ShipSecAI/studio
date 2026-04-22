@@ -106,6 +106,45 @@ describe('cartography sync component', () => {
     expect(result.command).toEqual(runnerConfig.command);
   });
 
+  it('mounts service account JSON directly for the GCP CE path', async () => {
+    const runnerSpy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('');
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'cartography-sync-test',
+      organizationId: 'org-123',
+    });
+
+    await cartographySync.runCartographyWithRunner(
+      {
+        selectedModules: ['gcp'],
+        neo4jUri: 'bolt://neo4j:7687',
+        neo4jDatabase: 'neo4j',
+        gcpCredential: {
+          authMode: 'service_account_key',
+          targetServiceAccountEmail: 'svc@example.com',
+          defaultProjectId: 'demo-project',
+          clientEmail: 'svc@example.com',
+          serviceAccountJson: JSON.stringify({
+            type: 'service_account',
+            project_id: 'demo-project',
+            private_key: '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n',
+            client_email: 'svc@example.com',
+          }),
+        },
+      },
+      context,
+    );
+
+    expect(runnerSpy).toHaveBeenCalledTimes(1);
+    const runnerConfig = runnerSpy.mock.calls[0]?.[0] as any;
+    expect(runnerConfig.env.GOOGLE_APPLICATION_CREDENTIALS).toBe(
+      cartographySync.GCP_APPLICATION_CREDENTIALS_PATH,
+    );
+    expect(
+      createdVolumes[0]?.files?.[cartographySync.GCP_APPLICATION_CREDENTIALS_FILENAME],
+    ).toContain('"type":"service_account"');
+  });
+
   it('preserves AWS multi-profile sync behavior', async () => {
     const runnerSpy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('');
     const context = sdk.createExecutionContext({
@@ -187,7 +226,7 @@ describe('cartography sync component', () => {
         context,
       ),
     ).rejects.toThrow(
-      'GCP module requires impersonation credentials. Connect a GCP Credentials component to the gcpCredential input.',
+      'GCP module requires GCP credentials. Connect a GCP credential source to the gcpCredential input.',
     );
   });
 });

@@ -117,6 +117,11 @@ export const backendEnvSchema = z
     SLACK_OAUTH_CLIENT_SECRET: z.string().optional(),
     SLACK_OAUTH_SCOPES: z.string().optional(),
 
+    // --- Jira OAuth ---
+    JIRA_OAUTH_CLIENT_ID: z.string().optional(),
+    JIRA_OAUTH_CLIENT_SECRET: z.string().optional(),
+    JIRA_OAUTH_SCOPES: z.string().optional(),
+
     // --- Slack Bot ---
     SLACK_BOT_ENABLED: z.enum(['true', 'false']).optional().default('false'),
     SLACK_SIGNING_SECRET: z.string().optional(),

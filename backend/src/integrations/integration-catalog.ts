@@ -48,6 +48,50 @@ export const AWS_PROVIDER: IntegrationProviderDefinition = {
   supportsMultipleConnections: true,
   authMethods: [
     {
+      type: 'access_key',
+      label: 'Access Key',
+      description:
+        'Store an AWS access key and secret key directly. This is the simpler community-edition path when you do not want to set up cross-account IAM role assumption.',
+      fields: [
+        {
+          id: 'displayName',
+          label: 'Connection Name',
+          type: 'text',
+          required: true,
+          placeholder: 'Production AWS Account',
+        },
+        {
+          id: 'accessKeyId',
+          label: 'Access Key ID',
+          type: 'password',
+          required: true,
+          placeholder: 'AKIA...',
+        },
+        {
+          id: 'secretAccessKey',
+          label: 'Secret Access Key',
+          type: 'password',
+          required: true,
+          placeholder: '••••••••',
+        },
+        {
+          id: 'sessionToken',
+          label: 'Session Token',
+          type: 'password',
+          required: false,
+          placeholder: 'Optional',
+          helpText: 'Optional STS session token for temporary credentials.',
+        },
+        {
+          id: 'region',
+          label: 'Default Region',
+          type: 'text',
+          required: false,
+          placeholder: 'us-east-1',
+        },
+      ],
+    },
+    {
       type: 'iam_role',
       label: 'IAM Role',
       description:
@@ -73,6 +117,16 @@ export const AWS_PROVIDER: IntegrationProviderDefinition = {
   ],
   setupInstructions: {
     sections: [
+      {
+        title: 'Access Key',
+        authMethodType: 'access_key',
+        scenario: 'access-key',
+        steps: [
+          'Create or choose an IAM user with the read-only permissions required for your workflows.',
+          'Generate an access key and secret key for that user.',
+          'Paste the key pair into the form and save the connection.',
+        ],
+      },
       {
         title: 'Single Account',
         authMethodType: 'iam_role',
@@ -121,6 +175,43 @@ export const GCP_PROVIDER: IntegrationProviderDefinition = {
   supportsMultipleConnections: true,
   authMethods: [
     {
+      type: 'service_account_key',
+      label: 'Service Account JSON',
+      description:
+        'Upload a service-account JSON key directly. This is the simpler community-edition path when you do not want to set up impersonation.',
+      fields: [
+        {
+          id: 'displayName',
+          label: 'Display Name',
+          type: 'text',
+          required: true,
+          placeholder: 'Production GCP',
+        },
+        {
+          id: 'serviceAccountJson',
+          label: 'Service Account JSON',
+          type: 'password',
+          required: true,
+          placeholder: '{ ... }',
+          helpText: 'Paste the full JSON key payload for the service account.',
+        },
+        {
+          id: 'defaultProjectId',
+          label: 'Default Project ID',
+          type: 'text',
+          required: false,
+          placeholder: 'my-project-123',
+        },
+        {
+          id: 'organizationId',
+          label: 'Organization ID',
+          type: 'text',
+          required: false,
+          placeholder: '123456789012',
+        },
+      ],
+    },
+    {
       type: 'service_account',
       label: 'Service Account Impersonation',
       description:
@@ -163,6 +254,16 @@ export const GCP_PROVIDER: IntegrationProviderDefinition = {
   ],
   setupInstructions: {
     sections: [
+      {
+        title: 'Service Account JSON',
+        authMethodType: 'service_account_key',
+        scenario: 'service-account-key',
+        steps: [
+          'Create or choose a GCP service account with the permissions your workflows need.',
+          'Create a JSON key for that service account and copy the full JSON payload.',
+          'Paste the JSON into Studio and save the connection.',
+        ],
+      },
       {
         title: 'Single Project',
         authMethodType: 'service_account',
@@ -253,8 +354,15 @@ export const JIRA_PROVIDER: IntegrationProviderDefinition = {
     'Connect Jira for vulnerability ticket management, automated issue creation, and workflow tracking.',
   docsUrl: 'https://developer.atlassian.com/platform/forge/',
   iconUrl: '/icons/jira.svg',
-  supportsMultipleConnections: false,
+  supportsMultipleConnections: true,
   authMethods: [
+    {
+      type: 'oauth',
+      label: 'Atlassian OAuth',
+      description:
+        'Connect Jira Cloud through Atlassian OAuth. Studio stores the resulting token and calls Jira REST APIs on behalf of the connected user.',
+      fields: [],
+    },
     {
       type: 'forge_app',
       label: 'Jira App',
@@ -291,6 +399,16 @@ export const JIRA_PROVIDER: IntegrationProviderDefinition = {
   ],
   setupInstructions: {
     sections: [
+      {
+        title: 'Atlassian OAuth',
+        authMethodType: 'oauth',
+        scenario: 'oauth',
+        steps: [
+          'Configure your Atlassian OAuth app credentials in the Studio deployment.',
+          'Click Connect in Studio and authorize access to Jira.',
+          'Use the created connection in Jira-aware workflows.',
+        ],
+      },
       {
         title: 'Connect Your Jira App',
         authMethodType: 'forge_app',

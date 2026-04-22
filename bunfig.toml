@@ -2,6 +2,6 @@
 members = ["frontend", "backend", "worker", "packages/**"]
 
 [test]
-preload = ["./backend/src/test/setup.ts"]
+preload = ["./backend/src/test/setup.ts", "./frontend/src/test/setup.ts"]
 coveragePathIgnorePatterns = ["e2e-tests/**"]
 exclude = ["**/dist/**"]

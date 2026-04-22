@@ -585,6 +585,33 @@ export const api = {
       return response.data;
     },
 
+    createAwsAccessKeyConnection: async (payload: {
+      displayName: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+      sessionToken?: string;
+      region?: string;
+    }): Promise<IntegrationConnection> => {
+      const response = await fetch(`${API_V1_URL}/integrations/aws/connections/access-key`, {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | IntegrationConnection
+        | {
+            message?: string;
+          }
+        | null;
+      if (!response.ok || !data || typeof data !== 'object' || !('id' in data)) {
+        throw new Error(
+          (data && typeof data === 'object' && 'message' in data && data.message) ||
+            'Failed to create AWS access key connection',
+        );
+      }
+      return data as IntegrationConnection;
+    },
+
     validateAwsConnection: async (id: string): Promise<ValidateAwsResponse> => {
       const response = await apiClient.validateAwsIntegrationConnection(id);
       if (response.error || !response.data) {
@@ -627,6 +654,35 @@ export const api = {
         throw new Error('Failed to create Jira connection');
       }
       return response.data;
+    },
+
+    createGcpServiceAccountKeyConnection: async (payload: {
+      displayName: string;
+      serviceAccountJson: string;
+      defaultProjectId?: string;
+      organizationId?: string;
+    }): Promise<IntegrationConnection> => {
+      const response = await fetch(
+        `${API_V1_URL}/integrations/gcp/connections/service-account-key`,
+        {
+          method: 'POST',
+          headers: await getAuthHeaders(),
+          body: JSON.stringify(payload),
+        },
+      );
+      const data = (await response.json().catch(() => null)) as
+        | IntegrationConnection
+        | {
+            message?: string;
+          }
+        | null;
+      if (!response.ok || !data || typeof data !== 'object' || !('id' in data)) {
+        throw new Error(
+          (data && typeof data === 'object' && 'message' in data && data.message) ||
+            'Failed to create GCP service account key connection',
+        );
+      }
+      return data as IntegrationConnection;
     },
 
     testSlackConnection: async (id: string): Promise<{ ok: boolean; error?: string }> => {

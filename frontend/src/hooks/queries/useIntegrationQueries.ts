@@ -210,6 +210,22 @@ export function useCreateAwsConnection() {
   });
 }
 
+export function useCreateAwsAccessKeyConnection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      displayName: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+      sessionToken?: string;
+      region?: string;
+    }) => api.integrations.createAwsAccessKeyConnection(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
+    },
+  });
+}
+
 export function useCreateGcpConnection() {
   const qc = useQueryClient();
   return useMutation({
@@ -219,6 +235,21 @@ export function useCreateGcpConnection() {
       defaultProjectId?: string;
       organizationId?: string;
     }) => postIntegrationJson<IntegrationConnection>('/integrations/gcp/connections', payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
+    },
+  });
+}
+
+export function useCreateGcpServiceAccountKeyConnection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      displayName: string;
+      serviceAccountJson: string;
+      defaultProjectId?: string;
+      organizationId?: string;
+    }) => api.integrations.createGcpServiceAccountKeyConnection(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
     },
