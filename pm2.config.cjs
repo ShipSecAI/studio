@@ -109,7 +109,7 @@ module.exports = {
       name: `shipsec-worker-${instanceNum}`,
       cwd: path.join(__dirname, 'worker'),
       script: 'bun',
-      args: 'x --bun tsx src/temporal/workers/dev.worker.ts',
+      args: 'run dev',
       interpreter: 'none',
       env_file: resolveEnvFile('worker', instanceNum),
       env: getWorkerEnv(instanceNum),
@@ -122,7 +122,7 @@ module.exports = {
       name: 'shipsec-test-worker',
       cwd: path.join(__dirname, 'worker'),
       script: 'bun',
-      args: 'x --bun tsx src/temporal/workers/dev.worker.ts',
+      args: 'run dev',
       interpreter: 'none',
       env_file: path.join(__dirname, 'worker', '.env'),
       env: {
