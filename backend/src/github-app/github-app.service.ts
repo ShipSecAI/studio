@@ -9,6 +9,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createPrivateKey, createSign } from 'crypto';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AuthContext } from '../auth/types';
 import { GitHubAppRepository } from './github-app.repository';
 import { type GitHubAppConfig, isGitHubAppConfigured } from '../config/github-app.config';
@@ -120,13 +124,54 @@ export class GitHubAppService implements OnModuleInit {
     const header = { alg: 'RS256', typ: 'JWT' };
     const encodedHeader = this.base64UrlEncode(JSON.stringify(header));
     const encodedPayload = this.base64UrlEncode(JSON.stringify(payload));
-
-    const privateKey = createPrivateKey(this.config.privateKey);
-    const sign = createSign('RSA-SHA256');
-    sign.update(`${encodedHeader}.${encodedPayload}`);
-    const signature = sign.sign(privateKey, 'base64url');
+    const signingInput = `${encodedHeader}.${encodedPayload}`;
+    const signature = this.signGitHubJwt(signingInput, this.config.privateKey);
 
     return `${encodedHeader}.${encodedPayload}.${signature}`;
+  }
+
+  private signGitHubJwt(signingInput: string, privateKeyPem: string): string {
+    try {
+      const privateKey = createPrivateKey(privateKeyPem);
+      const sign = createSign('RSA-SHA256');
+      sign.update(signingInput);
+      return sign.sign(privateKey, 'base64url');
+    } catch (error) {
+      this.logger.warn(
+        `Native private-key parsing failed, retrying with openssl fallback: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return this.signGitHubJwtWithOpenSsl(signingInput, privateKeyPem, error);
+    }
+  }
+
+  private signGitHubJwtWithOpenSsl(
+    signingInput: string,
+    privateKeyPem: string,
+    originalError: unknown,
+  ): string {
+    const tempDir = mkdtempSync(join(tmpdir(), 'shipsec-gh-app-'));
+    const keyPath = join(tempDir, 'github-app-key.pem');
+
+    try {
+      writeFileSync(keyPath, privateKeyPem, { mode: 0o600 });
+
+      const result = spawnSync('openssl', ['dgst', '-binary', '-sha256', '-sign', keyPath], {
+        input: Buffer.from(signingInput, 'utf8'),
+      });
+
+      if (result.error || result.status !== 0 || !result.stdout) {
+        throw result.error ?? new Error(result.stderr?.toString('utf8') || 'openssl sign failed');
+      }
+
+      return Buffer.from(result.stdout).toString('base64url');
+    } catch (fallbackError) {
+      this.logger.error(
+        `OpenSSL fallback also failed while signing GitHub app JWT: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`,
+      );
+      throw originalError instanceof Error ? originalError : new Error(String(originalError));
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   }
 
   private base64UrlEncode(data: string): string {
