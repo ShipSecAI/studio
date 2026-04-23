@@ -33,6 +33,7 @@ import {
   mapToAnalyticsSeverity,
   buildScanId,
   buildMemberRoleArn,
+  listVolumeFiles,
   setVolumeOwnership,
   shouldSetVolumeOwnershipForExecutionMode,
   splitArgs,
@@ -605,8 +606,33 @@ function computeSeverityCounts(findings: NormalisedFinding[]) {
 async function readProwlerAsffOutput(
   volume: Awaited<ReturnType<typeof createToolOutputVolume>>,
 ): Promise<string[]> {
-  const asffOutput = await readToolOutputFile(volume, PROWLER_ASFF_OUTPUT_FILE, 'Prowler');
-  return asffOutput.trim().length > 0 ? [asffOutput] : [];
+  try {
+    const asffOutput = await readToolOutputFile(volume, PROWLER_ASFF_OUTPUT_FILE, 'Prowler');
+    return asffOutput.trim().length > 0 ? [asffOutput] : [];
+  } catch {
+    const files = await listVolumeFiles(volume);
+    const asffCandidates = files
+      .filter((file) => file.endsWith('.json'))
+      .filter((file) => {
+        const lower = file.toLowerCase();
+        return (
+          lower.endsWith('.asff.json') || lower.includes('json-asff') || lower.includes('asff')
+        );
+      });
+
+    if (asffCandidates.length === 0) {
+      return [];
+    }
+
+    const rawSegments: string[] = [];
+    for (const filename of asffCandidates) {
+      const asffOutput = await readToolOutputFile(volume, filename, 'Prowler');
+      if (asffOutput.trim().length > 0) {
+        rawSegments.push(asffOutput);
+      }
+    }
+    return rawSegments;
+  }
 }
 
 // ---------------------------------------------------------------------------

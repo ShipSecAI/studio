@@ -21,6 +21,7 @@ import {
   createToolOutputVolume,
   readToolOutputFile,
 } from '../../utils/tool-output';
+import { setVolumeOwnership, shouldSetVolumeOwnershipForExecutionMode } from './prowler-shared';
 
 const SUBFINDER_IMAGE = 'ghcr.io/shipsecai/subfinder:latest';
 const SUBFINDER_TIMEOUT_SECONDS = 1800; // 30 minutes
@@ -417,6 +418,9 @@ const definition = defineComponent({
       const volumeName = await volume.initialize(inputFiles);
       context.logger.info(`[Subfinder] Created isolated volume: ${volumeName}`);
       outputVolume = await createToolOutputVolume(tenantId, context.runId, 'subfinder-output');
+      if (shouldSetVolumeOwnershipForExecutionMode()) {
+        await setVolumeOwnership(outputVolume, 1000, 1000);
+      }
 
       // Build Subfinder arguments in TypeScript
       const subfinderArgs = buildSubfinderArgs({

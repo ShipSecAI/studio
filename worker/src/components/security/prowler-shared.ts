@@ -403,7 +403,7 @@ export async function listVolumeFiles(volume: IsolatedVolume): Promise<string[]>
       'sh',
       'alpine:3.20',
       '-c',
-      'ls -1 /data',
+      "find /data -type f | sed 's#^/data/##'",
     ]);
 
     let stdout = '';
@@ -455,7 +455,7 @@ export async function setVolumeOwnership(
       'sh',
       'alpine:3.20',
       '-c',
-      `chown -R ${uid}:${gid} /data && chmod -R 755 /data`,
+      `chown -R ${uid}:${gid} /data && chmod -R 777 /data`,
     ]);
 
     let stderr = '';
