@@ -25,6 +25,7 @@ services:
     environment:
       NODE_ENV: production
       SHIPSEC_ENV: local
+      SHIPSEC_INSTANCE: ${SHIPSEC_INSTANCE:-0}
       PORT: '3211'
       DATABASE_URL: postgresql://shipsec:shipsec@postgres:5432/shipsec
       SECRET_STORE_MASTER_KEY: ${SECRET_STORE_MASTER_KEY:-12345678901234567890123456789012}
@@ -102,6 +103,7 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
+      SHIPSEC_INSTANCE: ${SHIPSEC_INSTANCE:-0}
       DATABASE_URL: postgresql://shipsec:shipsec@postgres:5432/shipsec
       SECRET_STORE_MASTER_KEY: ${SECRET_STORE_MASTER_KEY:-12345678901234567890123456789012}
       LOG_KAFKA_BROKERS: redpanda:9092
