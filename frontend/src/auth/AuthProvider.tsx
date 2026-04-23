@@ -2,10 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import type { FrontendAuthProvider, FrontendAuthProviderComponent } from './types';
 import { useAuthStore } from '../store/authStore';
 import { GlobalAuthContext } from './auth-context-def';
-
-interface ExternalAuthModule {
-  getFrontendAuthProviderComponent?: () => FrontendAuthProviderComponent;
-}
+import { getFrontendAuthProviderComponent as getExternalProviderComponent } from '@shipsec/cloud-extension-runtime';
 
 function getExternalAuthModuleId(): string {
   return (import.meta.env.VITE_CLOUD_EXTENSION_PACKAGE as string | undefined)?.trim() || '';
@@ -106,25 +103,23 @@ const LocalAuthProvider: FrontendAuthProviderComponent = ({
   return <>{children}</>;
 };
 
-const PendingAuthProvider: FrontendAuthProviderComponent = ({ children, onProviderChange }) => {
-  useEffect(() => {
-    onProviderChange?.(null);
-    return () => {
-      onProviderChange?.(null);
-    };
-  }, [onProviderChange]);
-
-  return <>{children}</>;
-};
-
 // Main auth provider component that selects the appropriate provider
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentProvider, setCurrentProvider] = useState<FrontendAuthProvider | null>(null);
-  const [resolvedProviderName, setResolvedProviderName] = useState<string>(() =>
-    shouldUseExternalAuth() ? 'cloud' : 'local',
+  const configuredExternalProvider = useMemo(() => {
+    if (!shouldUseExternalAuth()) {
+      return null;
+    }
+
+    return getExternalProviderComponent?.() ?? null;
+  }, []);
+  const [resolvedProviderName] = useState<string>(() =>
+    shouldUseExternalAuth() && configuredExternalProvider ? 'cloud' : 'local',
   );
-  const [ProviderComponent, setProviderComponent] = useState<FrontendAuthProviderComponent>(() =>
-    shouldUseExternalAuth() ? PendingAuthProvider : LocalAuthProvider,
+  const [ProviderComponent] = useState<FrontendAuthProviderComponent>(() =>
+    shouldUseExternalAuth() && configuredExternalProvider
+      ? configuredExternalProvider
+      : LocalAuthProvider,
   );
 
   const handleProviderChange = useCallback((provider: FrontendAuthProvider | null) => {
@@ -132,49 +127,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    const externalModuleId = getExternalAuthModuleId();
-    if (!shouldUseExternalAuth() || !externalModuleId) {
-      setResolvedProviderName('local');
-      setProviderComponent(() => LocalAuthProvider);
+    if (!shouldUseExternalAuth()) {
       return;
     }
 
-    let cancelled = false;
-    const target = externalModuleId.startsWith('/') ? `/@fs${externalModuleId}` : externalModuleId;
-
-    import(/* @vite-ignore */ target)
-      .then((mod) => {
-        if (cancelled) {
-          return;
-        }
-
-        const externalProvider = (mod as ExternalAuthModule).getFrontendAuthProviderComponent?.();
-        if (externalProvider) {
-          setResolvedProviderName('cloud');
-          setProviderComponent(() => externalProvider);
-          return;
-        }
-
-        console.warn(
-          `[auth] External auth module "${externalModuleId}" did not export getFrontendAuthProviderComponent; falling back to local auth.`,
-        );
-        setResolvedProviderName('local');
-        setProviderComponent(() => LocalAuthProvider);
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
-        }
-
-        console.warn(`[auth] Failed to load external auth module "${externalModuleId}"`, error);
-        setResolvedProviderName('local');
-        setProviderComponent(() => LocalAuthProvider);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!configuredExternalProvider) {
+      console.warn(
+        `[auth] External auth module "${getExternalAuthModuleId()}" did not export getFrontendAuthProviderComponent; falling back to local auth.`,
+      );
+    }
+  }, [configuredExternalProvider]);
 
   const contextValue = useMemo(
     () => ({

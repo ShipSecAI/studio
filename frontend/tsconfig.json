@@ -21,7 +21,8 @@
     /* Path mapping */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@shipsec/cloud-extension-runtime": ["./src/app/cloud-runtime-stub.tsx"]
     },
     "types": ["bun-types", "@testing-library/jest-dom"],
     "incremental": true,

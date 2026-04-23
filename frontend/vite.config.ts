@@ -10,6 +10,11 @@ const cloudExtensionPackage = process.env.VITE_CLOUD_EXTENSION_PACKAGE?.trim();
 const extraFsAllow = cloudExtensionPackage
   ? [path.dirname(path.resolve(cloudExtensionPackage))]
   : [];
+const cloudRuntimeModule = cloudExtensionPackage
+  ? cloudExtensionPackage.startsWith('/')
+    ? path.resolve(cloudExtensionPackage)
+    : cloudExtensionPackage
+  : path.resolve(__dirname, './src/app/cloud-runtime-stub.tsx');
 const allowedHosts = [
   'studio.shipsec.ai',
   'frontend',
@@ -25,6 +30,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@shipsec/cloud-extension-runtime': cloudRuntimeModule,
       // Force single React instance for all packages
     },
     dedupe: ['react', 'react-dom'],
