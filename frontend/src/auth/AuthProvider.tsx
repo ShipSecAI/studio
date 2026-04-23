@@ -15,7 +15,7 @@ function shouldUseExternalAuth(): boolean {
   const envProvider = (import.meta.env.VITE_AUTH_PROVIDER as string | undefined)
     ?.trim()
     .toLowerCase();
-  if (envProvider === 'local') {
+  if (!envProvider || envProvider === 'local') {
     return false;
   }
   return getExternalAuthModuleId().length > 0;

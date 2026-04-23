@@ -26,8 +26,6 @@
     "@ai-sdk/openai": "^3.0.28",
     "@aws-sdk/client-organizations": "^3.992.0",
     "@aws-sdk/client-sts": "^3.992.0",
-    "@clerk/backend": "^2.29.5",
-    "@clerk/types": "^4.101.13",
     "@clickhouse/client": "^1.18.2",
     "@grpc/grpc-js": "^1.14.3",
     "google-auth-library": "^10.5.0",

@@ -13,6 +13,11 @@ interface BackendCloudAuthModule {
 const require = createRequire(import.meta.url);
 
 export function loadCloudAuthProvider(): AuthProviderStrategy | null {
+  const authProvider = process.env.AUTH_PROVIDER?.trim().toLowerCase();
+  if (authProvider !== 'clerk') {
+    return null;
+  }
+
   const moduleId = getBackendCloudModuleId();
   if (!moduleId) {
     return null;
