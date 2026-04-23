@@ -445,12 +445,12 @@ export class SecurityAnalyticsService {
             params[paramName] = f.value;
             break;
           case 'gte':
-            conditions.push(`${f.field} >= {${paramName}:String}`);
-            params[paramName] = String(f.value);
+            conditions.push(this.buildComparisonCondition(f.field, '>=', paramName));
+            params[paramName] = this.formatFilterValue(f.field, f.value);
             break;
           case 'lte':
-            conditions.push(`${f.field} <= {${paramName}:String}`);
-            params[paramName] = String(f.value);
+            conditions.push(this.buildComparisonCondition(f.field, '<=', paramName));
+            params[paramName] = this.formatFilterValue(f.field, f.value);
             break;
           case 'like':
             conditions.push(`${f.field} ILIKE {${paramName}:String}`);
@@ -486,6 +486,28 @@ export class SecurityAnalyticsService {
     }
 
     return { conditions, params };
+  }
+
+  private buildComparisonCondition(
+    field: string,
+    operator: '>=' | '<=',
+    paramName: string,
+  ): string {
+    if (field === 'timestamp') {
+      return `${field} ${operator} toDateTime64({${paramName}:String}, 3, 'UTC')`;
+    }
+    return `${field} ${operator} {${paramName}:String}`;
+  }
+
+  private formatFilterValue(field: string, value: any): string {
+    if (field !== 'timestamp') return String(value);
+
+    const date = value instanceof Date ? value : new Date(String(value));
+    if (Number.isNaN(date.getTime())) {
+      return String(value);
+    }
+
+    return date.toISOString().replace('T', ' ').replace('Z', '').slice(0, 23);
   }
 
   /**

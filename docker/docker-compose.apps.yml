@@ -18,6 +18,8 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
+      clickhouse-schema-init:
+        condition: service_completed_successfully
       neo4j:
         condition: service_healthy
     environment:
@@ -94,6 +96,8 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
+      clickhouse-schema-init:
+        condition: service_completed_successfully
       neo4j:
         condition: service_healthy
     environment:

@@ -161,6 +161,18 @@ services:
       start_period: 15s
     restart: unless-stopped
 
+  clickhouse-schema-init:
+    image: clickhouse/clickhouse-server:latest-alpine
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - cat /schema/security-findings.init.sql | clickhouse-client --host clickhouse --database shipsec --multiquery
+    volumes:
+      - ../backend/src/analytics/schema/security-findings.init.sql:/schema/security-findings.init.sql:ro
+    restart: 'no'
+
   neo4j:
     image: neo4j:5-community
     environment:
