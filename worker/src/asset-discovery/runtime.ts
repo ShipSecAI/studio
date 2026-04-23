@@ -361,10 +361,12 @@ export async function runPreparedCartographySync(input: {
           neo4jDatabase:
             input.neo4jDatabase || process.env.NEO4J_DATABASE?.trim() || DEFAULT_NEO4J_DATABASE,
           gcpCredential: {
+            authMode: target.resolvedCredentials.data.authMode,
             targetServiceAccountEmail: target.resolvedCredentials.data.targetServiceAccountEmail,
             defaultProjectId: target.resolvedCredentials.data.defaultProjectId,
             organizationId: target.resolvedCredentials.data.organizationId,
             clientEmail: target.resolvedCredentials.data.clientEmail,
+            serviceAccountJson: target.resolvedCredentials.data.serviceAccountJson,
           },
           image: process.env.CARTOGRAPHY_IMAGE?.trim(),
         },

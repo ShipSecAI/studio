@@ -20,11 +20,11 @@ import { readFile } from 'node:fs/promises';
 
 const cartographyModules = ['aws', 'gcp', 'github', 'kubernetes'] as const;
 const CARTOGRAPHY_IMAGE =
-  process.env.CARTOGRAPHY_IMAGE?.trim() || 'ghcr.io/cartography-cncf/cartography:latest';
+  process.env.CARTOGRAPHY_IMAGE?.trim() || 'ghcr.io/cartography-cncf/cartography:0.124.0';
 export const DEFAULT_NEO4J_URI = process.env.NEO4J_URI?.trim() || 'bolt://localhost:7687';
 export const DEFAULT_NEO4J_DATABASE = process.env.NEO4J_DATABASE?.trim() || 'neo4j';
 export const DEFAULT_AWS_REQUESTED_SYNCS =
-  'iam,s3,dynamodb,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc,ec2:volumes,ec2:load_balancer,ec2:load_balancer_v2,ecr,ecs,eks,elasticache,lambda_function,kms,rds,route53,apigateway,secretsmanager,sqs,acm:certificate,cloudfront,cloudtrail,guardduty,sns';
+  'iam,s3,dynamodb,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc,ec2:volumes,ec2:load_balancer,ec2:load_balancer_v2,ecr,ecs,eks,elasticache,lambda_function,kms,rds,route53,apigateway,secretsmanager,sqs,acm:certificate,cloudtrail,guardduty,sns';
 export const GCP_APPLICATION_CREDENTIALS_DIR = '/var/cartography/.config/gcloud';
 export const GCP_APPLICATION_CREDENTIALS_FILENAME = 'application_default_credentials.json';
 export const GCP_APPLICATION_CREDENTIALS_PATH = `${GCP_APPLICATION_CREDENTIALS_DIR}/${GCP_APPLICATION_CREDENTIALS_FILENAME}`;
@@ -356,7 +356,7 @@ export async function runCartographyWithRunner(
     }
   }
 
-  const dockerNetwork = process.env.CARTOGRAPHY_DOCKER_NETWORK?.trim() || 'shipsec-network';
+  const dockerNetwork = process.env.CARTOGRAPHY_DOCKER_NETWORK?.trim() || 'shipsec-ce-network';
 
   const dockerRunner: DockerRunnerConfig = {
     kind: 'docker',
@@ -558,10 +558,7 @@ const definition = defineComponent({
           .map((r) => r.trim())
           .filter((r) => r.length > 0);
         if (regions.length > 0) {
-          cmd.push(
-            '--aws-requested-syncs',
-            'iam,s3,dynamodb,ec2:instance,ec2:security_group,ec2:subnet,ec2:network_acls,ec2:vpc,ec2:volumes,ec2:load_balancer,ec2:load_balancer_v2,ecr,ecs,eks,elasticache,lambda_function,kms,rds,route53,apigateway,secretsmanager,sqs,acm:certificate,cloudfront,cloudtrail,guardduty,sns',
-          );
+          cmd.push('--aws-requested-syncs', DEFAULT_AWS_REQUESTED_SYNCS);
         }
       }
     }
