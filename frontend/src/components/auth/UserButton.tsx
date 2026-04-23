@@ -55,7 +55,7 @@ export const UserButton: React.FC<UserButtonProps> = ({
     );
   }
 
-  // Use Clerk's UserButton if available
+  // Use the hosted auth provider's user button if available
   if (authProvider.name === 'clerk') {
     const ClerkUserButton = authProvider.UserButtonComponent;
     return (

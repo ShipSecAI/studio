@@ -1,43 +1,33 @@
 import { useEffect } from 'react';
 import posthog from 'posthog-js';
-import { useUser, useAuth } from '@clerk/clerk-react';
-import { useAuthProvider } from '@/auth/auth-context';
+import { useAuth, useAuthProvider } from '@/auth/auth-context';
 import { isAnalyticsEnabled } from './config';
 
 /**
- * Bridges Clerk auth state to PostHog identify/group calls.
- * Place under the Clerk provider (see App.tsx) and above most routes.
+ * Bridges hosted auth state to PostHog identify/group calls.
+ * Place under the active auth provider (see App.tsx) and above most routes.
  */
 export function PostHogClerkBridge() {
   const provider = useAuthProvider();
-  if (provider.name !== 'clerk' || !isAnalyticsEnabled()) return null;
-  return <ClerkBridgeInner />;
-}
-
-function ClerkBridgeInner() {
-  const { user, isLoaded } = useUser();
-  const { isSignedIn } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (isLoading || provider.name === 'local' || !isAnalyticsEnabled()) return;
 
-    if (isSignedIn && user) {
-      const primaryOrg = user.organizationMemberships?.[0]?.organization;
+    if (isAuthenticated && user) {
       const traits: Record<string, unknown> = {
-        email: user.primaryEmailAddress?.emailAddress,
+        email: user.email,
         name: [user.firstName, user.lastName].filter(Boolean).join(' ') || undefined,
         username: user.username,
       };
 
       try {
         posthog.identify(user.id, traits);
-        if (primaryOrg?.id) {
-          posthog.group('organization', primaryOrg.id, {
-            name: primaryOrg.name,
+        if (user.organizationId) {
+          posthog.group('organization', user.organizationId, {
+            name: user.organizationName,
           });
         }
-        // Reload feature flags after identify so PostHog can evaluate
-        // per-user and per-org targeting rules
         posthog.reloadFeatureFlags();
       } catch (_) {
         // ignore
@@ -50,7 +40,7 @@ function ClerkBridgeInner() {
         // ignore
       }
     }
-  }, [isLoaded, isSignedIn, user]);
+  }, [isAuthenticated, isLoading, provider.name, user]);
 
   return null;
 }

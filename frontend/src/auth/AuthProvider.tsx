@@ -1,51 +1,24 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { ClerkAuthProvider } from './providers/clerk-provider';
 import type { FrontendAuthProvider, FrontendAuthProviderComponent } from './types';
 import { useAuthStore } from '../store/authStore';
 import { GlobalAuthContext } from './auth-context-def';
 
-// Auth provider registry - easy to add new providers
-// Determine which provider to use based on environment
-function getAuthProviderName(): string {
-  // Priority: explicit env var > dev mode default (local) > auto-detect
-  const envProvider = import.meta.env.VITE_AUTH_PROVIDER;
-  const hasClerkKey =
-    typeof import.meta.env.VITE_CLERK_PUBLISHABLE_KEY === 'string' &&
-    import.meta.env.VITE_CLERK_PUBLISHABLE_KEY.trim().length > 0;
+interface ExternalAuthModule {
+  getFrontendAuthProviderComponent?: () => FrontendAuthProviderComponent;
+}
 
-  // In dev mode, default to local auth unless VITE_AUTH_PROVIDER is explicitly set
-  if (import.meta.env.DEV && !envProvider) {
-    return 'local';
-  }
+function getExternalAuthModuleId(): string {
+  return (import.meta.env.VITE_CLOUD_EXTENSION_PACKAGE as string | undefined)?.trim() || '';
+}
 
-  // If explicitly set to 'local', always use local auth
+function shouldUseExternalAuth(): boolean {
+  const envProvider = (import.meta.env.VITE_AUTH_PROVIDER as string | undefined)
+    ?.trim()
+    .toLowerCase();
   if (envProvider === 'local') {
-    return 'local';
+    return false;
   }
-
-  // If explicitly set to clerk, use it (if key is available)
-  if (envProvider === 'clerk') {
-    if (!hasClerkKey) {
-      console.warn(
-        'Auth provider set to Clerk, but no publishable key configured. Falling back to local auth.',
-      );
-      return 'local';
-    }
-    return 'clerk';
-  }
-
-  // If explicitly set to another provider, use it
-  if (envProvider && authProviders[envProvider]) {
-    return envProvider;
-  }
-
-  // In production, use Clerk if key is available, otherwise local
-  if (hasClerkKey) {
-    return 'clerk';
-  }
-
-  // Final fallback to local
-  return 'local';
+  return getExternalAuthModuleId().length > 0;
 }
 
 type ProviderComponentProps = React.PropsWithChildren<{
@@ -133,30 +106,82 @@ const LocalAuthProvider: FrontendAuthProviderComponent = ({
   return <>{children}</>;
 };
 
-const authProviders: Record<string, FrontendAuthProviderComponent> = {
-  clerk: ClerkAuthProvider,
-  local: LocalAuthProvider,
-  // Future providers can be added here:
-  // auth0: Auth0AuthProvider,
-  // firebase: FirebaseAuthProvider,
+const PendingAuthProvider: FrontendAuthProviderComponent = ({ children, onProviderChange }) => {
+  useEffect(() => {
+    onProviderChange?.(null);
+    return () => {
+      onProviderChange?.(null);
+    };
+  }, [onProviderChange]);
+
+  return <>{children}</>;
 };
 
 // Main auth provider component that selects the appropriate provider
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const providerName = getAuthProviderName();
   const [currentProvider, setCurrentProvider] = useState<FrontendAuthProvider | null>(null);
-  const ProviderComponent = authProviders[providerName] ?? LocalAuthProvider;
+  const [resolvedProviderName, setResolvedProviderName] = useState<string>(() =>
+    shouldUseExternalAuth() ? 'cloud' : 'local',
+  );
+  const [ProviderComponent, setProviderComponent] = useState<FrontendAuthProviderComponent>(() =>
+    shouldUseExternalAuth() ? PendingAuthProvider : LocalAuthProvider,
+  );
 
   const handleProviderChange = useCallback((provider: FrontendAuthProvider | null) => {
     setCurrentProvider(provider);
   }, []);
 
+  useEffect(() => {
+    const externalModuleId = getExternalAuthModuleId();
+    if (!shouldUseExternalAuth() || !externalModuleId) {
+      setResolvedProviderName('local');
+      setProviderComponent(() => LocalAuthProvider);
+      return;
+    }
+
+    let cancelled = false;
+    const target = externalModuleId.startsWith('/') ? `/@fs${externalModuleId}` : externalModuleId;
+
+    import(/* @vite-ignore */ target)
+      .then((mod) => {
+        if (cancelled) {
+          return;
+        }
+
+        const externalProvider = (mod as ExternalAuthModule).getFrontendAuthProviderComponent?.();
+        if (externalProvider) {
+          setResolvedProviderName('cloud');
+          setProviderComponent(() => externalProvider);
+          return;
+        }
+
+        console.warn(
+          `[auth] External auth module "${externalModuleId}" did not export getFrontendAuthProviderComponent; falling back to local auth.`,
+        );
+        setResolvedProviderName('local');
+        setProviderComponent(() => LocalAuthProvider);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        console.warn(`[auth] Failed to load external auth module "${externalModuleId}"`, error);
+        setResolvedProviderName('local');
+        setProviderComponent(() => LocalAuthProvider);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const contextValue = useMemo(
     () => ({
       provider: currentProvider,
-      providerName,
+      providerName: currentProvider?.name ?? resolvedProviderName,
     }),
-    [currentProvider, providerName],
+    [currentProvider, resolvedProviderName],
   );
 
   return (

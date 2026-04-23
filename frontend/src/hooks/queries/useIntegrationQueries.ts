@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient, skipToken } from '@tanstack/reac
 import { API_V1_URL, api } from '@/services/api';
 import { queryKeys } from '@/lib/queryKeys';
 import { useAuthStore } from '@/store/authStore';
-import { getFreshClerkToken } from '@/utils/clerk-token';
+import { getFreshAuthToken } from '@/utils/auth-token';
 import type { components } from '@shipsec/backend-client';
 
 type IntegrationProvider = components['schemas']['IntegrationProviderResponse'];
@@ -51,9 +51,9 @@ async function getIntegrationRequestHeaders(): Promise<Record<string, string>> {
   let token = storeState.token;
   const organizationId = storeState.provider === 'local' ? 'local-dev' : storeState.organizationId;
 
-  if (storeState.provider === 'clerk') {
+  if (storeState.provider !== 'local') {
     try {
-      const freshToken = await getFreshClerkToken();
+      const freshToken = await getFreshAuthToken();
       if (freshToken) {
         token = freshToken;
         storeState.setToken(freshToken);

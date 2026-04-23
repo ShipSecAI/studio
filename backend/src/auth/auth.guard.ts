@@ -61,7 +61,7 @@ export class AuthGuard implements CanActivate {
       return true;
     }
 
-    // Fall back to user authentication (Clerk/Local)
+    // Fall back to user authentication (hosted/local)
     this.logger.log(
       `[AUTH] Guard activating for ${request.method} ${request.path} - Provider: ${this.authService.providerName}`,
     );

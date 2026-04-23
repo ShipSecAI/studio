@@ -2,7 +2,7 @@ import { createShipSecClient } from '../../../packages/backend-client/src/api-cl
 import type { components, operations, paths } from '../../../packages/backend-client/src/client';
 import type { RunArtifactsResponse, WorkflowSchedule, ScheduleStatus } from '@shipsec/shared';
 import { useAuthStore } from '@/store/authStore';
-import { getFreshClerkToken } from '@/utils/clerk-token';
+import { getFreshAuthToken } from '@/utils/auth-token';
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -69,19 +69,16 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   // For local auth, always use 'local-dev' org ID
   const organizationId = storeState.provider === 'local' ? 'local-dev' : storeState.organizationId;
 
-  // For Clerk auth, always fetch a fresh token on-demand to prevent expiration issues
-  // This ensures we never use a stale/expired token
-  if (storeState.provider === 'clerk') {
+  if (storeState.provider !== 'local') {
     try {
-      const freshToken = await getFreshClerkToken();
+      const freshToken = await getFreshAuthToken();
       if (freshToken) {
         token = freshToken;
-        // Update store with fresh token so it's available for next time
         storeState.setToken(freshToken);
       } else {
         // If we can't get a fresh token, fall back to store token
       }
-    } catch (_error) {
+    } catch {
       // Fall back to store token if fresh token fetch fails
     }
   }
@@ -93,7 +90,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
     const credentials = btoa(`${storeState.adminUsername}:${storeState.adminPassword}`);
     headers['Authorization'] = `Basic ${credentials}`;
   } else if (token && token.trim().length > 0) {
-    // Use Bearer token (for Clerk)
+    // Use Bearer token for hosted auth providers
     const headerValue = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
     headers['Authorization'] = headerValue;
   }
@@ -977,10 +974,9 @@ export const api = {
       let token = storeState.token;
       const organizationId = storeState.organizationId;
 
-      // For Clerk auth, fetch a fresh token
-      if (storeState.provider === 'clerk') {
+      if (storeState.provider !== 'local') {
         try {
-          const freshToken = await getFreshClerkToken();
+          const freshToken = await getFreshAuthToken();
           if (freshToken) {
             token = freshToken;
             storeState.setToken(freshToken);

@@ -43,7 +43,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
   }, [authProvider]);
 
-  // Automatically trigger sign-in for Clerk when not authenticated (only once on mount)
+  // Automatically trigger hosted sign-in when not authenticated (only once on mount)
   useEffect(() => {
     if (
       !isLoading &&

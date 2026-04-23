@@ -11,7 +11,7 @@ interface OrganizationSwitcherProps {
 /**
  * Organization Switcher Component
  *
- * For Clerk: Uses Clerk's OrganizationSwitcher component
+ * For hosted auth: uses the provider's organization switcher component
  * For other providers: Shows organization info or placeholder
  */
 export const OrganizationSwitcher: React.FC<OrganizationSwitcherProps> = ({
@@ -21,7 +21,7 @@ export const OrganizationSwitcher: React.FC<OrganizationSwitcherProps> = ({
   const authProvider = useAuthProvider();
   const { user, isAuthenticated } = authProvider.context;
 
-  // Use Clerk's OrganizationSwitcher if available
+  // Use the hosted auth provider's OrganizationSwitcher if available
   if (authProvider.name === 'clerk' && authProvider.OrganizationSwitcherComponent) {
     const ClerkOrgSwitcher = authProvider.OrganizationSwitcherComponent;
     return (

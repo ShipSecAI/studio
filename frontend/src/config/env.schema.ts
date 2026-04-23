@@ -47,24 +47,13 @@ export const frontendEnvSchema = z
 
     // Auth
     VITE_AUTH_PROVIDER: z.string().optional().default(''),
-    VITE_CLERK_PUBLISHABLE_KEY: z.string().optional().default(''),
-    VITE_CLERK_JWT_TEMPLATE: z.string().optional().default(''),
     VITE_API_AUTH_PROVIDER: z.string().optional().default(''),
+    VITE_CLOUD_EXTENSION_PACKAGE: z.string().optional().default(''),
 
     // Dev defaults
     VITE_DEFAULT_ORG: z.string().optional().default(''),
     VITE_DEFAULT_USER_ID: z.string().optional().default(''),
   })
-  .superRefine((data, ctx) => {
-    // If auth provider is clerk, VITE_CLERK_PUBLISHABLE_KEY is required
-    const provider = data.VITE_AUTH_PROVIDER.trim().toLowerCase();
-    if (provider === 'clerk' && !data.VITE_CLERK_PUBLISHABLE_KEY) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['VITE_CLERK_PUBLISHABLE_KEY'],
-        message: 'VITE_CLERK_PUBLISHABLE_KEY is required when VITE_AUTH_PROVIDER=clerk',
-      });
-    }
-  });
+  .superRefine(() => {});
 
 export type FrontendEnvConfig = z.infer<typeof frontendEnvSchema>;

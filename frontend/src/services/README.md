@@ -5,7 +5,9 @@ API service layer that abstracts all backend communication and provides centrali
 ## Core Services
 
 ### API Service (`api.ts`)
+
 Centralized API communication layer that:
+
 - Wraps the generated `@shipsec/backend-client` for type-safe API calls
 - Centralizes backend URL configuration and authentication headers
 - Validates responses using Zod schemas from `@shipsec/shared`
@@ -13,12 +15,14 @@ Centralized API communication layer that:
 - Implements request/response interceptors for authentication and logging
 
 ### Authentication Service
-- Handles Clerk authentication integration
+
+- Handles auth-provider integration
 - Manages organization scoping and role-based access
 - Provides token refresh and session management
 - Handles authentication state across the application
 
 ### Real-time Services
+
 - **Workflow Stream Service**: WebSocket connections for live workflow status updates
 - **Terminal Stream Service**: Server-Sent Events for real-time terminal output
 - **Event Stream Service**: Live execution event processing and timeline updates
@@ -26,6 +30,7 @@ Centralized API communication layer that:
 ## Usage Patterns
 
 ### API Calls
+
 ```typescript
 import { apiService } from '../services/api';
 
@@ -36,6 +41,7 @@ const run = await apiService.createWorkflowRun('workflow-id', inputs);
 ```
 
 ### Real-time Updates
+
 ```typescript
 import { useWorkflowStream } from '../hooks/useWorkflowStream';
 
@@ -46,6 +52,7 @@ const { data, isConnected, error } = useWorkflowStream(runId);
 ## Error Handling
 
 All services implement consistent error handling:
+
 - API errors are transformed to user-friendly messages
 - Network errors trigger automatic retry with exponential backoff
 - Authentication errors redirect to login flow

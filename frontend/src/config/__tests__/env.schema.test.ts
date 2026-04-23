@@ -46,19 +46,11 @@ describe('frontendEnvSchema', () => {
     }
   });
 
-  it('fails when VITE_AUTH_PROVIDER=clerk without VITE_CLERK_PUBLISHABLE_KEY', () => {
-    const result = frontendEnvSchema.safeParse({ VITE_AUTH_PROVIDER: 'clerk' });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const paths = result.error.issues.map((i) => i.path.join('.'));
-      expect(paths).toContain('VITE_CLERK_PUBLISHABLE_KEY');
-    }
-  });
-
-  it('passes when VITE_AUTH_PROVIDER=clerk with VITE_CLERK_PUBLISHABLE_KEY', () => {
+  it('passes when hosted auth vars are present in the public frontend env', () => {
     const result = frontendEnvSchema.safeParse({
       VITE_AUTH_PROVIDER: 'clerk',
       VITE_CLERK_PUBLISHABLE_KEY: 'pk_test_xxx',
+      VITE_CLOUD_EXTENSION_PACKAGE: '/tmp/studio-cloud/frontend/index.js',
     });
     expect(result.success).toBe(true);
   });

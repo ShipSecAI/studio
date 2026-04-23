@@ -6,17 +6,6 @@ import {
   stringToBoolean,
 } from '@shipsec/shared';
 
-/**
- * AUTH_PROVIDER: trims, lowercases, and defaults unknown values to 'local'.
- * Preserves the tolerant normalization from auth.config.ts.
- */
-const authProviderSchema = z
-  .string()
-  .optional()
-  .default('local')
-  .transform((v) => v.trim().toLowerCase())
-  .pipe(z.enum(['local', 'clerk']).catch('local'));
-
 export const backendEnvSchema = z
   .object({
     // --- Conditionally required (depend on ingest-services flags) ---
@@ -39,9 +28,6 @@ export const backendEnvSchema = z
     SHIPSEC_INSTANCE: z.coerce.number().optional().default(0),
 
     // --- Auth ---
-    AUTH_PROVIDER: authProviderSchema,
-    CLERK_SECRET_KEY: z.string().optional(),
-    CLERK_PUBLISHABLE_KEY: z.string().optional(),
     AUTH_LOCAL_ALLOW_UNAUTHENTICATED: stringToBoolean(true),
     AUTH_LOCAL_API_KEY: z.string().optional().default(''),
     ADMIN_USERNAME: z.string().optional().default('admin'),
@@ -195,25 +181,6 @@ export const backendEnvSchema = z
         });
       }
     }
-
-    // Clerk keys required when AUTH_PROVIDER is clerk
-    if (data.AUTH_PROVIDER === 'clerk') {
-      if (!data.CLERK_SECRET_KEY) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['CLERK_SECRET_KEY'],
-          message: 'CLERK_SECRET_KEY is required when AUTH_PROVIDER=clerk',
-        });
-      }
-      if (!data.CLERK_PUBLISHABLE_KEY) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['CLERK_PUBLISHABLE_KEY'],
-          message: 'CLERK_PUBLISHABLE_KEY is required when AUTH_PROVIDER=clerk',
-        });
-      }
-    }
-
     const shipsecEnv = data.SHIPSEC_ENV?.trim().toLowerCase();
     const requiresRedis =
       data.NODE_ENV === 'production' || shipsecEnv === 'prod' || shipsecEnv === 'staging';

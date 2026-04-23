@@ -45,17 +45,7 @@ describe('backendEnvSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('fails when AUTH_PROVIDER=clerk without CLERK keys', () => {
-    const result = backendEnvSchema.safeParse(validEnv({ AUTH_PROVIDER: 'clerk' }));
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const paths = result.error.issues.map((i) => i.path.join('.'));
-      expect(paths).toContain('CLERK_SECRET_KEY');
-      expect(paths).toContain('CLERK_PUBLISHABLE_KEY');
-    }
-  });
-
-  it('passes when AUTH_PROVIDER=clerk with both CLERK keys', () => {
+  it('ignores hosted auth vars in the OSS env schema', () => {
     const result = backendEnvSchema.safeParse(
       validEnv({
         AUTH_PROVIDER: 'clerk',
@@ -64,14 +54,6 @@ describe('backendEnvSchema', () => {
       }),
     );
     expect(result.success).toBe(true);
-  });
-
-  it('normalizes " LOCAL " to "local"', () => {
-    const result = backendEnvSchema.safeParse(validEnv({ AUTH_PROVIDER: ' LOCAL ' }));
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.AUTH_PROVIDER).toBe('local');
-    }
   });
 
   it('fails in prod when REDIS_URL is missing', () => {
@@ -109,28 +91,6 @@ describe('backendEnvSchema', () => {
     if (!result.success) {
       const paths = result.error.issues.map((i) => i.path.join('.'));
       expect(paths).toContain('REDIS_URL');
-    }
-  });
-
-  it('falls back unknown AUTH_PROVIDER to "local"', () => {
-    const result = backendEnvSchema.safeParse(validEnv({ AUTH_PROVIDER: 'weird' }));
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.AUTH_PROVIDER).toBe('local');
-    }
-  });
-
-  it('normalizes "Clerk" to "clerk"', () => {
-    const result = backendEnvSchema.safeParse(
-      validEnv({
-        AUTH_PROVIDER: 'Clerk',
-        CLERK_SECRET_KEY: 'sk_test_xxx',
-        CLERK_PUBLISHABLE_KEY: 'pk_test_xxx',
-      }),
-    );
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.AUTH_PROVIDER).toBe('clerk');
     }
   });
 

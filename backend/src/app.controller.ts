@@ -5,6 +5,7 @@ import type { Response } from 'express';
 
 import { AppService } from './app.service';
 import { CurrentAuth } from './auth/auth-context.decorator';
+import { AuthService } from './auth/auth.service';
 import type { AuthContext } from './auth/types';
 import { Public } from './auth/public.decorator';
 import type { AuthConfig } from './config/auth.config';
@@ -26,6 +27,7 @@ export class AppController {
     private readonly appService: AppService,
     private readonly configService: ConfigService,
     private readonly tenantService: ClickHouseTenantService,
+    private readonly authService: AuthService,
   ) {
     this.authCfg = this.configService.get<AuthConfig>('auth')!;
   }
@@ -97,7 +99,7 @@ export class AppController {
     @Res({ passthrough: true }) res: Response,
   ) {
     // Only for local auth provider
-    if (this.authCfg.provider !== 'local') {
+    if (this.authService.providerName !== 'local') {
       throw new UnauthorizedException('Login endpoint only available for local auth');
     }
 
