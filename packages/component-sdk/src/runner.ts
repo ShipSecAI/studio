@@ -65,6 +65,8 @@ const SENSITIVE_ENV_PATTERNS = [
   /^ghp_/,
   /^ghs_/,
   /^github_pat_/,
+  /^AKIA[0-9A-Z]{16}$/i,
+  /^ASIA[0-9A-Z]{16}$/i,
   /^sk-/,
   /^Bearer\s+/i,
 ];
@@ -76,6 +78,16 @@ const SENSITIVE_ENV_KEYS = new Set([
   'ACCESS_TOKEN', 'REFRESH_TOKEN',
 ]);
 
+const SENSITIVE_ENV_KEY_FRAGMENTS = [
+  'TOKEN',
+  'SECRET',
+  'PASSWORD',
+  'PRIVATE_KEY',
+  'ACCESS_KEY',
+  'API_KEY',
+  'CREDENTIAL',
+];
+
 function redactEnvArg(arg: string): string {
   // Match -e KEY=VALUE or KEY=VALUE after a previous -e flag
   const eqIdx = arg.indexOf('=');
@@ -83,9 +95,13 @@ function redactEnvArg(arg: string): string {
 
   const key = arg.slice(0, eqIdx);
   const value = arg.slice(eqIdx + 1);
+  const normalizedKey = key.toUpperCase();
 
   // Redact if key is known-sensitive
-  if (SENSITIVE_ENV_KEYS.has(key)) {
+  if (
+    SENSITIVE_ENV_KEYS.has(normalizedKey) ||
+    SENSITIVE_ENV_KEY_FRAGMENTS.some((fragment) => normalizedKey.includes(fragment))
+  ) {
     return `${key}=***`;
   }
 
