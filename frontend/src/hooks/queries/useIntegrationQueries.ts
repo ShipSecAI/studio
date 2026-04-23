@@ -146,19 +146,27 @@ export function useIntegrationCatalog() {
   });
 }
 
-export function useAwsSetupInfo() {
+export function useAwsSetupInfo(enabled = true) {
+  const isEnabled = enabled;
   return useQuery({
     queryKey: queryKeys.integrations.awsSetupInfo(),
-    queryFn: () => api.integrations.getAwsSetupInfo(),
+    queryFn: isEnabled ? () => api.integrations.getAwsSetupInfo() : skipToken,
+    enabled: isEnabled,
     staleTime: 25 * 60_000,
+    ...(isEnabled ? {} : { gcTime: 0 }),
   });
 }
 
-export function useGcpSetupInfo() {
+export function useGcpSetupInfo(enabled = true) {
+  const isEnabled = enabled;
   return useQuery({
     queryKey: queryKeys.integrations.gcpSetupInfo(),
-    queryFn: () => getIntegrationJson<GcpSetupInfoResponse>('/integrations/gcp/setup-info'),
+    queryFn: isEnabled
+      ? () => getIntegrationJson<GcpSetupInfoResponse>('/integrations/gcp/setup-info')
+      : skipToken,
+    enabled: isEnabled,
     staleTime: 25 * 60_000,
+    ...(isEnabled ? {} : { gcTime: 0 }),
   });
 }
 

@@ -1583,8 +1583,10 @@ export function CloudAccountsPage() {
     () =>
       orgConnections.filter(
         (c: { provider: string; credentialType?: string }) =>
-          (c.provider === 'aws' && c.credentialType === 'iam_role') ||
-          (c.provider === 'gcp' && c.credentialType === 'service_account'),
+          (c.provider === 'aws' &&
+            (c.credentialType === 'iam_role' || c.credentialType === 'access_key')) ||
+          (c.provider === 'gcp' &&
+            (c.credentialType === 'service_account' || c.credentialType === 'service_account_key')),
       ) as CloudConnection[],
     [orgConnections],
   );

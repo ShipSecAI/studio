@@ -592,9 +592,13 @@ export const api = {
       sessionToken?: string;
       region?: string;
     }): Promise<IntegrationConnection> => {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${API_V1_URL}/integrations/aws/connections/access-key`, {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
         body: JSON.stringify(payload),
       });
       const data = (await response.json().catch(() => null)) as
@@ -662,11 +666,15 @@ export const api = {
       defaultProjectId?: string;
       organizationId?: string;
     }): Promise<IntegrationConnection> => {
+      const headers = await getAuthHeaders();
       const response = await fetch(
         `${API_V1_URL}/integrations/gcp/connections/service-account-key`,
         {
           method: 'POST',
-          headers: await getAuthHeaders(),
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers,
+          },
           body: JSON.stringify(payload),
         },
       );
