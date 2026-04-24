@@ -9,6 +9,8 @@ export interface AuthContext {
   roles: AuthRole[];
   isAuthenticated: boolean;
   provider: string;
+  /** API key identifier used for request attribution when provider is api-key. */
+  apiKeyId?: string;
   /** Present only when authenticated via API key. */
   apiKeyPermissions?: ApiKeyPermissions;
 }

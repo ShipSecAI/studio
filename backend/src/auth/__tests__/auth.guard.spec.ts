@@ -139,7 +139,8 @@ describe('AuthGuard', () => {
 
       expect(result).toBe(true);
       expect(mockRequest.auth).toMatchObject({
-        userId: 'key-123',
+        userId: 'user-1',
+        apiKeyId: 'key-123',
         organizationId: 'org-456',
         roles: ['MEMBER'],
         provider: 'api-key',
@@ -284,7 +285,8 @@ describe('AuthGuard', () => {
 
       expect(result).toBe(true);
       expect(mockRequest.auth).toMatchObject({
-        userId: 'key-valid',
+        userId: 'user-1',
+        apiKeyId: 'key-valid',
         organizationId: 'org-api-key',
         roles: ['MEMBER'],
         provider: 'api-key',

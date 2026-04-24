@@ -164,11 +164,12 @@ export class AuthGuard implements CanActivate {
     };
 
     return {
-      userId: apiKey.id,
+      userId: apiKey.createdBy,
       organizationId: apiKey.organizationId,
       roles: ['MEMBER'], // API keys have MEMBER role by default
       isAuthenticated: true,
       provider: 'api-key',
+      apiKeyId: apiKey.id,
       apiKeyPermissions: normalizedPermissions,
     };
   }
