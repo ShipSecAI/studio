@@ -291,7 +291,7 @@ function extractConnectionIdentifiers(
   credentialType: string,
   metadata: Record<string, unknown>,
 ): string[] {
-  if (provider === 'aws' && credentialType === 'iam_role') {
+  if (provider === 'aws' && (credentialType === 'iam_role' || credentialType === 'access_key')) {
     const accountId =
       (typeof metadata.accountId === 'string' && metadata.accountId.trim()) ||
       (typeof metadata.roleArn === 'string'
@@ -300,7 +300,10 @@ function extractConnectionIdentifiers(
     return accountId ? [accountId] : [];
   }
 
-  if (provider !== 'gcp' || credentialType !== 'service_account') {
+  if (
+    provider !== 'gcp' ||
+    (credentialType !== 'service_account' && credentialType !== 'service_account_key')
+  ) {
     return [];
   }
 

@@ -44,3 +44,53 @@ describe('AssetDiscoveryService.refreshFromGraphSnapshot', () => {
     expect(result.assetsStale).toBe(2);
   });
 });
+
+describe('AssetDiscoveryService.listAssets', () => {
+  it('binds CE cloud credentials when filtering graph assets', async () => {
+    const cloudGraphListAssets = mock(() => Promise.resolve([]));
+    const records = [
+      {
+        id: 'aws-access-key-connection',
+        provider: 'aws',
+        credentialType: 'access_key',
+        metadata: { accountId: '123456789012' },
+      },
+      {
+        id: 'gcp-service-account-key-connection',
+        provider: 'gcp',
+        credentialType: 'service_account_key',
+        metadata: {
+          defaultProjectId: 'shipsec',
+          discoveredResources: [{ id: '281737364847' }],
+        },
+      },
+    ];
+    const db = {
+      select: mock(() => ({
+        from: mock(() => ({
+          where: mock(() => Promise.resolve(records)),
+        })),
+      })),
+    };
+    const service = new AssetDiscoveryService(
+      {
+        getHistoricalStatusCounts: mock(() => Promise.resolve([])),
+      } as any,
+      {
+        findLatestCompletedSyncForIntegration: mock(() => Promise.resolve(null)),
+      } as any,
+      {
+        listAssets: cloudGraphListAssets,
+      } as any,
+      db as any,
+    );
+
+    await service.listAssets({ organizationId: 'org-1' } as any);
+
+    expect(cloudGraphListAssets).toHaveBeenCalledWith('org-1', [
+      { connectionId: 'aws-access-key-connection', accountIdentifier: '123456789012' },
+      { connectionId: 'gcp-service-account-key-connection', accountIdentifier: 'shipsec' },
+      { connectionId: 'gcp-service-account-key-connection', accountIdentifier: '281737364847' },
+    ]);
+  });
+});
