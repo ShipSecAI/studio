@@ -132,6 +132,73 @@ export const prowlerFindingSchema = z
 
 export type ProwlerFinding = z.infer<typeof prowlerFindingSchema>;
 
+const prowlerOcsfFindingSchema = z
+  .object({
+    message: z.string().optional(),
+    metadata: z
+      .object({
+        event_code: z.string().optional(),
+      })
+      .passthrough()
+      .optional(),
+    finding_info: z
+      .object({
+        uid: z.string().optional(),
+        title: z.string().optional(),
+        desc: z.string().optional(),
+      })
+      .passthrough()
+      .optional(),
+    cloud: z
+      .object({
+        account: z
+          .object({
+            uid: z.string().optional(),
+            name: z.string().optional(),
+          })
+          .passthrough()
+          .optional(),
+        region: z.string().optional(),
+        provider: z.string().optional(),
+      })
+      .passthrough()
+      .optional(),
+    resources: z
+      .array(
+        z
+          .object({
+            uid: z.string().optional(),
+            name: z.string().optional(),
+            type: z.string().optional(),
+            region: z.string().optional(),
+            group: z
+              .object({
+                name: z.string().optional(),
+              })
+              .passthrough()
+              .optional(),
+          })
+          .passthrough(),
+      )
+      .optional(),
+    remediation: z
+      .object({
+        desc: z.string().optional(),
+        references: z.array(z.string()).optional(),
+      })
+      .passthrough()
+      .optional(),
+    severity: z.string().optional(),
+    severity_id: z.number().optional(),
+    status: z.string().optional(),
+    status_code: z.string().optional(),
+    status_detail: z.string().optional(),
+    risk_details: z.string().optional(),
+  })
+  .passthrough();
+
+type ProwlerOcsfFinding = z.infer<typeof prowlerOcsfFindingSchema>;
+
 export const normalisedFindingSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),
@@ -167,13 +234,22 @@ export function normaliseFindings(
     const candidates = parseSegment(segment, segmentIndex, errors);
     candidates.forEach((candidate, candidateIndex) => {
       const parsed = prowlerFindingSchema.safeParse(candidate);
+      if (parsed.success && isProwlerAsffFinding(parsed.data)) {
+        findings.push(toNormalisedFinding(parsed.data, findings.length, runId));
+        return;
+      }
+
+      const ocsfParsed = prowlerOcsfFindingSchema.safeParse(candidate);
+      if (ocsfParsed.success && isProwlerOcsfFinding(ocsfParsed.data)) {
+        findings.push(toNormalisedOcsfFinding(ocsfParsed.data, findings.length, runId));
+        return;
+      }
+
       if (!parsed.success) {
         errors.push(
           `Segment ${segmentIndex + 1} item ${candidateIndex + 1}: ${parsed.error.message}`,
         );
-        return;
       }
-      findings.push(toNormalisedFinding(parsed.data, findings.length, runId));
     });
   });
 
@@ -259,6 +335,77 @@ export function toNormalisedFinding(
     recommendationUrl,
     rawFinding: finding,
   };
+}
+
+function isProwlerAsffFinding(finding: ProwlerFinding): boolean {
+  return (
+    finding.Id != null ||
+    finding.Title != null ||
+    finding.AwsAccountId != null ||
+    finding.Severity != null ||
+    finding.Compliance != null ||
+    finding.Resources != null
+  );
+}
+
+function isProwlerOcsfFinding(finding: ProwlerOcsfFinding): boolean {
+  return (
+    finding.metadata?.event_code != null ||
+    finding.finding_info?.uid != null ||
+    finding.cloud?.provider === 'gcp'
+  );
+}
+
+function toNormalisedOcsfFinding(
+  finding: ProwlerOcsfFinding,
+  index: number,
+  runId: string,
+): NormalisedFinding {
+  const primaryResource =
+    Array.isArray(finding.resources) && finding.resources.length > 0
+      ? finding.resources[0]
+      : undefined;
+  const remediationUrl = Array.isArray(finding.remediation?.references)
+    ? finding.remediation.references.find((reference) => reference.trim().length > 0)
+    : undefined;
+
+  return {
+    id:
+      finding.finding_info?.uid ?? finding.metadata?.event_code ?? `${runId}-finding-${index + 1}`,
+    title: finding.finding_info?.title ?? finding.message ?? null,
+    accountId: finding.cloud?.account?.uid ?? null,
+    resourceId: primaryResource?.uid ?? primaryResource?.name ?? null,
+    region: primaryResource?.region ?? finding.cloud?.region ?? null,
+    serviceName: primaryResource?.group?.name ?? extractServiceName(primaryResource?.type),
+    severity: normaliseOcsfSeverity(finding.severity, finding.severity_id),
+    status: normaliseStatus(finding.status_code ?? finding.status),
+    description:
+      finding.finding_info?.desc ?? finding.risk_details ?? finding.status_detail ?? null,
+    remediationText: finding.remediation?.desc ?? null,
+    recommendationUrl: remediationUrl ?? null,
+    rawFinding: finding,
+  };
+}
+
+function normaliseOcsfSeverity(severity?: string, severityId?: number): NormalisedSeverity {
+  if (typeof severity === 'string' && severity.trim().length > 0) {
+    const lowered = severity.trim().toLowerCase();
+    if (lowered.startsWith('crit')) return 'critical';
+    if (lowered.startsWith('high')) return 'high';
+    if (lowered.startsWith('med')) return 'medium';
+    if (lowered.startsWith('low')) return 'low';
+    if (lowered.startsWith('info')) return 'informational';
+  }
+
+  if (typeof severityId === 'number' && Number.isFinite(severityId)) {
+    if (severityId >= 5) return 'critical';
+    if (severityId === 4) return 'high';
+    if (severityId === 3) return 'medium';
+    if (severityId === 2) return 'low';
+    if (severityId === 1) return 'informational';
+  }
+
+  return 'unknown';
 }
 
 export function normaliseSeverity(finding: ProwlerFinding): NormalisedSeverity {

@@ -10,6 +10,8 @@ describe('prowler-scan helpers', () => {
     expect(aws).toContain('--region');
     expect(aws).toContain('us-east-1');
     expect(gcp.includes('--region')).toBe(false);
+    expect(aws).toContain('json-asff');
+    expect(gcp).toContain('json-ocsf');
   });
 
   it('prepareScan ignores regions for kubernetes mode', () => {

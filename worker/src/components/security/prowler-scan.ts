@@ -52,6 +52,7 @@ const SINGLE_ACCOUNT_TIMEOUT_SECONDS = 2700; // 45 minutes — Prowler scans typ
 const _ORG_SCAN_TIMEOUT_SECONDS = 7200; // 2 hours — reserved for future per-org timeout budget
 const FLUSH_THRESHOLD = 5000;
 const PROWLER_ASFF_OUTPUT_FILE = 'shipsec.asff.json';
+const PROWLER_OCSF_OUTPUT_FILE = 'shipsec.ocsf.json';
 const GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV =
   'SHIPSEC_GCP_IMPERSONATION_SOURCE_CREDENTIALS_JSON';
 
@@ -434,7 +435,7 @@ function buildCommand(
   }
   cmd.push(
     '--output-formats',
-    'json-asff',
+    scanMode === 'aws' ? 'json-asff' : 'json-ocsf',
     '--output-directory',
     '/output',
     '--output-filename',
@@ -603,35 +604,50 @@ function computeSeverityCounts(findings: NormalisedFinding[]) {
   return { severityCounts, failed, passed, unknown };
 }
 
-async function readProwlerAsffOutput(
+async function readProwlerJsonOutput(
   volume: Awaited<ReturnType<typeof createToolOutputVolume>>,
 ): Promise<string[]> {
+  for (const filename of [PROWLER_ASFF_OUTPUT_FILE, PROWLER_OCSF_OUTPUT_FILE]) {
+    try {
+      const output = await readToolOutputFile(volume, filename, 'Prowler');
+      if (output.trim().length > 0) {
+        return [output];
+      }
+    } catch {
+      // Fall back to scanning all JSON output files below.
+    }
+  }
+
   try {
-    const asffOutput = await readToolOutputFile(volume, PROWLER_ASFF_OUTPUT_FILE, 'Prowler');
-    return asffOutput.trim().length > 0 ? [asffOutput] : [];
-  } catch {
     const files = await listVolumeFiles(volume);
-    const asffCandidates = files
+    const jsonCandidates = files
       .filter((file) => file.endsWith('.json'))
       .filter((file) => {
         const lower = file.toLowerCase();
         return (
-          lower.endsWith('.asff.json') || lower.includes('json-asff') || lower.includes('asff')
+          lower.endsWith('.asff.json') ||
+          lower.endsWith('.ocsf.json') ||
+          lower.includes('json-asff') ||
+          lower.includes('json-ocsf') ||
+          lower.includes('asff') ||
+          lower.includes('ocsf')
         );
       });
 
-    if (asffCandidates.length === 0) {
+    if (jsonCandidates.length === 0) {
       return [];
     }
 
     const rawSegments: string[] = [];
-    for (const filename of asffCandidates) {
-      const asffOutput = await readToolOutputFile(volume, filename, 'Prowler');
-      if (asffOutput.trim().length > 0) {
-        rawSegments.push(asffOutput);
+    for (const filename of jsonCandidates) {
+      const output = await readToolOutputFile(volume, filename, 'Prowler');
+      if (output.trim().length > 0) {
+        rawSegments.push(output);
       }
     }
     return rawSegments;
+  } catch {
+    return [];
   }
 }
 
@@ -805,7 +821,7 @@ async function executeSingleAccountScan(
       context,
     );
 
-    rawSegments = await readProwlerAsffOutput(outputVolume);
+    rawSegments = await readProwlerJsonOutput(outputVolume);
 
     const { findings, errors } =
       rawSegments.length > 0
@@ -813,7 +829,9 @@ async function executeSingleAccountScan(
         : { findings: [] as NormalisedFinding[], errors: [] as string[] };
 
     if (rawSegments.length === 0) {
-      context.logger.warn('[ProwlerScan] Prowler completed without producing shipsec.asff.json');
+      context.logger.warn(
+        '[ProwlerScan] Prowler completed without producing shipsec.asff.json or shipsec.ocsf.json',
+      );
     }
 
     const { severityCounts, failed, passed, unknown } = computeSeverityCounts(findings);
@@ -972,7 +990,7 @@ async function scanSingleOrgAccount(
       context,
     );
 
-    rawSegments = await readProwlerAsffOutput(outVolume);
+    rawSegments = await readProwlerJsonOutput(outVolume);
 
     const { findings, errors: parseErrors } =
       rawSegments.length > 0
