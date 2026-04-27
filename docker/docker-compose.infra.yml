@@ -168,7 +168,15 @@ services:
         condition: service_healthy
     entrypoint: ['/bin/sh', '-c']
     command:
-      - cat /schema/security-findings.init.sql | clickhouse-client --host clickhouse --database shipsec --multiquery
+      - |
+        for attempt in $$(seq 1 60); do
+          if cat /schema/security-findings.init.sql | clickhouse-client --host clickhouse --database shipsec --multiquery; then
+            exit 0
+          fi
+          echo "Waiting for ClickHouse SQL endpoint ($$attempt/60)..."
+          sleep 2
+        done
+        exit 1
     volumes:
       - ../backend/src/analytics/schema/security-findings.init.sql:/schema/security-findings.init.sql:ro
     restart: 'no'
