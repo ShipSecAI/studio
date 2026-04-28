@@ -36,6 +36,8 @@ import './core/mcp-library';
 import './core/analytics-sink';
 import './core/recon-dedupe';
 import './core/findings-dedupe';
+import './core/shipsec-cloud-ingestion-normalize';
+import './core/shipsec-asm-ingestion-normalize';
 // Manual Action components
 import './manual-action/manual-approval';
 import './manual-action/manual-selection';

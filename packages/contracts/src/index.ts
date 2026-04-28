@@ -3,6 +3,7 @@ import { withPortMeta } from '@shipsec/component-sdk';
 import { DestinationConfigSchema } from '@shipsec/shared';
 
 export * from './shipsec-north-star.js';
+export * from './shipsec-depth3.js';
 
 export const awsCredentialContractName = 'core.credential.aws';
 export const awsCredentialSchema = () =>
