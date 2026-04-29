@@ -704,7 +704,7 @@ function kubernetesSecurityScanTemplate(): SeedTemplate {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 10: Attack Surface Recon
-// Entry Point → Subfinder → DNSx → HTTPx → Dedupe+Enrich → Analytics
+// Entry Point → Subfinder → DNSx → HTTPx → Dedupe+Enrich → [Analytics, ASM Assets]
 // ──────────────────────────────────────────────────────────────────────────────
 function attackSurfaceReconTemplate(): SeedTemplate {
   resetCounter();
@@ -714,6 +714,7 @@ function attackSurfaceReconTemplate(): SeedTemplate {
   const httpx = nid('node');
   const dedupe = nid('node');
   const analytics = nid('node');
+  const asmAssets = nid('node');
 
   return {
     name: 'Attack Surface Recon',
@@ -738,6 +739,7 @@ function attackSurfaceReconTemplate(): SeedTemplate {
         makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1500, 0, {
           dataInputs: [{ id: 'input1', label: 'Recon Assets', sourceTag: 'asm-recon' }],
         }),
+        makeNode(asmAssets, 'core.asm.assets-upsert', 'ASM Assets', 1500, 160),
       ],
       edges: [
         // Entry Point → Subfinder (domains injected at trigger time)
@@ -749,8 +751,9 @@ function attackSurfaceReconTemplate(): SeedTemplate {
         // DNSx + HTTPx → Dedupe + Enrich
         makeEdge('e4', dnsx, dedupe, 'results', 'dnsResults'),
         makeEdge('e5', httpx, dedupe, 'results', 'httpResults'),
-        // Dedupe + Enrich → Analytics
+        // Dedupe + Enrich → Analytics + ASM asset inventory
         makeEdge('e6', dedupe, analytics, 'results', 'input1'),
+        makeEdge('e7', dedupe, asmAssets, 'results', 'results'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.6 },
     },

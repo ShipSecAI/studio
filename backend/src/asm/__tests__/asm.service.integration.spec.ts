@@ -136,4 +136,66 @@ describe.if(runIntegration)('AsmService integration', () => {
     expect(result[0]?.assetCount).toBe(2);
     expect([...(result[0]?.techStack ?? [])].sort()).toEqual(['bun', 'nginx', 'react']);
   });
+
+  it('upserts ASM recon assets by domain and hostname without duplicates', async () => {
+    const organizationId = `org-${randomUUID()}`;
+    createdOrgIds.add(organizationId);
+
+    const [domain] = await db
+      .insert(asmDomains)
+      .values({
+        organizationId,
+        domain: `example-${randomUUID().slice(0, 8)}.com`,
+      })
+      .returning();
+
+    const first = await service.upsertAssetsForDomain(organizationId, {
+      domainId: domain.id,
+      runId: 'run-1',
+      workflowId: 'workflow-1',
+      assets: [
+        {
+          hostname: `app.${domain.domain}`,
+          type: 'subdomain',
+          ipAddresses: ['1.2.3.4'],
+          techStack: ['nginx'],
+          ports: [{ port: 443, protocol: 'tcp', service: 'https' }],
+          dnsRecords: { answers: { a: ['1.2.3.4'] } },
+          tlsInfo: { observedHttps: true },
+          metadata: { url: `https://app.${domain.domain}` },
+        },
+      ],
+    });
+
+    const second = await service.upsertAssetsForDomain(organizationId, {
+      domainId: domain.id,
+      runId: 'run-2',
+      workflowId: 'workflow-1',
+      assets: [
+        {
+          hostname: `app.${domain.domain}`,
+          type: 'subdomain',
+          ipAddresses: ['5.6.7.8'],
+          techStack: ['react'],
+          ports: [{ port: 80, protocol: 'tcp', service: 'http' }],
+          metadata: { title: 'Updated' },
+        },
+      ],
+    });
+
+    const rows = await db.select().from(asmAssets).where(eq(asmAssets.domainId, domain.id));
+
+    expect(first).toMatchObject({ created: 1, updated: 0, assetCount: 1 });
+    expect(second).toMatchObject({ created: 0, updated: 1, assetCount: 1 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.ipAddresses?.sort()).toEqual(['1.2.3.4', '5.6.7.8']);
+    expect(rows[0]?.techStack?.sort()).toEqual(['nginx', 'react']);
+    expect(rows[0]?.ports?.map((port) => port.port).sort()).toEqual([80, 443]);
+    expect(rows[0]?.metadata).toMatchObject({
+      url: `https://app.${domain.domain}`,
+      title: 'Updated',
+      lastWorkflowRunId: 'run-2',
+      workflowId: 'workflow-1',
+    });
+  });
 });

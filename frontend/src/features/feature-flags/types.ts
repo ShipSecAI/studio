@@ -13,6 +13,7 @@ export type FeatureKey =
   | 'WEBHOOKS'
   // AI
   | 'AI_AGENT'
+  | 'AI_FINDINGS'
   // Code Security (GitHub)
   | 'GITHUB_INTEGRATION'
   | 'CODE_SCANS'

@@ -49,6 +49,12 @@ export const featureRegistry: FeatureRegistry = {
     posthogKey: 'ff_ai_agent',
     buildTimeEnv: 'VITE_FF_AI_AGENT',
   },
+  AI_FINDINGS: {
+    key: 'AI_FINDINGS',
+    label: 'AI Correlated Findings Dashboard',
+    defaultEnabled: true,
+    posthogKey: 'ff_ai_findings',
+  },
 
   // ── Code Security (GitHub) ─────────────────────────────────────
   GITHUB_INTEGRATION: {

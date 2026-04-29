@@ -37,6 +37,7 @@ import {
   LayoutTemplate,
   Cloud,
   MessageSquare,
+  ShieldAlert,
   Sparkles,
   type LucideIcon,
 } from 'lucide-react';
@@ -369,6 +370,13 @@ export function AppLayout({ children }: AppLayoutProps) {
     requiredFlag: 'AI_AGENT',
   };
 
+  const sentinelItem: NavItem = {
+    name: 'Sentinel',
+    href: '/findings',
+    icon: ShieldAlert,
+    requiredFlag: 'AI_FINDINGS',
+  };
+
   const activityItem: NavItem = {
     name: 'Activity',
     href: '/activity',
@@ -376,6 +384,11 @@ export function AppLayout({ children }: AppLayoutProps) {
   };
 
   const navigationGroups: NavGroup[] = [
+    {
+      label: 'AI OPERATIONS',
+      requiredFlag: 'AI_FINDINGS',
+      items: [sentinelItem],
+    },
     {
       label: 'CODE SECURITY',
       requiredFlag: 'GITHUB_INTEGRATION',

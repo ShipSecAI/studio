@@ -16,12 +16,90 @@ import type { AuthContext } from '../auth/types';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { SystemWorkflowsService } from '../workflows/system-workflows.service';
 import { WorkflowTemplatesService } from '../workflow-templates/workflow-templates.service';
+import type { AsmAssetUpsertItemDto } from './dto/upsert-assets.dto';
 
 const MAX_DOMAINS_PER_ORG = 50;
 const MAX_SCANS_PER_DOMAIN_PER_HOUR = 5;
 
 // In-memory rate limit tracker (per-process; fine for dev, use Redis in production)
 const scanRateMap = new Map<string, number[]>();
+
+interface AsmAssetPort {
+  port: number;
+  protocol: string;
+  service: string;
+}
+
+const normalizeDomain = (value: string) => value.toLowerCase().trim().replace(/\.$/, '');
+
+const normalizeInventoryHostname = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const stripAndLower = (host: string): string | null => {
+    const normalized = host.trim().toLowerCase().replace(/\.$/, '');
+    return normalized.length > 0 && normalized.length <= 512 ? normalized : null;
+  };
+
+  try {
+    const hostname = new URL(trimmed).hostname;
+    if (hostname) return stripAndLower(hostname);
+  } catch {
+    // Fall through to host-like parsing.
+  }
+
+  try {
+    const hostname = new URL(`http://${trimmed}`).hostname;
+    if (hostname) return stripAndLower(hostname);
+  } catch {
+    // Fall through to conservative string parsing.
+  }
+
+  return stripAndLower(trimmed.split('/')[0] ?? trimmed);
+};
+
+const uniqueStrings = (...values: (string[] | null | undefined)[]): string[] => {
+  const byKey = new Map<string, string>();
+  for (const value of values.flatMap((entry) => entry ?? [])) {
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (!byKey.has(key)) {
+      byKey.set(key, trimmed);
+    }
+  }
+  return Array.from(byKey.values());
+};
+
+const mergePorts = (
+  existing: AsmAssetPort[] | null | undefined,
+  incoming: AsmAssetPort[] | null | undefined,
+): AsmAssetPort[] => {
+  const byKey = new Map<string, AsmAssetPort>();
+  for (const port of [...(existing ?? []), ...(incoming ?? [])]) {
+    if (!port || typeof port.port !== 'number') continue;
+    const protocol = port.protocol?.trim().toLowerCase() || 'tcp';
+    const service = port.service?.trim() || '';
+    const normalized = { port: port.port, protocol, service };
+    byKey.set(`${normalized.port}:${normalized.protocol}:${normalized.service}`, normalized);
+  }
+  return Array.from(byKey.values()).sort((a, b) => a.port - b.port);
+};
+
+const mergeRecords = (
+  existing: Record<string, unknown> | null | undefined,
+  incoming: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null => {
+  const merged = { ...(existing ?? {}), ...(incoming ?? {}) };
+  return Object.keys(merged).length > 0 ? merged : null;
+};
+
+const normalizeRiskScore = (value: AsmAssetUpsertItemDto['riskScore']): string | undefined => {
+  if (value === undefined || value === null) return undefined;
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return undefined;
+  return Math.max(0, Math.min(100, numeric)).toFixed(1);
+};
 
 @Injectable()
 export class AsmService {
@@ -361,6 +439,10 @@ export class AsmService {
           'shipsec.subfinder.run': {
             domain: domain.domain,
           },
+          'core.asm.assets-upsert': {
+            domain: domain.domain,
+            domainId: domain.id,
+          },
         },
       },
     );
@@ -498,6 +580,172 @@ export class AsmService {
 
     if (!asset) throw new NotFoundException(`Asset ${id} not found`);
     return asset;
+  }
+
+  async upsertAssetsForDomain(
+    organizationId: string,
+    input: {
+      domainId?: string;
+      domain?: string;
+      runId?: string;
+      workflowId?: string;
+      assets: AsmAssetUpsertItemDto[];
+    },
+  ) {
+    if (!organizationId) {
+      throw new BadRequestException('Organization context required');
+    }
+
+    const domain = await this.resolveDomainForAssetUpsert(organizationId, input);
+    const now = new Date();
+    const normalizedAssets = input.assets
+      .map((asset) => {
+        const hostname = normalizeInventoryHostname(asset.hostname);
+        return hostname ? { ...asset, hostname } : null;
+      })
+      .filter((asset): asset is AsmAssetUpsertItemDto & { hostname: string } => Boolean(asset));
+
+    if (normalizedAssets.length === 0) {
+      return {
+        domainId: domain.id,
+        assetCount: 0,
+        created: 0,
+        updated: 0,
+        skipped: input.assets.length,
+      };
+    }
+
+    const byHostname = new Map<string, AsmAssetUpsertItemDto & { hostname: string }>();
+    for (const asset of normalizedAssets) {
+      const existing = byHostname.get(asset.hostname);
+      if (!existing) {
+        byHostname.set(asset.hostname, asset);
+        continue;
+      }
+
+      byHostname.set(asset.hostname, {
+        ...existing,
+        ...asset,
+        ipAddresses: uniqueStrings(existing.ipAddresses, asset.ipAddresses),
+        techStack: uniqueStrings(existing.techStack, asset.techStack),
+        ports: mergePorts(existing.ports, asset.ports),
+        dnsRecords: mergeRecords(existing.dnsRecords, asset.dnsRecords) ?? undefined,
+        tlsInfo: mergeRecords(existing.tlsInfo, asset.tlsInfo) ?? undefined,
+        metadata: mergeRecords(existing.metadata, asset.metadata) ?? undefined,
+      });
+    }
+
+    const assets = Array.from(byHostname.values());
+    const hostnames = assets.map((asset) => asset.hostname);
+    const existingRows = await this.db
+      .select()
+      .from(asmAssets)
+      .where(
+        and(
+          eq(asmAssets.organizationId, organizationId),
+          eq(asmAssets.domainId, domain.id),
+          inArray(asmAssets.hostname, hostnames),
+        ),
+      );
+
+    const existingByHostname = new Map(existingRows.map((asset) => [asset.hostname, asset]));
+    let created = 0;
+    let updated = 0;
+
+    for (const asset of assets) {
+      const existing = existingByHostname.get(asset.hostname);
+      const ipAddresses = uniqueStrings(existing?.ipAddresses, asset.ipAddresses);
+      const techStack = uniqueStrings(existing?.techStack, asset.techStack);
+      const ports = mergePorts(existing?.ports, asset.ports);
+      const dnsRecords = mergeRecords(existing?.dnsRecords, asset.dnsRecords);
+      const tlsInfo = mergeRecords(existing?.tlsInfo, asset.tlsInfo);
+      const metadata = mergeRecords(existing?.metadata, {
+        ...(asset.metadata ?? {}),
+        ...(input.runId ? { lastWorkflowRunId: input.runId } : {}),
+        ...(input.workflowId ? { workflowId: input.workflowId } : {}),
+      });
+      const riskScore = normalizeRiskScore(asset.riskScore) ?? existing?.riskScore ?? null;
+
+      const values = {
+        organizationId,
+        domainId: domain.id,
+        hostname: asset.hostname,
+        type: asset.type || existing?.type || 'subdomain',
+        ipAddresses: ipAddresses.length > 0 ? ipAddresses : null,
+        techStack: techStack.length > 0 ? techStack : null,
+        ports: ports.length > 0 ? ports : null,
+        riskScore,
+        dnsRecords,
+        tlsInfo,
+        metadata,
+        lastSeen: now,
+      };
+
+      await this.db
+        .insert(asmAssets)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [asmAssets.domainId, asmAssets.hostname],
+          set: {
+            type: values.type,
+            ipAddresses: values.ipAddresses,
+            techStack: values.techStack,
+            ports: values.ports,
+            riskScore: values.riskScore,
+            dnsRecords: values.dnsRecords,
+            tlsInfo: values.tlsInfo,
+            metadata: values.metadata,
+            lastSeen: now,
+          },
+        });
+
+      if (existing) {
+        updated += 1;
+      } else {
+        created += 1;
+      }
+    }
+
+    await this.db
+      .update(asmDomains)
+      .set({ lastScanAt: now, updatedAt: now })
+      .where(eq(asmDomains.id, domain.id));
+
+    return {
+      domainId: domain.id,
+      assetCount: assets.length,
+      created,
+      updated,
+      skipped: input.assets.length - normalizedAssets.length,
+    };
+  }
+
+  private async resolveDomainForAssetUpsert(
+    organizationId: string,
+    input: { domainId?: string; domain?: string },
+  ) {
+    const conditions = [
+      eq(asmDomains.organizationId, organizationId),
+      isNull(asmDomains.deletedAt),
+      input.domainId
+        ? eq(asmDomains.id, input.domainId)
+        : eq(asmDomains.domain, normalizeDomain(input.domain ?? '')),
+    ];
+
+    const [domain] = await this.db
+      .select()
+      .from(asmDomains)
+      .where(and(...conditions));
+
+    if (!domain) {
+      throw new NotFoundException(
+        input.domainId
+          ? `Domain ${input.domainId} not found`
+          : `Domain ${input.domain ?? ''} not found`,
+      );
+    }
+
+    return domain;
   }
 
   // ── Scans (derived from workflow runs) ─────────────────────────────────────

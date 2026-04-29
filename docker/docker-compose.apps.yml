@@ -135,6 +135,7 @@ services:
       NEO4J_DATABASE: neo4j
       CARTOGRAPHY_NEO4J_URI: bolt://neo4j:7687
       CARTOGRAPHY_DOCKER_NETWORK: shipsec-ce-network
+      CARTOGRAPHY_AWS_REQUESTED_SYNCS: ${CARTOGRAPHY_AWS_REQUESTED_SYNCS:-}
       NAPI_RS_FORCE_WASI: '1'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
