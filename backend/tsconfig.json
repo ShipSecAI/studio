@@ -31,6 +31,9 @@
       "path": "../packages/backend-client"
     },
     {
+      "path": "../packages/contracts"
+    },
+    {
       "path": "../worker"
     }
   ]

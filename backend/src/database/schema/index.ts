@@ -35,5 +35,6 @@ export * from './report-templates';
 export * from './user-settings';
 export * from './asm';
 export * from './asset-discovery';
+export * from './security-ingestion';
 export * from './slack-thread-mappings';
 export * from './slack-turn-posts';

@@ -28,6 +28,7 @@ import { WorkflowTemplatesModule } from '../workflow-templates/workflow-template
 import { WorkflowsModule } from '../workflows/workflows.module';
 import { OnboardingModule } from '../onboarding/onboarding.module';
 import { ReportTemplatesModule } from '../report-templates/report-templates.module';
+import { SecurityIngestionModule } from '../security-ingestion/security-ingestion.module';
 import { loadBackendCloudModules } from './backend-cloud-loader';
 
 type NestModule = Type<unknown>;
@@ -62,6 +63,7 @@ export function getCoreBackendModules(): NestModule[] {
     AgentSkillsModule,
     HotplugModule,
     SlackBotModule,
+    SecurityIngestionModule,
   ];
 }
 

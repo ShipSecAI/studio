@@ -542,7 +542,7 @@ function aiCodeReviewTemplate(): SeedTemplate {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 7: AWS Cloud Security Scan
-// Entry Point → Resolve AWS Credentials → Prowler → Analytics Sink
+// Entry Point → Resolve AWS Credentials → Prowler → [Analytics Sink, Normalize → Persist]
 // ──────────────────────────────────────────────────────────────────────────────
 function awsCloudSecurityScanTemplate(): SeedTemplate {
   resetCounter();
@@ -550,11 +550,14 @@ function awsCloudSecurityScanTemplate(): SeedTemplate {
   const awsCreds = nid('node');
   const prowler = nid('node');
   const analytics = nid('node');
+  const normalize = nid('node');
+  const persist = nid('node');
 
   return {
     name: 'AWS Cloud Security Scan',
     slug: 'sys-aws-cloud-security-scan',
-    description: 'Scan AWS accounts with Prowler and index findings into Analytics.',
+    description:
+      'Scan AWS accounts with Prowler, index analytics, and persist product-grade findings.',
     category: 'cloud-security',
     icon: 'cloud',
     isFeatured: true,
@@ -578,6 +581,16 @@ function awsCloudSecurityScanTemplate(): SeedTemplate {
         makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 900, 0, {
           dataInputs: [{ id: 'input1', label: 'Prowler Findings', sourceTag: 'prowler' }],
         }),
+        makeNode(
+          normalize,
+          'shipsec.cloud-findings.normalize',
+          'Normalize Cloud Findings',
+          900,
+          180,
+          {},
+          { provider: 'aws' },
+        ),
+        makeNode(persist, 'shipsec.ingestion.persist', 'Persist Findings', 1200, 180),
       ],
       edges: [
         // Entry Point → Resolve Credentials (connectionId)
@@ -586,8 +599,14 @@ function awsCloudSecurityScanTemplate(): SeedTemplate {
         makeEdge('e2', awsCreds, prowler, 'credentials', 'credentials'),
         makeEdge('e2b', awsCreds, prowler, 'accountId', 'accountId'),
         makeEdge('e2c', awsCreds, prowler, 'regions', 'regions'),
-        // Prowler → Analytics (use results port directly, bypass normalize)
+        // Prowler → Analytics for fast charts
         makeEdge('e3', prowler, analytics, 'results', 'input1'),
+        // Prowler → Normalize → Persist for product graph/compliance surfaces
+        makeEdge('e4', prowler, normalize, 'findings', 'rawFindings'),
+        makeEdge('e5', prowler, normalize, 'rawOutput', 'rawOutput'),
+        makeEdge('e6', prowler, normalize, 'scanId', 'scanId'),
+        makeEdge('e7', awsCreds, normalize, 'accountId', 'accountId'),
+        makeEdge('e8', normalize, persist, 'ingestionBatch', 'ingestionBatch'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -596,7 +615,7 @@ function awsCloudSecurityScanTemplate(): SeedTemplate {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 8: GCP Cloud Security Scan
-// Entry Point → Resolve GCP Credentials → Prowler → Analytics Sink
+// Entry Point → Resolve GCP Credentials → Prowler → [Analytics Sink, Normalize → Persist]
 // ──────────────────────────────────────────────────────────────────────────────
 function gcpCloudSecurityScanTemplate(): SeedTemplate {
   resetCounter();
@@ -604,6 +623,8 @@ function gcpCloudSecurityScanTemplate(): SeedTemplate {
   const gcpCreds = nid('node');
   const prowler = nid('node');
   const analytics = nid('node');
+  const normalize = nid('node');
+  const persist = nid('node');
 
   return {
     name: 'GCP Cloud Security Scan',
@@ -633,6 +654,16 @@ function gcpCloudSecurityScanTemplate(): SeedTemplate {
         makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 900, 0, {
           dataInputs: [{ id: 'input1', label: 'Prowler Findings', sourceTag: 'prowler' }],
         }),
+        makeNode(
+          normalize,
+          'shipsec.cloud-findings.normalize',
+          'Normalize Cloud Findings',
+          900,
+          180,
+          {},
+          { provider: 'gcp' },
+        ),
+        makeNode(persist, 'shipsec.ingestion.persist', 'Persist Findings', 1200, 180),
       ],
       edges: [
         makeEdge('e1', entryPoint, gcpCreds, 'connectionId', 'connectionId'),
@@ -640,6 +671,11 @@ function gcpCloudSecurityScanTemplate(): SeedTemplate {
         makeEdge('e2b', gcpCreds, prowler, 'accountId', 'accountId'),
         makeEdge('e2c', gcpCreds, prowler, 'regions', 'regions'),
         makeEdge('e3', prowler, analytics, 'results', 'input1'),
+        makeEdge('e4', prowler, normalize, 'findings', 'rawFindings'),
+        makeEdge('e5', prowler, normalize, 'rawOutput', 'rawOutput'),
+        makeEdge('e6', prowler, normalize, 'scanId', 'scanId'),
+        makeEdge('e7', gcpCreds, normalize, 'accountId', 'accountId'),
+        makeEdge('e8', normalize, persist, 'ingestionBatch', 'ingestionBatch'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -648,7 +684,7 @@ function gcpCloudSecurityScanTemplate(): SeedTemplate {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 9: Kubernetes Security Scan
-// Entry Point → Prowler(kubernetes) → Analytics Sink
+// Entry Point → Prowler(kubernetes) → [Analytics Sink, Normalize → Persist]
 // ──────────────────────────────────────────────────────────────────────────────
 function kubernetesSecurityScanTemplate(): SeedTemplate {
   resetCounter();
@@ -656,6 +692,8 @@ function kubernetesSecurityScanTemplate(): SeedTemplate {
   const secretFetch = nid('node');
   const prowler = nid('node');
   const analytics = nid('node');
+  const normalize = nid('node');
+  const persist = nid('node');
 
   return {
     name: 'Kubernetes Security Scan',
@@ -691,11 +729,25 @@ function kubernetesSecurityScanTemplate(): SeedTemplate {
         makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1050, 0, {
           dataInputs: [{ id: 'input1', label: 'Prowler Findings', sourceTag: 'prowler' }],
         }),
+        makeNode(
+          normalize,
+          'shipsec.cloud-findings.normalize',
+          'Normalize Cluster Findings',
+          1050,
+          180,
+          {},
+          { provider: 'kubernetes' },
+        ),
+        makeNode(persist, 'shipsec.ingestion.persist', 'Persist Findings', 1350, 180),
       ],
       edges: [
         makeEdge('e1', entryPoint, secretFetch, 'kubeconfigSecretId', 'secretId'),
         makeEdge('e2', secretFetch, prowler, 'secret', 'kubeconfig'),
         makeEdge('e3', prowler, analytics, 'results', 'input1'),
+        makeEdge('e4', prowler, normalize, 'findings', 'rawFindings'),
+        makeEdge('e5', prowler, normalize, 'rawOutput', 'rawOutput'),
+        makeEdge('e6', prowler, normalize, 'scanId', 'scanId'),
+        makeEdge('e7', normalize, persist, 'ingestionBatch', 'ingestionBatch'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -704,7 +756,7 @@ function kubernetesSecurityScanTemplate(): SeedTemplate {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 10: Attack Surface Recon
-// Entry Point → Subfinder → DNSx → HTTPx → Dedupe+Enrich → [Analytics, ASM Assets]
+// Entry Point → Subfinder → DNSx → HTTPx → Dedupe+Enrich → [Analytics, ASM Assets, Normalize → Persist]
 // ──────────────────────────────────────────────────────────────────────────────
 function attackSurfaceReconTemplate(): SeedTemplate {
   resetCounter();
@@ -715,6 +767,8 @@ function attackSurfaceReconTemplate(): SeedTemplate {
   const dedupe = nid('node');
   const analytics = nid('node');
   const asmAssets = nid('node');
+  const normalize = nid('node');
+  const persist = nid('node');
 
   return {
     name: 'Attack Surface Recon',
@@ -740,6 +794,8 @@ function attackSurfaceReconTemplate(): SeedTemplate {
           dataInputs: [{ id: 'input1', label: 'Recon Assets', sourceTag: 'asm-recon' }],
         }),
         makeNode(asmAssets, 'core.asm.assets-upsert', 'ASM Assets', 1500, 160),
+        makeNode(normalize, 'shipsec.asm-findings.normalize', 'Normalize ASM Findings', 1500, 320),
+        makeNode(persist, 'shipsec.ingestion.persist', 'Persist ASM Findings', 1800, 320),
       ],
       edges: [
         // Entry Point → Subfinder (domains injected at trigger time)
@@ -754,6 +810,10 @@ function attackSurfaceReconTemplate(): SeedTemplate {
         // Dedupe + Enrich → Analytics + ASM asset inventory
         makeEdge('e6', dedupe, analytics, 'results', 'input1'),
         makeEdge('e7', dedupe, asmAssets, 'results', 'results'),
+        // Raw source families → Normalize → Persist for product graph/compliance surfaces
+        makeEdge('e8', dnsx, normalize, 'results', 'dnsResults'),
+        makeEdge('e9', httpx, normalize, 'results', 'httpResults'),
+        makeEdge('e10', normalize, persist, 'ingestionBatch', 'ingestionBatch'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.6 },
     },

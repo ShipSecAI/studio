@@ -41,6 +41,7 @@
     "@nestjs/throttler": "^6.5.0",
     "@shipsec/backend-client": "workspace:*",
     "@shipsec/component-sdk": "workspace:*",
+    "@shipsec/contracts": "workspace:*",
     "@shipsec/shared": "workspace:*",
     "@shipsec/studio-worker": "workspace:*",
     "@slack/web-api": "^7.15.0",

@@ -43,6 +43,11 @@ const inputSchema = inputs({
 });
 
 const parameterSchema = parameters({
+  domain: param(z.string().optional(), {
+    label: 'Domain',
+    editor: 'text',
+    description: 'Primary root domain for the ASM run when injected by a trigger.',
+  }),
   sourceVersion: param(z.string().optional().default('asm-recon'), {
     label: 'Source Version',
     editor: 'text',
@@ -136,7 +141,7 @@ const definition = defineComponent({
       sourceVersion: parsedParams.sourceVersion,
       scope: {
         organizationId,
-        domain: parsedInputs.domain,
+        domain: parsedInputs.domain ?? parsedParams.domain,
         labels: {
           workflowId: context.workflowId ?? '',
           workflowName: context.workflowName ?? '',

@@ -443,6 +443,9 @@ export class AsmService {
             domain: domain.domain,
             domainId: domain.id,
           },
+          'shipsec.asm-findings.normalize': {
+            domain: domain.domain,
+          },
         },
       },
     );

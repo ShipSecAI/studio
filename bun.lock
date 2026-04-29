@@ -49,6 +49,7 @@
         "@nestjs/throttler": "^6.5.0",
         "@shipsec/backend-client": "workspace:*",
         "@shipsec/component-sdk": "workspace:*",
+        "@shipsec/contracts": "workspace:*",
         "@shipsec/hotplug-sdk": "^0.1.1",
         "@shipsec/shared": "workspace:*",
         "@shipsec/studio-worker": "workspace:*",
