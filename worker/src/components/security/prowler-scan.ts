@@ -557,7 +557,7 @@ function buildAnalyticsResults(findings: NormalisedFinding[]): AnalyticsResult[]
   return findings.map((finding) => ({
     scanner: 'prowler',
     finding_hash: generateFindingHash(
-      finding.id,
+      finding.checkId ?? finding.id,
       finding.resourceId ?? finding.accountId ?? '',
       finding.title ?? '',
     ),
@@ -565,12 +565,21 @@ function buildAnalyticsResults(findings: NormalisedFinding[]): AnalyticsResult[]
     asset_key: finding.resourceId ?? finding.accountId ?? undefined,
     title: finding.title,
     description: finding.description,
+    provider: finding.provider ?? undefined,
+    rule_id: finding.ruleId ?? finding.checkId ?? undefined,
+    check_id: finding.checkId ?? undefined,
+    check_name: finding.checkName ?? finding.title ?? undefined,
     region: finding.region,
     account_id: finding.accountId,
     service_name: finding.serviceName,
     status: finding.status,
+    compliance: finding.compliance,
+    resource_tags: finding.resourceTags,
     remediationText: finding.remediationText,
     recommendationUrl: finding.recommendationUrl,
+    native_finding_id: finding.id,
+    resource_type: finding.resourceType,
+    raw_finding: finding.rawFinding,
   }));
 }
 
@@ -1302,6 +1311,7 @@ export const __testables = {
   buildCommand,
   prepareScan,
   deriveScanTargetId,
+  buildAnalyticsResults,
 };
 
 // Create local type aliases for backward compatibility

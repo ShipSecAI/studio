@@ -101,9 +101,22 @@ export const prowlerFindingSchema = z
     Compliance: z
       .object({
         Status: z.string().optional(),
+        RelatedRequirements: z.array(z.string()).optional(),
+        SecurityControlId: z.string().optional(),
+        AssociatedStandards: z
+          .array(
+            z
+              .object({
+                StandardsId: z.string().optional(),
+              })
+              .passthrough(),
+          )
+          .optional(),
       })
-      .partial()
+      .passthrough()
       .optional(),
+    ProductFields: z.record(z.string(), z.unknown()).optional(),
+    GeneratorId: z.string().optional(),
     Resources: z
       .array(
         z
@@ -111,6 +124,7 @@ export const prowlerFindingSchema = z
             Id: z.string().optional(),
             Type: z.string().optional(),
             Region: z.string().optional(),
+            Tags: z.record(z.string(), z.string()).optional(),
           })
           .passthrough(),
       )
@@ -211,6 +225,13 @@ export const normalisedFindingSchema = z.object({
   description: z.string().nullable(),
   remediationText: z.string().nullable(),
   recommendationUrl: z.string().nullable(),
+  checkId: z.string().nullable(),
+  checkName: z.string().nullable(),
+  ruleId: z.string().nullable(),
+  provider: z.string().nullable(),
+  resourceType: z.string().nullable(),
+  compliance: z.array(z.string()),
+  resourceTags: z.record(z.string(), z.string()),
   rawFinding: z.unknown(),
 });
 
@@ -320,6 +341,33 @@ export function toNormalisedFinding(
   const status = normaliseStatus(finding.Compliance?.Status);
   const remediationText = finding.Remediation?.Recommendation?.Text ?? null;
   const recommendationUrl = finding.Remediation?.Recommendation?.Url ?? null;
+  const productFields = finding.ProductFields ?? {};
+  const checkId =
+    getStringField(productFields, [
+      'ProwlerCheckID',
+      'ProwlerCheckId',
+      'CheckId',
+      'CheckID',
+      'check_id',
+    ]) ?? extractCheckIdFromProwlerId(finding.Id);
+  const checkName =
+    getStringField(productFields, ['ProwlerCheckTitle', 'CheckTitle', 'check_name']) ??
+    finding.Title ??
+    null;
+  const compliance = collectComplianceTags(
+    finding.Compliance,
+    pickProductFieldValues(productFields, [
+      'ProwlerComplianceFramework',
+      'ProwlerComplianceFrameworks',
+      'ProwlerComplianceRequirement',
+      'ProwlerComplianceRequirements',
+      'ProwlerComplianceControl',
+      'ProwlerComplianceControls',
+      'Compliance',
+      'Standards',
+      'RelatedRequirements',
+    ]),
+  );
 
   return {
     id: finding.Id ?? `${runId}-finding-${index + 1}`,
@@ -333,6 +381,13 @@ export function toNormalisedFinding(
     description: finding.Description ?? null,
     remediationText,
     recommendationUrl,
+    checkId,
+    checkName,
+    ruleId: finding.GeneratorId ?? checkId,
+    provider: 'aws',
+    resourceType: primaryResource?.Type ?? null,
+    compliance,
+    resourceTags: normalizeStringMap(primaryResource?.Tags),
     rawFinding: finding,
   };
 }
@@ -383,8 +438,107 @@ function toNormalisedOcsfFinding(
       finding.finding_info?.desc ?? finding.risk_details ?? finding.status_detail ?? null,
     remediationText: finding.remediation?.desc ?? null,
     recommendationUrl: remediationUrl ?? null,
+    checkId: finding.metadata?.event_code ?? finding.finding_info?.uid ?? null,
+    checkName: finding.finding_info?.title ?? finding.message ?? null,
+    ruleId: finding.metadata?.event_code ?? finding.finding_info?.uid ?? null,
+    provider: finding.cloud?.provider ?? null,
+    resourceType: primaryResource?.type ?? null,
+    compliance: collectComplianceTags(
+      getUnknownField(finding, 'compliance'),
+      getUnknownField(finding.metadata, 'profiles'),
+      getUnknownField(finding.metadata, 'profile'),
+      getUnknownField(finding.metadata, 'standards'),
+      getUnknownField(finding.metadata, 'standard'),
+    ),
+    resourceTags: normalizeStringMap(
+      getUnknownField(primaryResource, 'labels') ?? getUnknownField(primaryResource, 'tags'),
+    ),
     rawFinding: finding,
   };
+}
+
+function getUnknownField(value: unknown, key: string): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  return (value as Record<string, unknown>)[key];
+}
+
+function getStringField(record: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+function pickProductFieldValues(record: Record<string, unknown>, keys: string[]): unknown[] {
+  return keys.map((key) => record[key]).filter((value) => value != null);
+}
+
+function extractCheckIdFromProwlerId(id?: string): string | null {
+  if (!id) return null;
+  const match = id.match(/prowler-[^-]+-([A-Za-z0-9_]+)-/);
+  return match?.[1] ?? null;
+}
+
+function collectComplianceTags(...values: unknown[]): string[] {
+  const tags = new Set<string>();
+  const visit = (value: unknown) => {
+    if (value == null) return;
+    if (typeof value === 'string') {
+      for (const part of value.split(/[,\n;]/)) {
+        const trimmed = part.trim();
+        if (
+          trimmed.length > 0 &&
+          trimmed.toUpperCase() !== 'PASSED' &&
+          trimmed.toUpperCase() !== 'FAILED'
+        ) {
+          tags.add(trimmed);
+        }
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      for (const key of [
+        'RelatedRequirements',
+        'AssociatedStandards',
+        'SecurityControlId',
+        'StandardsId',
+        'ProwlerComplianceFramework',
+        'ProwlerComplianceRequirement',
+        'ProwlerComplianceControl',
+        'id',
+        'uid',
+        'name',
+      ]) {
+        visit(record[key]);
+      }
+    }
+  };
+  values.forEach(visit);
+  return Array.from(tags).sort();
+}
+
+function normalizeStringMap(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  const normalized: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (raw == null) continue;
+    if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
+      normalized[key] = String(raw);
+    }
+  }
+  return normalized;
 }
 
 function normaliseOcsfSeverity(severity?: string, severityId?: number): NormalisedSeverity {

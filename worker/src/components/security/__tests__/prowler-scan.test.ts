@@ -93,4 +93,50 @@ describe('prowler-scan helpers', () => {
     expect(gcpTarget).toBe('demo-project');
     expect(k8sTarget).toBe('kubernetes');
   });
+
+  it('buildAnalyticsResults forwards Prowler check and compliance metadata', () => {
+    const [row] = __testables.buildAnalyticsResults([
+      {
+        id: 'prowler-aws-iam_user_no_administrator_access-726751758435-pranjal',
+        title: 'IAM user does not have AdministratorAccess policy attached',
+        accountId: '726751758435',
+        resourceId: 'arn:aws:iam::726751758435:user/pranjal',
+        region: 'global',
+        serviceName: 'IamUser',
+        severity: 'critical',
+        status: 'FAILED',
+        description: 'IAM users should not have administrative privileges.',
+        remediationText: 'Remove AdministratorAccess from IAM users.',
+        recommendationUrl: 'https://hub.prowler.com/check/iam_user_no_administrator_access',
+        checkId: 'iam_user_no_administrator_access',
+        checkName: 'IAM user does not have AdministratorAccess policy attached',
+        ruleId: 'iam_user_no_administrator_access',
+        provider: 'aws',
+        resourceType: 'AwsIamUser',
+        compliance: ['cis_1.16', 'soc2_CC6.1'],
+        resourceTags: { owner: 'platform', env: 'prod' },
+        rawFinding: { Id: 'native-id', ProductFields: { ProwlerCheckID: 'check' } },
+      },
+    ]);
+
+    expect(row).toMatchObject({
+      scanner: 'prowler',
+      severity: 'critical',
+      asset_key: 'arn:aws:iam::726751758435:user/pranjal',
+      provider: 'aws',
+      rule_id: 'iam_user_no_administrator_access',
+      check_id: 'iam_user_no_administrator_access',
+      check_name: 'IAM user does not have AdministratorAccess policy attached',
+      account_id: '726751758435',
+      region: 'global',
+      service_name: 'IamUser',
+      status: 'FAILED',
+      compliance: ['cis_1.16', 'soc2_CC6.1'],
+      resource_tags: { owner: 'platform', env: 'prod' },
+      native_finding_id: 'prowler-aws-iam_user_no_administrator_access-726751758435-pranjal',
+      resource_type: 'AwsIamUser',
+      raw_finding: { Id: 'native-id', ProductFields: { ProwlerCheckID: 'check' } },
+    });
+    expect(row.finding_hash).toHaveLength(16);
+  });
 });

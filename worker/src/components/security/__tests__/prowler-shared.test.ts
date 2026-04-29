@@ -62,6 +62,78 @@ describe('prowler shared helpers', () => {
       status: 'FAILED',
       remediationText: 'Enable Data Access audit logs.',
       recommendationUrl: 'https://hub.prowler.com/check/cloudstorage_audit_logs_enabled',
+      checkId: 'cloudstorage_audit_logs_enabled',
+      checkName: 'Data Access audit logs are enabled for Cloud Storage',
+      provider: 'gcp',
+      resourceType: 'cloudresourcemanager.googleapis.com/Project',
     });
+  });
+
+  it('preserves AWS ASFF check identity, compliance tags, resource tags, and raw metadata', () => {
+    const { findings, errors } = normaliseFindings(
+      [
+        JSON.stringify([
+          {
+            Id: 'prowler-aws-iam_user_no_administrator_access-726751758435-pranjal',
+            GeneratorId: 'iam_user_no_administrator_access',
+            Title: 'IAM user does not have AdministratorAccess policy attached',
+            Description: 'IAM users should not have administrative privileges.',
+            AwsAccountId: '726751758435',
+            ProductFields: {
+              ProwlerCheckID: 'iam_user_no_administrator_access',
+              ProwlerCheckTitle: 'IAM user does not have AdministratorAccess policy attached',
+              ProwlerComplianceFramework: 'cis_aws_foundations_benchmark_1.4',
+              ProwlerComplianceRequirement: 'cis_1.16',
+            },
+            Severity: { Label: 'CRITICAL', Normalized: 95 },
+            Compliance: {
+              Status: 'FAILED',
+              RelatedRequirements: ['nist_800_53_AC-6', 'soc2_CC6.1'],
+              AssociatedStandards: [{ StandardsId: 'aws-foundational-security-best-practices' }],
+            },
+            Resources: [
+              {
+                Id: 'arn:aws:iam::726751758435:user/pranjal',
+                Type: 'AwsIamUser',
+                Region: 'global',
+                Tags: { owner: 'platform', env: 'prod' },
+              },
+            ],
+            Remediation: {
+              Recommendation: {
+                Text: 'Remove AdministratorAccess from IAM users.',
+                Url: 'https://hub.prowler.com/check/iam_user_no_administrator_access',
+              },
+            },
+          },
+        ]),
+      ],
+      'run-aws',
+    );
+
+    expect(errors).toEqual([]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      id: 'prowler-aws-iam_user_no_administrator_access-726751758435-pranjal',
+      checkId: 'iam_user_no_administrator_access',
+      checkName: 'IAM user does not have AdministratorAccess policy attached',
+      ruleId: 'iam_user_no_administrator_access',
+      accountId: '726751758435',
+      resourceId: 'arn:aws:iam::726751758435:user/pranjal',
+      resourceType: 'AwsIamUser',
+      region: 'global',
+      serviceName: 'IamUser',
+      severity: 'critical',
+      status: 'FAILED',
+      provider: 'aws',
+      resourceTags: { owner: 'platform', env: 'prod' },
+    });
+    expect(findings[0].compliance).toEqual([
+      'aws-foundational-security-best-practices',
+      'cis_1.16',
+      'cis_aws_foundations_benchmark_1.4',
+      'nist_800_53_AC-6',
+      'soc2_CC6.1',
+    ]);
   });
 });
