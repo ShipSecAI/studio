@@ -74,6 +74,7 @@ import './security/findings-markdown';
 import './security/asset-inventory-sync';
 import './security/cartography-sync';
 import './security/cartography-query';
+import './security/cloudflare-sync';
 
 // Jira components
 import './jira/create-issue';

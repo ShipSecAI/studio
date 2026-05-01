@@ -348,15 +348,17 @@ export async function runCartographyWithRunner(
   if (input.githubConfigBase64) {
     env.GITHUB_CONFIG = input.githubConfigBase64;
   }
+  const dockerNetwork = process.env.CARTOGRAPHY_DOCKER_NETWORK?.trim() || 'shipsec-ce-network';
+
   if (selectedModules.includes('gcp') && input.gcpCredential) {
-    env.GOOGLE_APPLICATION_CREDENTIALS = GCP_APPLICATION_CREDENTIALS_PATH;
+    if (dockerNetwork !== 'host') {
+      env.GOOGLE_APPLICATION_CREDENTIALS = GCP_APPLICATION_CREDENTIALS_PATH;
+    }
     if (input.gcpCredential.defaultProjectId) {
       env.GOOGLE_CLOUD_PROJECT = input.gcpCredential.defaultProjectId;
       env.CLOUDSDK_CORE_PROJECT = input.gcpCredential.defaultProjectId;
     }
   }
-
-  const dockerNetwork = process.env.CARTOGRAPHY_DOCKER_NETWORK?.trim() || 'shipsec-ce-network';
 
   const dockerRunner: DockerRunnerConfig = {
     kind: 'docker',

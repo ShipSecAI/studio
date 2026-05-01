@@ -11,16 +11,13 @@ import { AssetDiscoveryService } from './asset-discovery.service';
 import { CloudGraphService } from './cloud-graph.service';
 import { IndexInfraService } from '../schedules/index-infra.service';
 
-// In-memory rate limit tracker (per-process; use Redis in production)
-const syncRateMap = new Map<string, number>();
-
 const ASSET_DISCOVERY_ENABLED = process.env.ASSET_DISCOVERY_ENABLED !== 'false';
-const SYNC_RATE_LIMIT_MS = 5 * 60 * 1000; // 5 minutes
 const SUPPORTED_CLOUD_CREDENTIALS: readonly { provider: string; credentialType: string }[] = [
   { provider: 'aws', credentialType: 'iam_role' },
   { provider: 'aws', credentialType: 'access_key' },
   { provider: 'gcp', credentialType: 'service_account' },
   { provider: 'gcp', credentialType: 'service_account_key' },
+  { provider: 'cloudflare', credentialType: 'api_token' },
 ];
 
 @Injectable()
@@ -34,10 +31,7 @@ export class AssetSyncService {
     private readonly db: NodePgDatabase<typeof schema>,
   ) {}
 
-  /**
-   * Manual sync trigger via REST API.
-   * Rate limited: max 1 sync per integration per 5 minutes.
-   */
+  /** Manual sync trigger via REST API. */
   async triggerSync(integrationId: string, auth: AuthContext) {
     if (!ASSET_DISCOVERY_ENABLED) {
       throw new BadRequestException('Asset discovery is not enabled');
@@ -64,14 +58,6 @@ export class AssetSyncService {
         'Only supported AWS and GCP integration connections support asset sync',
       );
     }
-
-    const rateKey = `sync:${integrationId}`;
-    const lastSync = syncRateMap.get(rateKey);
-    if (lastSync && Date.now() - lastSync < SYNC_RATE_LIMIT_MS) {
-      throw new BadRequestException('Sync rate limit exceeded. Try again in 5 minutes.');
-    }
-
-    syncRateMap.set(rateKey, Date.now());
 
     const run = await this.indexInfraService.triggerRun({
       auth,

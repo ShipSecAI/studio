@@ -189,17 +189,34 @@ export class AssetDiscoveryService {
   async refreshFromGraphSnapshot(
     organizationId: string,
     integrationId: string,
-    _syncRunId: string,
-    connectionBindings: CartographySyncConnectionBinding[],
+    syncRunId: string,
+    connectionBindings?: CartographySyncConnectionBinding[],
   ) {
     const previousCompletedSync = await this.syncRunsRepo.findLatestCompletedSyncForIntegration(
       organizationId,
       integrationId,
     );
-    const graphAssets = await this.listGraphAssetsForOrg(
+    const bindings = connectionBindings?.length ? connectionBindings : undefined;
+    const graphAssets = await this.listGraphAssetsForOrg(organizationId, bindings);
+
+    // Persist graph assets into the Postgres assets table
+    const upsertResult = await this.assetRepo.upsertGraphSnapshots(
       organizationId,
-      connectionBindings.length > 0 ? connectionBindings : undefined,
+      integrationId,
+      graphAssets,
     );
+
+    // Mark assets not seen in this sync as stale
+    const staleCount = await this.assetRepo.markStaleUnseenAssets(
+      organizationId,
+      integrationId,
+      graphAssets.map((a) => a.externalId),
+    );
+
+    this.logger.log(
+      `Sync ${syncRunId}: upserted ${upsertResult.created} created, ${upsertResult.updated} updated, ${staleCount} marked stale`,
+    );
+
     const currentDiscovered = graphAssets.length;
     const previousDiscovered = Number(previousCompletedSync?.assetsDiscovered ?? 0);
     const assetsCreated = Math.max(currentDiscovered - previousDiscovered, 0);

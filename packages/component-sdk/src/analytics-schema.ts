@@ -65,6 +65,7 @@ export const COLUMN_DEFS: ColumnDef[] = [
 
   // Asset context
   { name: 'asset_key', chType: 'String', kind: 'string', default: "''", filterable: true },
+  { name: 'canonical_id', chType: 'String', kind: 'string', default: "''", filterable: true },
 
   // Trigger context
   { name: 'trigger_source', chType: 'String', kind: 'string', default: "''", filterable: true },
@@ -220,6 +221,12 @@ export function buildFindingRow(
   }
 
   row.extra = extra;
+
+  // Auto-derive canonical resource identity for cross-system correlation
+  if (!row.canonical_id || !row.canonical_id.trim()) {
+    row.canonical_id = deriveCanonicalIdFromDocument(row) ?? '';
+  }
+
   return row;
 }
 
@@ -239,6 +246,65 @@ export function detectAssetKey(document: Record<string, any>, explicitField?: st
     if (document[field]) return String(document[field]);
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Canonical resource identity — cross-system correlation key
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a canonical resource identifier that is stable across ClickHouse,
+ * Neo4j, and Postgres. Format: `provider:resource_type:account_id:region:external_id`
+ *
+ * Any missing component is replaced with "unknown" to maintain a consistent
+ * five-part key that can be joined across systems.
+ */
+export function buildCanonicalResourceId(fields: {
+  provider?: string | null;
+  resourceType?: string | null;
+  accountId?: string | null;
+  region?: string | null;
+  externalId?: string | null;
+}): string | null {
+  const provider = (fields.provider ?? 'unknown').toLowerCase().trim();
+  const resourceType = normalizeResourceType(fields.resourceType ?? 'unknown');
+  const accountId = (fields.accountId ?? 'unknown').trim();
+  const region = (fields.region ?? 'unknown').trim();
+  const externalId = (fields.externalId ?? '').trim();
+
+  if (!externalId) return null;
+
+  return `${provider}:${resourceType}:${accountId}:${region}:${externalId}`;
+}
+
+/**
+ * Derive a canonical resource ID from a ClickHouse finding document.
+ * Uses the provider, service_name, account_id, region, and asset_key fields.
+ */
+export function deriveCanonicalIdFromDocument(document: Record<string, any>): string | null {
+  return buildCanonicalResourceId({
+    provider: extractString(document, ['provider']),
+    resourceType: extractString(document, ['service_name', 'resource_type']),
+    accountId: extractString(document, ['account_id']),
+    region: extractString(document, ['region']),
+    externalId: extractString(document, ['asset_key']),
+  });
+}
+
+function extractString(document: Record<string, any>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = document[key];
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  }
+  return null;
+}
+
+function normalizeResourceType(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
 }
 
 // ---------------------------------------------------------------------------

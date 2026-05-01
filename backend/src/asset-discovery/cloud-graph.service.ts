@@ -15,7 +15,7 @@ interface AssetTypeConfig {
   lastSeenCandidates?: string[];
 }
 
-type CloudProvider = 'aws' | 'gcp';
+type CloudProvider = 'aws' | 'gcp' | 'cloudflare';
 
 interface AssetTypeDescriptor {
   provider: CloudProvider;
@@ -476,10 +476,32 @@ const GCP_ASSET_TYPE_CONFIG: Record<string, AssetTypeConfig> = {
   },
 };
 
+const CLOUDFLARE_ASSET_TYPE_CONFIG: Record<string, AssetTypeConfig> = {
+  cloudflare_zone: {
+    labels: ['CloudflareZone'],
+    externalIdCandidates: ['id', 'name', 'cf_zone_id'],
+    nameCandidates: ['name', 'id'],
+    regionCandidates: [],
+    accountCandidates: [],
+    firstSeenCandidates: ['firstseen', 'createdon'],
+    lastSeenCandidates: ['lastupdated'],
+  },
+  cloudflare_dns_record: {
+    labels: ['CloudflareDNSRecord'],
+    externalIdCandidates: ['id', 'cf_record_id', 'name'],
+    nameCandidates: ['name', 'id'],
+    regionCandidates: [],
+    accountCandidates: [],
+    firstSeenCandidates: ['firstseen'],
+    lastSeenCandidates: ['lastupdated'],
+  },
+};
+
 const LABEL_TO_ASSET_DESCRIPTOR = new Map<string, AssetTypeDescriptor>(
   [
     ['aws', AWS_ASSET_TYPE_CONFIG],
     ['gcp', GCP_ASSET_TYPE_CONFIG],
+    ['cloudflare', CLOUDFLARE_ASSET_TYPE_CONFIG],
   ].flatMap(([provider, configMap]) =>
     Object.entries(configMap).flatMap(([assetType, config]) =>
       config.labels.map(

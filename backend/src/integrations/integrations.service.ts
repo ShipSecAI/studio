@@ -1621,6 +1621,21 @@ export class IntegrationsService implements OnModuleInit {
         };
         break;
       }
+      case 'api_token': {
+        let creds: { apiToken: string; accountId?: string };
+        try {
+          creds = JSON.parse(decrypted);
+        } catch {
+          throw new UnprocessableEntityException(
+            `Failed to parse API token credentials for connection ${connectionId}. The stored credentials are malformed.`,
+          );
+        }
+        data = {
+          apiToken: creds.apiToken,
+        };
+        accountId = creds.accountId;
+        break;
+      }
       default:
         throw new BadRequestException(`Unsupported credential type: ${record.credentialType}`);
     }
