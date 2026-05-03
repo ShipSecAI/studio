@@ -53,6 +53,8 @@ describe('cartography sync component', () => {
     vi.restoreAllMocks();
     createdVolumes.length = 0;
     delete process.env.SHIPSEC_GCP_IMPERSONATION_SOURCE_CREDENTIALS_JSON;
+    delete process.env.CLOUDFLARE_TOKEN;
+    delete process.env.CLOUDFLARE_API_TOKEN;
   });
 
   it('mounts GCP impersonation credentials and sets GOOGLE_APPLICATION_CREDENTIALS', async () => {
@@ -201,6 +203,38 @@ describe('cartography sync component', () => {
     expect(createdVolumes[0]?.cleanupCalled).toBe(true);
   });
 
+  it('passes Cloudflare token through env var for native Cartography sync', async () => {
+    const runnerSpy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('');
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'cartography-sync-test',
+      organizationId: 'org-123',
+    });
+
+    await cartographySync.runCartographyWithRunner(
+      {
+        selectedModules: ['cloudflare'],
+        neo4jUri: 'bolt://neo4j:7687',
+        neo4jDatabase: 'neo4j',
+        cloudflareToken: 'cf-secret-token',
+      },
+      context,
+    );
+
+    expect(runnerSpy).toHaveBeenCalledTimes(1);
+    const runnerConfig = runnerSpy.mock.calls[0]?.[0] as any;
+    expect(runnerConfig.command).toEqual(
+      expect.arrayContaining([
+        '--selected-modules',
+        'cloudflare',
+        '--cloudflare-token-env-var',
+        cartographySync.CLOUDFLARE_TOKEN_ENV,
+      ]),
+    );
+    expect(runnerConfig.command).not.toContain('cf-secret-token');
+    expect(runnerConfig.env[cartographySync.CLOUDFLARE_TOKEN_ENV]).toBe('cf-secret-token');
+  });
+
   it('requires gcpCredential when the gcp module is selected', async () => {
     const component: any = componentRegistry.get('security.cartography.sync');
     if (!component) {
@@ -228,5 +262,32 @@ describe('cartography sync component', () => {
     ).rejects.toThrow(
       'GCP module requires GCP credentials. Connect a GCP credential source to the gcpCredential input.',
     );
+  });
+
+  it('requires Cloudflare token when the cloudflare module is selected', async () => {
+    const component: any = componentRegistry.get('security.cartography.sync');
+    if (!component) {
+      throw new Error('security.cartography.sync not registered');
+    }
+
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'cartography-sync-test',
+      organizationId: 'org-123',
+    });
+
+    await expect(
+      component.execute(
+        {
+          inputs: {},
+          params: {
+            selectedModules: ['cloudflare'],
+            neo4jUri: 'bolt://neo4j:7687',
+            neo4jDatabase: 'neo4j',
+          },
+        },
+        context,
+      ),
+    ).rejects.toThrow('Cloudflare module requires an API token.');
   });
 });

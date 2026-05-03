@@ -927,34 +927,41 @@ function indexInfraTemplate(): SeedTemplate {
 function cloudflareSyncTemplate(): SeedTemplate {
   resetCounter();
   const entryPoint = nid('node');
-  const cfcSync = nid('node');
-  const analytics = nid('node');
+  const cartographySync = nid('node');
   return {
     name: 'Cloudflare Sync',
     slug: 'sys-cloudflare-sync',
-    description: 'Sync Cloudflare zones and DNS records into the asset graph.',
+    description: 'Sync Cloudflare zones and DNS records into the Cartography graph.',
     category: 'cloud-security',
     icon: 'cloud',
     isFeatured: false,
     isDefault: true,
     graph: {
       name: 'Cloudflare Sync',
-      description: 'Ingest Cloudflare DNS records and resolve to cloud resources',
+      description: 'Ingest Cloudflare resources with native Cartography',
       nodes: [
         makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
           runtimeInputs: [
-            { id: 'connectionId', label: 'Cloudflare Connection', type: 'text', required: true },
+            {
+              id: 'cloudflareToken',
+              label: 'Cloudflare API Token',
+              type: 'secret',
+              required: true,
+            },
           ],
         }),
-        makeNode(cfcSync, 'security.cloudflare.sync', 'Cloudflare Sync', 300, 0),
-        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 600, 0, {
-          dataInputs: [{ id: 'results', label: 'Cloudflare Results', sourceTag: 'cloudflare' }],
-        }),
+        makeNode(
+          cartographySync,
+          'security.cartography.sync',
+          'Cloudflare Cartography Sync',
+          320,
+          0,
+          {
+            selectedModules: ['cloudflare'],
+          },
+        ),
       ],
-      edges: [
-        makeEdge('e1', entryPoint, cfcSync, 'connectionId', 'cloudflareToken'),
-        makeEdge('e2', cfcSync, analytics, 'results', 'results'),
-      ],
+      edges: [makeEdge('e1', entryPoint, cartographySync, 'cloudflareToken', 'cloudflareToken')],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
   };

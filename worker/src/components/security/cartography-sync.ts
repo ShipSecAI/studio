@@ -18,7 +18,7 @@ import { awsCredentialSchema, gcpCredentialSchema } from '@shipsec/contracts';
 import { createIsolatedVolume, type IsolatedVolume } from '../../utils/isolated-volume';
 import { readFile } from 'node:fs/promises';
 
-const cartographyModules = ['aws', 'gcp', 'github', 'kubernetes'] as const;
+const cartographyModules = ['aws', 'gcp', 'github', 'kubernetes', 'cloudflare'] as const;
 const CARTOGRAPHY_IMAGE =
   process.env.CARTOGRAPHY_IMAGE?.trim() || 'ghcr.io/cartography-cncf/cartography:0.124.0';
 export const DEFAULT_NEO4J_URI = process.env.NEO4J_URI?.trim() || 'bolt://localhost:7687';
@@ -30,6 +30,8 @@ export const GCP_APPLICATION_CREDENTIALS_FILENAME = 'application_default_credent
 export const GCP_APPLICATION_CREDENTIALS_PATH = `${GCP_APPLICATION_CREDENTIALS_DIR}/${GCP_APPLICATION_CREDENTIALS_FILENAME}`;
 export const GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV =
   'SHIPSEC_GCP_IMPERSONATION_SOURCE_CREDENTIALS_JSON';
+export const CLOUDFLARE_TOKEN_ENV = 'CLOUDFLARE_TOKEN';
+export const CLOUDFLARE_API_TOKEN_ENV = 'CLOUDFLARE_API_TOKEN';
 
 type CartographyModule = (typeof cartographyModules)[number];
 
@@ -60,6 +62,7 @@ export interface CartographyRunnerInput {
   awsRequestedSyncs?: string;
   awsBestEffort?: boolean;
   githubConfigBase64?: string;
+  cloudflareToken?: string;
   image?: string;
 }
 
@@ -92,6 +95,15 @@ const inputSchema = inputs({
     description: 'The GitHub organization to discover repos, teams, and members from.',
     connectionType: { kind: 'primitive', name: 'text' },
   }),
+  cloudflareToken: port(
+    z.string().optional().describe('Cloudflare API token for the Cloudflare module.'),
+    {
+      label: 'Cloudflare Token',
+      description:
+        'Cloudflare API token with read access to zones and account resources. Required when syncing Cloudflare unless provided by worker environment.',
+      connectionType: { kind: 'primitive', name: 'secret' },
+    },
+  ),
 });
 
 const parameterSchema = parameters({
@@ -109,6 +121,7 @@ const parameterSchema = parameters({
         { value: 'gcp', label: 'GCP' },
         { value: 'github', label: 'GitHub' },
         { value: 'kubernetes', label: 'Kubernetes' },
+        { value: 'cloudflare', label: 'Cloudflare' },
       ],
     },
   ),
@@ -331,6 +344,10 @@ export async function runCartographyWithRunner(
   }
 
   const env: Record<string, string> = {};
+  const cloudflareToken =
+    input.cloudflareToken?.trim() ||
+    process.env[CLOUDFLARE_TOKEN_ENV]?.trim() ||
+    process.env[CLOUDFLARE_API_TOKEN_ENV]?.trim();
   const primaryAwsProfile = awsProfiles[0];
   const neo4jUser = process.env.NEO4J_USER?.trim();
   const neo4jPassword = process.env.NEO4J_PASSWORD?.trim();
@@ -347,6 +364,10 @@ export async function runCartographyWithRunner(
   }
   if (input.githubConfigBase64) {
     env.GITHUB_CONFIG = input.githubConfigBase64;
+  }
+  if (selectedModules.includes('cloudflare') && cloudflareToken) {
+    env[CLOUDFLARE_TOKEN_ENV] = cloudflareToken;
+    command.push('--cloudflare-token-env-var', CLOUDFLARE_TOKEN_ENV);
   }
   const dockerNetwork = process.env.CARTOGRAPHY_DOCKER_NETWORK?.trim() || 'shipsec-ce-network';
 
@@ -476,12 +497,12 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Run Cartography (CNCF) to discover and map infrastructure assets into a Neo4j graph database. Supports AWS, GCP, GitHub, and Kubernetes providers. The resulting graph can be queried via the Cartography Query component for blast radius analysis, asset inventory, and security posture assessment.',
+  docs: 'Run Cartography (CNCF) to discover and map infrastructure assets into a Neo4j graph database. Supports AWS, GCP, GitHub, Kubernetes, and Cloudflare providers. The resulting graph can be queried via the Cartography Query component for blast radius analysis, asset inventory, and security posture assessment.',
   toolProvider: {
     kind: 'component',
     name: 'cartography_sync',
     description:
-      'Sync infrastructure assets into the Cartography Neo4j graph (AWS, GCP, GitHub, Kubernetes).',
+      'Sync infrastructure assets into the Cartography Neo4j graph (AWS, GCP, GitHub, Kubernetes, Cloudflare).',
   },
   ui: {
     slug: 'cartography-sync',
@@ -489,7 +510,7 @@ const definition = defineComponent({
     type: 'scan',
     category: 'security',
     description:
-      'Discover and map infrastructure assets from AWS, GCP, GitHub, and Kubernetes into a Neo4j graph using Cartography (CNCF). Enables blast radius analysis, asset inventory, and security posture queries.',
+      'Discover and map infrastructure assets from AWS, GCP, GitHub, Kubernetes, and Cloudflare into a Neo4j graph using Cartography (CNCF). Enables blast radius analysis, asset inventory, and security posture queries.',
     documentation: 'https://github.com/cartography-cncf/cartography',
     icon: 'Network',
     author: {
@@ -502,6 +523,7 @@ const definition = defineComponent({
       'Schedule a nightly Cartography sync to keep the infrastructure graph up to date with your AWS accounts.',
       'Run a GCP Cartography sync using impersonation credentials to ingest projects and related cloud assets.',
       'Sync GitHub organization data to map repository access, team memberships, and CI/CD action dependencies.',
+      'Sync Cloudflare zones, DNS records, and related edge resources into the same Cartography graph.',
     ],
   },
   async execute({ inputs, params }, context) {
@@ -537,6 +559,16 @@ const definition = defineComponent({
     if (selectedModules.includes('github') && !parsedInputs.githubToken) {
       throw new Error(
         'GitHub module requires a personal access token. Provide a token in the githubToken input.',
+      );
+    }
+    if (
+      selectedModules.includes('cloudflare') &&
+      !parsedInputs.cloudflareToken &&
+      !process.env[CLOUDFLARE_TOKEN_ENV]?.trim() &&
+      !process.env[CLOUDFLARE_API_TOKEN_ENV]?.trim()
+    ) {
+      throw new Error(
+        `Cloudflare module requires an API token. Provide cloudflareToken input or set ${CLOUDFLARE_TOKEN_ENV}/${CLOUDFLARE_API_TOKEN_ENV} in the worker environment.`,
       );
     }
 
@@ -613,6 +645,7 @@ const definition = defineComponent({
           awsBestEffort: parsedParams.awsBestEffort,
           gcpCredential: parsedInputs.gcpCredential,
           githubConfigBase64,
+          cloudflareToken: parsedInputs.cloudflareToken,
           image: CARTOGRAPHY_IMAGE,
         },
         context,
