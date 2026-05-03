@@ -55,6 +55,8 @@ describe('cartography sync component', () => {
     delete process.env.SHIPSEC_GCP_IMPERSONATION_SOURCE_CREDENTIALS_JSON;
     delete process.env.CLOUDFLARE_TOKEN;
     delete process.env.CLOUDFLARE_API_TOKEN;
+    delete process.env.SHIPSEC_K8S_KUBECONFIG;
+    delete process.env.KUBECONFIG;
   });
 
   it('mounts GCP impersonation credentials and sets GOOGLE_APPLICATION_CREDENTIALS', async () => {
@@ -235,6 +237,61 @@ describe('cartography sync component', () => {
     expect(runnerConfig.env[cartographySync.CLOUDFLARE_TOKEN_ENV]).toBe('cf-secret-token');
   });
 
+  it('mounts kubeconfig and passes it to native Cartography Kubernetes sync', async () => {
+    const runnerSpy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('');
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'cartography-sync-test',
+      organizationId: 'org-123',
+    });
+    const kubeconfig = [
+      'apiVersion: v1',
+      'kind: Config',
+      'contexts:',
+      '- name: demo',
+      '  context:',
+      '    cluster: demo',
+      '    user: demo',
+      'current-context: demo',
+      'clusters: []',
+      'users: []',
+    ].join('\n');
+
+    await cartographySync.runCartographyWithRunner(
+      {
+        selectedModules: ['kubernetes'],
+        neo4jUri: 'bolt://neo4j:7687',
+        neo4jDatabase: 'neo4j',
+        k8sKubeconfig: kubeconfig,
+        managedKubernetes: 'eks',
+      },
+      context,
+    );
+
+    expect(runnerSpy).toHaveBeenCalledTimes(1);
+    const runnerConfig = runnerSpy.mock.calls[0]?.[0] as any;
+    expect(runnerConfig.command).toEqual(
+      expect.arrayContaining([
+        '--selected-modules',
+        'kubernetes',
+        '--k8s-kubeconfig',
+        cartographySync.K8S_KUBECONFIG_PATH,
+        '--managed-kubernetes',
+        'eks',
+      ]),
+    );
+    expect(runnerConfig.command).not.toContain(kubeconfig);
+    expect(runnerConfig.volumes).toContainEqual({
+      source: 'mock-volume-1',
+      target: cartographySync.K8S_KUBECONFIG_DIR,
+      readOnly: true,
+    });
+    expect(createdVolumes[0]?.files).toEqual({
+      [cartographySync.K8S_KUBECONFIG_FILENAME]: kubeconfig,
+    });
+    expect(createdVolumes[0]?.cleanupCalled).toBe(true);
+  });
+
   it('requires gcpCredential when the gcp module is selected', async () => {
     const component: any = componentRegistry.get('security.cartography.sync');
     if (!component) {
@@ -289,5 +346,32 @@ describe('cartography sync component', () => {
         context,
       ),
     ).rejects.toThrow('Cloudflare module requires an API token.');
+  });
+
+  it('requires kubeconfig when the kubernetes module is selected', async () => {
+    const component: any = componentRegistry.get('security.cartography.sync');
+    if (!component) {
+      throw new Error('security.cartography.sync not registered');
+    }
+
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'cartography-sync-test',
+      organizationId: 'org-123',
+    });
+
+    await expect(
+      component.execute(
+        {
+          inputs: {},
+          params: {
+            selectedModules: ['kubernetes'],
+            neo4jUri: 'bolt://neo4j:7687',
+            neo4jDatabase: 'neo4j',
+          },
+        },
+        context,
+      ),
+    ).rejects.toThrow('Kubernetes module requires kubeconfig.');
   });
 });

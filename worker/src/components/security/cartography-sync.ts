@@ -32,6 +32,10 @@ export const GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV =
   'SHIPSEC_GCP_IMPERSONATION_SOURCE_CREDENTIALS_JSON';
 export const CLOUDFLARE_TOKEN_ENV = 'CLOUDFLARE_TOKEN';
 export const CLOUDFLARE_API_TOKEN_ENV = 'CLOUDFLARE_API_TOKEN';
+export const K8S_KUBECONFIG_DIR = '/var/cartography/.kube';
+export const K8S_KUBECONFIG_FILENAME = 'config';
+export const K8S_KUBECONFIG_PATH = `${K8S_KUBECONFIG_DIR}/${K8S_KUBECONFIG_FILENAME}`;
+export const K8S_KUBECONFIG_ENV = 'SHIPSEC_K8S_KUBECONFIG';
 
 type CartographyModule = (typeof cartographyModules)[number];
 
@@ -63,6 +67,8 @@ export interface CartographyRunnerInput {
   awsBestEffort?: boolean;
   githubConfigBase64?: string;
   cloudflareToken?: string;
+  k8sKubeconfig?: string;
+  managedKubernetes?: string;
   image?: string;
 }
 
@@ -101,6 +107,15 @@ const inputSchema = inputs({
       label: 'Cloudflare Token',
       description:
         'Cloudflare API token with read access to zones and account resources. Required when syncing Cloudflare unless provided by worker environment.',
+      connectionType: { kind: 'primitive', name: 'secret' },
+    },
+  ),
+  k8sKubeconfig: port(
+    z.string().optional().describe('Kubeconfig content for the Kubernetes module.'),
+    {
+      label: 'Kubernetes Kubeconfig',
+      description:
+        'Kubeconfig YAML with read access to cluster resources. Required when syncing Kubernetes unless provided by worker environment.',
       connectionType: { kind: 'primitive', name: 'secret' },
     },
   ),
@@ -166,6 +181,19 @@ const parameterSchema = parameters({
       editor: 'boolean',
       description:
         'When enabled, Cartography continues even if some AWS API calls fail (e.g., missing permissions).',
+    },
+  ),
+  managedKubernetes: param(
+    z
+      .enum(['eks'])
+      .optional()
+      .describe('Optional managed Kubernetes provider hint for Cartography.'),
+    {
+      label: 'Managed Kubernetes',
+      editor: 'select',
+      description:
+        'Optional provider-specific Kubernetes handling. Leave empty for GKE and generic clusters.',
+      options: [{ value: 'eks', label: 'EKS' }],
     },
   ),
 });
@@ -296,6 +324,31 @@ async function writeGcpCredentialVolume(
   });
 }
 
+async function loadKubeconfig(inputKubeconfig?: string): Promise<string | null> {
+  const explicitKubeconfig = inputKubeconfig?.trim();
+  if (explicitKubeconfig) {
+    return explicitKubeconfig;
+  }
+
+  const envKubeconfig = process.env[K8S_KUBECONFIG_ENV]?.trim();
+  if (envKubeconfig) {
+    return envKubeconfig;
+  }
+
+  const kubeconfigPath = process.env.KUBECONFIG?.split(':')[0]?.trim();
+  if (kubeconfigPath) {
+    return readFile(kubeconfigPath, 'utf8');
+  }
+
+  return null;
+}
+
+async function writeK8sKubeconfigVolume(volume: IsolatedVolume, kubeconfig: string): Promise<void> {
+  await volume.initialize({
+    [K8S_KUBECONFIG_FILENAME]: kubeconfig,
+  });
+}
+
 export async function runCartographyWithRunner(
   input: CartographyRunnerInput,
   context: ExecutionContext,
@@ -312,6 +365,13 @@ export async function runCartographyWithRunner(
   const gcpCredsVolume =
     input.gcpCredential && selectedModules.includes('gcp')
       ? createIsolatedVolume(tenantId, `${context.runId}-cartography-gcp`)
+      : null;
+  const k8sKubeconfig = selectedModules.includes('kubernetes')
+    ? await loadKubeconfig(input.k8sKubeconfig)
+    : null;
+  const k8sKubeconfigVolume =
+    k8sKubeconfig && selectedModules.includes('kubernetes')
+      ? createIsolatedVolume(tenantId, `${context.runId}-cartography-k8s`)
       : null;
 
   const command: string[] = [
@@ -341,6 +401,13 @@ export async function runCartographyWithRunner(
 
   if (selectedModules.includes('github') && input.githubConfigBase64) {
     command.push('--github-config-env-var', 'GITHUB_CONFIG');
+  }
+
+  if (selectedModules.includes('kubernetes') && k8sKubeconfig) {
+    command.push('--k8s-kubeconfig', K8S_KUBECONFIG_PATH);
+    if (input.managedKubernetes?.trim()) {
+      command.push('--managed-kubernetes', input.managedKubernetes.trim());
+    }
   }
 
   const env: Record<string, string> = {};
@@ -434,6 +501,13 @@ export async function runCartographyWithRunner(
         gcpCredsVolume.getVolumeConfig(GCP_APPLICATION_CREDENTIALS_DIR, true),
       ];
     }
+    if (k8sKubeconfigVolume && k8sKubeconfig) {
+      await writeK8sKubeconfigVolume(k8sKubeconfigVolume, k8sKubeconfig);
+      dockerRunner.volumes = [
+        ...(dockerRunner.volumes ?? []),
+        k8sKubeconfigVolume.getVolumeConfig(K8S_KUBECONFIG_DIR, true),
+      ];
+    }
 
     const runnerResult = await runComponentWithRunner<Record<string, never>, unknown>(
       dockerRunner,
@@ -478,6 +552,10 @@ export async function runCartographyWithRunner(
     if (gcpCredsVolume) {
       await gcpCredsVolume.cleanup();
       context.logger.info('[CartographySync] Cleaned up GCP creds volume');
+    }
+    if (k8sKubeconfigVolume) {
+      await k8sKubeconfigVolume.cleanup();
+      context.logger.info('[CartographySync] Cleaned up Kubernetes kubeconfig volume');
     }
   }
 }
@@ -571,6 +649,16 @@ const definition = defineComponent({
         `Cloudflare module requires an API token. Provide cloudflareToken input or set ${CLOUDFLARE_TOKEN_ENV}/${CLOUDFLARE_API_TOKEN_ENV} in the worker environment.`,
       );
     }
+    if (
+      selectedModules.includes('kubernetes') &&
+      !parsedInputs.k8sKubeconfig &&
+      !process.env[K8S_KUBECONFIG_ENV]?.trim() &&
+      !process.env.KUBECONFIG?.trim()
+    ) {
+      throw new Error(
+        `Kubernetes module requires kubeconfig. Provide k8sKubeconfig input or set ${K8S_KUBECONFIG_ENV}/KUBECONFIG in the worker environment.`,
+      );
+    }
 
     // Build Cartography CLI command
     const cmd: string[] = [
@@ -646,6 +734,8 @@ const definition = defineComponent({
           gcpCredential: parsedInputs.gcpCredential,
           githubConfigBase64,
           cloudflareToken: parsedInputs.cloudflareToken,
+          k8sKubeconfig: parsedInputs.k8sKubeconfig,
+          managedKubernetes: parsedParams.managedKubernetes,
           image: CARTOGRAPHY_IMAGE,
         },
         context,
