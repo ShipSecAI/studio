@@ -115,6 +115,7 @@ describe('StudioMcpService Unit Tests', () => {
         'list_run_node_io',
         'list_runs',
         'list_secrets',
+        'list_security_finding_chains',
         'list_workflows',
         'resolve_human_input',
         'rotate_secret',

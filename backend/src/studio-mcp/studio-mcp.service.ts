@@ -13,6 +13,7 @@ import { SchedulesService } from '../schedules/schedules.service';
 import { SecretsService } from '../secrets/secrets.service';
 import { HumanInputsService } from '../human-inputs/human-inputs.service';
 import { SecurityAnalyticsService } from '../analytics/security-analytics.service';
+import { SecurityIngestionService } from '../security-ingestion/security-ingestion.service';
 import { AssetDiscoveryService } from '../asset-discovery/asset-discovery.service';
 import { AsmService } from '../asm/asm.service';
 import { IntegrationsService } from '../integrations/integrations.service';
@@ -26,6 +27,7 @@ import { registerScheduleTools } from './tools/schedule.tools';
 import { registerSecretTools } from './tools/secret.tools';
 import { registerHumanInputTools } from './tools/human-input.tools';
 import { registerAnalyticsTools } from './tools/analytics.tools';
+import { registerSecurityIngestionTools } from './tools/security-ingestion.tools';
 import { registerAssetTools } from './tools/asset.tools';
 import { registerConnectionTools } from './tools/connection.tools';
 import { ReportTemplatesService } from '../report-templates/report-templates.service';
@@ -53,6 +55,7 @@ export class StudioMcpService {
     @Optional() private readonly integrationsService?: IntegrationsService,
     @Optional() private readonly reportTemplatesService?: ReportTemplatesService,
     @Optional() private readonly configService?: ConfigService,
+    @Optional() private readonly securityIngestionService?: SecurityIngestionService,
   ) {}
 
   /**
@@ -91,6 +94,7 @@ export class StudioMcpService {
       secretsService: this.secretsService,
       humanInputsService: this.humanInputsService,
       securityAnalyticsService: this.securityAnalyticsService,
+      securityIngestionService: this.securityIngestionService,
       assetDiscoveryService: this.assetDiscoveryService,
       asmService: this.asmService,
       integrationsService: this.integrationsService,
@@ -105,6 +109,7 @@ export class StudioMcpService {
     registerSecretTools(server, auth, deps);
     registerHumanInputTools(server, auth, deps);
     registerAnalyticsTools(server, auth, deps);
+    registerSecurityIngestionTools(server, auth, deps);
     registerAssetTools(server, auth, deps);
     registerConnectionTools(server, auth, deps);
     registerReportTemplateTools(server, auth, deps);

@@ -102,6 +102,12 @@ export interface StudioMcpDeps {
   integrationsService?: {
     listConnectionsForOrg(auth: any, provider?: string): Promise<any>;
   };
+  securityIngestionService?: {
+    listFindingChains(
+      organizationId: string,
+      options?: { sourceKind?: string; status?: string; limit?: number },
+    ): Promise<{ findings: Record<string, any>[] }>;
+  };
   securityAnalyticsService?: {
     query(
       orgId: string,
