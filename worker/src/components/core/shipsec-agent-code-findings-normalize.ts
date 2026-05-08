@@ -19,7 +19,13 @@ import {
   shipsecIngestionBatchSchema,
 } from '@shipsec/contracts';
 
-const severitySchema = z.enum(['critical', 'high', 'medium', 'low', 'info', 'unknown']);
+const severitySchema = z.preprocess(
+  (value) => {
+    if (typeof value === 'string') return value.trim().toLowerCase();
+    return value;
+  },
+  z.enum(['critical', 'high', 'medium', 'low', 'info', 'unknown']),
+);
 const reviewModeSchema = z.enum(['baseline', 'pr']);
 const findingLifecycleHintSchema = z.enum([
   'introduced',
@@ -64,37 +70,77 @@ const lifecycleHintInputSchema = z.preprocess((value) => {
   return aliases[normalized] ?? normalized;
 }, findingLifecycleHintSchema);
 
-const agentCodeFindingSchema = z.object({
-  title: z.string().min(1),
-  severity: severitySchema.default('unknown'),
-  confidence: confidenceSchema.default(0.7),
-  category: z.string().optional(),
-  weaknessClass: z.string().optional(),
-  status: lifecycleHintInputSchema.optional().default('existing'),
-  file: z.string().optional(),
-  line: z.number().int().positive().optional(),
-  endpoint: z.string().optional(),
-  functionName: z.string().optional(),
-  packageName: z.string().optional(),
-  imageRef: z.string().optional(),
-  description: z.string().optional(),
-  attackerPrerequisite: z.string().optional(),
-  impact: z.string().optional(),
-  evidence: z.array(z.union([z.string(), z.record(z.string(), z.unknown())])).default([]),
-  fix: z.string().optional(),
-  verification: z.string().optional(),
-  linkedFindingKeys: z.array(z.string()).default([]),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-});
+const evidenceArraySchema = z.preprocess(
+  (value) => {
+    if (value == null) return [];
+    return Array.isArray(value) ? value : [value];
+  },
+  z.array(z.union([z.string(), z.record(z.string(), z.unknown())])),
+);
 
-const threatCandidateSchema = z.object({
-  title: z.string().min(1),
-  linkedFindingKeys: z.array(z.string()).default([]),
-  impact: z.string().optional(),
-  confidence: confidenceSchema.default(0.7),
-  evidence: z.array(z.union([z.string(), z.record(z.string(), z.unknown())])).default([]),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-});
+const agentCodeFindingSchema = z
+  .object({
+    title: z.string().min(1).optional(),
+    id: z.string().optional(),
+    type: z.string().optional(),
+    severity: severitySchema.default('unknown'),
+    confidence: confidenceSchema.default(0.7),
+    category: z.string().optional(),
+    weaknessClass: z.string().optional(),
+    status: lifecycleHintInputSchema.optional().default('existing'),
+    file: z.string().optional(),
+    line: z.number().int().positive().optional(),
+    endpoint: z.string().optional(),
+    functionName: z.string().optional(),
+    packageName: z.string().optional(),
+    imageRef: z.string().optional(),
+    description: z.string().optional(),
+    attackerPrerequisite: z.string().optional(),
+    impact: z.string().optional(),
+    evidence: evidenceArraySchema.default([]),
+    fix: z.string().optional(),
+    remediation: z.string().optional(),
+    verification: z.string().optional(),
+    linkedFindingKeys: z.array(z.string()).default([]),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .transform((finding) => ({
+    ...finding,
+    title:
+      finding.title ?? finding.type ?? finding.description ?? finding.id ?? 'Agent code finding',
+    weaknessClass: finding.weaknessClass ?? finding.type ?? finding.id,
+    category: finding.category ?? finding.type,
+    fix: finding.fix ?? finding.remediation,
+  }));
+
+const threatCandidateSchema = z
+  .object({
+    title: z.string().min(1).optional(),
+    type: z.string().optional(),
+    actor: z.string().optional(),
+    attackVector: z.string().optional(),
+    description: z.string().optional(),
+    linkedFindingKeys: z.array(z.string()).default([]),
+    impact: z.string().optional(),
+    confidence: confidenceSchema.default(0.7),
+    evidence: evidenceArraySchema.default([]),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .transform((threat) => ({
+    ...threat,
+    title:
+      threat.title ||
+      threat.type ||
+      [threat.actor, threat.attackVector].filter(Boolean).join(' via ') ||
+      'Agent threat candidate',
+    impact: threat.impact ?? threat.description,
+    evidence:
+      threat.evidence.length > 0
+        ? threat.evidence
+        : [threat.description, threat.actor, threat.attackVector].filter(
+            (item): item is string => typeof item === 'string' && item.length > 0,
+          ),
+  }));
 
 const agentCodeReviewOutputSchema = z.object({
   findings: z.array(agentCodeFindingSchema).default([]),
@@ -242,9 +288,31 @@ function extractJsonPayload(report: string): unknown {
   }
 
   const start = trimmed.indexOf('{');
-  const end = trimmed.lastIndexOf('}');
-  if (start >= 0 && end > start) {
-    return JSON.parse(trimmed.slice(start, end + 1));
+  if (start >= 0) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < trimmed.length; i++) {
+      const char = trimmed[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (char === '{') depth += 1;
+      if (char === '}') depth -= 1;
+      if (depth === 0) {
+        return JSON.parse(trimmed.slice(start, i + 1));
+      }
+    }
   }
 
   throw new Error('Agent report did not contain parseable JSON.');

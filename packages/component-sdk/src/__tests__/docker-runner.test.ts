@@ -55,7 +55,8 @@ dockerDescribe('Docker Runner', () => {
     const runner: DockerRunnerConfig = {
       kind: 'docker',
       image: BUSYBOX_IMAGE,
-      command: ['/bin/sh', '-c', 'echo "Hello from Docker!"'],
+      command: ['/bin/sh', '-c', 'printf "Hello from Docker!"'],
+      expectOutputFile: false,
       timeoutSeconds: 30,
     };
 
@@ -80,7 +81,11 @@ dockerDescribe('Docker Runner', () => {
     const runner: DockerRunnerConfig = {
       kind: 'docker',
       image: BUSYBOX_IMAGE,
-      command: ['/bin/sh', '-c', 'echo \'{"result":"test-value"}\''],
+      command: [
+        '/bin/sh',
+        '-c',
+        'printf \'{"result":"test-value"}\' > /shipsec-output/result.json',
+      ],
       timeoutSeconds: 30,
     };
 
@@ -99,11 +104,36 @@ dockerDescribe('Docker Runner', () => {
     expect(result).toEqual({ result: 'test-value' });
   });
 
+  dockerTest('should return stdout when structured output file is disabled', async () => {
+    const runner: DockerRunnerConfig = {
+      kind: 'docker',
+      image: BUSYBOX_IMAGE,
+      command: ['/bin/sh', '-c', 'printf "plain stdout report"'],
+      expectOutputFile: false,
+      timeoutSeconds: 30,
+    };
+
+    const params = {};
+    const dummyExecute = async () => {
+      throw new Error('Should not be called');
+    };
+
+    const result = await runComponentWithRunner<typeof params, string>(
+      runner,
+      dummyExecute,
+      params,
+      context,
+    );
+
+    expect(result).toBe('plain stdout report');
+  });
+
   dockerTest('should pass environment variables to container', async () => {
     const runner: DockerRunnerConfig = {
       kind: 'docker',
       image: BUSYBOX_IMAGE,
-      command: ['/bin/sh', '-c', 'echo $TEST_VAR'],
+      command: ['/bin/sh', '-c', 'printf "%s" "$TEST_VAR"'],
+      expectOutputFile: false,
       env: { TEST_VAR: 'environment-works' },
       timeoutSeconds: 30,
     };

@@ -285,7 +285,7 @@ async function runComponentInDocker<I, O>(
 
     if (!expectOutputFile) {
       context.logger.info('[Docker] Skipping structured runner output file read');
-      return undefined as O;
+      return capturedStdout as O;
     }
 
     // Read output from file. Docker components are required to write structured

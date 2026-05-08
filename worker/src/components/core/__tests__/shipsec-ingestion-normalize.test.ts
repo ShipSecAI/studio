@@ -247,4 +247,68 @@ describe('ShipSec north-star ingestion normalizers', () => {
       'Cross-tenant invoice exposure',
     ]);
   });
+
+  it('accepts abbreviated real agent JSON shapes for code findings', async () => {
+    const component = componentRegistry.get('shipsec.agent-code-findings.normalize');
+    if (!component) throw new Error('agent code normalizer not registered');
+
+    const context = createExecutionContext({
+      runId: 'worker-test-real-agent-run',
+      componentRef: 'agent-code-normalize',
+      organizationId: 'org-1',
+      workflowId: 'workflow-1',
+      workflowName: 'Agentic PR Code Review',
+    });
+
+    const result = (await component.execute(
+      {
+        inputs: {
+          repository: 'shipsecai/studio',
+          branch: 'agent-review-branch',
+          commitSha: 'abc123',
+          prNumber: 7,
+          agentReport: [
+            JSON.stringify({
+              findings: [
+                {
+                  id: 'CWE-639',
+                  type: 'IDOR',
+                  severity: 'HIGH',
+                  confidence: 'high',
+                  status: 'introduced',
+                  file: 'review-fixture/introduced-idor.ts',
+                  endpoint: 'GET /api/review-fixture/invoices/:invoiceId',
+                  description: 'Invoice lookup does not check tenant ownership.',
+                  evidence: 'The route returns any invoice by id.',
+                  remediation: 'Scope invoice reads by tenant.',
+                },
+              ],
+              threatCandidates: [
+                {
+                  type: 'Cross-tenant invoice exposure',
+                  actor: 'authenticated tenant user',
+                  attackVector: 'guessing invoice ids',
+                  description: 'Customer invoice data can be read across tenants.',
+                },
+              ],
+            }),
+            JSON.stringify({ wikiUpdates: [] }),
+          ].join('\n'),
+        },
+        params: { reviewMode: 'pr' },
+      },
+      context,
+    )) as any;
+
+    expect(result.findingCount).toBe(1);
+    expect(result.threatCandidateCount).toBe(1);
+    expect(result.ingestionBatch.findingInstances[0]?.severity).toBe('high');
+    expect(result.ingestionBatch.findingInstances[0]?.findingKey).toContain(
+      'code:shipsecai/studio:idor:',
+    );
+    expect(result.ingestionBatch.observations[0]?.normalized.lifecycleHint).toBe('introduced');
+    expect(result.ingestionBatch.observations[0]?.normalized.agentFinding.evidence).toEqual([
+      'The route returns any invoice by id.',
+    ]);
+  });
 });
