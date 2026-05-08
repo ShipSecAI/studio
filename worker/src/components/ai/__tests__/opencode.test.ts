@@ -189,6 +189,47 @@ describe('shipsec.opencode.agent', () => {
     );
   });
 
+  it('should expose Hotplug as CLI-native tool access when a session is attached', async () => {
+    const component = componentRegistry.get('core.ai.opencode');
+    if (!component) throw new Error('Component not found');
+
+    const context = {
+      runId: 'test-run-hotplug-cli',
+      componentRef: 'test-ref-hotplug-cli',
+      metadata: {
+        connectedToolNodeIds: ['tool-1'],
+        organizationId: 'org-1',
+        hotplugMcpUrl: 'http://hotplug:10010/sessions/test-session/mcp',
+        hotplugMcpToken: 'test-hotplug-token',
+      },
+      logger: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+      },
+      emitProgress: vi.fn(),
+    };
+
+    const inputs = {
+      task: 'Link findings using tools',
+      model: { provider: 'openai', modelId: 'gpt-4o', apiKey: 'sk-test' },
+    };
+
+    await component.execute({ inputs, params: {} }, context as any);
+
+    const volumeInstance = (createIsolatedVolume as any).mock.results[0].value;
+    const initCall = volumeInstance.initialize.mock.calls[0][0];
+    expect(initCall['prompt.txt']).toContain('hotplug mcp tools list');
+    expect(initCall['tools/README.md']).toContain('hotplug mcp tools call');
+    expect(initCall['tools/shipsec-tools']).toContain('shipsec-tools list');
+
+    const runnerCall = runSpy.mock.calls[0][0];
+    expect(runnerCall.env.HOTPLUG_MCP_URL).toBe('http://hotplug:10010/sessions/test-session/mcp');
+    expect(runnerCall.env.HOTPLUG_MCP_TOKEN).toBe('test-hotplug-token');
+    expect(initCall['run.sh']).toContain('hotplug mcp init');
+  });
+
   it('should not include plugin setup when enablePlugins is empty', async () => {
     const component = componentRegistry.get('core.ai.opencode');
     if (!component) throw new Error('Component not found');

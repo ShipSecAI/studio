@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { existsSync } from 'node:fs';
 import {
   componentRegistry,
   ComponentRetryPolicy,
@@ -142,6 +143,19 @@ const parameterSchema = parameters({
       description: 'Enable plugins for enhanced agent capabilities.',
     },
   ),
+  hotplugCliHostPath: param(
+    z
+      .string()
+      .optional()
+      .default(process.env.HOTPLUG_CLI_HOST_PATH ?? '')
+      .describe('Optional host path to a hotplug CLI binary to mount into the agent container.'),
+    {
+      label: 'Hotplug CLI Path',
+      editor: 'text',
+      description:
+        'Mount this host binary at /usr/local/bin/hotplug so agents can compose MCP tools from shell scripts.',
+    },
+  ),
 });
 
 const outputSchema = outputs({
@@ -198,7 +212,13 @@ const definition = defineComponent({
       supplementaryB,
       workspaceVolumeName,
     } = inputs;
-    const { systemPrompt, providerConfig, skills: selectedSkills, enablePlugins } = params;
+    const {
+      systemPrompt,
+      providerConfig,
+      skills: selectedSkills,
+      enablePlugins,
+      hotplugCliHostPath,
+    } = params;
 
     const { organizationId } = context.metadata;
 
@@ -328,6 +348,17 @@ Please investigate the issue and generate a detailed report.
       finalPrompt +=
         '\n\n# Repository Workspace\nA read-only checkout is mounted at /workspace/repo-workspace/repo. Use it as the source of truth for code review.';
     }
+    if (hotplugMcpUrl && hotplugMcpToken) {
+      finalPrompt += [
+        '',
+        '# CLI Tool Access',
+        'Use the Hotplug CLI when you need to compose multiple tools, inspect schemas, or write scratch scripts that join results across tools.',
+        '- List tools: `hotplug mcp tools list`',
+        "- Call tools: `hotplug mcp tools call <tool_name> '<json args>'`",
+        '- Read the local helper notes at `/workspace/tools/README.md`.',
+        'The environment already contains `HOTPLUG_MCP_URL` and `HOTPLUG_MCP_TOKEN`.',
+      ].join('\n');
+    }
 
     // 4. Setup Isolated Volume
     const tenantId = (context as any).tenantId ?? 'default-tenant';
@@ -345,6 +376,9 @@ Please investigate the issue and generate a detailed report.
         '#!/bin/sh',
         'set -e',
         'cd /workspace',
+        'chmod +x /workspace/tools/shipsec-tools 2>/dev/null || true',
+        'export PATH="/workspace/tools:/usr/local/bin:$PATH"',
+        'if [ -n "${HOTPLUG_MCP_URL:-}" ] && command -v hotplug >/dev/null 2>&1; then hotplug mcp init >&2 || true; fi',
         ...pluginSetupLines,
         '# List MCP tools for debugging (stderr only)',
         'opencode mcp list --log-level ERROR >&2 || true',
@@ -364,6 +398,8 @@ Please investigate the issue and generate a detailed report.
         'opencode.json': opencodeConfigJson,
         'prompt.txt': finalPrompt,
         'run.sh': wrapperScript,
+        'tools/README.md': buildHotplugToolReadme(Boolean(hotplugMcpUrl && hotplugMcpToken)),
+        'tools/shipsec-tools': buildShipsecToolsWrapper(),
       };
       if (supplementaryA) workspaceFiles['supplementary-a.txt'] = supplementaryA;
       if (supplementaryB) workspaceFiles['supplementary-b.txt'] = supplementaryB;
@@ -381,6 +417,13 @@ Please investigate the issue and generate a detailed report.
 
       await volume.initialize(workspaceFiles);
 
+      const hotplugCliMount = resolveHotplugCliMount(hotplugCliHostPath);
+      if (hotplugMcpUrl && !hotplugCliMount) {
+        context.logger.warn(
+          '[OpenCode] Hotplug MCP session is attached, but no hotplug CLI binary was mounted. Set HOTPLUG_CLI_HOST_PATH or the Hotplug CLI Path parameter for CLI-native agent scripting.',
+        );
+      }
+
       const runnerConfig = {
         ...definition.runner,
         // Override entrypoint to /bin/sh to avoid the image's default 'opencode' entrypoint
@@ -389,9 +432,22 @@ Please investigate the issue and generate a detailed report.
         command: ['/workspace/run.sh'],
         // Use host network to access localhost gateway
         network: 'host' as const,
-        env: providerEnv,
+        env: {
+          ...providerEnv,
+          ...(hotplugMcpUrl ? { HOTPLUG_MCP_URL: hotplugMcpUrl } : {}),
+          ...(hotplugMcpToken ? { HOTPLUG_MCP_TOKEN: hotplugMcpToken } : {}),
+        },
         volumes: [
           volume.getVolumeConfig('/workspace', false), // Read-write, mounted at /workspace
+          ...(hotplugCliMount
+            ? [
+                {
+                  source: hotplugCliMount,
+                  target: '/usr/local/bin/hotplug',
+                  readOnly: true,
+                },
+              ]
+            : []),
           ...(workspaceVolumeName
             ? [
                 {
@@ -464,6 +520,64 @@ Please investigate the issue and generate a detailed report.
     }
   },
 });
+
+function resolveHotplugCliMount(hostPath: string | undefined): string | undefined {
+  const trimmed = hostPath?.trim();
+  if (!trimmed) return undefined;
+  return existsSync(trimmed) ? trimmed : undefined;
+}
+
+function buildShipsecToolsWrapper(): string {
+  return [
+    '#!/bin/sh',
+    'set -e',
+    'case "${1:-}" in',
+    '  list)',
+    '    exec hotplug mcp tools list',
+    '    ;;',
+    '  call)',
+    '    shift',
+    '    exec hotplug mcp tools call "$@"',
+    '    ;;',
+    '  init)',
+    '    exec hotplug mcp init',
+    '    ;;',
+    '  *)',
+    '    echo "usage: shipsec-tools list | call <tool> <json> | init" >&2',
+    '    exit 2',
+    '    ;;',
+    'esac',
+    '',
+  ].join('\n');
+}
+
+function buildHotplugToolReadme(hasHotplugSession: boolean): string {
+  if (!hasHotplugSession) {
+    return [
+      '# ShipSec Tools',
+      '',
+      'No Hotplug MCP session was attached to this run. Continue with local code and files only.',
+      '',
+    ].join('\n');
+  }
+  return [
+    '# ShipSec Tools',
+    '',
+    'This workspace exposes the workflow tool session through the Hotplug CLI.',
+    '',
+    'Useful commands:',
+    '',
+    '```sh',
+    'hotplug mcp init',
+    'hotplug mcp tools list',
+    'hotplug mcp tools call <tool_name> \'{"key":"value"}\'',
+    'printf \'{"key":"value"}\' | hotplug mcp tools call <tool_name> -',
+    '```',
+    '',
+    'For multi-tool reasoning, write a scratch script in `/workspace` that shells out to `hotplug mcp tools call`, saves intermediate JSON, and emits the final structured finding/threat JSON requested by the task.',
+    '',
+  ].join('\n');
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
