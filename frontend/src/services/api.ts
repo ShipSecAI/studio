@@ -20,6 +20,48 @@ export type IntegrationProviderConfiguration =
 export type OAuthStartResponse = components['schemas']['OAuthStartResponseDto'];
 export type ReportTemplate = components['schemas']['ReportTemplateResponseDto'];
 export type RenderReportTemplateResponse = components['schemas']['RenderReportTemplateResponseDto'];
+export interface SecurityFindingChain {
+  id: string;
+  findingKey: string;
+  status: string;
+  severity: string;
+  confidence: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  sourceKind: string;
+  sourceVersion?: string | null;
+  workflowId?: string | null;
+  workflowName?: string | null;
+  runId?: string | null;
+  repository?: string | null;
+  branch?: string | null;
+  commitSha?: string | null;
+  prNumber?: string | null;
+  reviewMode?: string | null;
+  lifecycleHint?: string | null;
+  title?: string | null;
+  description?: string | null;
+  impact?: string | null;
+  fix?: string | null;
+  verification?: string | null;
+  file?: string | null;
+  line?: number | null;
+  endpoint?: string | null;
+  asset?: { id: string; kind: string; stableKey: string; displayName: string } | null;
+  threatRefs: string[];
+  linkedFindingKeys: string[];
+  evidence: { id: string; summary?: string | null; artifactUri: string; capturedAt: string }[];
+  observations: {
+    id: string;
+    status?: string | null;
+    title: string;
+    observedAt: string;
+    runId?: string | null;
+    reviewMode?: string | null;
+    lifecycleHint?: string | null;
+    prNumber?: string | null;
+  }[];
+}
 
 export type IntegrationCatalogEntry =
   paths['/api/v1/integrations/catalog']['get']['responses'][200]['content']['application/json'][number];
@@ -1730,6 +1772,26 @@ export const api = {
       const response = await apiClient.getAnalyticsBatchRunSummaries({ runIds });
       if (response.error || !response.data) throw new Error('Batch run summaries failed');
       return response.data;
+    },
+  },
+
+  securityIngestion: {
+    findings: async (params?: {
+      sourceKind?: string;
+      status?: string;
+      limit?: number;
+    }): Promise<{ findings: SecurityFindingChain[] }> => {
+      const searchParams = new URLSearchParams();
+      if (params?.sourceKind) searchParams.set('sourceKind', params.sourceKind);
+      if (params?.status) searchParams.set('status', params.status);
+      if (params?.limit) searchParams.set('limit', String(params.limit));
+      const headers = await getAuthHeaders();
+      const resp = await fetch(
+        `${API_V1_URL}/security-ingestion/findings${searchParams.toString() ? `?${searchParams}` : ''}`,
+        { headers },
+      );
+      if (!resp.ok) throw new Error('Failed to fetch security finding chains');
+      return resp.json();
     },
   },
 

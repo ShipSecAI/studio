@@ -114,4 +114,137 @@ describe('ShipSec north-star ingestion normalizers', () => {
     expect(result.findingCount).toBe(1);
     expect(result.ingestionBatch.findingInstances[0]?.findingKey).toContain('asm.open_port');
   });
+
+  it('registers and executes agent code findings normalization', async () => {
+    const component = componentRegistry.get('shipsec.agent-code-findings.normalize');
+    if (!component) throw new Error('agent code normalizer not registered');
+
+    const context = createExecutionContext({
+      runId: 'worker-test-run',
+      componentRef: 'agent-code-normalize',
+      organizationId: 'org-1',
+      workflowId: 'workflow-1',
+      workflowName: 'Agentic Code Review',
+    });
+
+    const result = (await component.execute(
+      {
+        inputs: {
+          repository: 'shipsec/studio',
+          branch: 'main',
+          commitSha: 'abc123',
+          agentReport: JSON.stringify({
+            findings: [
+              {
+                title: 'Missing tenant authorization on workflow run lookup',
+                severity: 'high',
+                confidence: 0.91,
+                category: 'authorization',
+                weaknessClass: 'idor',
+                status: 'existing',
+                file: 'backend/src/workflows/workflows.controller.ts',
+                line: 142,
+                endpoint: 'GET /api/v1/workflows/:workflowId/runs/:runId',
+                description: 'The route returns a workflow run without proving tenant ownership.',
+                attackerPrerequisite: 'Authenticated user in another organization.',
+                impact: 'Cross-tenant workflow run metadata exposure.',
+                evidence: ['Repository lookup uses runId without organizationId.'],
+                fix: 'Scope the lookup by organizationId.',
+                verification: 'Add a cross-tenant access regression test.',
+              },
+            ],
+            threatCandidates: [
+              {
+                title: 'Cross-tenant workflow artifact exposure',
+                linkedFindingKeys: [
+                  'code:shipsec/studio:idor:GET /api/v1/workflows/:workflowId/runs/:runId',
+                ],
+                impact: 'Customer workflow metadata can cross tenant boundaries.',
+                confidence: 0.8,
+              },
+            ],
+            wikiUpdates: [],
+          }),
+        },
+        params: { reviewMode: 'baseline' },
+      },
+      context,
+    )) as any;
+
+    expect(result.scannerRun.sourceKind).toBe('ai_code_review');
+    expect(result.findingCount).toBe(1);
+    expect(result.threatCandidateCount).toBe(1);
+    expect(result.ingestionBatch.assets.some((asset: any) => asset.assetKind === 'api_route')).toBe(
+      true,
+    );
+    expect(result.ingestionBatch.findingInstances[0]?.findingKey).toContain(
+      'code:shipsec/studio:idor:',
+    );
+    expect(result.ingestionBatch.observations[0]?.normalized.reviewMode).toBe('baseline');
+  });
+
+  it('uses linked finding key for agent PR resolution candidates', async () => {
+    const component = componentRegistry.get('shipsec.agent-code-findings.normalize');
+    if (!component) throw new Error('agent code normalizer not registered');
+
+    const linkedKey = 'code:shipsec/studio:idor:get-/api/invoices/:invoiceid';
+    const context = createExecutionContext({
+      runId: 'worker-test-pr-run',
+      componentRef: 'agent-code-normalize',
+      organizationId: 'org-1',
+      workflowId: 'workflow-1',
+      workflowName: 'Agentic PR Code Review',
+    });
+
+    const result = (await component.execute(
+      {
+        inputs: {
+          repository: 'shipsec/studio',
+          branch: 'fix-invoice-authz',
+          commitSha: 'def456',
+          prNumber: 42,
+          agentReport: JSON.stringify({
+            findings: [
+              {
+                title: 'Invoice lookup is tenant scoped',
+                severity: 'high',
+                confidence: 0.86,
+                category: 'authorization',
+                weaknessClass: 'idor',
+                status: 'fixed_candidate',
+                file: 'src/app.js',
+                line: 7,
+                endpoint: 'GET /api/invoices/:invoiceId',
+                description: 'The PR adds tenant scoping for the invoice lookup.',
+                attackerPrerequisite: 'Authenticated user before the fix.',
+                impact: 'Cross-tenant invoice reads are blocked after merge and retest.',
+                evidence: ['PR review links back to the baseline finding key.'],
+                fix: 'Merge and rerun baseline validation.',
+                verification: 'Regression test asserts tenant ownership.',
+                linkedFindingKeys: [linkedKey],
+              },
+            ],
+            threatCandidates: [
+              {
+                title: 'Cross-tenant invoice exposure',
+                linkedFindingKeys: [linkedKey],
+                impact: 'Customer invoice data exposure.',
+                confidence: 0.8,
+              },
+            ],
+            wikiUpdates: [],
+          }),
+        },
+        params: { reviewMode: 'pr' },
+      },
+      context,
+    )) as any;
+
+    expect(result.ingestionBatch.findingInstances[0]?.findingKey).toBe(linkedKey);
+    expect(result.ingestionBatch.findingInstances[0]?.status).toBe('in_progress');
+    expect(result.ingestionBatch.observations[0]?.normalized.lifecycleHint).toBe('fixed_candidate');
+    expect(result.ingestionBatch.observations[0]?.normalized.threatRefs).toEqual([
+      'Cross-tenant invoice exposure',
+    ]);
+  });
 });

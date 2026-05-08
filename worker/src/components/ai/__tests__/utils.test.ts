@@ -11,6 +11,8 @@ describe('AI gateway key helpers', () => {
     resetAiGatewayProviderForTests();
     delete process.env.CHAT_AI_BASE_URL;
     delete process.env.CHAT_AI_API_KEY;
+    delete process.env.BIFROST_BASE_URL;
+    delete process.env.BIFROST_API_KEY;
   });
 
   test('returns the configured shared CHAT_AI_API_KEY', async () => {
@@ -41,6 +43,15 @@ describe('AI gateway key helpers', () => {
 
     await expect(requireOrganizationApiKey(null, { consumer: 'AI Agent' })).resolves.toBe(
       'sk-shared',
+    );
+  });
+
+  test('uses Bifrost as the shared AI gateway when CHAT_AI is absent', async () => {
+    process.env.BIFROST_BASE_URL = 'http://shipsec-bifrost.shipsec-system:4000/v1';
+    process.env.BIFROST_API_KEY = 'sk-bifrost';
+
+    await expect(requireOrganizationApiKey(null, { consumer: 'OpenCode agent' })).resolves.toBe(
+      'sk-bifrost',
     );
   });
 });

@@ -12,7 +12,12 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
-import { requireOrganizationApiKey, shouldRouteViaGateway, getSkillWorkspaceFiles } from './utils';
+import {
+  requireOrganizationApiKey,
+  shouldRouteViaGateway,
+  getSkillWorkspaceFiles,
+  getGatewayBaseUrl,
+} from './utils';
 import { getPluginSetupScript } from './claude-plugins';
 
 const inputSchema = inputs({
@@ -422,7 +427,7 @@ function buildProviderEnv(
   model?: { provider: string; apiKey?: string },
   orgVirtualKey?: string,
 ): Record<string, string> {
-  const gatewayBaseUrl = process.env.CHAT_AI_BASE_URL?.trim();
+  const gatewayBaseUrl = getGatewayBaseUrl();
 
   if (gatewayBaseUrl) {
     const key = model?.apiKey || orgVirtualKey;

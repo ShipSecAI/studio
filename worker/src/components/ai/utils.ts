@@ -75,15 +75,23 @@ function normalizeModel(provider: string, model: string): string {
 /** In-memory cache: orgId → resolved AI gateway key */
 const organizationApiKeyCache = new Map<string, string>();
 
+function configuredGatewayBaseUrl(): string {
+  return process.env.CHAT_AI_BASE_URL?.trim() || process.env.BIFROST_BASE_URL?.trim() || '';
+}
+
+function configuredGatewayApiKey(): string {
+  return process.env.CHAT_AI_API_KEY?.trim() || process.env.BIFROST_API_KEY?.trim() || '';
+}
+
 const defaultAiGatewayProvider: AiGatewayProvider = {
   shouldRouteViaGateway(): boolean {
     return getGatewayBaseUrl().length > 0;
   },
   getGatewayBaseUrl(): string {
-    return process.env.CHAT_AI_BASE_URL?.trim() || '';
+    return configuredGatewayBaseUrl();
   },
   getGatewayApiKey(): string {
-    return process.env.CHAT_AI_API_KEY?.trim() || '';
+    return configuredGatewayApiKey();
   },
   normalizeModel,
   async fetchOrganizationApiKey(
@@ -104,12 +112,8 @@ const defaultAiGatewayProvider: AiGatewayProvider = {
   },
   async resolve(input): Promise<AiGatewayResolution> {
     const routeViaGateway = this.shouldRouteViaGateway();
-    const baseUrl = routeViaGateway
-      ? this.getGatewayBaseUrl()
-      : (process.env.CHAT_AI_BASE_URL?.trim() ?? '');
-    const apiKey = routeViaGateway
-      ? this.getGatewayApiKey()
-      : (process.env.CHAT_AI_API_KEY?.trim() ?? '');
+    const baseUrl = routeViaGateway ? this.getGatewayBaseUrl() : configuredGatewayBaseUrl();
+    const apiKey = routeViaGateway ? this.getGatewayApiKey() : configuredGatewayApiKey();
     const normalizedModel =
       input.provider && input.modelId
         ? this.normalizeModel(input.provider, input.modelId)
@@ -140,6 +144,7 @@ export function setAiGatewayProvider(provider: AiGatewayProvider): void {
 
 export function resetAiGatewayProviderForTests(): void {
   aiGatewayProvider = defaultAiGatewayProvider;
+  organizationApiKeyCache.clear();
 }
 
 export function shouldRouteViaGateway(): boolean {

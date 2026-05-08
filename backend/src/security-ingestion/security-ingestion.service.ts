@@ -60,6 +60,54 @@ interface GraphEdgeDraft {
   properties: JsonRecord;
 }
 
+export interface SecurityFindingChain {
+  id: string;
+  findingKey: string;
+  status: string;
+  severity: string;
+  confidence: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  sourceKind: string;
+  sourceVersion?: string | null;
+  workflowId?: string | null;
+  workflowName?: string | null;
+  runId?: string | null;
+  repository?: string | null;
+  branch?: string | null;
+  commitSha?: string | null;
+  prNumber?: string | null;
+  reviewMode?: string | null;
+  lifecycleHint?: string | null;
+  title?: string | null;
+  description?: string | null;
+  impact?: string | null;
+  fix?: string | null;
+  verification?: string | null;
+  file?: string | null;
+  line?: number | null;
+  endpoint?: string | null;
+  asset?: {
+    id: string;
+    kind: string;
+    stableKey: string;
+    displayName: string;
+  } | null;
+  threatRefs: string[];
+  linkedFindingKeys: string[];
+  evidence: { id: string; summary?: string | null; artifactUri: string; capturedAt: string }[];
+  observations: {
+    id: string;
+    status?: string | null;
+    title: string;
+    observedAt: string;
+    runId?: string | null;
+    reviewMode?: string | null;
+    lifecycleHint?: string | null;
+    prNumber?: string | null;
+  }[];
+}
+
 function stableHash(...parts: unknown[]): string {
   return createHash('sha256')
     .update(parts.map((part) => (part == null ? '' : JSON.stringify(part))).join('|'))
@@ -89,6 +137,36 @@ function collectStrings(value: unknown, output: string[] = []): string[] {
   const record = toRecord(value);
   for (const item of Object.values(record)) collectStrings(item, output);
   return output;
+}
+
+function isDefined<T>(value: T | undefined): value is T {
+  return value !== undefined;
+}
+
+function stringOrNull(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim().length > 0) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return null;
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function dateString(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') return new Date(value).toISOString();
+  return new Date().toISOString();
+}
+
+function jsonStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string' && item.length > 0);
 }
 
 function normalizeStatusForControl(status?: string): string {
@@ -418,6 +496,188 @@ export class SecurityIngestionService {
       evidenceCount: batch.evidenceItems.length,
       controlResultCount: controlResults.length,
       graphEdgeCount: graphEdges.length,
+    };
+  }
+
+  async listFindingChains(
+    organizationId: string,
+    options: { sourceKind?: string; status?: string; limit?: number } = {},
+  ): Promise<{ findings: SecurityFindingChain[] }> {
+    const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+    const conditions = [sql`fi.organization_id = ${organizationId}`];
+    if (options.sourceKind) conditions.push(sql`sr.source_kind = ${options.sourceKind}`);
+    if (options.status) conditions.push(sql`fi.status = ${options.status}`);
+
+    const result = await this.db.execute(sql`
+      SELECT
+        fi.id,
+        fi.finding_key,
+        fi.status,
+        fi.severity,
+        fi.confidence,
+        fi.first_seen_at,
+        fi.last_seen_at,
+        fi.observation_refs,
+        fi.evidence_refs,
+        sr.source_kind,
+        sr.source_version,
+        sr.workflow_id,
+        sr.run_id,
+        sr.scope,
+        a.id AS asset_id,
+        a.asset_kind,
+        a.stable_key,
+        a.display_name,
+        latest_obs.id AS latest_observation_id,
+        latest_obs.title AS latest_title,
+        latest_obs.status AS latest_observation_status,
+        latest_obs.observed_at AS latest_observed_at,
+        latest_obs.normalized AS latest_normalized
+      FROM security_finding_instances fi
+      JOIN security_scanner_runs sr ON sr.id = fi.scanner_run_id
+      LEFT JOIN security_assets a ON a.id = fi.asset_id
+      LEFT JOIN LATERAL (
+        SELECT o.*
+        FROM security_observations o
+        WHERE o.id IN (SELECT jsonb_array_elements_text(fi.observation_refs))
+        ORDER BY o.observed_at DESC
+        LIMIT 1
+      ) latest_obs ON true
+      WHERE ${sql.join(conditions, sql` AND `)}
+      ORDER BY
+        CASE fi.severity
+          WHEN 'critical' THEN 0
+          WHEN 'high' THEN 1
+          WHEN 'medium' THEN 2
+          WHEN 'low' THEN 3
+          ELSE 4
+        END,
+        fi.last_seen_at DESC
+      LIMIT ${limit}
+    `);
+
+    const rows = result.rows as Record<string, unknown>[];
+    if (rows.length === 0) return { findings: [] };
+
+    const observationIds = [
+      ...new Set(rows.flatMap((row) => jsonStringArray(row.observation_refs))),
+    ];
+    const evidenceIds = [...new Set(rows.flatMap((row) => jsonStringArray(row.evidence_refs)))];
+
+    const observationsByFinding = await this.loadObservationsByFinding(observationIds);
+    const evidenceByFinding = await this.loadEvidenceByFinding(evidenceIds);
+
+    return {
+      findings: rows.map((row) =>
+        this.mapFindingChainRow(row, observationsByFinding, evidenceByFinding),
+      ),
+    };
+  }
+
+  private async loadObservationsByFinding(observationIds: string[]) {
+    const byId = new Map<string, SecurityFindingChain['observations'][number]>();
+    if (observationIds.length === 0) return byId;
+    const ids = sql`ARRAY[${sql.join(
+      observationIds.map((id) => sql`${id}`),
+      sql`, `,
+    )}]::text[]`;
+    const result = await this.db.execute(sql`
+      SELECT o.id, o.status, o.title, o.observed_at, o.normalized, sr.run_id
+      FROM security_observations o
+      JOIN security_scanner_runs sr ON sr.id = o.scanner_run_id
+      WHERE o.id = ANY(${ids})
+      ORDER BY o.observed_at DESC
+    `);
+    for (const row of result.rows as Record<string, unknown>[]) {
+      const normalized = toRecord(row.normalized);
+      byId.set(String(row.id), {
+        id: String(row.id),
+        status: row.status == null ? null : String(row.status),
+        title: String(row.title),
+        observedAt: dateString(row.observed_at),
+        runId: row.run_id == null ? null : String(row.run_id),
+        reviewMode: stringOrNull(normalized.reviewMode),
+        lifecycleHint: stringOrNull(normalized.lifecycleHint),
+        prNumber: stringOrNull(normalized.prNumber),
+      });
+    }
+    return byId;
+  }
+
+  private async loadEvidenceByFinding(evidenceIds: string[]) {
+    const byId = new Map<string, SecurityFindingChain['evidence'][number]>();
+    if (evidenceIds.length === 0) return byId;
+    const ids = sql`ARRAY[${sql.join(
+      evidenceIds.map((id) => sql`${id}`),
+      sql`, `,
+    )}]::text[]`;
+    const result = await this.db.execute(sql`
+      SELECT id, summary, artifact_uri, captured_at
+      FROM security_evidence_items
+      WHERE id = ANY(${ids})
+      ORDER BY captured_at DESC
+    `);
+    for (const row of result.rows as Record<string, unknown>[]) {
+      byId.set(String(row.id), {
+        id: String(row.id),
+        summary: row.summary == null ? null : String(row.summary),
+        artifactUri: String(row.artifact_uri),
+        capturedAt: dateString(row.captured_at),
+      });
+    }
+    return byId;
+  }
+
+  private mapFindingChainRow(
+    row: Record<string, unknown>,
+    observationsById: Map<string, SecurityFindingChain['observations'][number]>,
+    evidenceById: Map<string, SecurityFindingChain['evidence'][number]>,
+  ): SecurityFindingChain {
+    const normalized = toRecord(row.latest_normalized);
+    const scope = toRecord(row.scope);
+    const agentFinding = toRecord(normalized.agentFinding);
+    const observationRefs = jsonStringArray(row.observation_refs);
+    const evidenceRefs = jsonStringArray(row.evidence_refs);
+
+    return {
+      id: String(row.id),
+      findingKey: String(row.finding_key),
+      status: String(row.status),
+      severity: String(row.severity),
+      confidence: Number(row.confidence ?? 0),
+      firstSeenAt: dateString(row.first_seen_at),
+      lastSeenAt: dateString(row.last_seen_at),
+      sourceKind: String(row.source_kind),
+      sourceVersion: stringOrNull(row.source_version),
+      workflowId: stringOrNull(row.workflow_id),
+      workflowName: stringOrNull(toRecord(scope.labels).workflowName),
+      runId: stringOrNull(row.run_id),
+      repository: stringOrNull(normalized.repository ?? scope.repository),
+      branch: stringOrNull(normalized.branch),
+      commitSha: stringOrNull(normalized.commitSha),
+      prNumber: stringOrNull(normalized.prNumber),
+      reviewMode: stringOrNull(normalized.reviewMode),
+      lifecycleHint: stringOrNull(normalized.lifecycleHint),
+      title: stringOrNull(row.latest_title),
+      description: stringOrNull(agentFinding.description ?? normalized.description),
+      impact: stringOrNull(normalized.impact),
+      fix: stringOrNull(normalized.fix),
+      verification: stringOrNull(normalized.verification),
+      file: stringOrNull(normalized.file),
+      line: numberOrNull(normalized.line),
+      endpoint: stringOrNull(normalized.endpoint),
+      asset: row.asset_id
+        ? {
+            id: String(row.asset_id),
+            kind: String(row.asset_kind),
+            stableKey: String(row.stable_key),
+            displayName: String(row.display_name),
+          }
+        : null,
+      threatRefs: jsonStringArray(normalized.threatRefs),
+      linkedFindingKeys: jsonStringArray(normalized.linkedFindingKeys),
+      evidence: evidenceRefs.map((id) => evidenceById.get(id)).filter(isDefined),
+      observations: observationRefs.map((id) => observationsById.get(id)).filter(isDefined),
     };
   }
 

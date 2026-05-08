@@ -11,8 +11,13 @@ import {
   param,
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
-import { createIsolatedVolume } from '../../utils/isolated-volume';
-import { requireOrganizationApiKey, shouldRouteViaGateway, getSkillWorkspaceFiles } from './utils';
+import { createIsolatedVolume, resolveVolumeSource } from '../../utils/isolated-volume';
+import {
+  requireOrganizationApiKey,
+  shouldRouteViaGateway,
+  getSkillWorkspaceFiles,
+  getGatewayBaseUrl,
+} from './utils';
 import { getOpenCodePluginSetupScript } from './opencode-plugins';
 
 const inputSchema = inputs({
@@ -53,6 +58,15 @@ const inputSchema = inputs({
     reason: 'Tool-mode port acts as a graph anchor; payloads are not consumed directly.',
     connectionType: { kind: 'contract', name: 'mcp.tool' },
   }),
+  workspaceVolumeName: port(
+    z.string().optional().describe('Docker volume name containing a cloned repository.'),
+    {
+      label: 'Workspace Volume',
+      description:
+        'Optional clone-repo volume. When provided, the repository is mounted read-only at /workspace/repo-workspace/repo.',
+      connectionType: { kind: 'primitive', name: 'text' },
+    },
+  ),
   supplementaryA: port(
     z
       .string()
@@ -176,7 +190,14 @@ const definition = defineComponent({
     },
   },
   async execute({ inputs, params }, context) {
-    const { task, context: taskContext, model, supplementaryA, supplementaryB } = inputs;
+    const {
+      task,
+      context: taskContext,
+      model,
+      supplementaryA,
+      supplementaryB,
+      workspaceVolumeName,
+    } = inputs;
     const { systemPrompt, providerConfig, skills: selectedSkills, enablePlugins } = params;
 
     const { organizationId } = context.metadata;
@@ -194,6 +215,22 @@ const definition = defineComponent({
       // Most providers follow this pattern
       return `${model.provider}/${model.modelId}`;
     };
+
+    // When the AI gateway is enabled and no user-provided key, use the org key.
+    let orgVirtualKey: string | undefined;
+    if (shouldRouteViaGateway() && !model?.apiKey && organizationId) {
+      orgVirtualKey = await requireOrganizationApiKey(organizationId, {
+        consumer: 'OpenCode agent',
+      });
+    } else if (shouldRouteViaGateway() && !model?.apiKey) {
+      orgVirtualKey = await requireOrganizationApiKey(organizationId ?? null, {
+        consumer: 'OpenCode agent',
+      });
+    }
+
+    const providerEnv = buildProviderEnv(model, orgVirtualKey);
+    const gatewayBaseUrl = getGatewayBaseUrl();
+    const gatewayApiKey = model?.apiKey || orgVirtualKey;
 
     // 2. Prepare opencode.json config
     // Note: We use 'host' networking, so we can reach localhost
@@ -229,6 +266,20 @@ const definition = defineComponent({
             },
           }
         : {}),
+      ...(gatewayBaseUrl && model?.provider === 'openai' && model.modelId
+        ? {
+            openai: {
+              name: 'ShipSec AI Gateway',
+              options: {
+                baseURL: gatewayBaseUrl,
+                ...(gatewayApiKey ? { apiKey: gatewayApiKey } : {}),
+              },
+              models: {
+                [model.modelId]: {},
+              },
+            },
+          }
+        : {}),
     };
 
     const opencodeConfig = {
@@ -239,20 +290,6 @@ const definition = defineComponent({
       // Merge in any additional provider config from parameters
       ...providerConfig,
     };
-
-    // When the AI gateway is enabled and no user-provided key, use the org key.
-    let orgVirtualKey: string | undefined;
-    if (shouldRouteViaGateway() && !model?.apiKey && organizationId) {
-      orgVirtualKey = await requireOrganizationApiKey(organizationId, {
-        consumer: 'OpenCode agent',
-      });
-    } else if (shouldRouteViaGateway() && !model?.apiKey) {
-      orgVirtualKey = await requireOrganizationApiKey(organizationId ?? null, {
-        consumer: 'OpenCode agent',
-      });
-    }
-
-    const providerEnv = buildProviderEnv(model, orgVirtualKey);
 
     // 3. Prepare Context and Prompt
     const contextJson = JSON.stringify(taskContext ?? {}, null, 2);
@@ -287,6 +324,10 @@ Please investigate the issue and generate a detailed report.
     if (suppFiles.length > 0) {
       finalPrompt += `\n\n# Additional Data Files\n${suppFiles.map((f) => `- ${f}`).join('\n')}`;
     }
+    if (workspaceVolumeName) {
+      finalPrompt +=
+        '\n\n# Repository Workspace\nA read-only checkout is mounted at /workspace/repo-workspace/repo. Use it as the source of truth for code review.';
+    }
 
     // 4. Setup Isolated Volume
     const tenantId = (context as any).tenantId ?? 'default-tenant';
@@ -307,8 +348,10 @@ Please investigate the issue and generate a detailed report.
         ...pluginSetupLines,
         '# List MCP tools for debugging (stderr only)',
         'opencode mcp list --log-level ERROR >&2 || true',
-        '# Run the agent — only agent output goes to stdout',
-        'opencode run --log-level ERROR "$(cat /workspace/prompt.txt)"',
+        '# Run the agent. Some cheap models stop after tool calls, so request a final answer once after the inspection pass.',
+        'opencode run --log-level ERROR "$(cat /workspace/prompt.txt)" > /workspace/opencode-output.txt',
+        'opencode run --continue --log-level ERROR "Return your final answer now. Do not call more tools. Use the exact output format requested in the original task." >> /workspace/opencode-output.txt',
+        'cat /workspace/opencode-output.txt',
         '',
       ].join('\n');
 
@@ -349,6 +392,15 @@ Please investigate the issue and generate a detailed report.
         env: providerEnv,
         volumes: [
           volume.getVolumeConfig('/workspace', false), // Read-write, mounted at /workspace
+          ...(workspaceVolumeName
+            ? [
+                {
+                  source: resolveVolumeSource(workspaceVolumeName),
+                  target: '/workspace/repo-workspace',
+                  readOnly: true,
+                },
+              ]
+            : []),
         ],
         workingDir: '/workspace',
         // Output managed by component, not /shipsec-output/result.json
@@ -468,7 +520,7 @@ function buildProviderEnv(
   model?: { provider: string; apiKey?: string },
   orgVirtualKey?: string,
 ): Record<string, string> {
-  const gatewayBaseUrl = process.env.CHAT_AI_BASE_URL?.trim();
+  const gatewayBaseUrl = getGatewayBaseUrl();
   if (gatewayBaseUrl) {
     const key = model?.apiKey || orgVirtualKey;
     return key

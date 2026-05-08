@@ -39,6 +39,7 @@ import './core/asm-assets-upsert';
 import './core/findings-dedupe';
 import './core/shipsec-cloud-ingestion-normalize';
 import './core/shipsec-asm-ingestion-normalize';
+import './core/shipsec-agent-code-findings-normalize';
 import './core/shipsec-ingestion-persist';
 // Manual Action components
 import './manual-action/manual-approval';

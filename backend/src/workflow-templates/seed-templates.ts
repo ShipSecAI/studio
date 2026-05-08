@@ -61,6 +61,56 @@ function makeEdge(
   };
 }
 
+const AGENTIC_CODE_FINDINGS_PROMPT = `You are a senior application security engineer.
+
+Your job is to find real exploitable security issues in this codebase.
+Do not summarize scanners. Scanners are optional evidence only.
+Use the repository mounted at /workspace/repo-workspace/repo as source of truth.
+Use /workspace/context.json when present for PR metadata, changed files, prior findings, wiki context, and deployment context.
+
+Return ONLY JSON. Do not include markdown, prose, code fences, or debug notes.
+
+The JSON must match this shape:
+{
+  "findings": [
+    {
+      "title": "string",
+      "severity": "critical|high|medium|low|info|unknown",
+      "confidence": 0.0,
+      "category": "authorization|authentication|injection|secrets|crypto|data-exposure|ssrf|rce|business-logic|dependency|configuration|other",
+      "weaknessClass": "short stable class such as idor, ssrf, rce, missing-authz",
+      "status": "introduced|existing|worsened|fixed_candidate|unchanged_existing|uncertain|false_positive",
+      "file": "relative/path.ts",
+      "line": 123,
+      "endpoint": "HTTP method and path when applicable",
+      "functionName": "handler or function when applicable",
+      "description": "what is vulnerable",
+      "attackerPrerequisite": "what the attacker needs",
+      "impact": "real impact",
+      "evidence": ["specific code facts you verified"],
+      "fix": "specific remediation",
+      "verification": "test or retest plan",
+      "linkedFindingKeys": []
+    }
+  ],
+  "threatCandidates": [
+    {
+      "title": "string",
+      "linkedFindingKeys": ["code:<repo>:<weakness>:<semantic-location>"],
+      "impact": "blast radius",
+      "confidence": 0.0,
+      "evidence": ["why these findings belong together"]
+    }
+  ],
+  "wikiUpdates": []
+}
+
+For baseline review, find issues that already exist in the reviewed branch or release.
+For PR review, compare changed code against existing behavior and classify findings as introduced, worsened, fixed_candidate, unchanged_existing, uncertain, or false_positive.
+Every finding must be evidence-backed and concrete. If you cannot prove a finding, put it under uncertain or omit it.`;
+
+const AGENTIC_CODE_REVIEW_MODEL = { provider: 'openai', modelId: 'vertex/claude-haiku-4-5' };
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 1: Secret Scan
 // Entry Point → Clone Repo → TruffleHog → Normalize → [Markdown, Analytics Sink]
@@ -967,6 +1017,168 @@ function cloudflareSyncTemplate(): SeedTemplate {
   };
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Template: Agentic Baseline Code Review
+// Entry Point → Clone Repo → OpenCode Agent → Normalize Agent Findings → Persist
+// ──────────────────────────────────────────────────────────────────────────────
+function agenticBaselineCodeReviewTemplate(): SeedTemplate {
+  resetCounter();
+  const entryPoint = nid('node');
+  const cloneRepo = nid('node');
+  const agent = nid('node');
+  const normalize = nid('node');
+  const persist = nid('node');
+
+  return {
+    name: 'Agentic Baseline Code Review',
+    slug: 'sys-agentic-baseline-code-review',
+    description:
+      'Run an autonomous security engineer over the current branch or release and persist agent-discovered code findings as product truth.',
+    category: 'code-security',
+    icon: 'bot',
+    isFeatured: true,
+    isDefault: true,
+    graph: {
+      name: 'Agentic Baseline Code Review',
+      description: 'Agent-first code security review for current production-equivalent code',
+      nodes: [
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [
+            { id: 'installationId', label: 'Installation ID', type: 'number', required: false },
+            { id: 'repository', label: 'Repository', type: 'text', required: true },
+            { id: 'branch', label: 'Branch', type: 'text', required: false },
+            { id: 'commitSha', label: 'Commit SHA', type: 'text', required: false },
+          ],
+        }),
+        makeNode(cloneRepo, 'github.repo.clone', 'Clone Repository', 300, 0, { depth: 1 }),
+        makeNode(
+          agent,
+          'core.ai.opencode',
+          'Agentic Security Review',
+          650,
+          0,
+          {
+            systemPrompt: AGENTIC_CODE_FINDINGS_PROMPT,
+            skills: ['code-security-review', 'linked-finding-reconciliation'],
+          },
+          {
+            task: 'Perform a baseline security review of the mounted repository. Find real issues in the current code and return only structured JSON.',
+            model: AGENTIC_CODE_REVIEW_MODEL,
+          },
+        ),
+        makeNode(
+          normalize,
+          'shipsec.agent-code-findings.normalize',
+          'Normalize Agent Findings',
+          1000,
+          0,
+          { reviewMode: 'baseline' },
+        ),
+        makeNode(persist, 'shipsec.ingestion.persist', 'Persist Agent Findings', 1350, 0),
+      ],
+      edges: [
+        makeEdge('e1', entryPoint, cloneRepo, 'installationId', 'installationId'),
+        makeEdge('e2', entryPoint, cloneRepo, 'repository', 'repository'),
+        makeEdge('e3', entryPoint, cloneRepo, 'branch', 'branch'),
+        makeEdge('e4', entryPoint, cloneRepo, 'commitSha', 'ref'),
+        makeEdge('e5', cloneRepo, agent, 'volumeName', 'workspaceVolumeName'),
+        makeEdge('e6', agent, normalize, 'report', 'agentReport'),
+        makeEdge('e7', cloneRepo, normalize, 'repository', 'repository'),
+        makeEdge('e8', cloneRepo, normalize, 'branch', 'branch'),
+        makeEdge('e9', cloneRepo, normalize, 'commitSha', 'commitSha'),
+        makeEdge('e10', normalize, persist, 'ingestionBatch', 'ingestionBatch'),
+      ],
+      viewport: { x: 0, y: 0, zoom: 0.75 },
+    },
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Template: Agentic PR Code Review
+// PR Context + Clone Repo → OpenCode Agent → Normalize Agent Findings → Persist
+// ──────────────────────────────────────────────────────────────────────────────
+function agenticPrCodeReviewTemplate(): SeedTemplate {
+  resetCounter();
+  const entryPoint = nid('node');
+  const prContext = nid('node');
+  const cloneRepo = nid('node');
+  const agent = nid('node');
+  const normalize = nid('node');
+  const persist = nid('node');
+
+  return {
+    name: 'Agentic PR Code Review',
+    slug: 'sys-agentic-pr-code-review',
+    description:
+      'Run an autonomous security review on a pull request, classify new/fixed/worsened findings, and persist them as durable code findings.',
+    category: 'code-security',
+    icon: 'git-pull-request',
+    isFeatured: true,
+    isDefault: true,
+    graph: {
+      name: 'Agentic PR Code Review',
+      description: 'Agent-first PR security review with durable finding output',
+      nodes: [
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [
+            { id: 'installationId', label: 'Installation ID', type: 'number', required: true },
+            { id: 'repository', label: 'Repository', type: 'text', required: true },
+            { id: 'owner', label: 'Owner', type: 'text', required: true },
+            { id: 'repo', label: 'Repository Name', type: 'text', required: true },
+            { id: 'prNumber', label: 'PR Number', type: 'number', required: true },
+          ],
+        }),
+        makeNode(prContext, 'github.pr.context', 'PR Context', 300, -120),
+        makeNode(cloneRepo, 'github.repo.clone', 'Clone PR Head', 300, 120, { depth: 1 }),
+        makeNode(
+          agent,
+          'core.ai.opencode',
+          'Agentic PR Security Review',
+          650,
+          0,
+          {
+            systemPrompt: AGENTIC_CODE_FINDINGS_PROMPT,
+            skills: ['code-security-review', 'linked-finding-reconciliation'],
+          },
+          {
+            task: 'Perform a PR security review. Compare the diff and mounted repository against existing behavior. Return only structured JSON with introduced, worsened, fixed_candidate, unchanged_existing, uncertain, or false_positive findings.',
+            model: AGENTIC_CODE_REVIEW_MODEL,
+          },
+        ),
+        makeNode(
+          normalize,
+          'shipsec.agent-code-findings.normalize',
+          'Normalize Agent Findings',
+          1000,
+          0,
+          { reviewMode: 'pr' },
+        ),
+        makeNode(persist, 'shipsec.ingestion.persist', 'Persist Agent Findings', 1350, 0),
+      ],
+      edges: [
+        makeEdge('e1', entryPoint, prContext, 'installationId', 'installationId'),
+        makeEdge('e2', entryPoint, prContext, 'owner', 'owner'),
+        makeEdge('e3', entryPoint, prContext, 'repo', 'repo'),
+        makeEdge('e4', entryPoint, prContext, 'prNumber', 'pullNumber'),
+        makeEdge('e5', entryPoint, cloneRepo, 'installationId', 'installationId'),
+        makeEdge('e6', entryPoint, cloneRepo, 'repository', 'repository'),
+        makeEdge('e7', prContext, cloneRepo, 'headBranch', 'branch'),
+        makeEdge('e8', prContext, cloneRepo, 'headSha', 'ref'),
+        makeEdge('e9', cloneRepo, agent, 'volumeName', 'workspaceVolumeName'),
+        makeEdge('e10', prContext, agent, 'changedFilesDetailed', 'context'),
+        makeEdge('e11', agent, normalize, 'report', 'agentReport'),
+        makeEdge('e12', entryPoint, normalize, 'repository', 'repository'),
+        makeEdge('e13', prContext, normalize, 'headBranch', 'branch'),
+        makeEdge('e14', prContext, normalize, 'headSha', 'commitSha'),
+        makeEdge('e15', entryPoint, normalize, 'prNumber', 'prNumber'),
+        makeEdge('e16', prContext, normalize, 'changedFilesDetailed', 'context'),
+        makeEdge('e17', normalize, persist, 'ingestionBatch', 'ingestionBatch'),
+      ],
+      viewport: { x: 0, y: 0, zoom: 0.75 },
+    },
+  };
+}
+
 /**
  * All seed templates. Import and use with the WorkflowTemplatesService to seed the database.
  */
@@ -976,6 +1188,8 @@ export const SEED_TEMPLATES: SeedTemplate[] = [
   dependencyScanTemplate(),
   fullCodeSecurityTemplate(),
   prSecurityGateTemplate(),
+  agenticBaselineCodeReviewTemplate(),
+  agenticPrCodeReviewTemplate(),
   aiCodeReviewTemplate(),
   awsCloudSecurityScanTemplate(),
   gcpCloudSecurityScanTemplate(),
