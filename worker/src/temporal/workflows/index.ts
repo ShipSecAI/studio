@@ -123,7 +123,7 @@ const MCP_SERVER_COMPONENTS: Record<
   },
 };
 
-const MCP_GROUP_COMPONENTS = ['mcp.group.aws'];
+const MCP_GROUP_COMPONENTS = ['mcp.group.aws', 'mcp.group.studio'];
 
 function isMcpServerComponent(componentId: string): boolean {
   return componentId in MCP_SERVER_COMPONENTS;
@@ -197,6 +197,8 @@ export async function shipsecWorkflowRun(
   // Track MCP group attachment specs collected during tool-mode node execution.
   // These are passed to createHotplugSessionActivity when an agent node starts.
   const mcpGroupAttachments: McpGroupAttachmentSpec[] = [];
+  const remoteMcpAttachments: { alias: string; url: string; headers?: Record<string, string> }[] =
+    [];
 
   // Track the Hotplug session created for this run (one session shared across all agent nodes).
   let hotplugSession: { sessionId: string; mcpUrl: string; mcpToken: string } | null = null;
@@ -723,6 +725,8 @@ export async function shipsecWorkflowRun(
               runId: input.runId,
               organizationId: input.organizationId ?? 'system',
               mcpGroupAttachments: mcpGroupAttachments.length > 0 ? mcpGroupAttachments : undefined,
+              remoteMcpAttachments:
+                remoteMcpAttachments.length > 0 ? remoteMcpAttachments : undefined,
             });
             console.log(
               `[Workflow] Hotplug session created: ${hotplugSession.sessionId}, url: ${hotplugSession.mcpUrl}`,
@@ -780,7 +784,14 @@ export async function shipsecWorkflowRun(
         // MCP groups in tool mode: collect attachment specs from the component output.
         // These are passed to createHotplugSessionActivity when the agent node starts.
         if (isToolMode && isMcpGroup) {
-          const groupOutput = output.output as { attachmentSpecs?: McpGroupAttachmentSpec[] };
+          const groupOutput = output.output as {
+            attachmentSpecs?: McpGroupAttachmentSpec[];
+            remoteMcpAttachments?: {
+              alias: string;
+              url: string;
+              headers?: Record<string, string>;
+            }[];
+          };
           if (groupOutput?.attachmentSpecs && groupOutput.attachmentSpecs.length > 0) {
             console.log(
               `[Workflow] MCP Group node ${action.ref} returned ${groupOutput.attachmentSpecs.length} attachment spec(s)`,
@@ -790,6 +801,12 @@ export async function shipsecWorkflowRun(
             console.log(
               `[Workflow] MCP Group node ${action.ref} returned no attachment specs (no enabled servers)`,
             );
+          }
+          if (groupOutput?.remoteMcpAttachments && groupOutput.remoteMcpAttachments.length > 0) {
+            console.log(
+              `[Workflow] MCP Group node ${action.ref} returned ${groupOutput.remoteMcpAttachments.length} remote MCP attachment(s)`,
+            );
+            remoteMcpAttachments.push(...groupOutput.remoteMcpAttachments);
           }
         }
 

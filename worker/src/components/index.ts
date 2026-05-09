@@ -70,6 +70,7 @@ import './security/terminal-demo';
 import './security/virustotal';
 import './security/abuseipdb';
 import './security/aws-mcp-group';
+import './security/studio-mcp-group';
 import './security/findings-normalize';
 import './security/findings-markdown';
 import './security/asset-inventory-sync';

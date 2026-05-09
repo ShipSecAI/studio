@@ -30,6 +30,7 @@ function makeNode(
   y: number,
   config?: Record<string, unknown>,
   inputOverrides?: Record<string, unknown>,
+  extraConfig?: Record<string, unknown>,
 ) {
   return {
     id,
@@ -40,6 +41,7 @@ function makeNode(
       config: {
         params: config ?? {},
         inputOverrides: inputOverrides ?? {},
+        ...(extraConfig ?? {}),
       },
     },
   };
@@ -110,6 +112,54 @@ For PR review, compare changed code against existing behavior and classify findi
 Every finding must be evidence-backed and concrete. If you cannot prove a finding, put it under uncertain or omit it.`;
 
 const AGENTIC_CODE_REVIEW_MODEL = { provider: 'openai', modelId: 'vertex/claude-haiku-4-5' };
+
+const THREAT_STORY_AGENT_PROMPT = `You are ShipSec's autonomous threat-story analyst.
+
+You turn durable security findings into concrete "what is broken" stories.
+Use the ShipSec Studio MCP tools. Do not invent data.
+
+Required workflow:
+1. Call list_security_findings with status "open" and a useful limit.
+2. For findings that look related, call get_security_finding and list_finding_links.
+3. Record missing evidence-backed links with record_finding_link.
+4. Record one or more threat stories with record_threat_story.
+
+A threat story is not a scanner finding. It is an attacker-relevant narrative over findings.
+Good stories answer:
+- what exposed endpoint, service, identity, cloud resource, or code path is affected
+- which findings support the story
+- how the findings combine into impact
+- what action fixes the story
+- how confident you are and why
+
+Use precise relationship types:
+- same_root_cause when findings share the same bug/config source
+- enables when one finding makes another exploitable
+- same_asset when the same service/resource is affected
+- same_control when they fail the same security requirement
+- mitigated_by when one finding or action reduces another
+- related only when no better type fits
+
+Do not wait for human approval.
+Do not merely summarize all findings.
+Prefer fewer, stronger stories over noisy grouping.
+If the data is insufficient, record no story and explain what evidence is missing in the final report.`;
+
+const THREAT_STORY_AGENT_TASK = `Analyze current durable security findings and record linked threat stories.
+
+Use these MCP tools as your source of truth:
+- list_security_findings
+- get_security_finding
+- list_finding_links
+- record_finding_link
+- list_threat_stories
+- record_threat_story
+
+Final answer format:
+- stories_recorded: number
+- links_recorded: number
+- skipped_reason: short text if no story could be proven
+- notes: concise explanation of the highest-impact story.`;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 1: Secret Scan
@@ -1179,6 +1229,74 @@ function agenticPrCodeReviewTemplate(): SeedTemplate {
   };
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Template: Threat Story Analysis
+// Entry Point → Studio MCP Tools → OpenCode Agent
+// ──────────────────────────────────────────────────────────────────────────────
+function threatStoryAnalysisTemplate(): SeedTemplate {
+  resetCounter();
+  const entryPoint = nid('node');
+  const studioMcp = nid('node');
+  const agent = nid('node');
+
+  return {
+    name: 'Threat Story Analysis',
+    slug: 'sys-threat-story-analysis',
+    description:
+      'Run an autonomous analyst over durable findings and links, then record concrete threat stories for the What is broken dashboard.',
+    category: 'attack-surface',
+    icon: 'bot',
+    isFeatured: true,
+    isDefault: true,
+    graph: {
+      name: 'Threat Story Analysis',
+      description: 'Agent-first linked finding and threat story analysis',
+      nodes: [
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [
+            {
+              id: 'studioApiKey',
+              label: 'Studio API Key',
+              type: 'secret',
+              required: true,
+            },
+          ],
+        }),
+        makeNode(
+          studioMcp,
+          'mcp.group.studio',
+          'Studio MCP Tools',
+          320,
+          0,
+          {},
+          {},
+          { mode: 'tool' },
+        ),
+        makeNode(
+          agent,
+          'core.ai.opencode',
+          'Threat Story Analyst',
+          680,
+          0,
+          {
+            systemPrompt: THREAT_STORY_AGENT_PROMPT,
+            skills: ['linked-finding-reconciliation'],
+          },
+          {
+            task: THREAT_STORY_AGENT_TASK,
+            model: AGENTIC_CODE_REVIEW_MODEL,
+          },
+        ),
+      ],
+      edges: [
+        makeEdge('e1', entryPoint, studioMcp, 'studioApiKey', 'apiKey'),
+        makeEdge('e2', studioMcp, agent, 'tools', 'tools'),
+      ],
+      viewport: { x: 0, y: 0, zoom: 0.8 },
+    },
+  };
+}
+
 /**
  * All seed templates. Import and use with the WorkflowTemplatesService to seed the database.
  */
@@ -1190,6 +1308,7 @@ export const SEED_TEMPLATES: SeedTemplate[] = [
   prSecurityGateTemplate(),
   agenticBaselineCodeReviewTemplate(),
   agenticPrCodeReviewTemplate(),
+  threatStoryAnalysisTemplate(),
   aiCodeReviewTemplate(),
   awsCloudSecurityScanTemplate(),
   gcpCloudSecurityScanTemplate(),
