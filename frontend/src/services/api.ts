@@ -47,6 +47,34 @@ export interface SecurityFindingLink {
   direction: 'outgoing' | 'incoming';
 }
 
+export interface SecurityThreatStoryFinding extends SecurityFindingSummary {
+  role: string;
+  rationale?: string | null;
+}
+
+export interface SecurityThreatStory {
+  id: string;
+  storyKey: string;
+  title: string;
+  status: string;
+  severity: string;
+  confidence: number;
+  summary: string;
+  impact: string;
+  attackPath?: string | null;
+  recommendedAction?: string | null;
+  affectedAssetRefs: string[];
+  evidenceRefs: string[];
+  createdByAgentRunId?: string | null;
+  createdBy?: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  createdAt: string;
+  updatedAt: string;
+  findings: SecurityThreatStoryFinding[];
+  metadata: Record<string, unknown>;
+}
+
 export interface SecurityFinding {
   id: string;
   findingKey: string;
@@ -1862,6 +1890,59 @@ export const api = {
         body: JSON.stringify(body),
       });
       if (!resp.ok) throw new Error('Failed to record security finding link');
+      return resp.json();
+    },
+    threatStories: async (params?: {
+      status?: string;
+      limit?: number;
+    }): Promise<{ stories: SecurityThreatStory[] }> => {
+      const headers = await getAuthHeaders();
+      const search = new URLSearchParams();
+      if (params?.status) search.set('status', params.status);
+      if (params?.limit) search.set('limit', String(params.limit));
+      const qs = search.toString();
+      const resp = await fetch(
+        `${API_V1_URL}/security-ingestion/threat-stories${qs ? `?${qs}` : ''}`,
+        {
+          headers,
+        },
+      );
+      if (!resp.ok) throw new Error('Failed to fetch security threat stories');
+      return resp.json();
+    },
+    threatStory: async (id: string): Promise<{ story: SecurityThreatStory }> => {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_V1_URL}/security-ingestion/threat-stories/${id}`, {
+        headers,
+      });
+      if (!resp.ok) throw new Error('Failed to fetch security threat story');
+      return resp.json();
+    },
+    recordThreatStory: async (body: {
+      storyKey?: string;
+      title: string;
+      status?: string;
+      severity: string;
+      confidence?: number;
+      summary: string;
+      impact: string;
+      attackPath?: string;
+      recommendedAction?: string;
+      findingIds: string[];
+      findingRoles?: Record<string, string>;
+      findingRationales?: Record<string, string>;
+      evidenceRefs?: string[];
+      affectedAssetRefs?: string[];
+      createdByAgentRunId?: string;
+      metadata?: Record<string, unknown>;
+    }): Promise<{ story: SecurityThreatStory }> => {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_V1_URL}/security-ingestion/threat-stories`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) throw new Error('Failed to record security threat story');
       return resp.json();
     },
   },

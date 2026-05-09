@@ -24,6 +24,10 @@ import {
   RecordFindingLinkRequestDto,
   RecordFindingLinkRequestSchema,
 } from './dto/finding-links.dto';
+import {
+  RecordThreatStoryRequestDto,
+  RecordThreatStoryRequestSchema,
+} from './dto/threat-stories.dto';
 import { SecurityIngestionService } from './security-ingestion.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
@@ -115,6 +119,68 @@ export class SecurityIngestionController {
       metadata: body.metadata,
     });
     return { link };
+  }
+
+  @Get('threat-stories')
+  @ApiOkResponse({ description: 'List durable agent-written threat stories.' })
+  async listThreatStories(
+    @CurrentAuth() auth: AuthContext | null,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (!auth?.isAuthenticated || !auth.organizationId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    return this.securityIngestionService.listThreatStories(auth.organizationId, {
+      status: status?.trim() || undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('threat-stories/:id')
+  @ApiOkResponse({ description: 'Get one durable threat story.' })
+  async getThreatStory(@CurrentAuth() auth: AuthContext | null, @Param('id') id: string) {
+    if (!auth?.isAuthenticated || !auth.organizationId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const story = await this.securityIngestionService.getThreatStory(auth.organizationId, id);
+    if (!story) throw new NotFoundException('Threat story not found');
+    return { story };
+  }
+
+  @Post('threat-stories')
+  @ApiOkResponse({ description: 'Record an agent-written threat story over durable findings.' })
+  async recordThreatStory(
+    @CurrentAuth() auth: AuthContext | null,
+    @Body(new ZodValidationPipe(RecordThreatStoryRequestSchema))
+    body: RecordThreatStoryRequestDto,
+  ) {
+    if (!auth?.isAuthenticated || !auth.organizationId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const story = await this.securityIngestionService.recordThreatStory(auth.organizationId, {
+      storyKey: body.storyKey,
+      title: body.title,
+      status: body.status,
+      severity: body.severity,
+      confidence: body.confidence,
+      summary: body.summary,
+      impact: body.impact,
+      attackPath: body.attackPath,
+      recommendedAction: body.recommendedAction,
+      findingIds: body.findingIds,
+      findingRoles: body.findingRoles,
+      findingRationales: body.findingRationales,
+      evidenceRefs: body.evidenceRefs,
+      affectedAssetRefs: body.affectedAssetRefs,
+      createdByAgentRunId: body.createdByAgentRunId,
+      createdBy: auth.userId,
+      metadata: body.metadata,
+    });
+    return { story };
   }
 
   @Post('internal/batches')

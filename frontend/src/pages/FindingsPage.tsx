@@ -12,7 +12,7 @@ import {
   Link2,
   ShieldAlert,
 } from 'lucide-react';
-import { api, type SecurityFinding } from '@/services/api';
+import { api, type SecurityFinding, type SecurityThreatStory } from '@/services/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -297,18 +297,82 @@ function FindingDetails({ finding }: { finding: SecurityFinding | null }) {
   );
 }
 
+function ThreatStoryCard({ story }: { story: SecurityThreatStory }) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <SeverityBadge severity={story.severity} />
+              <Badge variant="outline">{story.status}</Badge>
+              <Badge variant="outline">{Math.round(story.confidence * 100)}%</Badge>
+            </div>
+            <CardTitle className="mt-3 text-base leading-snug">{story.title}</CardTitle>
+          </div>
+          <Badge variant="secondary">{story.findings.length} findings</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">{story.summary}</p>
+        <div>
+          <h4 className="mb-1 text-sm font-medium">Impact</h4>
+          <p className="text-sm text-muted-foreground">{story.impact}</p>
+        </div>
+        {story.attackPath && (
+          <div>
+            <h4 className="mb-1 text-sm font-medium">Attack path</h4>
+            <p className="text-sm text-muted-foreground">{story.attackPath}</p>
+          </div>
+        )}
+        {story.recommendedAction && (
+          <div>
+            <h4 className="mb-1 text-sm font-medium">Fix</h4>
+            <p className="text-sm text-muted-foreground">{story.recommendedAction}</p>
+          </div>
+        )}
+        <Separator />
+        <div className="space-y-2">
+          {story.findings.map((finding) => (
+            <div key={finding.id} className="border p-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <SeverityBadge severity={finding.severity} />
+                <Badge variant="outline">{finding.role}</Badge>
+                <Badge variant="outline">{finding.sourceKind}</Badge>
+              </div>
+              <div className="mt-2 font-medium">{finding.title ?? finding.findingKey}</div>
+              {finding.rationale && (
+                <p className="mt-1 text-xs text-muted-foreground">{finding.rationale}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function FindingsPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['security-ingestion', 'findings'],
     queryFn: () => api.securityIngestion.findings({ limit: 100 }),
     refetchInterval: 20_000,
   });
+  const {
+    data: threatStoriesData,
+    isLoading: threatStoriesLoading,
+    error: threatStoriesError,
+  } = useQuery({
+    queryKey: ['security-ingestion', 'threat-stories'],
+    queryFn: () => api.securityIngestion.threatStories({ limit: 50 }),
+    refetchInterval: 20_000,
+  });
   const findings = data?.findings ?? [];
+  const threatStories = threatStoriesData?.stories ?? [];
   const groups = useMemo(() => buildThreatGroups(findings), [findings]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedFinding =
     findings.find((finding) => finding.id === selectedId) ?? findings[0] ?? null;
-  const openCount = findings.filter((finding) => statusLabel(finding) === 'Open').length;
   const pendingFixCount = findings.filter(
     (finding) => statusLabel(finding) === 'Fix pending validation',
   ).length;
@@ -325,8 +389,8 @@ export function FindingsPage() {
               </div>
               <h1 className="text-2xl font-semibold tracking-tight">What is broken</h1>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                Durable findings from scanners and agents, grouped by emerging threat references and
-                linked back to the workflow runs that created or changed them.
+                Agent-written threat stories first, with raw scanner and code findings underneath as
+                evidence you can inspect.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3">
@@ -334,18 +398,18 @@ export function FindingsPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <ShieldAlert className="h-4 w-4" />
-                    Total
+                    Stories
                   </div>
-                  <div className="mt-1 text-2xl font-semibold">{findings.length}</div>
+                  <div className="mt-1 text-2xl font-semibold">{threatStories.length}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <AlertTriangle className="h-4 w-4" />
-                    Open
+                    Findings
                   </div>
-                  <div className="mt-1 text-2xl font-semibold">{openCount}</div>
+                  <div className="mt-1 text-2xl font-semibold">{findings.length}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -364,54 +428,89 @@ export function FindingsPage() {
 
       <main className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-4">
-          {isLoading ? (
+          {threatStoriesLoading ? (
             <Card>
               <CardContent className="p-6 text-sm text-muted-foreground">
-                Loading findings...
+                Loading threat stories...
               </CardContent>
             </Card>
-          ) : error ? (
+          ) : threatStoriesError ? (
             <Card>
               <CardContent className="p-6 text-sm text-red-600">
-                Failed to load security findings.
+                Failed to load threat stories.
               </CardContent>
             </Card>
-          ) : groups.length === 0 ? (
-            <Card>
-              <CardContent className="flex h-64 flex-col items-center justify-center text-center">
-                <FileCode2 className="mb-3 h-8 w-8 text-muted-foreground" />
-                <h2 className="text-base font-medium">No security findings yet</h2>
-                <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                  Run a cloud, attack-surface, Kubernetes, or agentic code review workflow and the
-                  durable findings will appear here.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            groups.map((group) => (
-              <Card key={group.id}>
-                <CardHeader className="pb-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <CardTitle className="text-base">{group.title}</CardTitle>
-                    <div className="flex items-center gap-2">
-                      <SeverityBadge severity={highestSeverity(group.findings) ?? 'unknown'} />
-                      <Badge variant="outline">{group.findings.length} findings</Badge>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {group.findings.map((finding) => (
-                    <FindingRow
-                      key={finding.id}
-                      finding={finding}
-                      active={selectedFinding?.id === finding.id}
-                      onClick={() => setSelectedId(finding.id)}
-                    />
-                  ))}
+          ) : threatStories.length > 0 ? (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                  Threat stories
+                </h2>
+                <Badge variant="outline">{threatStories.length}</Badge>
+              </div>
+              {threatStories.map((story) => (
+                <ThreatStoryCard key={story.id} story={story} />
+              ))}
+            </section>
+          ) : null}
+
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                Raw findings
+              </h2>
+              <Badge variant="outline">{findings.length}</Badge>
+            </div>
+
+            {isLoading ? (
+              <Card>
+                <CardContent className="p-6 text-sm text-muted-foreground">
+                  Loading findings...
                 </CardContent>
               </Card>
-            ))
-          )}
+            ) : error ? (
+              <Card>
+                <CardContent className="p-6 text-sm text-red-600">
+                  Failed to load security findings.
+                </CardContent>
+              </Card>
+            ) : groups.length === 0 ? (
+              <Card>
+                <CardContent className="flex h-64 flex-col items-center justify-center text-center">
+                  <FileCode2 className="mb-3 h-8 w-8 text-muted-foreground" />
+                  <h2 className="text-base font-medium">No security findings yet</h2>
+                  <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                    Run a cloud, attack-surface, Kubernetes, or agentic code review workflow and the
+                    durable findings will appear here.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              groups.map((group) => (
+                <Card key={group.id}>
+                  <CardHeader className="pb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <CardTitle className="text-base">{group.title}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <SeverityBadge severity={highestSeverity(group.findings) ?? 'unknown'} />
+                        <Badge variant="outline">{group.findings.length} findings</Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {group.findings.map((finding) => (
+                      <FindingRow
+                        key={finding.id}
+                        finding={finding}
+                        active={selectedFinding?.id === finding.id}
+                        onClick={() => setSelectedId(finding.id)}
+                      />
+                    ))}
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </section>
         </div>
 
         <div className="lg:sticky lg:top-20 lg:self-start">

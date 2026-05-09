@@ -381,6 +381,75 @@ export const securityFindingLinks = pgTable(
   }),
 );
 
+export const securityThreatStories = pgTable(
+  'security_threat_stories',
+  {
+    id: text('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    storyKey: text('story_key').notNull(),
+    title: text('title').notNull(),
+    status: varchar('status', { length: 32 }).notNull().default('open'),
+    severity: varchar('severity', { length: 32 }).notNull(),
+    confidence: real('confidence').notNull().default(0.7),
+    summary: text('summary').notNull(),
+    impact: text('impact').notNull(),
+    attackPath: text('attack_path'),
+    recommendedAction: text('recommended_action'),
+    affectedAssetRefs: jsonb('affected_asset_refs').$type<string[]>().notNull().default([]),
+    evidenceRefs: jsonb('evidence_refs').$type<string[]>().notNull().default([]),
+    createdByAgentRunId: text('created_by_agent_run_id'),
+    createdBy: text('created_by'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    orgStoryKeyUnique: uniqueIndex('security_threat_stories_org_key_uidx').on(
+      table.organizationId,
+      table.storyKey,
+    ),
+    orgSeverityStatusIdx: index('security_threat_stories_org_severity_status_idx').on(
+      table.organizationId,
+      table.severity,
+      table.status,
+    ),
+    orgUpdatedIdx: index('security_threat_stories_org_updated_idx').on(
+      table.organizationId,
+      table.updatedAt,
+    ),
+  }),
+);
+
+export const securityThreatStoryFindings = pgTable(
+  'security_threat_story_findings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    storyId: text('story_id')
+      .notNull()
+      .references(() => securityThreatStories.id, { onDelete: 'cascade' }),
+    findingId: text('finding_id')
+      .notNull()
+      .references(() => securityFindingInstances.id, { onDelete: 'cascade' }),
+    role: varchar('role', { length: 64 }).notNull().default('supporting'),
+    rationale: text('rationale'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    storyFindingUnique: uniqueIndex('security_threat_story_findings_story_finding_uidx').on(
+      table.storyId,
+      table.findingId,
+    ),
+    orgFindingIdx: index('security_threat_story_findings_org_finding_idx').on(
+      table.organizationId,
+      table.findingId,
+    ),
+  }),
+);
+
 export const securityGraphEdges = pgTable(
   'security_graph_edges',
   {

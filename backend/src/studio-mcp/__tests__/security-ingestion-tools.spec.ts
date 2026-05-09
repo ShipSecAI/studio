@@ -23,6 +23,9 @@ describe('Security Ingestion MCP Tools', () => {
     getFinding: ReturnType<typeof jest.fn>;
     listFindingLinks: ReturnType<typeof jest.fn>;
     recordFindingLink: ReturnType<typeof jest.fn>;
+    listThreatStories: ReturnType<typeof jest.fn>;
+    getThreatStory: ReturnType<typeof jest.fn>;
+    recordThreatStory: ReturnType<typeof jest.fn>;
   };
   let tools: RegisteredToolsMap;
 
@@ -49,6 +52,17 @@ describe('Security Ingestion MCP Tools', () => {
       recordFindingLink: jest.fn().mockResolvedValue({
         id: 'link-1',
         relationshipType: 'same_root_cause',
+      }),
+      listThreatStories: jest.fn().mockResolvedValue({
+        stories: [{ id: 'story-1', title: 'Public invoice exposure', findings: [] }],
+      }),
+      getThreatStory: jest.fn().mockResolvedValue({
+        id: 'story-1',
+        title: 'Public invoice exposure',
+      }),
+      recordThreatStory: jest.fn().mockResolvedValue({
+        id: 'story-1',
+        title: 'Public invoice exposure',
       }),
     };
 
@@ -136,6 +150,61 @@ describe('Security Ingestion MCP Tools', () => {
       createdByAgentRunId: 'agent-run-1',
       createdBy: 'user-1',
       metadata: undefined,
+    });
+    expect(result.isError).toBeUndefined();
+  });
+
+  it('lists durable threat stories', async () => {
+    const result = await tools['list_threat_stories'].handler({
+      status: 'open',
+      limit: 10,
+    });
+
+    expect(securityIngestionService.listThreatStories).toHaveBeenCalledWith('org-1', {
+      status: 'open',
+      limit: 10,
+    });
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.count).toBe(1);
+    expect(parsed.stories[0].id).toBe('story-1');
+  });
+
+  it('gets one durable threat story', async () => {
+    const result = await tools['get_threat_story'].handler({
+      storyId: 'story-1',
+    });
+
+    expect(securityIngestionService.getThreatStory).toHaveBeenCalledWith('org-1', 'story-1');
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.story.id).toBe('story-1');
+  });
+
+  it('records an agent-written threat story', async () => {
+    const result = await tools['record_threat_story'].handler({
+      title: 'Public invoice exposure',
+      severity: 'high',
+      summary: 'Invoice endpoint is public and misses tenant authorization.',
+      impact: 'A customer can read another customer invoice.',
+      findingIds: ['finding-1', 'finding-2'],
+      findingRoles: { 'finding-1': 'root_cause' },
+      findingRationales: { 'finding-1': 'Missing tenant predicate.' },
+      evidenceRefs: ['evidence-1'],
+      createdByAgentRunId: 'agent-run-1',
+    });
+
+    expect(securityIngestionService.recordThreatStory).toHaveBeenCalledWith('org-1', {
+      title: 'Public invoice exposure',
+      severity: 'high',
+      summary: 'Invoice endpoint is public and misses tenant authorization.',
+      impact: 'A customer can read another customer invoice.',
+      findingIds: ['finding-1', 'finding-2'],
+      findingRoles: { 'finding-1': 'root_cause' },
+      findingRationales: { 'finding-1': 'Missing tenant predicate.' },
+      evidenceRefs: ['evidence-1'],
+      createdByAgentRunId: 'agent-run-1',
+      createdBy: 'user-1',
     });
     expect(result.isError).toBeUndefined();
   });

@@ -17,6 +17,8 @@ import {
   securityIngestionBatches,
   securityObservations,
   securityScannerRuns,
+  securityThreatStories,
+  securityThreatStoryFindings,
 } from '../database/schema/security-ingestion';
 import {
   shipsecIngestionBatchSchema,
@@ -145,6 +147,34 @@ export interface SecurityFinding {
     lifecycleHint?: string | null;
     prNumber?: string | null;
   }[];
+}
+
+export interface SecurityThreatStoryFinding extends SecurityFindingSummary {
+  role: string;
+  rationale?: string | null;
+}
+
+export interface SecurityThreatStory {
+  id: string;
+  storyKey: string;
+  title: string;
+  status: string;
+  severity: string;
+  confidence: number;
+  summary: string;
+  impact: string;
+  attackPath?: string | null;
+  recommendedAction?: string | null;
+  affectedAssetRefs: string[];
+  evidenceRefs: string[];
+  createdByAgentRunId?: string | null;
+  createdBy?: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  createdAt: string;
+  updatedAt: string;
+  findings: SecurityThreatStoryFinding[];
+  metadata: JsonRecord;
 }
 
 function stableHash(...parts: unknown[]): string {
@@ -561,6 +591,137 @@ export class SecurityIngestionService {
     return finding ? finding.evidence : null;
   }
 
+  async listThreatStories(
+    organizationId: string,
+    options: { status?: string; limit?: number } = {},
+  ): Promise<{ stories: SecurityThreatStory[] }> {
+    return this.queryThreatStories(organizationId, options);
+  }
+
+  async getThreatStory(
+    organizationId: string,
+    storyId: string,
+  ): Promise<SecurityThreatStory | null> {
+    const result = await this.queryThreatStories(organizationId, { storyId, limit: 1 });
+    return result.stories[0] ?? null;
+  }
+
+  async recordThreatStory(
+    organizationId: string,
+    input: {
+      storyKey?: string;
+      title: string;
+      status?: string;
+      severity: string;
+      confidence?: number;
+      summary: string;
+      impact: string;
+      attackPath?: string | null;
+      recommendedAction?: string | null;
+      findingIds: string[];
+      findingRoles?: Record<string, string>;
+      findingRationales?: Record<string, string>;
+      evidenceRefs?: string[];
+      affectedAssetRefs?: string[];
+      createdByAgentRunId?: string | null;
+      createdBy?: string | null;
+      metadata?: JsonRecord;
+    },
+  ): Promise<SecurityThreatStory> {
+    const title = input.title.trim();
+    const summary = input.summary.trim();
+    const impact = input.impact.trim();
+    const severity = input.severity.trim().toLowerCase();
+    const storyKey =
+      input.storyKey?.trim() ||
+      `agent:${stableHash(title, severity, [...new Set(input.findingIds)].sort())}`;
+    const findingIds = [...new Set(input.findingIds.map((id) => id.trim()).filter(Boolean))];
+    if (!title || !summary || !impact) {
+      throw new BadRequestException('Threat story title, summary, and impact are required');
+    }
+    if (findingIds.length === 0) {
+      throw new BadRequestException('Threat story requires at least one finding');
+    }
+
+    const existingFindings = await this.existingFindingIds(organizationId, findingIds);
+    if (existingFindings.size !== findingIds.length) {
+      throw new BadRequestException('All threat story findings must exist in the organization');
+    }
+
+    const now = new Date();
+    const id = `threat-story:${stableHash(organizationId, storyKey)}`;
+    const confidence = Math.min(Math.max(input.confidence ?? 0.7, 0), 1);
+
+    await this.db
+      .insert(securityThreatStories)
+      .values({
+        id,
+        organizationId,
+        storyKey,
+        title,
+        status: input.status?.trim() || 'open',
+        severity,
+        confidence,
+        summary,
+        impact,
+        attackPath: input.attackPath?.trim() || null,
+        recommendedAction: input.recommendedAction?.trim() || null,
+        affectedAssetRefs: [...new Set(input.affectedAssetRefs ?? [])],
+        evidenceRefs: [...new Set(input.evidenceRefs ?? [])],
+        createdByAgentRunId: input.createdByAgentRunId ?? null,
+        createdBy: input.createdBy ?? null,
+        metadata: input.metadata ?? {},
+        firstSeenAt: now,
+        lastSeenAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [securityThreatStories.organizationId, securityThreatStories.storyKey],
+        set: {
+          title,
+          status: input.status?.trim() || 'open',
+          severity,
+          confidence,
+          summary,
+          impact,
+          attackPath: input.attackPath?.trim() || null,
+          recommendedAction: input.recommendedAction?.trim() || null,
+          affectedAssetRefs: [...new Set(input.affectedAssetRefs ?? [])],
+          evidenceRefs: [...new Set(input.evidenceRefs ?? [])],
+          createdByAgentRunId: input.createdByAgentRunId ?? null,
+          createdBy: input.createdBy ?? null,
+          metadata: input.metadata ?? {},
+          lastSeenAt: now,
+          updatedAt: now,
+        },
+      });
+
+    const story = await this.findThreatStoryByKey(organizationId, storyKey);
+    if (!story) throw new Error('Threat story was not created');
+
+    await this.db.execute(sql`
+      DELETE FROM security_threat_story_findings
+      WHERE organization_id = ${organizationId}
+        AND story_id = ${story.id}
+    `);
+    await this.db.insert(securityThreatStoryFindings).values(
+      findingIds.map((findingId) => ({
+        organizationId,
+        storyId: story.id,
+        findingId,
+        role: input.findingRoles?.[findingId] ?? 'supporting',
+        rationale: input.findingRationales?.[findingId] ?? null,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    );
+
+    const refreshed = await this.getThreatStory(organizationId, story.id);
+    if (!refreshed) throw new Error('Threat story was not loaded');
+    return refreshed;
+  }
+
   private async queryFindings(
     organizationId: string,
     options: { sourceKind?: string; status?: string; findingId?: string; limit?: number } = {},
@@ -639,6 +800,77 @@ export class SecurityIngestionService {
         this.mapFindingRow(row, observationsByFinding, evidenceByFinding, linksByFinding),
       ),
     };
+  }
+
+  private async queryThreatStories(
+    organizationId: string,
+    options: { status?: string; storyId?: string; limit?: number } = {},
+  ): Promise<{ stories: SecurityThreatStory[] }> {
+    const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+    const conditions = [sql`ts.organization_id = ${organizationId}`];
+    if (options.storyId) conditions.push(sql`ts.id = ${options.storyId}`);
+    if (options.status) conditions.push(sql`ts.status = ${options.status}`);
+
+    const result = await this.db.execute(sql`
+      SELECT
+        ts.id,
+        ts.story_key,
+        ts.title,
+        ts.status,
+        ts.severity,
+        ts.confidence,
+        ts.summary,
+        ts.impact,
+        ts.attack_path,
+        ts.recommended_action,
+        ts.affected_asset_refs,
+        ts.evidence_refs,
+        ts.created_by_agent_run_id,
+        ts.created_by,
+        ts.metadata,
+        ts.first_seen_at,
+        ts.last_seen_at,
+        ts.created_at,
+        ts.updated_at
+      FROM security_threat_stories ts
+      WHERE ${sql.join(conditions, sql` AND `)}
+      ORDER BY
+        CASE ts.severity
+          WHEN 'critical' THEN 0
+          WHEN 'high' THEN 1
+          WHEN 'medium' THEN 2
+          WHEN 'low' THEN 3
+          ELSE 4
+        END,
+        ts.updated_at DESC
+      LIMIT ${limit}
+    `);
+
+    const rows = result.rows as Record<string, unknown>[];
+    if (rows.length === 0) return { stories: [] };
+    const findingsByStory = await this.loadThreatStoryFindings(
+      organizationId,
+      rows.map((row) => String(row.id)),
+    );
+
+    return {
+      stories: rows.map((row) => this.mapThreatStoryRow(row, findingsByStory)),
+    };
+  }
+
+  private async findThreatStoryByKey(
+    organizationId: string,
+    storyKey: string,
+  ): Promise<{ id: string } | null> {
+    const result = await this.db.execute(sql`
+      SELECT id
+      FROM security_threat_stories
+      WHERE organization_id = ${organizationId}
+        AND story_key = ${storyKey}
+      LIMIT 1
+    `);
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? { id: String(row.id) } : null;
   }
 
   async listFindingLinks(
@@ -741,6 +973,105 @@ export class SecurityIngestionService {
       LIMIT 1
     `);
     return result.rows.length > 0;
+  }
+
+  private async existingFindingIds(
+    organizationId: string,
+    findingIds: string[],
+  ): Promise<Set<string>> {
+    if (findingIds.length === 0) return new Set();
+    const ids = sql`ARRAY[${sql.join(
+      findingIds.map((id) => sql`${id}`),
+      sql`, `,
+    )}]::text[]`;
+    const result = await this.db.execute(sql`
+      SELECT id
+      FROM security_finding_instances
+      WHERE organization_id = ${organizationId}
+        AND id = ANY(${ids})
+    `);
+    return new Set((result.rows as Record<string, unknown>[]).map((row) => String(row.id)));
+  }
+
+  private async loadThreatStoryFindings(organizationId: string, storyIds: string[]) {
+    const byStory = new Map<string, SecurityThreatStoryFinding[]>();
+    if (storyIds.length === 0) return byStory;
+    for (const id of storyIds) byStory.set(id, []);
+
+    const ids = sql`ARRAY[${sql.join(
+      storyIds.map((id) => sql`${id}`),
+      sql`, `,
+    )}]::text[]`;
+    const result = await this.db.execute(sql`
+      SELECT
+        tsf.story_id,
+        tsf.finding_id,
+        tsf.role,
+        tsf.rationale,
+        fi.finding_key AS finding_key,
+        fi.status AS status,
+        fi.severity AS severity,
+        sr.source_kind AS source_kind,
+        latest.title AS title
+      FROM security_threat_story_findings tsf
+      JOIN security_finding_instances fi ON fi.id = tsf.finding_id
+      JOIN security_scanner_runs sr ON sr.id = fi.scanner_run_id
+      LEFT JOIN LATERAL (
+        SELECT o.title
+        FROM security_observations o
+        WHERE o.id IN (SELECT jsonb_array_elements_text(fi.observation_refs))
+        ORDER BY o.observed_at DESC
+        LIMIT 1
+      ) latest ON true
+      WHERE tsf.organization_id = ${organizationId}
+        AND tsf.story_id = ANY(${ids})
+      ORDER BY tsf.created_at ASC
+    `);
+
+    for (const row of result.rows as Record<string, unknown>[]) {
+      const storyId = String(row.story_id);
+      byStory.get(storyId)?.push({
+        id: String(row.finding_id),
+        findingKey: String(row.finding_key),
+        status: String(row.status),
+        severity: String(row.severity),
+        title: stringOrNull(row.title),
+        sourceKind: String(row.source_kind),
+        role: String(row.role),
+        rationale: stringOrNull(row.rationale),
+      });
+    }
+
+    return byStory;
+  }
+
+  private mapThreatStoryRow(
+    row: Record<string, unknown>,
+    findingsByStory: Map<string, SecurityThreatStoryFinding[]>,
+  ): SecurityThreatStory {
+    const id = String(row.id);
+    return {
+      id,
+      storyKey: String(row.story_key),
+      title: String(row.title),
+      status: String(row.status),
+      severity: String(row.severity),
+      confidence: Number(row.confidence ?? 0),
+      summary: String(row.summary),
+      impact: String(row.impact),
+      attackPath: stringOrNull(row.attack_path),
+      recommendedAction: stringOrNull(row.recommended_action),
+      affectedAssetRefs: jsonStringArray(row.affected_asset_refs),
+      evidenceRefs: jsonStringArray(row.evidence_refs),
+      createdByAgentRunId: stringOrNull(row.created_by_agent_run_id),
+      createdBy: stringOrNull(row.created_by),
+      metadata: toRecord(row.metadata),
+      firstSeenAt: dateString(row.first_seen_at),
+      lastSeenAt: dateString(row.last_seen_at),
+      createdAt: dateString(row.created_at),
+      updatedAt: dateString(row.updated_at),
+      findings: findingsByStory.get(id) ?? [],
+    };
   }
 
   private async loadObservationsByFinding(observationIds: string[]) {

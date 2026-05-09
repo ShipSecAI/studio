@@ -116,6 +116,15 @@ export interface StudioMcpDeps {
       organizationId: string,
       input: Record<string, any>,
     ): Promise<Record<string, any>>;
+    listThreatStories(
+      organizationId: string,
+      options?: { status?: string; limit?: number },
+    ): Promise<{ stories: Record<string, any>[] }>;
+    getThreatStory(organizationId: string, storyId: string): Promise<Record<string, any> | null>;
+    recordThreatStory(
+      organizationId: string,
+      input: Record<string, any>,
+    ): Promise<Record<string, any>>;
   };
   securityAnalyticsService?: {
     query(

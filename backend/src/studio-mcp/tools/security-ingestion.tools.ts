@@ -14,6 +14,25 @@ const findingLinkRelationshipSchema = z.enum([
   'related',
 ]);
 
+const threatStoryRecordSchema = {
+  storyKey: z.string().min(1).optional(),
+  title: z.string().min(1),
+  status: z.string().min(1).optional(),
+  severity: z.string().min(1),
+  confidence: z.number().min(0).max(1).optional(),
+  summary: z.string().min(1),
+  impact: z.string().min(1),
+  attackPath: z.string().optional(),
+  recommendedAction: z.string().optional(),
+  findingIds: z.array(z.string().min(1)).min(1),
+  findingRoles: z.record(z.string(), z.string()).optional(),
+  findingRationales: z.record(z.string(), z.string()).optional(),
+  evidenceRefs: z.array(z.string().min(1)).optional(),
+  affectedAssetRefs: z.array(z.string().min(1)).optional(),
+  createdByAgentRunId: z.string().min(1).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+};
+
 export function registerSecurityIngestionTools(
   server: McpServer,
   auth: AuthContext,
@@ -184,6 +203,116 @@ export function registerSecurityIngestionTools(
           metadata: args.metadata,
         });
         return jsonResult({ link });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'list_threat_stories',
+    {
+      description:
+        'List durable agent-written threat stories that group multiple findings into concrete attack or impact narratives.',
+      inputSchema: {
+        status: z.string().optional().describe('Optional threat story status filter.'),
+        limit: z.number().int().min(1).max(200).optional().default(50),
+      },
+    },
+    async (args: { status?: string; limit?: number }) => {
+      const gate = checkPermission(auth, 'analytics.query');
+      if (!gate.allowed) return gate.error;
+      if (!securityIngestionService) {
+        return errorResult(new Error('Security ingestion service is not available'));
+      }
+      if (!auth.organizationId) {
+        return errorResult(new Error('Organization context is required'));
+      }
+
+      try {
+        const result = await securityIngestionService.listThreatStories(auth.organizationId, {
+          status: args.status?.trim() || undefined,
+          limit: args.limit,
+        });
+        return jsonResult({ count: result.stories.length, stories: result.stories });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'get_threat_story',
+    {
+      description:
+        'Get one durable threat story with the findings it depends on, impact, evidence refs, and remediation narrative.',
+      inputSchema: {
+        storyId: z.string().min(1).describe('The durable threat story ID.'),
+      },
+    },
+    async (args: { storyId: string }) => {
+      const gate = checkPermission(auth, 'analytics.query');
+      if (!gate.allowed) return gate.error;
+      if (!securityIngestionService) {
+        return errorResult(new Error('Security ingestion service is not available'));
+      }
+      if (!auth.organizationId) {
+        return errorResult(new Error('Organization context is required'));
+      }
+
+      try {
+        const story = await securityIngestionService.getThreatStory(
+          auth.organizationId,
+          args.storyId,
+        );
+        if (!story) return errorResult(new Error('Threat story not found'));
+        return jsonResult({ story });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'record_threat_story',
+    {
+      description:
+        'Record an agent-written threat story over one or more durable findings. Use this after reasoning across findings, links, code, cloud, and wiki evidence.',
+      inputSchema: threatStoryRecordSchema,
+    },
+    async (args: {
+      storyKey?: string;
+      title: string;
+      status?: string;
+      severity: string;
+      confidence?: number;
+      summary: string;
+      impact: string;
+      attackPath?: string;
+      recommendedAction?: string;
+      findingIds: string[];
+      findingRoles?: Record<string, string>;
+      findingRationales?: Record<string, string>;
+      evidenceRefs?: string[];
+      affectedAssetRefs?: string[];
+      createdByAgentRunId?: string;
+      metadata?: Record<string, unknown>;
+    }) => {
+      const gate = checkPermission(auth, 'analytics.query');
+      if (!gate.allowed) return gate.error;
+      if (!securityIngestionService) {
+        return errorResult(new Error('Security ingestion service is not available'));
+      }
+      if (!auth.organizationId) {
+        return errorResult(new Error('Organization context is required'));
+      }
+
+      try {
+        const story = await securityIngestionService.recordThreatStory(auth.organizationId, {
+          ...args,
+          createdBy: auth.userId,
+        });
+        return jsonResult({ story });
       } catch (error) {
         return errorResult(error);
       }
