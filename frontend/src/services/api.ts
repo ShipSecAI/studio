@@ -20,7 +20,7 @@ export type IntegrationProviderConfiguration =
 export type OAuthStartResponse = components['schemas']['OAuthStartResponseDto'];
 export type ReportTemplate = components['schemas']['ReportTemplateResponseDto'];
 export type RenderReportTemplateResponse = components['schemas']['RenderReportTemplateResponseDto'];
-export interface SecurityFindingChain {
+export interface SecurityFinding {
   id: string;
   findingKey: string;
   status: string;
@@ -1780,7 +1780,7 @@ export const api = {
       sourceKind?: string;
       status?: string;
       limit?: number;
-    }): Promise<{ findings: SecurityFindingChain[] }> => {
+    }): Promise<{ findings: SecurityFinding[] }> => {
       const searchParams = new URLSearchParams();
       if (params?.sourceKind) searchParams.set('sourceKind', params.sourceKind);
       if (params?.status) searchParams.set('status', params.status);
@@ -1790,7 +1790,21 @@ export const api = {
         `${API_V1_URL}/security-ingestion/findings${searchParams.toString() ? `?${searchParams}` : ''}`,
         { headers },
       );
-      if (!resp.ok) throw new Error('Failed to fetch security finding chains');
+      if (!resp.ok) throw new Error('Failed to fetch security findings');
+      return resp.json();
+    },
+    finding: async (id: string): Promise<{ finding: SecurityFinding }> => {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_V1_URL}/security-ingestion/findings/${id}`, { headers });
+      if (!resp.ok) throw new Error('Failed to fetch security finding');
+      return resp.json();
+    },
+    findingEvidence: async (id: string): Promise<{ evidence: SecurityFinding['evidence'] }> => {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_V1_URL}/security-ingestion/findings/${id}/evidence`, {
+        headers,
+      });
+      if (!resp.ok) throw new Error('Failed to fetch security finding evidence');
       return resp.json();
     },
   },

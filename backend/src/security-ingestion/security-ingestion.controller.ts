@@ -5,6 +5,8 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  NotFoundException,
+  Param,
   Post,
   Query,
   UnauthorizedException,
@@ -28,7 +30,7 @@ export class SecurityIngestionController {
   constructor(private readonly securityIngestionService: SecurityIngestionService) {}
 
   @Get('findings')
-  @ApiOkResponse({ description: 'List durable security finding chains for the organization.' })
+  @ApiOkResponse({ description: 'List durable security findings for the organization.' })
   async listFindings(
     @CurrentAuth() auth: AuthContext | null,
     @Query('sourceKind') sourceKind?: string,
@@ -39,11 +41,38 @@ export class SecurityIngestionController {
       throw new UnauthorizedException('Authentication required');
     }
 
-    return this.securityIngestionService.listFindingChains(auth.organizationId, {
+    return this.securityIngestionService.listFindings(auth.organizationId, {
       sourceKind: sourceKind?.trim() || undefined,
       status: status?.trim() || undefined,
       limit: limit ? Number(limit) : undefined,
     });
+  }
+
+  @Get('findings/:id')
+  @ApiOkResponse({ description: 'Get one durable security finding with evidence.' })
+  async getFinding(@CurrentAuth() auth: AuthContext | null, @Param('id') id: string) {
+    if (!auth?.isAuthenticated || !auth.organizationId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const finding = await this.securityIngestionService.getFinding(auth.organizationId, id);
+    if (!finding) throw new NotFoundException('Finding not found');
+    return { finding };
+  }
+
+  @Get('findings/:id/evidence')
+  @ApiOkResponse({ description: 'List evidence attached to one durable security finding.' })
+  async getFindingEvidence(@CurrentAuth() auth: AuthContext | null, @Param('id') id: string) {
+    if (!auth?.isAuthenticated || !auth.organizationId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const evidence = await this.securityIngestionService.getFindingEvidence(
+      auth.organizationId,
+      id,
+    );
+    if (!evidence) throw new NotFoundException('Finding not found');
+    return { evidence };
   }
 
   @Post('internal/batches')

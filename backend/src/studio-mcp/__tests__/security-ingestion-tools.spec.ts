@@ -19,20 +19,27 @@ describe('Security Ingestion MCP Tools', () => {
   };
 
   let securityIngestionService: {
-    listFindingChains: ReturnType<typeof jest.fn>;
+    listFindings: ReturnType<typeof jest.fn>;
+    getFinding: ReturnType<typeof jest.fn>;
   };
   let tools: RegisteredToolsMap;
 
   beforeEach(() => {
     securityIngestionService = {
-      listFindingChains: jest.fn().mockResolvedValue({
+      listFindings: jest.fn().mockResolvedValue({
         findings: [
           {
+            id: 'finding-1',
             findingKey: 'code:repo:cwe-639:get-/api/invoices/:id',
             severity: 'high',
             status: 'open',
           },
         ],
+      }),
+      getFinding: jest.fn().mockResolvedValue({
+        id: 'finding-1',
+        findingKey: 'code:repo:cwe-639:get-/api/invoices/:id',
+        evidence: [{ id: 'evidence-1' }],
       }),
     };
 
@@ -57,15 +64,15 @@ describe('Security Ingestion MCP Tools', () => {
     tools = getRegisteredTools(service.createServer(auth));
   });
 
-  it('lists durable finding chains from the official Studio MCP surface', async () => {
-    const result = await tools['list_security_finding_chains'].handler({
-      sourceKind: 'agent-code-review',
+  it('lists durable findings from the official Studio MCP surface', async () => {
+    const result = await tools['list_security_findings'].handler({
+      sourceKind: 'ai_code_review',
       status: 'open',
       limit: 25,
     });
 
-    expect(securityIngestionService.listFindingChains).toHaveBeenCalledWith('org-1', {
-      sourceKind: 'agent-code-review',
+    expect(securityIngestionService.listFindings).toHaveBeenCalledWith('org-1', {
+      sourceKind: 'ai_code_review',
       status: 'open',
       limit: 25,
     });
@@ -73,5 +80,17 @@ describe('Security Ingestion MCP Tools', () => {
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.count).toBe(1);
     expect(parsed.findings[0].findingKey).toBe('code:repo:cwe-639:get-/api/invoices/:id');
+  });
+
+  it('gets one durable finding from the official Studio MCP surface', async () => {
+    const result = await tools['get_security_finding'].handler({
+      findingId: 'finding-1',
+    });
+
+    expect(securityIngestionService.getFinding).toHaveBeenCalledWith('org-1', 'finding-1');
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.finding.id).toBe('finding-1');
+    expect(parsed.finding.evidence[0].id).toBe('evidence-1');
   });
 });

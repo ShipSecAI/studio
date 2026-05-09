@@ -103,10 +103,11 @@ export interface StudioMcpDeps {
     listConnectionsForOrg(auth: any, provider?: string): Promise<any>;
   };
   securityIngestionService?: {
-    listFindingChains(
+    listFindings(
       organizationId: string,
       options?: { sourceKind?: string; status?: string; limit?: number },
     ): Promise<{ findings: Record<string, any>[] }>;
+    getFinding(organizationId: string, findingId: string): Promise<Record<string, any> | null>;
   };
   securityAnalyticsService?: {
     query(

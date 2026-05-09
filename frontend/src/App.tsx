@@ -99,8 +99,8 @@ const GitHubIntegrationPage = lazy(() =>
 const SecurityDashboard = lazy(() =>
   import('@/pages/SecurityDashboard').then((m) => ({ default: m.SecurityDashboardContent })),
 );
-const AiFindingsPage = lazy(() =>
-  import('@/pages/AiFindingsPage').then((m) => ({ default: m.AiFindingsPage })),
+const FindingsPage = lazy(() =>
+  import('@/pages/FindingsPage').then((m) => ({ default: m.FindingsPage })),
 );
 const HomePage = lazy(() => import('@/pages/HomePage').then((m) => ({ default: m.HomePage })));
 const WorkflowTemplatesPage = lazy(() =>
@@ -321,7 +321,7 @@ function App() {
                                 />
                               </Route>
                               <Route element={<FeatureFlagRoute flag="AI_FINDINGS" />}>
-                                <Route path="/findings" element={<AiFindingsPage />} />
+                                <Route path="/findings" element={<FindingsPage />} />
                               </Route>
 
                               {/* Settings sub-pages — individually gated */}

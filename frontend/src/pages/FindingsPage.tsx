@@ -12,7 +12,7 @@ import {
   Link2,
   ShieldAlert,
 } from 'lucide-react';
-import { api, type SecurityFindingChain } from '@/services/api';
+import { api, type SecurityFinding } from '@/services/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,7 +41,7 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleString();
 }
 
-function statusLabel(finding: SecurityFindingChain) {
+function statusLabel(finding: SecurityFinding) {
   if (finding.lifecycleHint === 'fixed_candidate' || finding.status === 'in_progress') {
     return 'Fix pending validation';
   }
@@ -50,7 +50,7 @@ function statusLabel(finding: SecurityFindingChain) {
   return 'Open';
 }
 
-function FindingStatusBadge({ finding }: { finding: SecurityFindingChain }) {
+function FindingStatusBadge({ finding }: { finding: SecurityFinding }) {
   const label = statusLabel(finding);
   const className =
     label === 'Open'
@@ -74,15 +74,15 @@ function SeverityBadge({ severity }: { severity: string }) {
   );
 }
 
-function highestSeverity(findings: SecurityFindingChain[]) {
+function highestSeverity(findings: SecurityFinding[]) {
   return findings
     .map((finding) => finding.severity.toLowerCase())
     .sort((a, b) => (severityOrder[a] ?? 5) - (severityOrder[b] ?? 5))[0];
 }
 
-function buildThreatGroups(findings: SecurityFindingChain[]) {
-  const grouped = new Map<string, SecurityFindingChain[]>();
-  const ungrouped: SecurityFindingChain[] = [];
+function buildThreatGroups(findings: SecurityFinding[]) {
+  const grouped = new Map<string, SecurityFinding[]>();
+  const ungrouped: SecurityFinding[] = [];
 
   for (const finding of findings) {
     if (finding.threatRefs.length === 0) {
@@ -101,7 +101,7 @@ function buildThreatGroups(findings: SecurityFindingChain[]) {
   }));
 
   if (ungrouped.length > 0) {
-    groups.push({ id: '__ungrouped__', title: 'Unlinked agent findings', findings: ungrouped });
+    groups.push({ id: '__ungrouped__', title: 'Unlinked findings', findings: ungrouped });
   }
 
   return groups.sort(
@@ -116,7 +116,7 @@ function FindingRow({
   active,
   onClick,
 }: {
-  finding: SecurityFindingChain;
+  finding: SecurityFinding;
   active: boolean;
   onClick: () => void;
 }) {
@@ -155,12 +155,12 @@ function FindingRow({
   );
 }
 
-function FindingDetails({ finding }: { finding: SecurityFindingChain | null }) {
+function FindingDetails({ finding }: { finding: SecurityFinding | null }) {
   if (!finding) {
     return (
       <Card className="h-full">
         <CardContent className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-          Select a finding to inspect the chain.
+          Select a finding to inspect its evidence.
         </CardContent>
       </Card>
     );
@@ -239,7 +239,7 @@ function FindingDetails({ finding }: { finding: SecurityFindingChain | null }) {
         <section>
           <h4 className="mb-3 flex items-center gap-2 text-sm font-medium">
             <Link2 className="h-4 w-4" />
-            Evidence chain
+            Evidence
           </h4>
           <div className="space-y-2">
             {finding.observations.map((observation) => (
@@ -271,10 +271,10 @@ function FindingDetails({ finding }: { finding: SecurityFindingChain | null }) {
   );
 }
 
-export function AiFindingsPage() {
+export function FindingsPage() {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['security-ingestion', 'ai-code-review-findings'],
-    queryFn: () => api.securityIngestion.findings({ sourceKind: 'ai_code_review', limit: 100 }),
+    queryKey: ['security-ingestion', 'findings'],
+    queryFn: () => api.securityIngestion.findings({ limit: 100 }),
     refetchInterval: 20_000,
   });
   const findings = data?.findings ?? [];
@@ -295,12 +295,12 @@ export function AiFindingsPage() {
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
                 <Bot className="h-4 w-4" />
-                Agent-linked findings
+                Durable security findings
               </div>
               <h1 className="text-2xl font-semibold tracking-tight">What is broken</h1>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                Durable findings from agentic code reviews, grouped into threat stories and linked
-                back to the workflow runs that created or changed them.
+                Durable findings from scanners and agents, grouped by emerging threat references and
+                linked back to the workflow runs that created or changed them.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3">
@@ -341,23 +341,23 @@ export function AiFindingsPage() {
           {isLoading ? (
             <Card>
               <CardContent className="p-6 text-sm text-muted-foreground">
-                Loading agent findings...
+                Loading findings...
               </CardContent>
             </Card>
           ) : error ? (
             <Card>
               <CardContent className="p-6 text-sm text-red-600">
-                Failed to load agent finding chains.
+                Failed to load security findings.
               </CardContent>
             </Card>
           ) : groups.length === 0 ? (
             <Card>
               <CardContent className="flex h-64 flex-col items-center justify-center text-center">
                 <FileCode2 className="mb-3 h-8 w-8 text-muted-foreground" />
-                <h2 className="text-base font-medium">No agentic code findings yet</h2>
+                <h2 className="text-base font-medium">No security findings yet</h2>
                 <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                  Run an Agentic Baseline Code Review or Agentic PR Code Review workflow and the
-                  linked finding chains will appear here.
+                  Run a cloud, attack-surface, Kubernetes, or agentic code review workflow and the
+                  durable findings will appear here.
                 </p>
               </CardContent>
             </Card>

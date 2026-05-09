@@ -60,7 +60,7 @@ interface GraphEdgeDraft {
   properties: JsonRecord;
 }
 
-export interface SecurityFindingChain {
+export interface SecurityFinding {
   id: string;
   findingKey: string;
   status: string;
@@ -499,12 +499,36 @@ export class SecurityIngestionService {
     };
   }
 
-  async listFindingChains(
+  async listFindings(
     organizationId: string,
     options: { sourceKind?: string; status?: string; limit?: number } = {},
-  ): Promise<{ findings: SecurityFindingChain[] }> {
+  ): Promise<{ findings: SecurityFinding[] }> {
+    return this.queryFindings(organizationId, options);
+  }
+
+  async getFinding(organizationId: string, findingId: string): Promise<SecurityFinding | null> {
+    const result = await this.queryFindings(organizationId, {
+      findingId,
+      limit: 1,
+    });
+    return result.findings[0] ?? null;
+  }
+
+  async getFindingEvidence(
+    organizationId: string,
+    findingId: string,
+  ): Promise<SecurityFinding['evidence'] | null> {
+    const finding = await this.getFinding(organizationId, findingId);
+    return finding ? finding.evidence : null;
+  }
+
+  private async queryFindings(
+    organizationId: string,
+    options: { sourceKind?: string; status?: string; findingId?: string; limit?: number } = {},
+  ): Promise<{ findings: SecurityFinding[] }> {
     const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
     const conditions = [sql`fi.organization_id = ${organizationId}`];
+    if (options.findingId) conditions.push(sql`fi.id = ${options.findingId}`);
     if (options.sourceKind) conditions.push(sql`sr.source_kind = ${options.sourceKind}`);
     if (options.status) conditions.push(sql`fi.status = ${options.status}`);
 
@@ -569,13 +593,13 @@ export class SecurityIngestionService {
 
     return {
       findings: rows.map((row) =>
-        this.mapFindingChainRow(row, observationsByFinding, evidenceByFinding),
+        this.mapFindingRow(row, observationsByFinding, evidenceByFinding),
       ),
     };
   }
 
   private async loadObservationsByFinding(observationIds: string[]) {
-    const byId = new Map<string, SecurityFindingChain['observations'][number]>();
+    const byId = new Map<string, SecurityFinding['observations'][number]>();
     if (observationIds.length === 0) return byId;
     const ids = sql`ARRAY[${sql.join(
       observationIds.map((id) => sql`${id}`),
@@ -605,7 +629,7 @@ export class SecurityIngestionService {
   }
 
   private async loadEvidenceByFinding(evidenceIds: string[]) {
-    const byId = new Map<string, SecurityFindingChain['evidence'][number]>();
+    const byId = new Map<string, SecurityFinding['evidence'][number]>();
     if (evidenceIds.length === 0) return byId;
     const ids = sql`ARRAY[${sql.join(
       evidenceIds.map((id) => sql`${id}`),
@@ -628,11 +652,11 @@ export class SecurityIngestionService {
     return byId;
   }
 
-  private mapFindingChainRow(
+  private mapFindingRow(
     row: Record<string, unknown>,
-    observationsById: Map<string, SecurityFindingChain['observations'][number]>,
-    evidenceById: Map<string, SecurityFindingChain['evidence'][number]>,
-  ): SecurityFindingChain {
+    observationsById: Map<string, SecurityFinding['observations'][number]>,
+    evidenceById: Map<string, SecurityFinding['evidence'][number]>,
+  ): SecurityFinding {
     const normalized = toRecord(row.latest_normalized);
     const scope = toRecord(row.scope);
     const agentFinding = toRecord(normalized.agentFinding);
