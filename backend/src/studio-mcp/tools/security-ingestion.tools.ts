@@ -3,6 +3,17 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AuthContext } from '../../auth/types';
 import { checkPermission, errorResult, jsonResult, type StudioMcpDeps } from './types';
 
+const findingLinkRelationshipSchema = z.enum([
+  'duplicate_of',
+  'same_root_cause',
+  'enables',
+  'contradicts',
+  'same_asset',
+  'same_control',
+  'mitigated_by',
+  'related',
+]);
+
 export function registerSecurityIngestionTools(
   server: McpServer,
   auth: AuthContext,
@@ -88,6 +99,91 @@ export function registerSecurityIngestionTools(
         );
         if (!finding) return errorResult(new Error('Finding not found'));
         return jsonResult({ finding });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'list_finding_links',
+    {
+      description: 'List evidence-backed relationships connected to a durable security finding.',
+      inputSchema: {
+        findingId: z.string().min(1).describe('The durable security finding ID.'),
+      },
+    },
+    async (args: { findingId: string }) => {
+      const gate = checkPermission(auth, 'analytics.query');
+      if (!gate.allowed) return gate.error;
+      if (!securityIngestionService) {
+        return errorResult(new Error('Security ingestion service is not available'));
+      }
+      if (!auth.organizationId) {
+        return errorResult(new Error('Organization context is required'));
+      }
+
+      try {
+        const result = await securityIngestionService.listFindingLinks(
+          auth.organizationId,
+          args.findingId,
+        );
+        if (!result) return errorResult(new Error('Finding not found'));
+        return jsonResult({ count: result.links.length, links: result.links });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'record_finding_link',
+    {
+      description:
+        'Record a typed, evidence-backed relationship between two durable security findings.',
+      inputSchema: {
+        fromFindingId: z.string().min(1),
+        toFindingId: z.string().min(1),
+        relationshipType: findingLinkRelationshipSchema,
+        confidence: z.number().min(0).max(1).optional(),
+        rationale: z.string().min(1),
+        evidenceRefs: z.array(z.string().min(1)).optional(),
+        createdByAgentRunId: z.string().min(1).optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      },
+    },
+    async (args: {
+      fromFindingId: string;
+      toFindingId: string;
+      relationshipType: string;
+      confidence?: number;
+      rationale: string;
+      evidenceRefs?: string[];
+      createdByAgentRunId?: string;
+      metadata?: Record<string, unknown>;
+    }) => {
+      const gate = checkPermission(auth, 'analytics.query');
+      if (!gate.allowed) return gate.error;
+      if (!securityIngestionService) {
+        return errorResult(new Error('Security ingestion service is not available'));
+      }
+      if (!auth.organizationId) {
+        return errorResult(new Error('Organization context is required'));
+      }
+
+      try {
+        const link = await securityIngestionService.recordFindingLink(auth.organizationId, {
+          fromFindingId: args.fromFindingId,
+          toFindingId: args.toFindingId,
+          relationshipType: args.relationshipType,
+          confidence: args.confidence,
+          rationale: args.rationale,
+          evidenceRefs: args.evidenceRefs,
+          createdByAgentRunId: args.createdByAgentRunId,
+          createdBy: auth.userId,
+          metadata: args.metadata,
+        });
+        return jsonResult({ link });
       } catch (error) {
         return errorResult(error);
       }

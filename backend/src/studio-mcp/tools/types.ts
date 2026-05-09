@@ -108,6 +108,14 @@ export interface StudioMcpDeps {
       options?: { sourceKind?: string; status?: string; limit?: number },
     ): Promise<{ findings: Record<string, any>[] }>;
     getFinding(organizationId: string, findingId: string): Promise<Record<string, any> | null>;
+    listFindingLinks(
+      organizationId: string,
+      findingId: string,
+    ): Promise<{ links: Record<string, any>[] } | null>;
+    recordFindingLink(
+      organizationId: string,
+      input: Record<string, any>,
+    ): Promise<Record<string, any>>;
   };
   securityAnalyticsService?: {
     query(

@@ -21,6 +21,8 @@ describe('Security Ingestion MCP Tools', () => {
   let securityIngestionService: {
     listFindings: ReturnType<typeof jest.fn>;
     getFinding: ReturnType<typeof jest.fn>;
+    listFindingLinks: ReturnType<typeof jest.fn>;
+    recordFindingLink: ReturnType<typeof jest.fn>;
   };
   let tools: RegisteredToolsMap;
 
@@ -40,6 +42,13 @@ describe('Security Ingestion MCP Tools', () => {
         id: 'finding-1',
         findingKey: 'code:repo:cwe-639:get-/api/invoices/:id',
         evidence: [{ id: 'evidence-1' }],
+      }),
+      listFindingLinks: jest.fn().mockResolvedValue({
+        links: [{ id: 'link-1', relationshipType: 'same_root_cause' }],
+      }),
+      recordFindingLink: jest.fn().mockResolvedValue({
+        id: 'link-1',
+        relationshipType: 'same_root_cause',
       }),
     };
 
@@ -92,5 +101,42 @@ describe('Security Ingestion MCP Tools', () => {
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.finding.id).toBe('finding-1');
     expect(parsed.finding.evidence[0].id).toBe('evidence-1');
+  });
+
+  it('lists links connected to a durable finding', async () => {
+    const result = await tools['list_finding_links'].handler({
+      findingId: 'finding-1',
+    });
+
+    expect(securityIngestionService.listFindingLinks).toHaveBeenCalledWith('org-1', 'finding-1');
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.count).toBe(1);
+    expect(parsed.links[0].id).toBe('link-1');
+  });
+
+  it('records an evidence-backed finding link', async () => {
+    const result = await tools['record_finding_link'].handler({
+      fromFindingId: 'finding-1',
+      toFindingId: 'finding-2',
+      relationshipType: 'same_root_cause',
+      confidence: 0.82,
+      rationale: 'Both findings share the same missing tenant check.',
+      evidenceRefs: ['evidence-1'],
+      createdByAgentRunId: 'agent-run-1',
+    });
+
+    expect(securityIngestionService.recordFindingLink).toHaveBeenCalledWith('org-1', {
+      fromFindingId: 'finding-1',
+      toFindingId: 'finding-2',
+      relationshipType: 'same_root_cause',
+      confidence: 0.82,
+      rationale: 'Both findings share the same missing tenant check.',
+      evidenceRefs: ['evidence-1'],
+      createdByAgentRunId: 'agent-run-1',
+      createdBy: 'user-1',
+      metadata: undefined,
+    });
+    expect(result.isError).toBeUndefined();
   });
 });

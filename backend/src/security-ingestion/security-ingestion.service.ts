@@ -12,6 +12,7 @@ import {
   securityEvidenceItems,
   securityFindingControlLinks,
   securityFindingInstances,
+  securityFindingLinks,
   securityGraphEdges,
   securityIngestionBatches,
   securityObservations,
@@ -60,6 +61,43 @@ interface GraphEdgeDraft {
   properties: JsonRecord;
 }
 
+export type FindingLinkRelationship =
+  | 'duplicate_of'
+  | 'same_root_cause'
+  | 'enables'
+  | 'contradicts'
+  | 'same_asset'
+  | 'same_control'
+  | 'mitigated_by'
+  | 'related';
+
+export interface SecurityFindingLink {
+  id: string;
+  fromFindingId: string;
+  toFindingId: string;
+  relationshipType: string;
+  confidence: number;
+  rationale: string;
+  evidenceRefs: string[];
+  createdByAgentRunId?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  fromFinding: SecurityFindingSummary;
+  toFinding: SecurityFindingSummary;
+  relatedFinding: SecurityFindingSummary;
+  direction: 'outgoing' | 'incoming';
+}
+
+export interface SecurityFindingSummary {
+  id: string;
+  findingKey: string;
+  status: string;
+  severity: string;
+  title?: string | null;
+  sourceKind: string;
+}
+
 export interface SecurityFinding {
   id: string;
   findingKey: string;
@@ -95,6 +133,7 @@ export interface SecurityFinding {
   } | null;
   threatRefs: string[];
   linkedFindingKeys: string[];
+  relatedLinks: SecurityFindingLink[];
   evidence: { id: string; summary?: string | null; artifactUri: string; capturedAt: string }[];
   observations: {
     id: string;
@@ -590,12 +629,118 @@ export class SecurityIngestionService {
 
     const observationsByFinding = await this.loadObservationsByFinding(observationIds);
     const evidenceByFinding = await this.loadEvidenceByFinding(evidenceIds);
+    const linksByFinding = await this.loadLinksByFinding(
+      organizationId,
+      rows.map((row) => String(row.id)),
+    );
 
     return {
       findings: rows.map((row) =>
-        this.mapFindingRow(row, observationsByFinding, evidenceByFinding),
+        this.mapFindingRow(row, observationsByFinding, evidenceByFinding, linksByFinding),
       ),
     };
+  }
+
+  async listFindingLinks(
+    organizationId: string,
+    findingId: string,
+  ): Promise<{ links: SecurityFindingLink[] } | null> {
+    const exists = await this.findingExists(organizationId, findingId);
+    if (!exists) return null;
+    const linksByFinding = await this.loadLinksByFinding(organizationId, [findingId]);
+    return { links: linksByFinding.get(findingId) ?? [] };
+  }
+
+  async recordFindingLink(
+    organizationId: string,
+    input: {
+      fromFindingId: string;
+      toFindingId: string;
+      relationshipType: FindingLinkRelationship | string;
+      confidence?: number;
+      rationale: string;
+      evidenceRefs?: string[];
+      createdByAgentRunId?: string | null;
+      createdBy?: string | null;
+      metadata?: JsonRecord;
+    },
+  ): Promise<SecurityFindingLink> {
+    if (input.fromFindingId === input.toFindingId) {
+      throw new BadRequestException('Cannot link a finding to itself');
+    }
+    if (!input.rationale.trim()) {
+      throw new BadRequestException('Finding link rationale is required');
+    }
+
+    const [fromExists, toExists] = await Promise.all([
+      this.findingExists(organizationId, input.fromFindingId),
+      this.findingExists(organizationId, input.toFindingId),
+    ]);
+    if (!fromExists || !toExists) {
+      throw new BadRequestException('Both findings must exist in the organization');
+    }
+
+    const now = new Date();
+    const confidence = Math.min(Math.max(input.confidence ?? 0.7, 0), 1);
+    const evidenceRefs = [...new Set(input.evidenceRefs ?? [])];
+    const relationshipType = input.relationshipType.trim();
+
+    await this.db
+      .insert(securityFindingLinks)
+      .values({
+        organizationId,
+        fromFindingId: input.fromFindingId,
+        toFindingId: input.toFindingId,
+        relationshipType,
+        confidence,
+        rationale: input.rationale.trim(),
+        evidenceRefs,
+        createdByAgentRunId: input.createdByAgentRunId ?? null,
+        createdBy: input.createdBy ?? null,
+        metadata: input.metadata ?? {},
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [
+          securityFindingLinks.organizationId,
+          securityFindingLinks.fromFindingId,
+          securityFindingLinks.toFindingId,
+          securityFindingLinks.relationshipType,
+        ],
+        set: {
+          confidence,
+          rationale: input.rationale.trim(),
+          evidenceRefs,
+          createdByAgentRunId: input.createdByAgentRunId ?? null,
+          createdBy: input.createdBy ?? null,
+          metadata: input.metadata ?? {},
+          updatedAt: now,
+        },
+      });
+
+    const links = await this.loadLinksByFinding(organizationId, [input.fromFindingId]);
+    const link = links
+      .get(input.fromFindingId)
+      ?.find(
+        (candidate) =>
+          candidate.fromFindingId === input.fromFindingId &&
+          candidate.toFindingId === input.toFindingId &&
+          candidate.relationshipType === relationshipType,
+      );
+    if (!link) throw new Error('Finding link was not created');
+    return link;
+  }
+
+  private async findingExists(organizationId: string, findingId: string): Promise<boolean> {
+    const result = await this.db.execute(sql`
+      SELECT 1
+      FROM security_finding_instances
+      WHERE organization_id = ${organizationId}
+        AND id = ${findingId}
+      LIMIT 1
+    `);
+    return result.rows.length > 0;
   }
 
   private async loadObservationsByFinding(observationIds: string[]) {
@@ -652,10 +797,118 @@ export class SecurityIngestionService {
     return byId;
   }
 
+  private async loadLinksByFinding(organizationId: string, findingIds: string[]) {
+    const byFinding = new Map<string, SecurityFindingLink[]>();
+    if (findingIds.length === 0) return byFinding;
+    for (const id of findingIds) byFinding.set(id, []);
+
+    const ids = sql`ARRAY[${sql.join(
+      findingIds.map((id) => sql`${id}`),
+      sql`, `,
+    )}]::text[]`;
+    const result = await this.db.execute(sql`
+      SELECT
+        l.id,
+        l.from_finding_id,
+        l.to_finding_id,
+        l.relationship_type,
+        l.confidence,
+        l.rationale,
+        l.evidence_refs,
+        l.created_by_agent_run_id,
+        l.created_by,
+        l.created_at,
+        l.updated_at,
+        from_finding.finding_key AS from_finding_key,
+        from_finding.status AS from_status,
+        from_finding.severity AS from_severity,
+        from_run.source_kind AS from_source_kind,
+        from_latest.title AS from_title,
+        to_finding.finding_key AS to_finding_key,
+        to_finding.status AS to_status,
+        to_finding.severity AS to_severity,
+        to_run.source_kind AS to_source_kind,
+        to_latest.title AS to_title
+      FROM security_finding_links l
+      JOIN security_finding_instances from_finding ON from_finding.id = l.from_finding_id
+      JOIN security_scanner_runs from_run ON from_run.id = from_finding.scanner_run_id
+      JOIN security_finding_instances to_finding ON to_finding.id = l.to_finding_id
+      JOIN security_scanner_runs to_run ON to_run.id = to_finding.scanner_run_id
+      LEFT JOIN LATERAL (
+        SELECT o.title
+        FROM security_observations o
+        WHERE o.id IN (SELECT jsonb_array_elements_text(from_finding.observation_refs))
+        ORDER BY o.observed_at DESC
+        LIMIT 1
+      ) from_latest ON true
+      LEFT JOIN LATERAL (
+        SELECT o.title
+        FROM security_observations o
+        WHERE o.id IN (SELECT jsonb_array_elements_text(to_finding.observation_refs))
+        ORDER BY o.observed_at DESC
+        LIMIT 1
+      ) to_latest ON true
+      WHERE l.organization_id = ${organizationId}
+        AND (l.from_finding_id = ANY(${ids}) OR l.to_finding_id = ANY(${ids}))
+      ORDER BY l.created_at DESC
+    `);
+
+    for (const row of result.rows as Record<string, unknown>[]) {
+      const fromFindingId = String(row.from_finding_id);
+      const toFindingId = String(row.to_finding_id);
+      const fromFinding = this.mapFindingSummary(row, 'from');
+      const toFinding = this.mapFindingSummary(row, 'to');
+      const linkBase = {
+        id: String(row.id),
+        fromFindingId,
+        toFindingId,
+        relationshipType: String(row.relationship_type),
+        confidence: Number(row.confidence ?? 0),
+        rationale: String(row.rationale),
+        evidenceRefs: jsonStringArray(row.evidence_refs),
+        createdByAgentRunId: stringOrNull(row.created_by_agent_run_id),
+        createdBy: stringOrNull(row.created_by),
+        createdAt: dateString(row.created_at),
+        updatedAt: dateString(row.updated_at),
+        fromFinding,
+        toFinding,
+      };
+
+      if (byFinding.has(fromFindingId)) {
+        byFinding.get(fromFindingId)?.push({
+          ...linkBase,
+          relatedFinding: toFinding,
+          direction: 'outgoing',
+        });
+      }
+      if (byFinding.has(toFindingId)) {
+        byFinding.get(toFindingId)?.push({
+          ...linkBase,
+          relatedFinding: fromFinding,
+          direction: 'incoming',
+        });
+      }
+    }
+
+    return byFinding;
+  }
+
+  private mapFindingSummary(row: Record<string, unknown>, prefix: 'from' | 'to') {
+    return {
+      id: String(row[`${prefix}_finding_id`]),
+      findingKey: String(row[`${prefix}_finding_key`]),
+      status: String(row[`${prefix}_status`]),
+      severity: String(row[`${prefix}_severity`]),
+      title: stringOrNull(row[`${prefix}_title`]),
+      sourceKind: String(row[`${prefix}_source_kind`]),
+    };
+  }
+
   private mapFindingRow(
     row: Record<string, unknown>,
     observationsById: Map<string, SecurityFinding['observations'][number]>,
     evidenceById: Map<string, SecurityFinding['evidence'][number]>,
+    linksById: Map<string, SecurityFindingLink[]>,
   ): SecurityFinding {
     const normalized = toRecord(row.latest_normalized);
     const scope = toRecord(row.scope);
@@ -700,6 +953,7 @@ export class SecurityIngestionService {
         : null,
       threatRefs: jsonStringArray(normalized.threatRefs),
       linkedFindingKeys: jsonStringArray(normalized.linkedFindingKeys),
+      relatedLinks: linksById.get(String(row.id)) ?? [],
       evidence: evidenceRefs.map((id) => evidenceById.get(id)).filter(isDefined),
       observations: observationRefs.map((id) => observationsById.get(id)).filter(isDefined),
     };

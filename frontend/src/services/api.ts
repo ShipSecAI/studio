@@ -20,6 +20,33 @@ export type IntegrationProviderConfiguration =
 export type OAuthStartResponse = components['schemas']['OAuthStartResponseDto'];
 export type ReportTemplate = components['schemas']['ReportTemplateResponseDto'];
 export type RenderReportTemplateResponse = components['schemas']['RenderReportTemplateResponseDto'];
+export interface SecurityFindingSummary {
+  id: string;
+  findingKey: string;
+  status: string;
+  severity: string;
+  title?: string | null;
+  sourceKind: string;
+}
+
+export interface SecurityFindingLink {
+  id: string;
+  fromFindingId: string;
+  toFindingId: string;
+  relationshipType: string;
+  confidence: number;
+  rationale: string;
+  evidenceRefs: string[];
+  createdByAgentRunId?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  fromFinding: SecurityFindingSummary;
+  toFinding: SecurityFindingSummary;
+  relatedFinding: SecurityFindingSummary;
+  direction: 'outgoing' | 'incoming';
+}
+
 export interface SecurityFinding {
   id: string;
   findingKey: string;
@@ -50,6 +77,7 @@ export interface SecurityFinding {
   asset?: { id: string; kind: string; stableKey: string; displayName: string } | null;
   threatRefs: string[];
   linkedFindingKeys: string[];
+  relatedLinks: SecurityFindingLink[];
   evidence: { id: string; summary?: string | null; artifactUri: string; capturedAt: string }[];
   observations: {
     id: string;
@@ -1805,6 +1833,35 @@ export const api = {
         headers,
       });
       if (!resp.ok) throw new Error('Failed to fetch security finding evidence');
+      return resp.json();
+    },
+    findingLinks: async (id: string): Promise<{ links: SecurityFindingLink[] }> => {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_V1_URL}/security-ingestion/findings/${id}/links`, {
+        headers,
+      });
+      if (!resp.ok) throw new Error('Failed to fetch security finding links');
+      return resp.json();
+    },
+    recordFindingLink: async (
+      id: string,
+      body: {
+        toFindingId: string;
+        relationshipType: string;
+        confidence?: number;
+        rationale: string;
+        evidenceRefs?: string[];
+        createdByAgentRunId?: string;
+        metadata?: Record<string, unknown>;
+      },
+    ): Promise<{ link: SecurityFindingLink }> => {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_V1_URL}/security-ingestion/findings/${id}/links`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) throw new Error('Failed to record security finding link');
       return resp.json();
     },
   },

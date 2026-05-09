@@ -234,6 +234,32 @@ function FindingDetails({ finding }: { finding: SecurityFinding | null }) {
           </Button>
         )}
 
+        {finding.relatedLinks.length > 0 && (
+          <>
+            <Separator />
+            <section>
+              <h4 className="mb-3 flex items-center gap-2 text-sm font-medium">
+                <Link2 className="h-4 w-4" />
+                Related findings
+              </h4>
+              <div className="space-y-2">
+                {finding.relatedLinks.map((link) => (
+                  <div key={link.id} className="border p-3 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">{link.relationshipType.replaceAll('_', ' ')}</Badge>
+                      <Badge variant="outline">{Math.round(link.confidence * 100)}%</Badge>
+                    </div>
+                    <div className="mt-2 font-medium">
+                      {link.relatedFinding.title ?? link.relatedFinding.findingKey}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{link.rationale}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+
         <Separator />
 
         <section>

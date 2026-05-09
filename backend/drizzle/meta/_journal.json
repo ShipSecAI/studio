@@ -106,6 +106,13 @@
       "when": 1777484161014,
       "tag": "0030_add_security_ingestion_surfaces",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1777484161015,
+      "tag": "0031_add_security_finding_links",
+      "breakpoints": true
     }
   ]
 }

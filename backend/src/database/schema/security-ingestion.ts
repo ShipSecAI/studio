@@ -342,6 +342,45 @@ export const securityFindingControlLinks = pgTable(
   }),
 );
 
+export const securityFindingLinks = pgTable(
+  'security_finding_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    fromFindingId: text('from_finding_id')
+      .notNull()
+      .references(() => securityFindingInstances.id, { onDelete: 'cascade' }),
+    toFindingId: text('to_finding_id')
+      .notNull()
+      .references(() => securityFindingInstances.id, { onDelete: 'cascade' }),
+    relationshipType: varchar('relationship_type', { length: 64 }).notNull(),
+    confidence: real('confidence').notNull().default(0.7),
+    rationale: text('rationale').notNull(),
+    evidenceRefs: jsonb('evidence_refs').$type<string[]>().notNull().default([]),
+    createdByAgentRunId: text('created_by_agent_run_id'),
+    createdBy: text('created_by'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    orgFromIdx: index('security_finding_links_org_from_idx').on(
+      table.organizationId,
+      table.fromFindingId,
+    ),
+    orgToIdx: index('security_finding_links_org_to_idx').on(
+      table.organizationId,
+      table.toFindingId,
+    ),
+    orgPairUnique: uniqueIndex('security_finding_links_org_pair_type_uidx').on(
+      table.organizationId,
+      table.fromFindingId,
+      table.toFindingId,
+      table.relationshipType,
+    ),
+  }),
+);
+
 export const securityGraphEdges = pgTable(
   'security_graph_edges',
   {
