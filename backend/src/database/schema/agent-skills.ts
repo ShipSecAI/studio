@@ -29,6 +29,10 @@ export const agentSkills = pgTable(
 
     // Skill content (the SKILL.md body after frontmatter)
     content: text('content').notNull(),
+    files: jsonb('files')
+      .$type<{ path: string; content: string; executable?: boolean }[]>()
+      .notNull()
+      .default([]),
 
     // Optional metadata
     license: varchar('license', { length: 191 }),

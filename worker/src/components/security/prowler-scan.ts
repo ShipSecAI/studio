@@ -53,6 +53,8 @@ const _ORG_SCAN_TIMEOUT_SECONDS = 7200; // 2 hours — reserved for future per-o
 const FLUSH_THRESHOLD = 5000;
 const PROWLER_ASFF_OUTPUT_FILE = 'shipsec.asff.json';
 const PROWLER_OCSF_OUTPUT_FILE = 'shipsec.ocsf.json';
+const PROWLER_JSON_ASFF_OUTPUT_FILE = 'shipsec.json.asff';
+const PROWLER_JSON_OCSF_OUTPUT_FILE = 'shipsec.json.ocsf';
 const GCP_IMPERSONATION_SOURCE_CREDENTIALS_ENV =
   'SHIPSEC_GCP_IMPERSONATION_SOURCE_CREDENTIALS_JSON';
 
@@ -412,12 +414,16 @@ function buildCommand(
   regions: string[],
   resolvedFlagArgs: string[],
   customFlags?: string,
+  projectId?: string,
 ): string[] {
   const cmd: string[] = [scanMode];
   if (scanMode === 'aws') {
     for (const region of regions) {
       cmd.push('--region', region);
     }
+  }
+  if (scanMode === 'gcp' && projectId?.trim()) {
+    cmd.push('--project-id', projectId.trim());
   }
   if (!resolvedFlagArgs.includes('--ignore-exit-code-3')) {
     resolvedFlagArgs.push('--ignore-exit-code-3');
@@ -435,7 +441,7 @@ function buildCommand(
   }
   cmd.push(
     '--output-formats',
-    scanMode === 'aws' ? 'json-asff' : 'json-ocsf',
+    'json-ocsf',
     '--output-directory',
     '/output',
     '--output-filename',
@@ -616,7 +622,12 @@ function computeSeverityCounts(findings: NormalisedFinding[]) {
 async function readProwlerJsonOutput(
   volume: Awaited<ReturnType<typeof createToolOutputVolume>>,
 ): Promise<string[]> {
-  for (const filename of [PROWLER_ASFF_OUTPUT_FILE, PROWLER_OCSF_OUTPUT_FILE]) {
+  for (const filename of [
+    PROWLER_OCSF_OUTPUT_FILE,
+    PROWLER_JSON_OCSF_OUTPUT_FILE,
+    PROWLER_ASFF_OUTPUT_FILE,
+    PROWLER_JSON_ASFF_OUTPUT_FILE,
+  ]) {
     try {
       const output = await readToolOutputFile(volume, filename, 'Prowler');
       if (output.trim().length > 0) {
@@ -636,6 +647,8 @@ async function readProwlerJsonOutput(
         return (
           lower.endsWith('.asff.json') ||
           lower.endsWith('.ocsf.json') ||
+          lower.endsWith('.json.asff') ||
+          lower.endsWith('.json.ocsf') ||
           lower.includes('json-asff') ||
           lower.includes('json-ocsf') ||
           lower.includes('asff') ||
@@ -724,13 +737,18 @@ async function executeSingleAccountScan(
   );
   context.emitProgress(`Executing prowler ${scanMode} scan`);
 
-  const cmd = buildCommand(scanMode, regions, resolvedFlagArgs, parsedParams.customFlags);
+  const cmd = buildCommand(
+    scanMode,
+    regions,
+    resolvedFlagArgs,
+    parsedParams.customFlags,
+    parsedInputs.gcpCredential?.defaultProjectId,
+  );
   context.logger.info(`[ProwlerScan] Command: ${cmd.join(' ')}`);
 
   const dockerRunner = {
     kind: 'docker',
     image: PROWLER_IMAGE,
-    platform: 'linux/amd64',
     network: 'bridge',
     timeoutSeconds: SINGLE_ACCOUNT_TIMEOUT_SECONDS,
     env: {
@@ -973,7 +991,6 @@ async function scanSingleOrgAccount(
     const dockerRunner = {
       kind: 'docker',
       image: PROWLER_IMAGE,
-      platform: 'linux/amd64',
       network: 'bridge',
       timeoutSeconds: SINGLE_ACCOUNT_TIMEOUT_SECONDS,
       env: {
@@ -1250,13 +1267,12 @@ const definition = defineComponent({
   runner: {
     kind: 'docker',
     image: PROWLER_IMAGE,
-    platform: 'linux/amd64',
     command: [], // Placeholder - actual command built dynamically in execute()
   },
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Execute Prowler inside Docker using `ghcr.io/shipsecai/prowler` (amd64 enforced on ARM hosts). Supports `prowler aws`, `prowler cloud`, `prowler gcp`, and `prowler kubernetes` modes. Org-wide mode currently applies to AWS.',
+  docs: 'Execute Prowler inside Docker using `ghcr.io/shipsecai/prowler`. Docker selects the native platform from the multi-arch image. Supports `prowler aws`, `prowler cloud`, `prowler gcp`, and `prowler kubernetes` modes. Org-wide mode currently applies to AWS.',
   toolProvider: {
     kind: 'component',
     name: 'prowler_scan',

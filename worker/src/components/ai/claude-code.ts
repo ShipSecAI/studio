@@ -12,6 +12,7 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
+import { securityWikiContextSchema } from '../core/security-wiki-context';
 import {
   requireOrganizationApiKey,
   shouldRouteViaGateway,
@@ -85,6 +86,12 @@ const inputSchema = inputs({
       reason: 'Accepts any stringifiable data for the agent workspace.',
     },
   ),
+  wikiContext: port(securityWikiContextSchema.optional(), {
+    label: 'Security Wiki Context',
+    description:
+      'Optional wiki mount/instruction context from the Security Wiki Context component.',
+    connectionType: { kind: 'primitive', name: 'json' },
+  }),
 });
 
 const parameterSchema = parameters({
@@ -182,7 +189,14 @@ const definition = defineComponent({
     },
   },
   async execute({ inputs, params }, context) {
-    const { task, context: taskContext, model, supplementaryA, supplementaryB } = inputs;
+    const {
+      task,
+      context: taskContext,
+      model,
+      supplementaryA,
+      supplementaryB,
+      wikiContext,
+    } = inputs;
     const { systemPrompt, skills: selectedSkills, enablePlugins } = params;
 
     const { organizationId } = context.metadata;
@@ -256,6 +270,9 @@ Please investigate the issue and generate a detailed report.
     if (supplementaryB) suppFiles.push('/workspace/supplementary-b.txt');
     if (suppFiles.length > 0) {
       finalPrompt += `\n\n# Additional Data Files\n${suppFiles.map((f) => `- ${f}`).join('\n')}`;
+    }
+    if (wikiContext?.enabled) {
+      finalPrompt = `${wikiContext.instructions}\n\n${finalPrompt}`;
     }
 
     // 5. Setup Isolated Volume
@@ -364,9 +381,21 @@ Please investigate the issue and generate a detailed report.
         entrypoint: '/bin/sh',
         command: ['/workspace/run.sh'],
         network: 'host' as const,
-        env: { ...providerEnv, HOME: '/tmp' },
+        env: { ...providerEnv, HOME: '/tmp', ...(wikiContext?.enabled ? wikiContext.env : {}) },
         volumes: [
           volume.getVolumeConfig('/workspace', false), // Read-write
+          ...(wikiContext?.enabled
+            ? [
+                {
+                  source: wikiContext.wikiPath,
+                  target: '/workspace/wiki',
+                  readOnly: wikiContext.accessMode === 'read',
+                },
+                ...(wikiContext.repoPath
+                  ? [{ source: wikiContext.repoPath, target: '/workspace/repo', readOnly: true }]
+                  : []),
+              ]
+            : []),
         ],
         workingDir: '/workspace',
         expectOutputFile: false,

@@ -102,6 +102,7 @@ const SecurityDashboard = lazy(() =>
 const FindingsPage = lazy(() =>
   import('@/pages/FindingsPage').then((m) => ({ default: m.FindingsPage })),
 );
+const SecurityWikiPage = lazy(() => import('@/pages/SecurityWikiPage'));
 const HomePage = lazy(() => import('@/pages/HomePage').then((m) => ({ default: m.HomePage })));
 const WorkflowTemplatesPage = lazy(() =>
   import('@/pages/WorkflowTemplatesPage').then((m) => ({ default: m.WorkflowTemplatesPage })),
@@ -323,6 +324,7 @@ function App() {
                               <Route element={<FeatureFlagRoute flag="AI_FINDINGS" />}>
                                 <Route path="/findings" element={<FindingsPage />} />
                               </Route>
+                              <Route path="/security-wiki" element={<SecurityWikiPage />} />
 
                               {/* Settings sub-pages — individually gated */}
                               <Route element={<FeatureFlagRoute flag="SECRETS" />}>

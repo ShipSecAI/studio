@@ -49,6 +49,28 @@ export const ApiKeyPermissionsSchema = z.object({
       resolve: z.boolean().optional(),
     })
     .optional(),
+  analytics: z
+    .object({
+      query: z.boolean().optional(),
+    })
+    .optional(),
+  assets: z
+    .object({
+      list: z.boolean().optional(),
+      read: z.boolean().optional(),
+    })
+    .optional(),
+  'cloud-graph': z
+    .object({
+      query: z.boolean().optional(),
+    })
+    .optional(),
+  'report-templates': z
+    .object({
+      read: z.boolean().optional(),
+      write: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const CreateApiKeySchema = z.object({

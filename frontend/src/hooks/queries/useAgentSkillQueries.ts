@@ -7,6 +7,7 @@ export interface AgentSkillResponse {
   name: string;
   description: string;
   content: string;
+  files: { path: string; content: string; executable?: boolean }[];
   license?: string | null;
   compatibility?: string | null;
   metadata?: Record<string, unknown> | null;
@@ -20,6 +21,7 @@ export interface CreateAgentSkillInput {
   name: string;
   description: string;
   content: string;
+  files?: { path: string; content: string; executable?: boolean }[];
   license?: string;
   compatibility?: string;
   metadata?: Record<string, unknown>;
@@ -31,6 +33,7 @@ export interface UpdateAgentSkillInput {
   name?: string;
   description?: string;
   content?: string;
+  files?: { path: string; content: string; executable?: boolean }[];
   license?: string | null;
   compatibility?: string | null;
   metadata?: Record<string, unknown> | null;

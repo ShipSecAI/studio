@@ -37,6 +37,7 @@ export class AgentSkillsService {
       name: record.name,
       description: record.description,
       content: record.content,
+      files: record.files ?? [],
       license: record.license ?? null,
       compatibility: record.compatibility ?? null,
       metadata: record.metadata ?? null,
@@ -84,6 +85,7 @@ export class AgentSkillsService {
       name: input.name.trim(),
       description: input.description.trim(),
       content: input.content,
+      files: sanitizeSkillFiles(input.files ?? []),
       license: input.license ?? null,
       compatibility: input.compatibility ?? null,
       metadata: input.metadata ?? null,
@@ -117,6 +119,7 @@ export class AgentSkillsService {
       name: string;
       description: string;
       content: string;
+      files: { path: string; content: string; executable?: boolean }[];
       license: string | null;
       compatibility: string | null;
       metadata: Record<string, unknown> | null;
@@ -138,6 +141,10 @@ export class AgentSkillsService {
 
     if (input.content !== undefined) {
       updates.content = input.content;
+    }
+
+    if (input.files !== undefined) {
+      updates.files = sanitizeSkillFiles(input.files);
     }
 
     if (input.license !== undefined) {
@@ -243,4 +250,20 @@ export class AgentSkillsService {
     const skill = await this.repository.findById(id, { organizationId });
     return { content: this.previewSkillMd(skill) };
   }
+}
+
+function sanitizeSkillFiles(
+  files: { path: string; content: string; executable?: boolean }[],
+): { path: string; content: string; executable?: boolean }[] {
+  return files.map((file) => {
+    const path = file.path.trim().replace(/^\/+/, '');
+    if (!path || path === 'SKILL.md' || path.includes('..')) {
+      throw new BadRequestException(`Invalid skill bundle file path: ${file.path}`);
+    }
+    return {
+      path,
+      content: file.content,
+      ...(file.executable ? { executable: true } : {}),
+    };
+  });
 }

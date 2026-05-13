@@ -16,6 +16,28 @@ export const CreateApiKeyInputSchema = z.object({
     audit: z.object({
       read: z.boolean().default(false),
     }),
+    analytics: z
+      .object({
+        query: z.boolean().default(false),
+      })
+      .optional(),
+    assets: z
+      .object({
+        list: z.boolean().default(false),
+        read: z.boolean().default(false),
+      })
+      .optional(),
+    'cloud-graph': z
+      .object({
+        query: z.boolean().default(false),
+      })
+      .optional(),
+    'report-templates': z
+      .object({
+        read: z.boolean().default(false),
+        write: z.boolean().default(false),
+      })
+      .optional(),
   }),
   expiresAt: z.string().optional(), // ISO date string
   rateLimit: z.number().int().positive().optional(),
@@ -40,6 +62,28 @@ export const UpdateApiKeyInputSchema = z.object({
       audit: z
         .object({
           read: z.boolean().optional(),
+        })
+        .optional(),
+      analytics: z
+        .object({
+          query: z.boolean().optional(),
+        })
+        .optional(),
+      assets: z
+        .object({
+          list: z.boolean().optional(),
+          read: z.boolean().optional(),
+        })
+        .optional(),
+      'cloud-graph': z
+        .object({
+          query: z.boolean().optional(),
+        })
+        .optional(),
+      'report-templates': z
+        .object({
+          read: z.boolean().optional(),
+          write: z.boolean().optional(),
         })
         .optional(),
     })

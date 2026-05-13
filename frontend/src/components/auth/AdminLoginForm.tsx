@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store/authStore';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
+import { API_BASE_URL } from '@/services/api';
 
 export function AdminLoginForm() {
   const [username, setUsername] = useState('');
@@ -34,9 +35,9 @@ export function AdminLoginForm() {
     try {
       // Validate credentials and set session cookie via /auth/login endpoint
       // This sets an httpOnly cookie for browser navigation to protected routes (e.g., /analytics/)
-      // Use relative path to ensure cookie is set via nginx (same origin as /analytics/* routes)
+      // Use the shared API base so Docker preview can call the host-mapped backend directly.
       const credentials = btoa(`${trimmedUsername}:${trimmedPassword}`);
-      const loginResponse = await fetch('/api/v1/auth/login', {
+      const loginResponse = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           Authorization: `Basic ${credentials}`,

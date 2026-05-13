@@ -70,20 +70,35 @@ export class AssetDiscoveryRepository {
           .where(eq(assets.id, existing[0].id));
         updated++;
       } else {
-        await this.db.insert(assets).values({
-          id: s.id,
-          organizationId,
-          integrationId,
-          provider: s.provider,
-          accountIdentifier: s.accountIdentifier ?? null,
-          assetType: s.assetType,
-          externalId: s.externalId,
-          name: s.name ?? null,
-          region: s.region ?? null,
-          metadata: s.metadata,
-          firstDiscoveredAt: new Date(s.firstSeenAt),
-          lastSeenAt: new Date(s.lastSeenAt),
-        });
+        await this.db
+          .insert(assets)
+          .values({
+            id: s.id,
+            organizationId,
+            integrationId,
+            provider: s.provider,
+            accountIdentifier: s.accountIdentifier ?? null,
+            assetType: s.assetType,
+            externalId: s.externalId,
+            name: s.name ?? null,
+            region: s.region ?? null,
+            metadata: s.metadata,
+            firstDiscoveredAt: new Date(s.firstSeenAt),
+            lastSeenAt: new Date(s.lastSeenAt),
+          })
+          .onConflictDoUpdate({
+            target: [assets.organizationId, assets.provider, assets.assetType, assets.externalId],
+            set: {
+              integrationId,
+              accountIdentifier: s.accountIdentifier ?? null,
+              name: s.name ?? null,
+              region: s.region ?? null,
+              metadata: s.metadata,
+              lastSeenAt: new Date(s.lastSeenAt),
+              status: 'active',
+              updatedAt: new Date(),
+            },
+          });
         created++;
       }
     }

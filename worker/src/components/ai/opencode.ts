@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { existsSync } from 'node:fs';
 import {
   componentRegistry,
   ComponentRetryPolicy,
@@ -13,6 +12,7 @@ import {
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { createIsolatedVolume, resolveVolumeSource } from '../../utils/isolated-volume';
+import { securityWikiContextSchema } from '../core/security-wiki-context';
 import {
   requireOrganizationApiKey,
   shouldRouteViaGateway,
@@ -94,6 +94,12 @@ const inputSchema = inputs({
       reason: 'Accepts any stringifiable data for the agent workspace.',
     },
   ),
+  wikiContext: port(securityWikiContextSchema.optional(), {
+    label: 'Security Wiki Context',
+    description:
+      'Optional wiki mount/instruction context from the Security Wiki Context component.',
+    connectionType: { kind: 'primitive', name: 'json' },
+  }),
 });
 
 const parameterSchema = parameters({
@@ -156,6 +162,28 @@ const parameterSchema = parameters({
         'Mount this host binary at /usr/local/bin/hotplug so agents can compose MCP tools from shell scripts.',
     },
   ),
+  opencodeAuthHostPath: param(
+    z
+      .string()
+      .optional()
+      .default(process.env.OPENCODE_AUTH_HOST_PATH ?? '')
+      .describe('Optional host path to an OpenCode auth.json file to mount into the agent.'),
+    {
+      label: 'OpenCode Auth Path',
+      editor: 'text',
+      description:
+        'Mount this host auth.json into the agent container so providers such as OpenCode Go can use local credentials.',
+    },
+  ),
+  timeoutSeconds: param(
+    z.number().int().min(60).max(7200).default(1200).describe('Agent container timeout.'),
+    {
+      label: 'Timeout Seconds',
+      editor: 'number',
+      description:
+        'Maximum time the OpenCode container may run. Repo-wide reviews need more than the Docker runner default.',
+    },
+  ),
 });
 
 const outputSchema = outputs({
@@ -175,7 +203,7 @@ const definition = defineComponent({
   category: 'ai',
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/shipsecai/opencode:latest',
+    image: process.env.OPENCODE_IMAGE?.trim() || 'ghcr.io/anomalyco/opencode:latest',
     entrypoint: 'opencode', // We will override this in execution
     network: 'host' as const, // Required to access localhost gateway
     command: ['help'],
@@ -211,6 +239,7 @@ const definition = defineComponent({
       supplementaryA,
       supplementaryB,
       workspaceVolumeName,
+      wikiContext,
     } = inputs;
     const {
       systemPrompt,
@@ -218,6 +247,8 @@ const definition = defineComponent({
       skills: selectedSkills,
       enablePlugins,
       hotplugCliHostPath,
+      opencodeAuthHostPath,
+      timeoutSeconds,
     } = params;
 
     const { organizationId } = context.metadata;
@@ -229,26 +260,32 @@ const definition = defineComponent({
     // Helper to map provider to OpenCode model string format
     const getOpenCodeModelString = (
       model: { provider: string; modelId: string } | undefined,
+      routeViaGateway = false,
     ): string => {
       if (!model) return 'gpt-4o';
+      if (routeViaGateway && model.provider === 'openai') {
+        return `shipsec-gateway/${model.modelId}`;
+      }
       // OpenCode expects models in format: provider/modelId
       // Most providers follow this pattern
       return `${model.provider}/${model.modelId}`;
     };
 
+    const routeViaGateway = shouldRouteViaGateway() && model?.provider === 'openai';
+
     // When the AI gateway is enabled and no user-provided key, use the org key.
     let orgVirtualKey: string | undefined;
-    if (shouldRouteViaGateway() && !model?.apiKey && organizationId) {
+    if (routeViaGateway && !model?.apiKey && organizationId) {
       orgVirtualKey = await requireOrganizationApiKey(organizationId, {
         consumer: 'OpenCode agent',
       });
-    } else if (shouldRouteViaGateway() && !model?.apiKey) {
+    } else if (routeViaGateway && !model?.apiKey) {
       orgVirtualKey = await requireOrganizationApiKey(organizationId ?? null, {
         consumer: 'OpenCode agent',
       });
     }
 
-    const providerEnv = buildProviderEnv(model, orgVirtualKey);
+    const providerEnv = buildProviderEnv(model, orgVirtualKey, routeViaGateway);
     const gatewayBaseUrl = getGatewayBaseUrl();
     const gatewayApiKey = model?.apiKey || orgVirtualKey;
 
@@ -257,22 +294,7 @@ const definition = defineComponent({
     // Correct format from https://opencode.ai/docs/mcp-servers/
     // CRITICAL: oauth: false is required for custom headers (OAuth is auto-detected as default in v1.0.137+)
     // See: https://github.com/anomalyco/opencode/issues/5278
-    const mcpConfig =
-      hotplugMcpUrl && hotplugMcpToken
-        ? {
-            mcp: {
-              'workflow-tools': {
-                type: 'remote' as const,
-                url: hotplugMcpUrl,
-                oauth: false,
-                headers: {
-                  Authorization: `Bearer ${hotplugMcpToken}`,
-                },
-                enabled: true,
-              },
-            },
-          }
-        : { mcp: {} };
+    const mcpConfig = { mcp: {} };
 
     // Build provider config for OpenCode
     // Z.AI requires the API key to be in provider.options.apiKey
@@ -286,9 +308,10 @@ const definition = defineComponent({
             },
           }
         : {}),
-      ...(gatewayBaseUrl && model?.provider === 'openai' && model.modelId
+      ...(routeViaGateway && gatewayBaseUrl && model?.provider === 'openai' && model.modelId
         ? {
-            openai: {
+            'shipsec-gateway': {
+              npm: '@ai-sdk/openai-compatible',
               name: 'ShipSec AI Gateway',
               options: {
                 baseURL: gatewayBaseUrl,
@@ -305,7 +328,7 @@ const definition = defineComponent({
     const opencodeConfig = {
       ...mcpConfig,
       provider: providerConfigForOpenCode,
-      model: getOpenCodeModelString(model),
+      model: getOpenCodeModelString(model, routeViaGateway),
       permission: 'allow',
       // Merge in any additional provider config from parameters
       ...providerConfig,
@@ -346,15 +369,19 @@ Please investigate the issue and generate a detailed report.
     }
     if (workspaceVolumeName) {
       finalPrompt +=
-        '\n\n# Repository Workspace\nA read-only checkout is mounted at /workspace/repo-workspace/repo. Use it as the source of truth for code review.';
+        '\n\n# Repository Workspace\nA read-only checkout is mounted at /workspace/repo-workspace. Single-repo workflows use /workspace/repo-workspace/repo. Multi-repo workflows use /workspace/repo-workspace/repos/<owner__repo>. Inspect all mounted repositories before concluding.';
+    }
+    if (wikiContext?.enabled) {
+      finalPrompt = `${wikiContext.instructions}\n\n${finalPrompt}`;
     }
     if (hotplugMcpUrl && hotplugMcpToken) {
       finalPrompt += [
         '',
         '# CLI Tool Access',
-        'Use the Hotplug CLI when you need to compose multiple tools, inspect schemas, or write scratch scripts that join results across tools.',
-        '- List tools: `hotplug mcp tools list`',
-        "- Call tools: `hotplug mcp tools call <tool_name> '<json args>'`",
+        'Use the Hotplug CLI for ShipSec tools. No native OpenCode MCP tools are configured for this run.',
+        '- Check CLI: `hotplug --help`',
+        '- List tools via CLI: `hotplug mcp tools list`',
+        "- Call tools via CLI: `hotplug mcp tools call <tool_name> '<json args>'`",
         '- Read the local helper notes at `/workspace/tools/README.md`.',
         'The environment already contains `HOTPLUG_MCP_URL` and `HOTPLUG_MCP_TOKEN`.',
       ].join('\n');
@@ -371,20 +398,23 @@ Please investigate the issue and generate a detailed report.
       // Note: --quiet flag doesn't exist in opencode 1.1.34, use --log-level ERROR instead
       // Generate plugin setup lines if plugins are enabled
       const pluginSetupLines = getOpenCodePluginSetupScript(enablePlugins ?? []);
+      const opencodeModel = getOpenCodeModelString(model, routeViaGateway);
 
       const wrapperScript = [
         '#!/bin/sh',
         'set -e',
+        'mkdir -p /root/.local/share/opencode',
+        'if [ -f /opencode-auth/auth.json ]; then cp /opencode-auth/auth.json /root/.local/share/opencode/auth.json; chmod 600 /root/.local/share/opencode/auth.json; fi',
         'cd /workspace',
-        'chmod +x /workspace/tools/shipsec-tools 2>/dev/null || true',
+        'chmod +x /workspace/tools/shipsec-tools /workspace/tools/hotplug 2>/dev/null || true',
         'export PATH="/workspace/tools:/usr/local/bin:$PATH"',
-        'if [ -n "${HOTPLUG_MCP_URL:-}" ] && command -v hotplug >/dev/null 2>&1; then hotplug mcp init >&2 || true; fi',
+        'if command -v hotplug >/dev/null 2>&1 && ! hotplug --help >/dev/null 2>&1; then rm -f /workspace/tools/hotplug-disabled; touch /workspace/tools/hotplug-disabled; fi',
         ...pluginSetupLines,
         '# List MCP tools for debugging (stderr only)',
         'opencode mcp list --log-level ERROR >&2 || true',
         '# Run the agent. Some cheap models stop after tool calls, so request a final answer once after the inspection pass.',
-        'opencode run --log-level ERROR "$(cat /workspace/prompt.txt)" > /workspace/opencode-output.txt',
-        'opencode run --continue --log-level ERROR "Return your final answer now. Do not call more tools. Use the exact output format requested in the original task." >> /workspace/opencode-output.txt',
+        'opencode -m "$OPENCODE_MODEL" run --log-level ERROR "$(cat /workspace/prompt.txt)" > /workspace/opencode-output.txt',
+        'if [ -z "${HOTPLUG_MCP_URL:-}" ]; then opencode -m "$OPENCODE_MODEL" run --continue --log-level ERROR "Return your final answer now. Do not call more tools. Use the exact output format requested in the original task." >> /workspace/opencode-output.txt; fi',
         'cat /workspace/opencode-output.txt',
         '',
       ].join('\n');
@@ -399,6 +429,7 @@ Please investigate the issue and generate a detailed report.
         'prompt.txt': finalPrompt,
         'run.sh': wrapperScript,
         'tools/README.md': buildHotplugToolReadme(Boolean(hotplugMcpUrl && hotplugMcpToken)),
+        'tools/hotplug': buildHotplugCliShim(),
         'tools/shipsec-tools': buildShipsecToolsWrapper(),
       };
       if (supplementaryA) workspaceFiles['supplementary-a.txt'] = supplementaryA;
@@ -418,6 +449,7 @@ Please investigate the issue and generate a detailed report.
       await volume.initialize(workspaceFiles);
 
       const hotplugCliMount = resolveHotplugCliMount(hotplugCliHostPath);
+      const opencodeAuthMount = resolveHostPathMount(opencodeAuthHostPath);
       if (hotplugMcpUrl && !hotplugCliMount) {
         context.logger.warn(
           '[OpenCode] Hotplug MCP session is attached, but no hotplug CLI binary was mounted. Set HOTPLUG_CLI_HOST_PATH or the Hotplug CLI Path parameter for CLI-native agent scripting.',
@@ -434,16 +466,39 @@ Please investigate the issue and generate a detailed report.
         network: 'host' as const,
         env: {
           ...providerEnv,
+          OPENCODE_MODEL: opencodeModel,
           ...(hotplugMcpUrl ? { HOTPLUG_MCP_URL: hotplugMcpUrl } : {}),
           ...(hotplugMcpToken ? { HOTPLUG_MCP_TOKEN: hotplugMcpToken } : {}),
+          ...(wikiContext?.enabled ? wikiContext.env : {}),
         },
         volumes: [
           volume.getVolumeConfig('/workspace', false), // Read-write, mounted at /workspace
+          ...(wikiContext?.enabled
+            ? [
+                {
+                  source: wikiContext.wikiPath,
+                  target: '/workspace/wiki',
+                  readOnly: wikiContext.accessMode === 'read',
+                },
+                ...(wikiContext.repoPath
+                  ? [{ source: wikiContext.repoPath, target: '/workspace/repo', readOnly: true }]
+                  : []),
+              ]
+            : []),
           ...(hotplugCliMount
             ? [
                 {
                   source: hotplugCliMount,
                   target: '/usr/local/bin/hotplug',
+                  readOnly: true,
+                },
+              ]
+            : []),
+          ...(opencodeAuthMount
+            ? [
+                {
+                  source: opencodeAuthMount,
+                  target: '/opencode-auth/auth.json',
                   readOnly: true,
                 },
               ]
@@ -459,6 +514,7 @@ Please investigate the issue and generate a detailed report.
             : []),
         ],
         workingDir: '/workspace',
+        timeoutSeconds,
         // Output managed by component, not /shipsec-output/result.json
         expectOutputFile: false,
       };
@@ -522,9 +578,12 @@ Please investigate the issue and generate a detailed report.
 });
 
 function resolveHotplugCliMount(hostPath: string | undefined): string | undefined {
+  return resolveHostPathMount(hostPath);
+}
+
+function resolveHostPathMount(hostPath: string | undefined): string | undefined {
   const trimmed = hostPath?.trim();
-  if (!trimmed) return undefined;
-  return existsSync(trimmed) ? trimmed : undefined;
+  return trimmed || undefined;
 }
 
 function buildShipsecToolsWrapper(): string {
@@ -533,20 +592,33 @@ function buildShipsecToolsWrapper(): string {
     'set -e',
     'case "${1:-}" in',
     '  list)',
-    '    exec hotplug mcp tools list',
+    '    exec /workspace/tools/hotplug mcp tools list',
     '    ;;',
     '  call)',
     '    shift',
-    '    exec hotplug mcp tools call "$@"',
+    '    exec /workspace/tools/hotplug mcp tools call "$@"',
     '    ;;',
     '  init)',
-    '    exec hotplug mcp init',
+    '    exec /workspace/tools/hotplug mcp init',
     '    ;;',
     '  *)',
     '    echo "usage: shipsec-tools list | call <tool> <json> | init" >&2',
     '    exit 2',
     '    ;;',
     'esac',
+    '',
+  ].join('\n');
+}
+
+function buildHotplugCliShim(): string {
+  return [
+    '#!/bin/sh',
+    'set -e',
+    'if [ -x /usr/local/bin/hotplug ] && /usr/local/bin/hotplug --help >/dev/null 2>&1; then',
+    '  exec /usr/local/bin/hotplug "$@"',
+    'fi',
+    'echo "Hotplug CLI is unavailable in this Linux agent container; no native OpenCode MCP tools are configured for this run." >&2',
+    'exit 127',
     '',
   ].join('\n');
 }
@@ -563,9 +635,9 @@ function buildHotplugToolReadme(hasHotplugSession: boolean): string {
   return [
     '# ShipSec Tools',
     '',
-    'This workspace exposes the workflow tool session through the Hotplug CLI.',
+    'This workspace exposes workflow tools through the Hotplug CLI. No native OpenCode MCP server is configured for these tools.',
     '',
-    'Useful commands:',
+    'CLI fallback is available only when `hotplug --help` succeeds. Useful commands:',
     '',
     '```sh',
     'hotplug mcp init',
@@ -633,9 +705,10 @@ function cleanReport(raw: string): string {
 function buildProviderEnv(
   model?: { provider: string; apiKey?: string },
   orgVirtualKey?: string,
+  routeViaGateway = false,
 ): Record<string, string> {
   const gatewayBaseUrl = getGatewayBaseUrl();
-  if (gatewayBaseUrl) {
+  if (routeViaGateway && gatewayBaseUrl) {
     const key = model?.apiKey || orgVirtualKey;
     return key
       ? {

@@ -29,7 +29,13 @@ import {
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { AgentStreamRecorder } from './agent-stream-recorder';
 
-type ModelProvider = 'openai' | 'gemini' | 'openrouter' | 'zai-coding-plan' | 'anthropic';
+type ModelProvider =
+  | 'openai'
+  | 'gemini'
+  | 'openrouter'
+  | 'zai-coding-plan'
+  | 'anthropic'
+  | 'opencode-go';
 
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL ?? '';
 const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL ?? '';

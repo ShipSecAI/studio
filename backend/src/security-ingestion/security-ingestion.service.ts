@@ -238,6 +238,18 @@ function jsonStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === 'string' && item.length > 0);
 }
 
+function uniqueBy<T>(items: T[], getKey: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (const item of items) {
+    const key = getKey(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+  }
+  return unique;
+}
+
 function normalizeStatusForControl(status?: string): string {
   const normalized = (status ?? '').toUpperCase();
   if (normalized.includes('FAIL') || normalized === 'OPEN' || normalized === 'MATCHED') {
@@ -1246,6 +1258,23 @@ export class SecurityIngestionService {
     const agentFinding = toRecord(normalized.agentFinding);
     const observationRefs = jsonStringArray(row.observation_refs);
     const evidenceRefs = jsonStringArray(row.evidence_refs);
+    const evidence = uniqueBy(
+      evidenceRefs.map((id) => evidenceById.get(id)).filter(isDefined),
+      (evidence) => `${evidence.summary ?? evidence.artifactUri}|${evidence.capturedAt}`,
+    );
+    const observations = uniqueBy(
+      observationRefs.map((id) => observationsById.get(id)).filter(isDefined),
+      (observation) =>
+        [
+          observation.status ?? '',
+          observation.title,
+          observation.observedAt,
+          observation.runId ?? '',
+          observation.reviewMode ?? '',
+          observation.lifecycleHint ?? '',
+          observation.prNumber ?? '',
+        ].join('|'),
+    );
 
     return {
       id: String(row.id),
@@ -1285,8 +1314,8 @@ export class SecurityIngestionService {
       threatRefs: jsonStringArray(normalized.threatRefs),
       linkedFindingKeys: jsonStringArray(normalized.linkedFindingKeys),
       relatedLinks: linksById.get(String(row.id)) ?? [],
-      evidence: evidenceRefs.map((id) => evidenceById.get(id)).filter(isDefined),
-      observations: observationRefs.map((id) => observationsById.get(id)).filter(isDefined),
+      evidence,
+      observations,
     };
   }
 

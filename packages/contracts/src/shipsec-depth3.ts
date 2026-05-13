@@ -342,16 +342,10 @@ function shouldCreateFinding(
   status: string,
   severity: z.infer<typeof FindingSeveritySchema>,
 ): boolean {
-  return (
-    status === 'FAILED' ||
-    status === 'WARNING' ||
-    status === 'OPEN' ||
-    status === 'MATCHED' ||
-    severity === 'critical' ||
-    severity === 'high' ||
-    severity === 'medium' ||
-    severity === 'low'
-  );
+  if (severity === 'info' || severity === 'unknown') {
+    return false;
+  }
+  return status === 'FAILED' || status === 'WARNING' || status === 'OPEN' || status === 'MATCHED';
 }
 
 function collectStrings(value: unknown, output: string[] = []): string[] {
@@ -594,7 +588,7 @@ export function normalizeProwlerCloudIngestion(
   const stats = createStats(rawRecords.length);
   const assetByKey = new Map<string, AssetIdentity>();
   const observations: Observation[] = [];
-  const findingInstances: FindingInstance[] = [];
+  const findingInstancesById = new Map<string, FindingInstance>();
   const evidenceItems: EvidenceItem[] = [];
 
   rawRecords.forEach((raw, index) => {
@@ -636,6 +630,7 @@ export function normalizeProwlerCloudIngestion(
         extracted.checkId,
         asset.stableKey,
         extracted.status,
+        index,
       ),
       organizationId: scannerRun.organizationId,
       scannerRunId: scannerRun.id,
@@ -666,9 +661,27 @@ export function normalizeProwlerCloudIngestion(
     countStatus(stats, extracted.status);
 
     if (shouldCreateFinding(extracted.status, extracted.severity)) {
-      findingInstances.push(
-        findingInstanceSchema().parse({
-          id: stableId('finding', scannerRun.organizationId, extracted.checkId, asset.stableKey),
+      const findingId = stableId(
+        'finding',
+        scannerRun.organizationId,
+        extracted.checkId,
+        asset.stableKey,
+      );
+      const existingFinding = findingInstancesById.get(findingId);
+      if (existingFinding) {
+        existingFinding.observationRefs = uniqueStrings([
+          ...existingFinding.observationRefs,
+          observation.id,
+        ]);
+        existingFinding.evidenceRefs = uniqueStrings([
+          ...existingFinding.evidenceRefs,
+          evidence.id,
+        ]);
+      } else {
+        findingInstancesById.set(
+          findingId,
+          findingInstanceSchema().parse({
+            id: findingId,
           organizationId: scannerRun.organizationId,
           scannerRunId: scannerRun.id,
           observationRefs: [observation.id],
@@ -681,10 +694,12 @@ export function normalizeProwlerCloudIngestion(
           lastSeenAt: observedAt,
           evidenceRefs: [evidence.id],
         }),
-      );
+        );
+      }
     }
   });
 
+  const findingInstances = Array.from(findingInstancesById.values());
   stats.assetCount = assetByKey.size;
   stats.observationCount = observations.length;
   stats.findingInstanceCount = findingInstances.length;

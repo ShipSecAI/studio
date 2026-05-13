@@ -20,6 +20,117 @@ export type IntegrationProviderConfiguration =
 export type OAuthStartResponse = components['schemas']['OAuthStartResponseDto'];
 export type ReportTemplate = components['schemas']['ReportTemplateResponseDto'];
 export type RenderReportTemplateResponse = components['schemas']['RenderReportTemplateResponseDto'];
+
+export interface GitHubRepo {
+  id: string;
+  repoId: number;
+  fullName: string;
+  name: string;
+  owner: string;
+  defaultBranch: string | null;
+  language: string | null;
+}
+
+export interface SecurityWikiTreeNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size?: number;
+  updatedAt?: string;
+  extension?: string;
+  children?: SecurityWikiTreeNode[];
+}
+
+export interface SecurityWikiTreeResponse {
+  configId: string;
+  provider: string;
+  repoName?: string | null;
+  rootPath?: string | null;
+  codeSources?: SecurityWikiCodeSource[];
+  tree: SecurityWikiTreeNode[];
+}
+
+export interface SecurityWikiFile {
+  path: string;
+  name: string;
+  extension: string;
+  size: number;
+  updatedAt: string;
+  content: string;
+}
+
+export interface SecurityWikiCodeSource {
+  repoId: string;
+  fullName: string;
+  repoOwner?: string;
+  repoName?: string;
+  defaultBranch?: string | null;
+  enabled: boolean;
+  cadence: 'manual' | 'nightly' | 'weekly';
+  addedAt: string;
+}
+
+export interface SecurityWikiConfig {
+  id: string;
+  organizationId: string;
+  provider: 'local' | 'github';
+  repoOwner?: string | null;
+  repoName: string;
+  repoUrl?: string | null;
+  localPath?: string | null;
+  defaultBranch: string;
+  rootPath: string;
+  pathPolicy?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  codeSources?: SecurityWikiCodeSource[];
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SecurityWikiRun {
+  id: string;
+  organizationId: string;
+  wikiConfigId: string;
+  runId: string;
+  agentName: string;
+  repoSlug: string;
+  repoPath?: string | null;
+  model?: string | null;
+  status: string;
+  wikiBaseCommit?: string | null;
+  outputCommit?: string | null;
+  mergeCommit?: string | null;
+  repoCommit?: string | null;
+  branchName?: string | null;
+  changedFiles?: string[] | null;
+  validation?: Record<string, unknown> | null;
+  error?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+}
+
+export interface RunCodeWikiIngestionRequest {
+  repoPath: string;
+  repoSlug: string;
+  runId?: string;
+  agentName?: string;
+  model?: string;
+  promptText?: string;
+  codexHome?: string;
+}
+
+export interface RunCodeWikiIngestionResponse {
+  runId: string;
+  status: string;
+  workflowRunId: string;
+  temporalRunId?: string | null;
+  workflowId: string;
+  workflowVersionId?: string | null;
+  securityWikiRunId: string;
+}
+
 export interface SecurityFindingSummary {
   id: string;
   findingKey: string;
@@ -240,6 +351,104 @@ async function fetchScheduleById(id: string): Promise<WorkflowSchedule> {
  * Simple wrapper around the backend API client
  */
 export const api = {
+  securityWiki: {
+    getConfig: async (): Promise<SecurityWikiConfig> => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/security-wikis/config`, { headers });
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: 'Failed to fetch security wiki config' }));
+        throw new Error(errorData.message || 'Failed to fetch security wiki config');
+      }
+      return response.json();
+    },
+
+    upsertConfig: async (body: {
+      provider: 'local' | 'github';
+      repoOwner?: string;
+      repoName: string;
+      repoUrl?: string;
+      localPath?: string;
+      defaultBranch: string;
+      rootPath: string;
+      pathPolicy?: Record<string, unknown>;
+      metadata?: Record<string, unknown>;
+      codeSources?: SecurityWikiCodeSource[];
+    }): Promise<SecurityWikiConfig> => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/security-wikis/config`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: 'Failed to save security wiki config' }));
+        throw new Error(errorData.message || 'Failed to save security wiki config');
+      }
+      return response.json();
+    },
+
+    listRuns: async (): Promise<SecurityWikiRun[]> => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/security-wikis/runs`, { headers });
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: 'Failed to fetch security wiki runs' }));
+        throw new Error(errorData.message || 'Failed to fetch security wiki runs');
+      }
+      return response.json();
+    },
+
+    runCodeIngestion: async (
+      body: RunCodeWikiIngestionRequest,
+    ): Promise<RunCodeWikiIngestionResponse> => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/security-wikis/runs/code`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: 'Failed to start CODE wiki ingestion' }));
+        throw new Error(errorData.message || 'Failed to start CODE wiki ingestion');
+      }
+      return response.json();
+    },
+
+    getTree: async (): Promise<SecurityWikiTreeResponse> => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/security-wikis/tree`, { headers });
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: 'Failed to fetch security wiki tree' }));
+        throw new Error(errorData.message || 'Failed to fetch security wiki tree');
+      }
+      return response.json();
+    },
+
+    getFile: async (path: string): Promise<SecurityWikiFile> => {
+      const headers = await getAuthHeaders();
+      const searchParams = new URLSearchParams({ path });
+      const response = await fetch(`${API_V1_URL}/security-wikis/file?${searchParams}`, {
+        headers,
+      });
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: 'Failed to fetch security wiki file' }));
+        throw new Error(errorData.message || 'Failed to fetch security wiki file');
+      }
+      return response.json();
+    },
+  },
+
   templates: {
     list: async (params?: { category?: string; search?: string; tags?: string[] }) => {
       const searchParams = new URLSearchParams();

@@ -523,15 +523,18 @@ export async function runComponentActivity(
         }
       }
 
+      const maskedOutput = maskSecretOutputs(
+        component,
+        output,
+        resolvedPortSchemas?.outputs,
+      ) as Record<string, unknown>;
+
       // Record node I/O completion
       await globalNodeIO?.recordCompletion({
         runId: input.runId,
         nodeRef: action.ref,
         componentId: action.componentId,
-        outputs: maskSecretOutputs(component, output, resolvedPortSchemas?.outputs) as Record<
-          string,
-          unknown
-        >,
+        outputs: maskedOutput,
         status: 'completed',
       });
 
@@ -540,7 +543,7 @@ export async function runComponentActivity(
       context.trace?.record({
         type: 'NODE_COMPLETED',
         timestamp: new Date().toISOString(),
-        outputSummary: createLightweightSummary(component, output),
+        outputSummary: createLightweightSummary(component, maskedOutput),
         data: activeOutputPorts ? { activatedPorts: activeOutputPorts } : undefined,
         level: 'info',
       });

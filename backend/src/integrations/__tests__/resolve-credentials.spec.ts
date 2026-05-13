@@ -316,6 +316,7 @@ describe('resolveConnectionCredentials', () => {
       expect(result.provider).toBe('gcp');
       expect(result.accountId).toBe('org-1');
       expect(result.data).toEqual({
+        authMode: 'impersonation',
         targetServiceAccountEmail: 'svc@example.iam.gserviceaccount.com',
         defaultProjectId: 'project-1',
         organizationId: 'org-1',

@@ -36,6 +36,8 @@ export const K8S_KUBECONFIG_DIR = '/var/cartography/.kube';
 export const K8S_KUBECONFIG_FILENAME = 'config';
 export const K8S_KUBECONFIG_PATH = `${K8S_KUBECONFIG_DIR}/${K8S_KUBECONFIG_FILENAME}`;
 export const K8S_KUBECONFIG_ENV = 'SHIPSEC_K8S_KUBECONFIG';
+const GCP_PERMISSION_RELATIONSHIPS_FILE =
+  '/var/cartography/.local/share/uv/tools/cartography/lib/python3.10/site-packages/cartography/data/gcp_permission_relationships.yaml';
 
 type CartographyModule = (typeof cartographyModules)[number];
 
@@ -442,6 +444,7 @@ export async function runCartographyWithRunner(
     if (dockerNetwork !== 'host') {
       env.GOOGLE_APPLICATION_CREDENTIALS = GCP_APPLICATION_CREDENTIALS_PATH;
     }
+    command.push('--gcp-permission-relationships-file', GCP_PERMISSION_RELATIONSHIPS_FILE);
     if (input.gcpCredential.defaultProjectId) {
       env.GOOGLE_CLOUD_PROJECT = input.gcpCredential.defaultProjectId;
       env.CLOUDSDK_CORE_PROJECT = input.gcpCredential.defaultProjectId;

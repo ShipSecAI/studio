@@ -27,6 +27,8 @@ describe('shipsec.opencode.agent', () => {
     process.env = { ...envSnapshot };
     delete process.env.CHAT_AI_BASE_URL;
     delete process.env.CHAT_AI_API_KEY;
+    delete process.env.BIFROST_BASE_URL;
+    delete process.env.BIFROST_API_KEY;
 
     // Spy on runComponentWithRunner
     runSpy = vi.spyOn(SDK, 'runComponentWithRunner').mockResolvedValue({
@@ -93,9 +95,53 @@ describe('shipsec.opencode.agent', () => {
 
     expect(runSpy).toHaveBeenCalled();
     const runnerCall = runSpy.mock.calls[0][0];
-    expect(runnerCall.image).toBe('ghcr.io/shipsecai/opencode:latest');
+    expect(runnerCall.image).toBe('ghcr.io/anomalyco/opencode:latest');
     expect(runnerCall.network).toBe('host');
     expect(runnerCall.env.OPENAI_API_KEY).toBe('sk-test');
+    expect(runnerCall.env.OPENCODE_MODEL).toBe('openai/gpt-4o');
+  });
+
+  it('should mount local OpenCode auth for OpenCode Go models', async () => {
+    const component = componentRegistry.get('core.ai.opencode');
+    if (!component) throw new Error('Component not found');
+
+    const context = {
+      runId: 'test-run-opencode-go',
+      componentRef: 'test-ref-opencode-go',
+      metadata: {
+        connectedToolNodeIds: [],
+        organizationId: 'org-1',
+      },
+      logger: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+      },
+      emitProgress: vi.fn(),
+    };
+
+    await component.execute(
+      {
+        inputs: {
+          task: 'Find the bug',
+          model: { provider: 'opencode-go', modelId: 'deepseek-v4-flash' },
+        },
+        params: {
+          opencodeAuthHostPath: '/Users/example/.local/share/opencode/auth.json',
+        },
+      },
+      context as any,
+    );
+
+    const runnerCall = runSpy.mock.calls[0][0];
+    expect(runnerCall.env.OPENAI_API_KEY).toBeUndefined();
+    expect(runnerCall.env.OPENCODE_MODEL).toBe('opencode-go/deepseek-v4-flash');
+    expect(runnerCall.volumes).toContainEqual({
+      source: '/Users/example/.local/share/opencode/auth.json',
+      target: '/opencode-auth/auth.json',
+      readOnly: true,
+    });
   });
 
   it('should merge providerConfig into opencode.jsonc', async () => {
@@ -180,7 +226,7 @@ describe('shipsec.opencode.agent', () => {
 
     // Plugin setup should appear BEFORE opencode run
     const pluginIdx = runScript.indexOf('oh-my-opencode install');
-    const opencodeIdx = runScript.indexOf('opencode run');
+    const opencodeIdx = runScript.indexOf('opencode -m "$OPENCODE_MODEL" run');
     expect(pluginIdx).toBeLessThan(opencodeIdx);
 
     // Should log plugin activation
@@ -220,6 +266,7 @@ describe('shipsec.opencode.agent', () => {
 
     const volumeInstance = (createIsolatedVolume as any).mock.results[0].value;
     const initCall = volumeInstance.initialize.mock.calls[0][0];
+    expect(initCall['opencode.jsonc']).not.toContain('workflow-tools');
     expect(initCall['prompt.txt']).toContain('hotplug mcp tools list');
     expect(initCall['tools/README.md']).toContain('hotplug mcp tools call');
     expect(initCall['tools/shipsec-tools']).toContain('shipsec-tools list');
@@ -227,7 +274,7 @@ describe('shipsec.opencode.agent', () => {
     const runnerCall = runSpy.mock.calls[0][0];
     expect(runnerCall.env.HOTPLUG_MCP_URL).toBe('http://hotplug:10010/sessions/test-session/mcp');
     expect(runnerCall.env.HOTPLUG_MCP_TOKEN).toBe('test-hotplug-token');
-    expect(initCall['run.sh']).toContain('hotplug mcp init');
+    expect(initCall['run.sh']).not.toContain('hotplug mcp init');
   });
 
   it('should not include plugin setup when enablePlugins is empty', async () => {

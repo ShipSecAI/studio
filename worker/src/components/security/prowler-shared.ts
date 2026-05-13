@@ -38,8 +38,8 @@ export type NormalisedStatus = (typeof statusLevels)[number];
 export const recommendedFlagOptions = [
   {
     id: 'quick',
-    label: 'Quick scan (removed in v4 \u2014 ignored)',
-    description: 'Kept for backwards compatibility; Prowler v4 ignores this option.',
+    label: 'Quick scan',
+    description: 'Reserved for older Prowler versions; current images do not apply an extra flag.',
     args: [],
     defaultSelected: false,
   },
@@ -48,7 +48,7 @@ export const recommendedFlagOptions = [
     label: 'Severity filter: high+critical (--severity high critical)',
     description: 'Limit findings to high and critical severities.',
     args: ['--severity', 'high', 'critical'],
-    defaultSelected: true,
+    defaultSelected: false,
   },
   {
     id: 'ignore-exit-code',

@@ -1,0 +1,2 @@
+ALTER TABLE agent_skills
+  ADD COLUMN IF NOT EXISTS files JSONB NOT NULL DEFAULT '[]'::jsonb;

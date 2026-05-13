@@ -20,7 +20,7 @@ export const backendEnvSchema = z
     PORT: z.coerce.number().optional().default(3211),
     HOST: z.string().optional().default('0.0.0.0'),
     SHIPSEC_ENV: z.string().optional(),
-    REQUEST_BODY_LIMIT: z.string().optional().default('1mb'),
+    REQUEST_BODY_LIMIT: z.string().optional().default('25mb'),
     SKIP_INGEST_SERVICES: stringToBoolean(false),
     ENABLE_INGEST_SERVICES: stringToBoolean(true),
 

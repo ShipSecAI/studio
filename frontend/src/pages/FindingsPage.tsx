@@ -41,6 +41,16 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleString();
 }
 
+function uniqueBy<T>(items: T[], getKey: (item: T) => string) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = getKey(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function statusLabel(finding: SecurityFinding) {
   if (finding.lifecycleHint === 'fixed_candidate' || finding.status === 'in_progress') {
     return 'Fix pending validation';
@@ -166,6 +176,22 @@ function FindingDetails({ finding }: { finding: SecurityFinding | null }) {
     );
   }
 
+  const observations = uniqueBy(finding.observations, (observation) =>
+    [
+      observation.status ?? '',
+      observation.title,
+      observation.observedAt,
+      observation.runId ?? '',
+      observation.reviewMode ?? '',
+      observation.lifecycleHint ?? '',
+      observation.prNumber ?? '',
+    ].join('|'),
+  );
+  const evidenceItems = uniqueBy(
+    finding.evidence,
+    (evidence) => `${evidence.summary ?? evidence.artifactUri}|${evidence.capturedAt}`,
+  );
+
   return (
     <Card className="h-full">
       <CardHeader>
@@ -268,7 +294,7 @@ function FindingDetails({ finding }: { finding: SecurityFinding | null }) {
             Evidence
           </h4>
           <div className="space-y-2">
-            {finding.observations.map((observation) => (
+            {observations.map((observation) => (
               <div key={observation.id} className="border p-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary">{observation.reviewMode ?? 'run'}</Badge>
@@ -285,7 +311,7 @@ function FindingDetails({ finding }: { finding: SecurityFinding | null }) {
                 </div>
               </div>
             ))}
-            {finding.evidence.map((evidence) => (
+            {evidenceItems.map((evidence) => (
               <div key={evidence.id} className="border p-3 text-xs text-muted-foreground">
                 {evidence.summary ?? evidence.artifactUri}
               </div>

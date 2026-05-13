@@ -223,6 +223,11 @@ When tasks match a skill, load it: `cat .claude/skills/<name>/SKILL.md`
 <description>Run a frontend load testing audit. Seeds data, tests all pages via Chrome DevTools MCP, records network calls, TanStack queries, DOM sizes, and generates a timestamped report.</description>
 <location>project</location>
 </skill>
+<skill>
+<name>run-reporting</name>
+<description>Report workflow, scanner, wiki, and agent runs with a details table and a clickable Studio run URL.</description>
+<location>project</location>
+</skill>
 </available_skills>
 
 </skills_system>

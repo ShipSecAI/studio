@@ -77,6 +77,42 @@ describe('Depth 3 ingestion contracts', () => {
     expect(replay.findingInstances[0]?.id).toBe(batch.findingInstances[0]?.id);
   });
 
+  it('keeps repeated Prowler rows insertable and does not create findings for passing checks', () => {
+    const failedFinding = {
+      Id: 'prowler-aws-s3_bucket_public_access',
+      Title: 'S3 bucket allows public access',
+      AwsAccountId: '123456789012',
+      Severity: { Label: 'High' },
+      Compliance: { Status: 'FAILED' },
+      Resources: [
+        {
+          Id: 'arn:aws:s3:::shipsec-public-fixture',
+          Type: 'AwsS3Bucket',
+          Region: 'us-east-1',
+        },
+      ],
+    };
+    const passedFinding = {
+      ...failedFinding,
+      Id: 'prowler-aws-s3_bucket_encryption',
+      Title: 'S3 bucket has encryption enabled',
+      Compliance: { Status: 'PASSED' },
+    };
+
+    const batch = normalizeProwlerCloudIngestion({
+      scannerRun,
+      rawFindings: [failedFinding, failedFinding, passedFinding],
+    });
+
+    expect(batch.observations).toHaveLength(3);
+    expect(new Set(batch.observations.map((observation) => observation.id)).size).toBe(3);
+    expect(batch.findingInstances).toHaveLength(1);
+    expect(batch.findingInstances[0]?.observationRefs).toHaveLength(2);
+    expect(batch.stats.findingInstanceCount).toBe(1);
+    expect(batch.stats.passedCount).toBe(1);
+    expect(batch.stats.failedCount).toBe(2);
+  });
+
   it('normalizes ASM recon and nuclei records into assets, observations, and findings', () => {
     const asmRun = scannerRunSchema().parse({
       ...scannerRun,

@@ -48,6 +48,16 @@ export interface ApiKeyPermissions {
     read?: boolean;
     resolve?: boolean;
   };
+  analytics?: {
+    query?: boolean;
+  };
+  assets?: {
+    list?: boolean;
+    read?: boolean;
+  };
+  'cloud-graph'?: {
+    query?: boolean;
+  };
   'report-templates'?: {
     read?: boolean;
     write?: boolean;

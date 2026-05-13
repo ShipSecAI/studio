@@ -1,6 +1,12 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
+const AgentSkillFileSchema = z.object({
+  path: z.string().min(1).max(240),
+  content: z.string(),
+  executable: z.boolean().optional(),
+});
+
 export const CreateAgentSkillSchema = z.object({
   name: z
     .string()
@@ -9,6 +15,7 @@ export const CreateAgentSkillSchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'Name must contain only lowercase letters, numbers, and hyphens'),
   description: z.string().min(1).max(1024),
   content: z.string().min(1),
+  files: z.array(AgentSkillFileSchema).optional(),
   license: z.string().optional(),
   compatibility: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
@@ -27,6 +34,7 @@ export const UpdateAgentSkillSchema = z.object({
     .optional(),
   description: z.string().min(1).max(1024).optional(),
   content: z.string().min(1).optional(),
+  files: z.array(AgentSkillFileSchema).optional(),
   license: z.string().nullable().optional(),
   compatibility: z.string().nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).nullable().optional(),
@@ -41,6 +49,7 @@ export const AgentSkillResponseSchema = z.object({
   name: z.string(),
   description: z.string(),
   content: z.string(),
+  files: z.array(AgentSkillFileSchema),
   license: z.string().nullable(),
   compatibility: z.string().nullable(),
   metadata: z.record(z.string(), z.unknown()).nullable(),

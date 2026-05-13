@@ -2,6 +2,9 @@ import { HotplugClient, HotplugAttachment } from '../../utils/hotplug-client';
 import { getBackendOrigin } from '../../utils/backend-url';
 
 function getHotplugReachableBackendOrigin(): string {
+  const hotplugOrigin = process.env.HOTPLUG_BACKEND_ORIGIN?.trim();
+  if (hotplugOrigin) return hotplugOrigin.replace(/\/+$/, '');
+
   const origin = process.env.BACKEND_ORIGIN ?? getBackendOrigin();
   return origin
     .replace('://localhost', '://host.docker.internal')
@@ -25,6 +28,7 @@ export interface CreateHotplugSessionInput {
     url: string;
     headers?: Record<string, string>;
   }[];
+  includeComponentTools?: boolean;
 }
 
 export interface CreateHotplugSessionOutput {
@@ -42,15 +46,17 @@ export async function createHotplugSessionActivity(
   const endpoint =
     input.componentToolsEndpoint ?? `${backendOrigin}/api/v1/mcp/run-tools/${input.runId}`;
 
-  const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
-  const attachments: Record<string, HotplugAttachment> = {
-    'component-tools': {
+  const attachments: Record<string, HotplugAttachment> = {};
+
+  if (input.includeComponentTools) {
+    const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
+    attachments['component-tools'] = {
       remote_http: {
         url: endpoint,
         headers: { 'x-internal-token': internalToken },
       },
-    },
-  };
+    };
+  }
 
   for (const group of input.mcpGroupAttachments ?? []) {
     attachments[group.alias] = {
@@ -76,6 +82,11 @@ export async function createHotplugSessionActivity(
       tenant_id: input.organizationId,
       user_id: 'system',
       run_id: input.runId,
+    },
+    lifecycle: {
+      startup_timeout_ms: 30_000,
+      idle_ttl_ms: 15 * 60 * 1000,
+      max_duration_ms: 60 * 60 * 1000,
     },
     attachments,
   });

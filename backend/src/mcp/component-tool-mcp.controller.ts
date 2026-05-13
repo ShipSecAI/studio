@@ -106,8 +106,13 @@ export class ComponentToolMcpController {
 
       if (isGet) {
         res.on('close', () => {
-          this.logger.log(`ComponentToolMcp SSE closed for session ${sessionId}`);
-          this.cleanupSession(sessionId, session);
+          // Keep the MCP session alive when the SSE connection closes. Hotplug and
+          // proxies can reconnect GET streams while POST tool calls still need the
+          // same session ID.
+          this.logger.log(
+            `ComponentToolMcp SSE connection closed for session ${sessionId} (session kept alive)`,
+          );
+          session.lastTouchedAtMs = Date.now();
         });
         void transport.handleRequest(req as any, res as any);
       } else if (isDelete) {

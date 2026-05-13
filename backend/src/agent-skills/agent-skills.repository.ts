@@ -14,6 +14,7 @@ export interface AgentSkillUpdateData {
   name?: string;
   description?: string;
   content?: string;
+  files?: { path: string; content: string; executable?: boolean }[];
   license?: string | null;
   compatibility?: string | null;
   metadata?: Record<string, unknown> | null;

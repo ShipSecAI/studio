@@ -41,6 +41,8 @@ import './core/shipsec-cloud-ingestion-normalize';
 import './core/shipsec-asm-ingestion-normalize';
 import './core/shipsec-agent-code-findings-normalize';
 import './core/shipsec-ingestion-persist';
+import './core/security-wiki-context';
+import './ai/codex-code-wiki';
 // Manual Action components
 import './manual-action/manual-approval';
 import './manual-action/manual-selection';
@@ -85,6 +87,7 @@ import './jira/create-issue';
 import './github/connection-provider';
 import './github/remove-org-membership';
 import './github/clone-repo';
+import './github/clone-many-repos';
 import './github/post-pr-comment';
 import './github/create-check-run';
 import './github/update-check-run';

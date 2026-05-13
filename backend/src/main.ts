@@ -18,7 +18,8 @@ async function bootstrap() {
     rawBody: true,
   });
   const configService = app.get(ConfigService);
-  const requestBodyLimit = configService.get<string>('REQUEST_BODY_LIMIT', { infer: true });
+  const requestBodyLimit =
+    configService.get<string>('REQUEST_BODY_LIMIT', { infer: true }) ?? '25mb';
 
   app.useBodyParser('json', { limit: requestBodyLimit });
   app.useBodyParser('urlencoded', { extended: true, limit: requestBodyLimit });

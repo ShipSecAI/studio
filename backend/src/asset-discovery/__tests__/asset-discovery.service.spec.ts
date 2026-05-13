@@ -7,6 +7,14 @@ describe('AssetDiscoveryService.refreshFromGraphSnapshot', () => {
     const service = new AssetDiscoveryService(
       {
         getHistoricalStatusCounts: mock(() => Promise.resolve([])),
+        upsertGraphSnapshots: mock(() =>
+          Promise.resolve({
+            created: 0,
+            updated: 1,
+            stale: 2,
+          }),
+        ),
+        markStaleUnseenAssets: mock(() => Promise.resolve(2)),
       } as any,
       {
         findLatestCompletedSyncForIntegration: mock(() => Promise.resolve({ assetsDiscovered: 3 })),

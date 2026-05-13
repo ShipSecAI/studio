@@ -157,6 +157,16 @@ export class AuthGuard implements CanActivate {
         read: Boolean(permissions['human-inputs']?.read),
         resolve: Boolean(permissions['human-inputs']?.resolve),
       },
+      analytics: {
+        query: Boolean(permissions.analytics?.query),
+      },
+      assets: {
+        list: Boolean(permissions.assets?.list),
+        read: Boolean(permissions.assets?.read),
+      },
+      'cloud-graph': {
+        query: Boolean(permissions['cloud-graph']?.query),
+      },
       'report-templates': {
         read: Boolean((permissions as any)['report-templates']?.read),
         write: Boolean((permissions as any)['report-templates']?.write),

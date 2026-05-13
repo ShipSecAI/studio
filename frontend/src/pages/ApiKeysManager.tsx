@@ -53,8 +53,24 @@ const INITIAL_FORM: CreateApiKeyInput = {
     audit: {
       read: false,
     },
+    analytics: {
+      query: true,
+    },
+    assets: {
+      list: true,
+      read: true,
+    },
+    'cloud-graph': {
+      query: true,
+    },
+    'report-templates': {
+      read: false,
+      write: false,
+    },
   },
 };
+
+type PermissionCategory = keyof CreateApiKeyInput['permissions'];
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat('en-US', {
@@ -111,7 +127,7 @@ export function ApiKeysManager() {
   };
 
   const handlePermissionChange = (
-    category: 'workflows' | 'runs' | 'audit',
+    category: PermissionCategory,
     action: string,
     checked: boolean,
   ) => {
@@ -486,6 +502,90 @@ export function ApiKeysManager() {
                       />
                       <Label htmlFor="perm-audit-read" className="font-normal text-sm">
                         Read Audit Logs
+                      </Label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase text-muted-foreground font-semibold">
+                      Security Data
+                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="perm-analytics-query"
+                        checked={formState.permissions.analytics?.query ?? false}
+                        onCheckedChange={(checked) =>
+                          handlePermissionChange('analytics', 'query', checked as boolean)
+                        }
+                      />
+                      <Label htmlFor="perm-analytics-query" className="font-normal text-sm">
+                        Query Findings
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="perm-assets-list"
+                        checked={formState.permissions.assets?.list ?? false}
+                        onCheckedChange={(checked) =>
+                          handlePermissionChange('assets', 'list', checked as boolean)
+                        }
+                      />
+                      <Label htmlFor="perm-assets-list" className="font-normal text-sm">
+                        List Assets
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="perm-assets-read"
+                        checked={formState.permissions.assets?.read ?? false}
+                        onCheckedChange={(checked) =>
+                          handlePermissionChange('assets', 'read', checked as boolean)
+                        }
+                      />
+                      <Label htmlFor="perm-assets-read" className="font-normal text-sm">
+                        Read Assets
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="perm-cloud-graph-query"
+                        checked={formState.permissions['cloud-graph']?.query ?? false}
+                        onCheckedChange={(checked) =>
+                          handlePermissionChange('cloud-graph', 'query', checked as boolean)
+                        }
+                      />
+                      <Label htmlFor="perm-cloud-graph-query" className="font-normal text-sm">
+                        Query Cloud Graph
+                      </Label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase text-muted-foreground font-semibold">
+                      Reports
+                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="perm-report-templates-read"
+                        checked={formState.permissions['report-templates']?.read ?? false}
+                        onCheckedChange={(checked) =>
+                          handlePermissionChange('report-templates', 'read', checked as boolean)
+                        }
+                      />
+                      <Label htmlFor="perm-report-templates-read" className="font-normal text-sm">
+                        Read Templates
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="perm-report-templates-write"
+                        checked={formState.permissions['report-templates']?.write ?? false}
+                        onCheckedChange={(checked) =>
+                          handlePermissionChange('report-templates', 'write', checked as boolean)
+                        }
+                      />
+                      <Label htmlFor="perm-report-templates-write" className="font-normal text-sm">
+                        Write Templates
                       </Label>
                     </div>
                   </div>

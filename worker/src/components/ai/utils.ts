@@ -65,6 +65,9 @@ function normalizeModel(provider: string, model: string): string {
   if (provider === 'zai-coding-plan') {
     return `openai/${model}`;
   }
+  if (provider === 'opencode-go') {
+    return `opencode-go/${model}`;
+  }
   return model;
 }
 
@@ -206,6 +209,7 @@ export interface AgentSkillData {
   name: string;
   description: string;
   content: string;
+  files?: { path: string; content: string; executable?: boolean }[] | null;
   allowedTools?: string | null;
 }
 
@@ -238,6 +242,12 @@ export function generateSkillMd(skill: AgentSkillData): string {
   return lines.join('\n');
 }
 
+function sanitizeSkillBundlePath(path: string): string | null {
+  const cleaned = path.trim().replace(/^\/+/, '');
+  if (!cleaned || cleaned === 'SKILL.md' || cleaned.includes('..')) return null;
+  return cleaned;
+}
+
 /**
  * Generate workspace file entries for selected org skills.
  * Returns a record of path → content for use with volume.initialize().
@@ -265,7 +275,14 @@ export async function getSkillWorkspaceFiles(
 
   for (const skill of skills) {
     if (selectedSet.has(skill.name.toLowerCase())) {
-      files[`${skillsDir}/${skill.name}/SKILL.md`] = generateSkillMd(skill);
+      const skillDir = `${skillsDir}/${skill.name}`;
+      files[`${skillDir}/SKILL.md`] = generateSkillMd(skill);
+      for (const file of skill.files ?? []) {
+        const safePath = sanitizeSkillBundlePath(file.path);
+        if (safePath) {
+          files[`${skillDir}/${safePath}`] = file.content;
+        }
+      }
     }
   }
   return files;

@@ -10,7 +10,7 @@ describe('prowler-scan helpers', () => {
     expect(aws).toContain('--region');
     expect(aws).toContain('us-east-1');
     expect(gcp.includes('--region')).toBe(false);
-    expect(aws).toContain('json-asff');
+    expect(aws).toContain('json-ocsf');
     expect(gcp).toContain('json-ocsf');
   });
 

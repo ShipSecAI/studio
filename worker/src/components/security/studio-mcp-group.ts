@@ -10,6 +10,9 @@ import {
 } from '@shipsec/component-sdk';
 
 function getReachableBackendOrigin(override?: string | null): string {
+  const hotplugOrigin = process.env.HOTPLUG_BACKEND_ORIGIN?.trim();
+  if (hotplugOrigin) return hotplugOrigin.replace(/\/+$/, '');
+
   const origin = override?.trim() || process.env.BACKEND_ORIGIN || 'http://localhost:3000';
   return origin
     .replace('://localhost', '://host.docker.internal')

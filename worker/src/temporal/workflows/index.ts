@@ -85,6 +85,7 @@ const {
     componentToolsEndpoint?: string;
     mcpGroupAttachments?: McpGroupAttachmentSpec[];
     remoteMcpAttachments?: { alias: string; url: string; headers?: Record<string, string> }[];
+    includeComponentTools?: boolean;
   }): Promise<{ sessionId: string; mcpUrl: string; mcpToken: string }>;
 }>({
   startToCloseTimeout: '10 minutes',
@@ -199,6 +200,7 @@ export async function shipsecWorkflowRun(
   const mcpGroupAttachments: McpGroupAttachmentSpec[] = [];
   const remoteMcpAttachments: { alias: string; url: string; headers?: Record<string, string> }[] =
     [];
+  const mcpToolNodeRefs: string[] = [];
 
   // Track the Hotplug session created for this run (one session shared across all agent nodes).
   let hotplugSession: { sessionId: string; mcpUrl: string; mcpToken: string } | null = null;
@@ -727,6 +729,9 @@ export async function shipsecWorkflowRun(
               mcpGroupAttachments: mcpGroupAttachments.length > 0 ? mcpGroupAttachments : undefined,
               remoteMcpAttachments:
                 remoteMcpAttachments.length > 0 ? remoteMcpAttachments : undefined,
+              includeComponentTools: nodeMetadata.connectedToolNodeIds.some(
+                (nodeId) => !mcpToolNodeRefs.includes(nodeId),
+              ),
             });
             console.log(
               `[Workflow] Hotplug session created: ${hotplugSession.sessionId}, url: ${hotplugSession.mcpUrl}`,
@@ -784,6 +789,7 @@ export async function shipsecWorkflowRun(
         // MCP groups in tool mode: collect attachment specs from the component output.
         // These are passed to createHotplugSessionActivity when the agent node starts.
         if (isToolMode && isMcpGroup) {
+          mcpToolNodeRefs.push(action.ref);
           const groupOutput = output.output as {
             attachmentSpecs?: McpGroupAttachmentSpec[];
             remoteMcpAttachments?: {

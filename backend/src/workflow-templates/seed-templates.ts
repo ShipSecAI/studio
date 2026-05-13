@@ -111,7 +111,18 @@ For baseline review, find issues that already exist in the reviewed branch or re
 For PR review, compare changed code against existing behavior and classify findings as introduced, worsened, fixed_candidate, unchanged_existing, uncertain, or false_positive.
 Every finding must be evidence-backed and concrete. If you cannot prove a finding, put it under uncertain or omit it.`;
 
-const AGENTIC_CODE_REVIEW_MODEL = { provider: 'openai', modelId: 'vertex/claude-haiku-4-5' };
+const MULTI_REPO_AGENTIC_CODE_FINDINGS_PROMPT = `${AGENTIC_CODE_FINDINGS_PROMPT}
+
+Multi-repo mode:
+- Inspect every repository under /workspace/repo-workspace/repos before concluding.
+- First build a mental map of how the repositories call, deploy, authenticate, and trust each other.
+- Prefer cross-repository bugs: mismatched auth assumptions, shared secrets, webhook/API trust boundaries, deployment coupling, package boundaries, and one repo fixing assumptions another repo breaks.
+- Include the repository name in each finding title, file path, endpoint, or evidence wherever possible.`;
+
+const AGENTIC_CODE_REVIEW_MODEL = {
+  provider: process.env.CHAT_AI_PROVIDER?.trim() || 'opencode-go',
+  modelId: process.env.CHAT_AI_MODEL_ID?.trim() || 'deepseek-v4-flash',
+};
 
 const THREAT_STORY_AGENT_PROMPT = `You are ShipSec's autonomous threat-story analyst.
 
@@ -1144,6 +1155,94 @@ function agenticBaselineCodeReviewTemplate(): SeedTemplate {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Template: Multi-Repo Agentic Code Review
+// Entry Point → Clone Repos → OpenCode Agent → Normalize Agent Findings → Persist
+// ──────────────────────────────────────────────────────────────────────────────
+function multiRepoAgenticCodeReviewTemplate(): SeedTemplate {
+  resetCounter();
+  const entryPoint = nid('node');
+  const cloneRepos = nid('node');
+  const agent = nid('node');
+  const normalize = nid('node');
+  const persist = nid('node');
+
+  return {
+    name: 'Multi-Repo Agentic Code Review',
+    slug: 'sys-multi-repo-agentic-code-review',
+    description:
+      'Run an autonomous security engineer across multiple cooperating repositories and persist cross-repo findings.',
+    category: 'code-security',
+    icon: 'bot',
+    isFeatured: true,
+    isDefault: true,
+    graph: {
+      name: 'Multi-Repo Agentic Code Review',
+      description: 'Agent-first code security review over a repo set',
+      nodes: [
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [
+            { id: 'installationId', label: 'Installation ID', type: 'number', required: false },
+            {
+              id: 'repositories',
+              label: 'Repositories',
+              type: 'array',
+              required: true,
+              description:
+                'Select cooperating repos as owner/repo values. Example: ["ShipSecAI/studio-cloud","ShipSecAI/studio-oss"]',
+            },
+            { id: 'branch', label: 'Branch', type: 'text', required: false },
+          ],
+        }),
+        makeNode(cloneRepos, 'github.repos.clone-many', 'Clone Repositories', 300, 0, {
+          depth: 1,
+        }),
+        makeNode(
+          agent,
+          'core.ai.opencode',
+          'Cross-Repo Security Review',
+          650,
+          0,
+          {
+            systemPrompt: MULTI_REPO_AGENTIC_CODE_FINDINGS_PROMPT,
+            skills: [
+              'multi-repo-security-review',
+              'code-security-review',
+              'linked-finding-reconciliation',
+            ],
+            timeoutSeconds: 2400,
+          },
+          {
+            task: 'Perform a multi-repository baseline security review. Reason through how the mounted repositories work together and return only structured JSON.',
+            model: AGENTIC_CODE_REVIEW_MODEL,
+          },
+        ),
+        makeNode(
+          normalize,
+          'shipsec.agent-code-findings.normalize',
+          'Normalize Agent Findings',
+          1000,
+          0,
+          { reviewMode: 'baseline' },
+        ),
+        makeNode(persist, 'shipsec.ingestion.persist', 'Persist Agent Findings', 1350, 0),
+      ],
+      edges: [
+        makeEdge('e1', entryPoint, cloneRepos, 'installationId', 'installationId'),
+        makeEdge('e2', entryPoint, cloneRepos, 'repositories', 'repositories'),
+        makeEdge('e3', entryPoint, cloneRepos, 'branch', 'branch'),
+        makeEdge('e4', cloneRepos, agent, 'volumeName', 'workspaceVolumeName'),
+        makeEdge('e5', cloneRepos, agent, 'commitMap', 'context'),
+        makeEdge('e6', agent, normalize, 'report', 'agentReport'),
+        makeEdge('e7', cloneRepos, normalize, 'repository', 'repository'),
+        makeEdge('e8', cloneRepos, normalize, 'branch', 'branch'),
+        makeEdge('e9', normalize, persist, 'ingestionBatch', 'ingestionBatch'),
+      ],
+      viewport: { x: 0, y: 0, zoom: 0.75 },
+    },
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Template: Agentic PR Code Review
 // PR Context + Clone Repo → OpenCode Agent → Normalize Agent Findings → Persist
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1230,6 +1329,49 @@ function agenticPrCodeReviewTemplate(): SeedTemplate {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Template: Security Wiki CODE Ingestion
+// Security Wiki Context → Codex Agent
+// ──────────────────────────────────────────────────────────────────────────────
+function securityWikiCodeIngestionTemplate(): SeedTemplate {
+  resetCounter();
+  const entryPoint = nid('node');
+  const wikiContext = nid('node');
+  const codexAgent = nid('node');
+
+  return {
+    name: 'CODE Wiki Ingestion',
+    slug: 'sys-code-wiki-ingestion',
+    description:
+      'System workflow that runs Codex in Docker to update the agent-owned security wiki for a repository.',
+    category: 'code-security',
+    icon: 'book-open',
+    isFeatured: false,
+    isDefault: true,
+    graph: {
+      name: 'CODE Wiki Ingestion',
+      description:
+        'Mount a repo read-only and org security wiki writable, then run Codex CODE ingestion.',
+      nodes: [
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [],
+        }),
+        makeNode(wikiContext, 'security.wiki.context', 'Security Wiki Context', 320, 0, {
+          wikiPath: '/tmp/shipsec-security-wiki',
+          wikiAccess: 'write',
+          repoPath: '/tmp/shipsec-wiki-repo-bundle',
+          repoSlug: 'security-wiki',
+          mode: 'repo-security',
+          agentName: 'security-wiki-maintainer',
+        }),
+        makeNode(codexAgent, 'core.ai.codex', 'Codex Agent', 680, 0),
+      ],
+      edges: [makeEdge('e1', wikiContext, codexAgent, 'wikiContext', 'wikiContext')],
+      viewport: { x: 0, y: 0, zoom: 0.9 },
+    },
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Template: Threat Story Analysis
 // Entry Point → Studio MCP Tools → OpenCode Agent
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1307,7 +1449,9 @@ export const SEED_TEMPLATES: SeedTemplate[] = [
   fullCodeSecurityTemplate(),
   prSecurityGateTemplate(),
   agenticBaselineCodeReviewTemplate(),
+  multiRepoAgenticCodeReviewTemplate(),
   agenticPrCodeReviewTemplate(),
+  securityWikiCodeIngestionTemplate(),
   threatStoryAnalysisTemplate(),
   aiCodeReviewTemplate(),
   awsCloudSecurityScanTemplate(),
