@@ -11,6 +11,7 @@ import {
   Archive,
   KeyRound,
   Shield,
+  ShieldAlert,
   ShieldCheck,
   ServerCog,
   Settings,
@@ -194,6 +195,18 @@ const PAGE_TITLES: Record<string, PageTitleConfig> = {
     shortTitle: 'Findings',
     subtitle: 'Unified security findings across all scanners',
     icon: ShieldCheck,
+  },
+  '/findings': {
+    title: 'ShipSec Sentinel',
+    shortTitle: 'Sentinel',
+    subtitle: 'Threat stories, relevant findings, and hidden scanner noise',
+    icon: ShieldAlert,
+  },
+  '/stories': {
+    title: 'ShipSec Sentinel',
+    shortTitle: 'Sentinel',
+    subtitle: 'Threat stories, relevant findings, and hidden scanner noise',
+    icon: ShieldAlert,
   },
   '/asm/domains': {
     title: 'Domains',

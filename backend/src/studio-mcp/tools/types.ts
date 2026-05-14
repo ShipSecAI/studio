@@ -105,9 +105,34 @@ export interface StudioMcpDeps {
   securityIngestionService?: {
     listFindings(
       organizationId: string,
-      options?: { sourceKind?: string; status?: string; limit?: number },
+      options?: {
+        sourceKind?: string;
+        status?: string;
+        assessmentVerdict?: string;
+        userVisibleOnly?: boolean;
+        limit?: number;
+        offset?: number;
+      },
     ): Promise<{ findings: Record<string, any>[] }>;
+    listFindingAssessmentCandidates?(
+      organizationId: string,
+      options?: {
+        sourceKind?: string;
+        status?: string;
+        assessmentVerdict?: string;
+        limit?: number;
+        offset?: number;
+      },
+    ): Promise<{ candidates: Record<string, any>[] }>;
     getFinding(organizationId: string, findingId: string): Promise<Record<string, any> | null>;
+    listFindingAssessments(
+      organizationId: string,
+      findingId: string,
+    ): Promise<{ assessments: Record<string, any>[] } | null>;
+    recordFindingAssessment(
+      organizationId: string,
+      input: Record<string, any>,
+    ): Promise<Record<string, any>>;
     listFindingLinks(
       organizationId: string,
       findingId: string,

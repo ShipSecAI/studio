@@ -63,6 +63,15 @@ function getWorkerEnv(instance) {
     SHIPSEC_INSTANCE: suffix,
     INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
     BACKEND_URL: `http://localhost:${backendPort}`,
+    BACKEND_ORIGIN: `http://localhost:${backendPort}`,
+    HOTPLUG_BACKEND_ORIGIN: `http://127.0.0.1:${backendPort}`,
+    OPENCODE_AUTH_HOST_PATH:
+      process.env.OPENCODE_AUTH_HOST_PATH ||
+      path.join(process.env.HOME || '', '.local/share/opencode/auth.json'),
+    HOTPLUG_CLI_HOST_PATH:
+      process.env.HOTPLUG_CLI_HOST_PATH ||
+      '/Users/betterclever/shipsec/hotplug/target/release/hotplug',
+    OPENCODE_IMAGE: process.env.OPENCODE_IMAGE || 'shipsec/opencode-agent:local',
     DATABASE_URL: databaseUrl,
     TEMPORAL_NAMESPACE: temporalNamespace,
     TEMPORAL_TASK_QUEUE: temporalNamespace,
@@ -100,6 +109,7 @@ module.exports = {
       env: {
         NODE_ENV: isProduction ? 'production' : 'development',
         SHIPSEC_INSTANCE: instanceNum,
+        VITE_API_URL: `http://127.0.0.1:${getInstancePort(3211, instanceNum)}`,
       },
       time: true,
       watch: sharedWatch,

@@ -267,9 +267,14 @@ describe('shipsec.opencode.agent', () => {
     const volumeInstance = (createIsolatedVolume as any).mock.results[0].value;
     const initCall = volumeInstance.initialize.mock.calls[0][0];
     expect(initCall['opencode.jsonc']).not.toContain('workflow-tools');
-    expect(initCall['prompt.txt']).toContain('hotplug mcp tools list');
-    expect(initCall['tools/README.md']).toContain('hotplug mcp tools call');
+    expect(initCall['prompt.txt']).toContain('shipsec-tools list');
+    expect(initCall['prompt.txt']).toContain('shipsec-tools candidates 200 open unassessed');
+    expect(initCall['tools/README.md']).toContain('shipsec-tools call');
+    expect(initCall['tools/README.md']).toContain('shipsec-tools candidates 200 open unassessed');
     expect(initCall['tools/shipsec-tools']).toContain('shipsec-tools list');
+    expect(initCall['tools/shipsec-tools']).toContain(
+      'shipsec-studio__list_finding_assessment_candidates',
+    );
 
     const runnerCall = runSpy.mock.calls[0][0];
     expect(runnerCall.env.HOTPLUG_MCP_URL).toBe('http://hotplug:10010/sessions/test-session/mcp');

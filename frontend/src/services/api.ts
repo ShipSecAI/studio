@@ -216,6 +216,21 @@ export interface SecurityFinding {
   asset?: { id: string; kind: string; stableKey: string; displayName: string } | null;
   threatRefs: string[];
   linkedFindingKeys: string[];
+  latestAssessment?: {
+    id: string;
+    findingId: string;
+    verdict: string;
+    importance: string;
+    confidence: number;
+    reasoningMarkdown: string;
+    evidenceRefs: string[];
+    wikiRefs: string[];
+    toolCallsSummary: Record<string, unknown>;
+    createdByAgentRunId?: string | null;
+    createdBy?: string | null;
+    metadata: Record<string, unknown>;
+    createdAt: string;
+  } | null;
   relatedLinks: SecurityFindingLink[];
   evidence: { id: string; summary?: string | null; artifactUri: string; capturedAt: string }[];
   observations: {
@@ -2044,11 +2059,16 @@ export const api = {
     findings: async (params?: {
       sourceKind?: string;
       status?: string;
+      assessmentVerdict?: string;
+      userVisibleOnly?: boolean;
       limit?: number;
     }): Promise<{ findings: SecurityFinding[] }> => {
       const searchParams = new URLSearchParams();
       if (params?.sourceKind) searchParams.set('sourceKind', params.sourceKind);
       if (params?.status) searchParams.set('status', params.status);
+      if (params?.assessmentVerdict)
+        searchParams.set('assessmentVerdict', params.assessmentVerdict);
+      if (params?.userVisibleOnly) searchParams.set('userVisibleOnly', 'true');
       if (params?.limit) searchParams.set('limit', String(params.limit));
       const headers = await getAuthHeaders();
       const resp = await fetch(

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import type { FrontendAuthProvider, FrontendAuthProviderComponent } from './types';
 import { useAuthStore } from '../store/authStore';
 import { GlobalAuthContext } from './auth-context-def';
+import { API_V1_URL } from '@/services/api';
 import { getFrontendAuthProviderComponent as getExternalProviderComponent } from '@shipsec/cloud-extension-runtime';
 
 function getExternalAuthModuleId(): string {
@@ -65,9 +66,8 @@ const LocalAuthProvider: FrontendAuthProviderComponent = ({
       },
       signOut: async () => {
         // Clear session cookie via backend logout endpoint
-        // Use relative path to ensure we hit the same origin as login
         try {
-          await fetch('/api/v1/auth/logout', {
+          await fetch(`${API_V1_URL}/auth/logout`, {
             method: 'POST',
             credentials: 'include',
           });

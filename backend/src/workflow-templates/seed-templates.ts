@@ -130,7 +130,7 @@ You turn durable security findings into concrete "what is broken" stories.
 Use the ShipSec Studio MCP tools. Do not invent data.
 
 Required workflow:
-1. Call list_security_findings with status "open" and a useful limit.
+1. Call list_security_findings with status "open", userVisibleOnly true, and a useful limit.
 2. For findings that look related, call get_security_finding and list_finding_links.
 3. Record missing evidence-backed links with record_finding_link.
 4. Record one or more threat stories with record_threat_story.
@@ -143,6 +143,19 @@ Good stories answer:
 - what action fixes the story
 - how confident you are and why
 
+Markdown requirements:
+- Write summary, impact, attackPath, recommendedAction, and finding rationales as clean GitHub-flavored Markdown. The product renders these fields directly.
+- Use short paragraphs, bullets, and compact tables where useful.
+- Do not write walls of text.
+- Include exact findingKey or finding id text whenever referencing a finding so the UI can turn it into a clickable link.
+- Recommended actions should be concrete checklist-style steps, not prose blobs. Separate owner action, validation, and expected end state when you can.
+- Write attackPath as an ordered attacker path: entry point -> enabling weakness -> privilege/data/resource impact. Each step must name the exact findingKey/id and the affected service/resource/endpoint/identity.
+- Prefer a compact markdown table for attackPath with columns Step, Finding, Surface, Why it matters.
+- Assign meaningful findingRoles so the UI can draw the evidence chain: attack_vector, root_cause, enabler, evidence, indicator, impact.
+- Write findingRationales as concise markdown that explains why that finding has its role in the chain, not a duplicate of the title. Mention concrete evidence, not generic risk.
+- Put affected cloud assets, services, endpoints, identities, repos, files, or data stores into affectedAssetRefs whenever they are known.
+- Do not create a story unless you can describe at least one affected surface and at least two evidence points, or one very high-confidence single finding with direct product impact.
+
 Use precise relationship types:
 - same_root_cause when findings share the same bug/config source
 - enables when one finding makes another exploitable
@@ -153,6 +166,7 @@ Use precise relationship types:
 
 Do not wait for human approval.
 Do not merely summarize all findings.
+Do not create links or stories for findings whose latest assessment is not_relevant or false_positive.
 Prefer fewer, stronger stories over noisy grouping.
 If the data is insufficient, record no story and explain what evidence is missing in the final report.`;
 
@@ -171,6 +185,100 @@ Final answer format:
 - links_recorded: number
 - skipped_reason: short text if no story could be proven
 - notes: concise explanation of the highest-impact story.`;
+
+const FINDING_ASSESSMENT_AGENT_PROMPT = `You are ShipSec's autonomous finding assessment agent.
+
+Your job is to turn scanner output into product judgment. Scanner findings are signals, not truth.
+Use the ShipSec Studio MCP tools. Do not invent data.
+
+The security wiki is the durable source of product context. If /workspace/wiki exists, you must inspect it before deciding relevance. Static scanner checks are often noisy: a check can be technically true but not important if the affected cloud service, account, repo, endpoint, identity, resource, or data path is not part of the active product/runtime described by the wiki. Treat the wiki, inventory, and finding evidence together as the basis for judgment.
+
+Required workflow:
+1. Check whether /workspace/wiki exists. If it does, read the overview/index pages, deployment/runtime maps, security surfaces, assumptions/open questions, and any pages that mention the provider/service/resource family you are assessing.
+2. Fetch currently open findings, across all source kinds. Prefer list_finding_assessment_candidates for triage because it preserves scanner rule/status/message/provider/resource fields in a compact shape. Use list_security_findings or get_security_finding only when you need full evidence/details. The tool limit is 200; never request a larger limit. Use offset for pagination.
+3. Inspect the mix of findings and compare repeated scanner families against the wiki. Decide your own batching and parallelization strategy. Use subagents/parallel workers when the runtime supports them.
+4. For each candidate, call get_security_finding when the list result is not enough. For scanner findings, inspect the observation/evidence/raw normalized fields before deciding. The human title may be misleading; source_rule_id, status/status_code, normalized.message, normalized.status_detail, normalized.provider, normalized.projectId/accountId, resourceType, resourceId, and remediation/risk fields are more authoritative.
+5. Read prior notes with list_finding_assessments before changing a finding that already has context.
+6. Record one assessment per reviewed finding with record_finding_assessment.
+7. Only after assessment, record links/stories for findings that remain actionable, need context, or are accepted risk.
+
+Do not stop while there are open findings in the current scope that lack a proper assessment note.
+The goal is complete coverage: every currently open finding should end with a useful markdown reasoning note, even if the verdict is noise or not relevant.
+If the current run cannot finish all findings, record assessments for every reviewed finding and explicitly report the exact remaining unreviewed finding IDs.
+
+Verdicts:
+- actionable: product-owned, reachable, exploitable, materially risky, or clearly violates a security requirement that matters.
+- not_relevant: scanner result is real but outside the active product/runtime/scope.
+- false_positive: scanner claim appears wrong.
+- accepted_risk: issue is real but intentionally tolerated; explain why.
+- needs_context: cannot decide without a specific missing bridge/evidence.
+- resolved_candidate: evidence suggests a previously open issue may now be fixed, but a validating scan/review is still needed.
+
+Importance:
+- critical/high/medium/low for user-facing items.
+- noise for not_relevant or false_positive items.
+
+Reasoning requirements:
+- Write reasoningMarkdown as clean, readable GitHub-flavored Markdown. It will be rendered directly in the product.
+- Use short sections with Markdown h2 headings, bullets, and compact tables when they make the assessment easier to scan.
+- Do not write one giant paragraph. Keep paragraphs under 3 lines where possible.
+- Always include these sections:
+  - ## Verdict
+  - ## Stack relevance
+  - ## Evidence
+  - ## Why this matters or ## Why this is hidden
+  - ## Next step
+- In the Stack relevance section, include provider/account/project/resource, whether it appears in wiki, whether inventory confirms it, whether it is on an active runtime path, whether it touches customer data, whether it is public-facing, and what evidence is missing.
+- Always write metadata.stackRelevance with: seenInWiki, seenInInventory, activeRuntimePath, customerImpactPath, publicExposure, evidence, missingEvidence.
+- Explain why the issue still matters or why it should be hidden.
+- Cite concrete evidence refs, asset names, service names, wiki paths, run IDs, or observed missing evidence.
+- When referencing another finding, include its exact findingKey or finding id in the markdown text so the product can turn it into a clickable link.
+- Be aggressive about reducing noise when the product/wiki/inventory does not show the service/resource/identity as part of the active product.
+- For cloud scanner findings, explicitly ask: "Is this provider/account/project/service/resource actually used by the product according to the wiki or cloud inventory?" If not, mark not_relevant/noise and cite the missing/negative evidence.
+- Never invert or rewrite a scanner check from the title alone. For positive-control scanner findings whose title says a good control is present (for example "does not allow admin", "has MFA enabled", "does not expose SSH"), verify the actual failed condition from source_rule_id and normalized.message/status_detail/risk_details before marking actionable. If the raw message says "does exposes SSH", say exactly that; do not call it "does not expose SSH".
+- Preserve provider context exactly. A GCP project must not become an AWS account in reasoning. If a generated script cannot preserve provider/account/project/resource fields per finding, do not use that script for writes.
+- For high-cardinality repeated checks, assess the root family and then record concise per-finding notes. Mark repeated low-impact hardening checks as low/noise unless the wiki shows they protect an active critical path.
+- Public ingress, internet-exposed management ports, product-owned data stores, product-owned workloads, and cluster/network control-plane add-ons should not be marked pure noise when stack relevance is confirmed. Use actionable for material exploit paths, accepted_risk for expected-but-real hardening debt, or needs_context when impact is unclear.
+- Do not link or story findings marked not_relevant or false_positive.
+- Prefer fewer stronger links and stories over broad vague grouping.
+- If you write helper scripts, first run them in read-only/dry-run mode on 5 representative findings across providers/source kinds and inspect the proposed notes. Only perform bulk record_finding_assessment calls after the sample output preserves provider/resource/rule/message correctly and includes noise/not_relevant decisions where wiki/inventory cannot prove relevance.
+
+If a security wiki is mounted at /workspace/wiki, cite wiki paths in wikiRefs whenever the wiki affects a verdict. If no wiki is mounted, say that clearly in the final answer and be more conservative with needs_context.`;
+
+const FINDING_ASSESSMENT_AGENT_TASK = `Review the current open unassessed durable findings and append agent assessments.
+
+Use these MCP tools as your source of truth:
+- list_finding_assessment_candidates
+- list_security_findings
+- get_security_finding
+- list_finding_assessments
+- record_finding_assessment
+- list_finding_links
+- record_finding_link
+- list_threat_stories
+- record_threat_story
+
+Operating strategy:
+- Start by reading /workspace/wiki/README.md, /workspace/wiki/overview.md, /workspace/wiki/runtime-deployment-map.md, /workspace/wiki/security-surfaces.md, and /workspace/wiki/assumptions-and-open-questions.md if they exist.
+- Build a short working map of active product surfaces before assessing scanner output: cloud providers/accounts/projects, Kubernetes clusters, repos, data stores, public ingress, identities/service accounts, secrets, and agent/workflow runtime.
+- First fetch enough findings to understand the source kinds, providers, and repeated patterns.
+- Use list_finding_assessment_candidates with assessmentVerdict "unassessed" for the first pass; it is designed for noise reduction and safer bulk review.
+- Decide how to parallelize after seeing the data. Use subagents/parallel workers where useful, but reconcile and write final assessments yourself.
+- If you generate code to process findings, make it evidence-preserving: extract provider/account/project/resource/rule/status/message from each finding's own observations/evidence and do not hard-code a provider/account/project across a mixed batch.
+- Do a dry-run sample before bulk writes. If sample notes hallucinate provider, invert the scanner result, or ignore wiki relevance, fix the script/prompt and retry before writing assessments.
+- Keep going until every currently open finding in scope has an assessment, or report the exact remaining IDs if a hard runtime limit stops you.
+- Keep product-owned runtime, identity, secret, ingress, network, database, data access, and agent/workflow execution findings visible.
+- Mark findings not_relevant/noise when wiki + inventory do not show a meaningful active service, identity, endpoint, data path, customer impact, or compliance impact.
+- Prefer "needs_context" over "actionable" when the finding might matter but the wiki/inventory cannot prove the affected resource is part of the active product.
+
+Final answer format:
+- assessed: number
+- actionable: number
+- noise_or_not_relevant: number
+- needs_context: number
+- links_recorded: number
+- stories_recorded: number
+- notes: concise explanation of the highest-impact remaining issues and highest-volume noise class.`;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 1: Secret Scan
@@ -1439,6 +1547,80 @@ function threatStoryAnalysisTemplate(): SeedTemplate {
   };
 }
 
+function findingAssessmentAnalysisTemplate(): SeedTemplate {
+  resetCounter();
+  const entryPoint = nid('node');
+  const wikiContext = nid('node');
+  const studioMcp = nid('node');
+  const agent = nid('node');
+
+  return {
+    name: 'Finding Assessment Analysis',
+    slug: 'sys-finding-assessment-analysis',
+    description:
+      'Run a cheap autonomous OpenCode analyst over unassessed scanner findings to mark what is actionable, noisy, irrelevant, or needs more context before users see it.',
+    category: 'attack-surface',
+    icon: 'bot',
+    isFeatured: true,
+    isDefault: true,
+    graph: {
+      name: 'Finding Assessment Analysis',
+      description: 'Agent-first scanner noise reduction and finding assessment',
+      nodes: [
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [
+            {
+              id: 'studioApiKey',
+              label: 'Studio API Key',
+              type: 'secret',
+              required: true,
+            },
+          ],
+        }),
+        makeNode(wikiContext, 'security.wiki.context', 'Security Wiki Context', 320, -180, {
+          wikiPath: process.env.SECURITY_WIKI_PATH?.trim() || '../.local/security-wiki',
+          wikiAccess: 'read',
+          repoSlug: 'shipsec-platform',
+          mode: 'general',
+          agentName: 'finding-assessment-agent',
+        }),
+        makeNode(
+          studioMcp,
+          'mcp.group.studio',
+          'Studio MCP Tools',
+          320,
+          0,
+          {},
+          {},
+          { mode: 'tool' },
+        ),
+        makeNode(
+          agent,
+          'core.ai.opencode',
+          'Finding Assessment Agent',
+          680,
+          0,
+          {
+            systemPrompt: FINDING_ASSESSMENT_AGENT_PROMPT,
+            skills: ['finding-assessment-triage', 'linked-finding-reconciliation'],
+            timeoutSeconds: 2400,
+          },
+          {
+            task: FINDING_ASSESSMENT_AGENT_TASK,
+            model: AGENTIC_CODE_REVIEW_MODEL,
+          },
+        ),
+      ],
+      edges: [
+        makeEdge('e1', entryPoint, studioMcp, 'studioApiKey', 'apiKey'),
+        makeEdge('e2', studioMcp, agent, 'tools', 'tools'),
+        makeEdge('e3', wikiContext, agent, 'wikiContext', 'wikiContext'),
+      ],
+      viewport: { x: 0, y: 0, zoom: 0.8 },
+    },
+  };
+}
+
 /**
  * All seed templates. Import and use with the WorkflowTemplatesService to seed the database.
  */
@@ -1452,6 +1634,7 @@ export const SEED_TEMPLATES: SeedTemplate[] = [
   multiRepoAgenticCodeReviewTemplate(),
   agenticPrCodeReviewTemplate(),
   securityWikiCodeIngestionTemplate(),
+  findingAssessmentAnalysisTemplate(),
   threatStoryAnalysisTemplate(),
   aiCodeReviewTemplate(),
   awsCloudSecurityScanTemplate(),

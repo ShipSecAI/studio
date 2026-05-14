@@ -41,7 +41,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from 'lucide-react';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useChatStore } from '@/store/chatStore';
 import { ChatHistoryList } from '@/components/chat/ChatHistoryList';
 import { useAuthStore } from '@/store/authStore';
@@ -56,6 +56,7 @@ import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { usePrefetchOnIdle } from '@/hooks/usePrefetchOnIdle';
 import { prefetchIdleRoutes, prefetchRoute } from '@/lib/prefetch-routes';
 import { SecurityTabBar } from '@/components/security/SecurityTabBar';
+import { PageHeaderProvider, useHeaderSlot } from '@/components/layout/PageHeaderContext';
 import { SpotlightTour, useAppTour } from '@/features/onboarding';
 import { useAllFeatureFlags } from '@/features/feature-flags';
 import type { FeatureKey } from '@/features/feature-flags';
@@ -109,6 +110,63 @@ function useIsMobile(breakpoint = 768) {
   }, [breakpoint]);
 
   return isMobile;
+}
+
+/**
+ * Decides what to render in the header slot:
+ * 1. If a page claimed the slot with a custom ReactNode → render it.
+ * 2. If a page explicitly set `null` → no header at all.
+ * 3. Otherwise → fall back to legacy pathname rules + default AppTopBar.
+ */
+function MainHeader({
+  sidebarOpen,
+  onSidebarToggle,
+  isMobile,
+  getPageActions,
+}: {
+  sidebarOpen: boolean;
+  onSidebarToggle: () => void;
+  isMobile: boolean;
+  getPageActions: () => React.ReactNode;
+}) {
+  const headerSlot = useHeaderSlot();
+  const location = useLocation();
+
+  // 1. Page provided a custom header
+  if (headerSlot !== undefined && headerSlot !== null) {
+    return <>{headerSlot}</>;
+  }
+
+  // 2. Page explicitly opted out of any header
+  if (headerSlot === null) {
+    return null;
+  }
+
+  // 3. Legacy pathname-based hiding (workflow builder, webhook editor, chat)
+  if (
+    location.pathname.startsWith('/workflows') ||
+    location.pathname.startsWith('/webhooks/') ||
+    location.pathname.startsWith('/chat')
+  ) {
+    return null;
+  }
+
+  // 4. Default AppTopBar
+  return (
+    <AppTopBar
+      sidebarOpen={sidebarOpen}
+      onSidebarToggle={onSidebarToggle}
+      actions={getPageActions()}
+      afterTitle={
+        location.pathname === '/' ||
+        location.pathname.startsWith('/security') ||
+        location.pathname.startsWith('/dashboards/security') ? (
+          <SecurityTabBar />
+        ) : undefined
+      }
+      isMobile={isMobile}
+    />
+  );
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -333,6 +391,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       setWasExplicitlyOpened(false);
     }
   }, [isMobile, sidebarOpen]);
+
+  const layoutControls = useMemo(
+    () => ({ sidebarOpen, onSidebarToggle: handleToggle, isMobile }),
+    [sidebarOpen, handleToggle, isMobile],
+  );
 
   const sidebarContextValue: SidebarContextValue = {
     isOpen: sidebarOpen,
@@ -1163,33 +1226,23 @@ export function AppLayout({ children }: AppLayoutProps) {
         </Sidebar>
 
         {/* Main content area */}
-        <main
-          className={cn(
-            'flex-1 flex flex-col overflow-hidden min-w-0',
-            // On mobile, main content takes full width since sidebar is overlay
-            isMobile ? 'w-full' : '',
-          )}
-        >
-          {/* Only show AppTopBar for non-workflow-builder, non-webhook-editor, and non-chat pages */}
-          {!location.pathname.startsWith('/workflows') &&
-            !location.pathname.startsWith('/webhooks/') &&
-            !location.pathname.startsWith('/chat') && (
-              <AppTopBar
-                sidebarOpen={sidebarOpen}
-                onSidebarToggle={handleToggle}
-                actions={getPageActions()}
-                afterTitle={
-                  location.pathname === '/' ||
-                  location.pathname.startsWith('/security') ||
-                  location.pathname.startsWith('/dashboards/security') ? (
-                    <SecurityTabBar />
-                  ) : undefined
-                }
-                isMobile={isMobile}
-              />
+        <PageHeaderProvider layoutControls={layoutControls}>
+          <main
+            className={cn(
+              'flex-1 flex flex-col overflow-hidden min-w-0',
+              // On mobile, main content takes full width since sidebar is overlay
+              isMobile ? 'w-full' : '',
             )}
-          <div className="flex-1 overflow-auto">{children}</div>
-        </main>
+          >
+            <MainHeader
+              sidebarOpen={sidebarOpen}
+              onSidebarToggle={handleToggle}
+              isMobile={isMobile}
+              getPageActions={getPageActions}
+            />
+            <div className="relative flex-1 overflow-auto">{children}</div>
+          </main>
+        </PageHeaderProvider>
       </div>
       <SpotlightTour />
     </SidebarContext.Provider>

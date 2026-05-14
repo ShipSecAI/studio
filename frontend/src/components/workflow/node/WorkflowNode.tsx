@@ -334,7 +334,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     updateNodeInternals(id);
   }, [id, outputIds, inputIds, updateNodeInternals]);
 
-  const supportsLiveLogs = component?.runner?.kind === 'docker';
+  const supportsLiveLogs =
+    component?.runner?.kind === 'docker' || component?.id === 'core.ai.codex';
 
   // Early return for loading/missing component
   if (!component) {

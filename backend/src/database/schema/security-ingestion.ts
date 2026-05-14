@@ -381,6 +381,44 @@ export const securityFindingLinks = pgTable(
   }),
 );
 
+export const securityFindingAssessments = pgTable(
+  'security_finding_assessments',
+  {
+    id: text('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    findingId: text('finding_id')
+      .notNull()
+      .references(() => securityFindingInstances.id, { onDelete: 'cascade' }),
+    verdict: varchar('verdict', { length: 64 }).notNull(),
+    importance: varchar('importance', { length: 32 }).notNull(),
+    confidence: real('confidence').notNull().default(0.7),
+    reasoningMarkdown: text('reasoning_markdown').notNull(),
+    evidenceRefs: jsonb('evidence_refs').$type<string[]>().notNull().default([]),
+    wikiRefs: jsonb('wiki_refs').$type<string[]>().notNull().default([]),
+    toolCallsSummary: jsonb('tool_calls_summary')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    createdByAgentRunId: text('created_by_agent_run_id'),
+    createdBy: text('created_by'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    orgFindingCreatedIdx: index('security_finding_assessments_org_finding_created_idx').on(
+      table.organizationId,
+      table.findingId,
+      table.createdAt,
+    ),
+    orgVerdictIdx: index('security_finding_assessments_org_verdict_idx').on(
+      table.organizationId,
+      table.verdict,
+      table.importance,
+    ),
+    agentRunIdx: index('security_finding_assessments_agent_run_idx').on(table.createdByAgentRunId),
+  }),
+);
+
 export const securityThreatStories = pgTable(
   'security_threat_stories',
   {

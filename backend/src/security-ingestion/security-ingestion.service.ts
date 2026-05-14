@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { createHash } from 'node:crypto';
-import { sql } from 'drizzle-orm';
+import { createHash, randomUUID } from 'node:crypto';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DRIZZLE_TOKEN } from '../database/database.module';
 import * as schema from '../database/schema';
@@ -10,6 +10,7 @@ import {
   securityControlMappings,
   securityControlResults,
   securityEvidenceItems,
+  securityFindingAssessments,
   securityFindingControlLinks,
   securityFindingInstances,
   securityFindingLinks,
@@ -135,6 +136,7 @@ export interface SecurityFinding {
   } | null;
   threatRefs: string[];
   linkedFindingKeys: string[];
+  latestAssessment?: SecurityFindingAssessment | null;
   relatedLinks: SecurityFindingLink[];
   evidence: { id: string; summary?: string | null; artifactUri: string; capturedAt: string }[];
   observations: {
@@ -147,6 +149,61 @@ export interface SecurityFinding {
     lifecycleHint?: string | null;
     prNumber?: string | null;
   }[];
+}
+
+export interface SecurityFindingAssessmentCandidate {
+  id: string;
+  findingKey: string;
+  status: string;
+  severity: string;
+  sourceKind: string;
+  sourceRuleId?: string | null;
+  title?: string | null;
+  scannerStatus?: string | null;
+  scannerStatusCode?: string | null;
+  scannerMessage?: string | null;
+  scannerStatusDetail?: string | null;
+  riskDetails?: string | null;
+  provider?: string | null;
+  accountId?: string | null;
+  projectId?: string | null;
+  region?: string | null;
+  serviceName?: string | null;
+  resourceType?: string | null;
+  resourceId?: string | null;
+  resourceName?: string | null;
+  asset?: SecurityFinding['asset'];
+  repository?: string | null;
+  file?: string | null;
+  line?: number | null;
+  endpoint?: string | null;
+  evidenceRefs: string[];
+  observationRefs: string[];
+  latestAssessment?: SecurityFindingAssessment | null;
+  stackRelevanceChecklist: {
+    seenInWiki: 'confirmed' | 'not_found' | 'unknown';
+    seenInInventory: 'confirmed' | 'not_found' | 'unknown';
+    activeRuntimePath: 'confirmed' | 'not_found' | 'unknown';
+    customerImpactPath: 'confirmed' | 'not_found' | 'unknown';
+    publicExposure: 'confirmed' | 'not_found' | 'unknown';
+  };
+  assessmentInstructions: string[];
+}
+
+export interface SecurityFindingAssessment {
+  id: string;
+  findingId: string;
+  verdict: string;
+  importance: string;
+  confidence: number;
+  reasoningMarkdown: string;
+  evidenceRefs: string[];
+  wikiRefs: string[];
+  toolCallsSummary: JsonRecord;
+  createdByAgentRunId?: string | null;
+  createdBy?: string | null;
+  metadata: JsonRecord;
+  createdAt: string;
 }
 
 export interface SecurityThreatStoryFinding extends SecurityFindingSummary {
@@ -582,7 +639,14 @@ export class SecurityIngestionService {
 
   async listFindings(
     organizationId: string,
-    options: { sourceKind?: string; status?: string; limit?: number } = {},
+    options: {
+      sourceKind?: string;
+      status?: string;
+      assessmentVerdict?: string;
+      userVisibleOnly?: boolean;
+      limit?: number;
+      offset?: number;
+    } = {},
   ): Promise<{ findings: SecurityFinding[] }> {
     return this.queryFindings(organizationId, options);
   }
@@ -601,6 +665,75 @@ export class SecurityIngestionService {
   ): Promise<SecurityFinding['evidence'] | null> {
     const finding = await this.getFinding(organizationId, findingId);
     return finding ? finding.evidence : null;
+  }
+
+  async listFindingAssessments(
+    organizationId: string,
+    findingId: string,
+  ): Promise<{ assessments: SecurityFindingAssessment[] } | null> {
+    const exists = await this.findingExists(organizationId, findingId);
+    if (!exists) return null;
+
+    const rows = await this.db
+      .select()
+      .from(securityFindingAssessments)
+      .where(
+        and(
+          eq(securityFindingAssessments.organizationId, organizationId),
+          eq(securityFindingAssessments.findingId, findingId),
+        ),
+      )
+      .orderBy(desc(securityFindingAssessments.createdAt))
+      .limit(50);
+
+    return {
+      assessments: rows.map((row) => this.mapAssessmentRow(row)),
+    };
+  }
+
+  async recordFindingAssessment(
+    organizationId: string,
+    input: {
+      findingId: string;
+      verdict: string;
+      importance: string;
+      confidence?: number;
+      reasoningMarkdown: string;
+      evidenceRefs?: string[];
+      wikiRefs?: string[];
+      toolCallsSummary?: JsonRecord;
+      createdByAgentRunId?: string | null;
+      createdBy?: string | null;
+      metadata?: JsonRecord;
+    },
+  ): Promise<SecurityFindingAssessment> {
+    const exists = await this.findingExists(organizationId, input.findingId);
+    if (!exists) throw new BadRequestException('Finding must exist in the organization');
+    if (!input.reasoningMarkdown.trim()) {
+      throw new BadRequestException('Finding assessment reasoning is required');
+    }
+
+    const now = new Date();
+    const assessment = {
+      id: `finding-assessment:${randomUUID()}`,
+      organizationId,
+      findingId: input.findingId,
+      verdict: input.verdict.trim(),
+      importance: input.importance.trim(),
+      confidence: Math.min(Math.max(input.confidence ?? 0.7, 0), 1),
+      reasoningMarkdown: input.reasoningMarkdown.trim(),
+      evidenceRefs: [...new Set(input.evidenceRefs ?? [])],
+      wikiRefs: [...new Set(input.wikiRefs ?? [])],
+      toolCallsSummary: input.toolCallsSummary ?? {},
+      createdByAgentRunId: input.createdByAgentRunId ?? null,
+      createdBy: input.createdBy ?? null,
+      metadata: input.metadata ?? {},
+      createdAt: now,
+    };
+
+    await this.db.insert(securityFindingAssessments).values(assessment);
+
+    return this.mapAssessmentRow(assessment);
   }
 
   async listThreatStories(
@@ -659,6 +792,11 @@ export class SecurityIngestionService {
     if (existingFindings.size !== findingIds.length) {
       throw new BadRequestException('All threat story findings must exist in the organization');
     }
+    await this.assertFindingsVisibleForCorrelation(
+      organizationId,
+      findingIds,
+      'Threat stories can only include findings assessed as user-visible',
+    );
 
     const now = new Date();
     const id = `threat-story:${stableHash(organizationId, storyKey)}`;
@@ -736,13 +874,37 @@ export class SecurityIngestionService {
 
   private async queryFindings(
     organizationId: string,
-    options: { sourceKind?: string; status?: string; findingId?: string; limit?: number } = {},
+    options: {
+      sourceKind?: string;
+      status?: string;
+      assessmentVerdict?: string;
+      userVisibleOnly?: boolean;
+      findingId?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
   ): Promise<{ findings: SecurityFinding[] }> {
     const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+    const offset = Math.max(options.offset ?? 0, 0);
     const conditions = [sql`fi.organization_id = ${organizationId}`];
     if (options.findingId) conditions.push(sql`fi.id = ${options.findingId}`);
     if (options.sourceKind) conditions.push(sql`sr.source_kind = ${options.sourceKind}`);
     if (options.status) conditions.push(sql`fi.status = ${options.status}`);
+    if (options.assessmentVerdict === 'unassessed') {
+      conditions.push(sql`latest_assessment.id IS NULL`);
+    } else if (options.assessmentVerdict) {
+      conditions.push(sql`latest_assessment.verdict = ${options.assessmentVerdict}`);
+    }
+    if (options.userVisibleOnly) {
+      conditions.push(sql`
+        latest_assessment.verdict IN (
+          'actionable',
+          'needs_context',
+          'resolved_candidate',
+          'accepted_risk'
+        )
+      `);
+    }
 
     const result = await this.db.execute(sql`
       SELECT
@@ -768,7 +930,19 @@ export class SecurityIngestionService {
         latest_obs.title AS latest_title,
         latest_obs.status AS latest_observation_status,
         latest_obs.observed_at AS latest_observed_at,
-        latest_obs.normalized AS latest_normalized
+        latest_obs.normalized AS latest_normalized,
+        latest_assessment.id AS latest_assessment_id,
+        latest_assessment.verdict AS latest_assessment_verdict,
+        latest_assessment.importance AS latest_assessment_importance,
+        latest_assessment.confidence AS latest_assessment_confidence,
+        latest_assessment.reasoning_markdown AS latest_assessment_reasoning_markdown,
+        latest_assessment.evidence_refs AS latest_assessment_evidence_refs,
+        latest_assessment.wiki_refs AS latest_assessment_wiki_refs,
+        latest_assessment.tool_calls_summary AS latest_assessment_tool_calls_summary,
+        latest_assessment.created_by_agent_run_id AS latest_assessment_created_by_agent_run_id,
+        latest_assessment.created_by AS latest_assessment_created_by,
+        latest_assessment.metadata AS latest_assessment_metadata,
+        latest_assessment.created_at AS latest_assessment_created_at
       FROM security_finding_instances fi
       JOIN security_scanner_runs sr ON sr.id = fi.scanner_run_id
       LEFT JOIN security_assets a ON a.id = fi.asset_id
@@ -779,6 +953,14 @@ export class SecurityIngestionService {
         ORDER BY o.observed_at DESC
         LIMIT 1
       ) latest_obs ON true
+      LEFT JOIN LATERAL (
+        SELECT fa.*
+        FROM security_finding_assessments fa
+        WHERE fa.organization_id = fi.organization_id
+          AND fa.finding_id = fi.id
+        ORDER BY fa.created_at DESC
+        LIMIT 1
+      ) latest_assessment ON true
       WHERE ${sql.join(conditions, sql` AND `)}
       ORDER BY
         CASE fi.severity
@@ -790,6 +972,7 @@ export class SecurityIngestionService {
         END,
         fi.last_seen_at DESC
       LIMIT ${limit}
+      OFFSET ${offset}
     `);
 
     const rows = result.rows as Record<string, unknown>[];
@@ -810,6 +993,95 @@ export class SecurityIngestionService {
     return {
       findings: rows.map((row) =>
         this.mapFindingRow(row, observationsByFinding, evidenceByFinding, linksByFinding),
+      ),
+    };
+  }
+
+  async listFindingAssessmentCandidates(
+    organizationId: string,
+    options: {
+      sourceKind?: string;
+      status?: string;
+      assessmentVerdict?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Promise<{ candidates: SecurityFindingAssessmentCandidate[] }> {
+    const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+    const offset = Math.max(options.offset ?? 0, 0);
+    const conditions = [sql`fi.organization_id = ${organizationId}`];
+    if (options.sourceKind) conditions.push(sql`sr.source_kind = ${options.sourceKind}`);
+    if (options.status) conditions.push(sql`fi.status = ${options.status}`);
+    if (options.assessmentVerdict === 'unassessed') {
+      conditions.push(sql`latest_assessment.id IS NULL`);
+    } else if (options.assessmentVerdict) {
+      conditions.push(sql`latest_assessment.verdict = ${options.assessmentVerdict}`);
+    }
+
+    const result = await this.db.execute(sql`
+      SELECT
+        fi.id,
+        fi.finding_key,
+        fi.status,
+        fi.severity,
+        fi.observation_refs,
+        fi.evidence_refs,
+        sr.source_kind,
+        a.id AS asset_id,
+        a.asset_kind,
+        a.stable_key,
+        a.display_name,
+        latest_obs.source_rule_id,
+        latest_obs.status AS latest_observation_status,
+        latest_obs.title AS latest_title,
+        latest_obs.normalized AS latest_normalized,
+        latest_assessment.id AS latest_assessment_id,
+        latest_assessment.verdict AS latest_assessment_verdict,
+        latest_assessment.importance AS latest_assessment_importance,
+        latest_assessment.confidence AS latest_assessment_confidence,
+        latest_assessment.reasoning_markdown AS latest_assessment_reasoning_markdown,
+        latest_assessment.evidence_refs AS latest_assessment_evidence_refs,
+        latest_assessment.wiki_refs AS latest_assessment_wiki_refs,
+        latest_assessment.tool_calls_summary AS latest_assessment_tool_calls_summary,
+        latest_assessment.created_by_agent_run_id AS latest_assessment_created_by_agent_run_id,
+        latest_assessment.created_by AS latest_assessment_created_by,
+        latest_assessment.metadata AS latest_assessment_metadata,
+        latest_assessment.created_at AS latest_assessment_created_at
+      FROM security_finding_instances fi
+      JOIN security_scanner_runs sr ON sr.id = fi.scanner_run_id
+      LEFT JOIN security_assets a ON a.id = fi.asset_id
+      LEFT JOIN LATERAL (
+        SELECT o.*
+        FROM security_observations o
+        WHERE o.id IN (SELECT jsonb_array_elements_text(fi.observation_refs))
+        ORDER BY o.observed_at DESC
+        LIMIT 1
+      ) latest_obs ON true
+      LEFT JOIN LATERAL (
+        SELECT fa.*
+        FROM security_finding_assessments fa
+        WHERE fa.organization_id = fi.organization_id
+          AND fa.finding_id = fi.id
+        ORDER BY fa.created_at DESC
+        LIMIT 1
+      ) latest_assessment ON true
+      WHERE ${sql.join(conditions, sql` AND `)}
+      ORDER BY
+        CASE fi.severity
+          WHEN 'critical' THEN 0
+          WHEN 'high' THEN 1
+          WHEN 'medium' THEN 2
+          WHEN 'low' THEN 3
+          ELSE 4
+        END,
+        fi.last_seen_at DESC
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `);
+
+    return {
+      candidates: (result.rows as Record<string, unknown>[]).map((row) =>
+        this.mapAssessmentCandidateRow(row),
       ),
     };
   }
@@ -923,6 +1195,11 @@ export class SecurityIngestionService {
     if (!fromExists || !toExists) {
       throw new BadRequestException('Both findings must exist in the organization');
     }
+    await this.assertFindingsVisibleForCorrelation(
+      organizationId,
+      [input.fromFindingId, input.toFindingId],
+      'Finding links can only include findings assessed as user-visible',
+    );
 
     const now = new Date();
     const confidence = Math.min(Math.max(input.confidence ?? 0.7, 0), 1);
@@ -1003,6 +1280,46 @@ export class SecurityIngestionService {
         AND id = ANY(${ids})
     `);
     return new Set((result.rows as Record<string, unknown>[]).map((row) => String(row.id)));
+  }
+
+  private async assertFindingsVisibleForCorrelation(
+    organizationId: string,
+    findingIds: string[],
+    message: string,
+  ): Promise<void> {
+    const uniqueIds = [...new Set(findingIds.map((id) => id.trim()).filter(Boolean))];
+    if (uniqueIds.length === 0) return;
+    const ids = sql`ARRAY[${sql.join(
+      uniqueIds.map((id) => sql`${id}`),
+      sql`, `,
+    )}]::text[]`;
+    const result = await this.db.execute(sql`
+      SELECT fi.id
+      FROM security_finding_instances fi
+      JOIN LATERAL (
+        SELECT fa.verdict
+        FROM security_finding_assessments fa
+        WHERE fa.organization_id = fi.organization_id
+          AND fa.finding_id = fi.id
+        ORDER BY fa.created_at DESC
+        LIMIT 1
+      ) latest_assessment ON true
+      WHERE fi.organization_id = ${organizationId}
+        AND fi.id = ANY(${ids})
+        AND latest_assessment.verdict IN (
+          'actionable',
+          'needs_context',
+          'resolved_candidate',
+          'accepted_risk'
+        )
+    `);
+    const visible = new Set(
+      (result.rows as Record<string, unknown>[]).map((row) => String(row.id)),
+    );
+    const hidden = uniqueIds.filter((id) => !visible.has(id));
+    if (hidden.length > 0) {
+      throw new BadRequestException(`${message}: ${hidden.join(', ')}`);
+    }
   }
 
   private async loadThreatStoryFindings(organizationId: string, storyIds: string[]) {
@@ -1247,6 +1564,101 @@ export class SecurityIngestionService {
     };
   }
 
+  private mapAssessmentCandidateRow(
+    row: Record<string, unknown>,
+  ): SecurityFindingAssessmentCandidate {
+    const normalized = toRecord(row.latest_normalized);
+    const rawFinding = toRecord(normalized.rawFinding);
+    const cloud = toRecord(rawFinding.cloud);
+    const account = toRecord(cloud.account);
+    const resources = Array.isArray(normalized.resources) ? normalized.resources : [];
+    const resource = toRecord(resources[0]);
+    const resourceData = toRecord(resource.data);
+    const resourceMetadata = toRecord(resourceData.metadata);
+    const provider =
+      stringOrNull(normalized.provider) ??
+      stringOrNull(rawFinding.provider) ??
+      stringOrNull(cloud.provider);
+    const resourceName =
+      stringOrNull(resource.name) ??
+      stringOrNull(resourceMetadata.name) ??
+      stringOrNull(row.display_name);
+    const searchableRaw = collectStrings(normalized).join(' ');
+
+    return {
+      id: String(row.id),
+      findingKey: String(row.finding_key),
+      status: String(row.status),
+      severity: String(row.severity),
+      sourceKind: String(row.source_kind),
+      sourceRuleId: stringOrNull(row.source_rule_id),
+      title: stringOrNull(row.latest_title),
+      scannerStatus: stringOrNull(row.latest_observation_status),
+      scannerStatusCode: stringOrNull(normalized.status_code),
+      scannerMessage:
+        stringOrNull(normalized.message) ??
+        stringOrNull(normalized.status_detail) ??
+        stringOrNull(rawFinding.message),
+      scannerStatusDetail: stringOrNull(normalized.status_detail),
+      riskDetails: stringOrNull(normalized.risk_details),
+      provider,
+      accountId: stringOrNull(normalized.accountId) ?? stringOrNull(account.uid),
+      projectId: stringOrNull(normalized.projectId),
+      region: stringOrNull(normalized.region),
+      serviceName: stringOrNull(normalized.serviceName),
+      resourceType: stringOrNull(normalized.resourceType ?? resource.type),
+      resourceId: stringOrNull(normalized.resourceId ?? resource.uid),
+      resourceName,
+      asset: row.asset_id
+        ? {
+            id: String(row.asset_id),
+            kind: String(row.asset_kind),
+            stableKey: String(row.stable_key),
+            displayName: String(row.display_name),
+          }
+        : null,
+      repository: stringOrNull(normalized.repository),
+      file: stringOrNull(normalized.file),
+      line: numberOrNull(normalized.line),
+      endpoint: stringOrNull(normalized.endpoint),
+      evidenceRefs: jsonStringArray(row.evidence_refs),
+      observationRefs: jsonStringArray(row.observation_refs),
+      latestAssessment: row.latest_assessment_id
+        ? this.mapAssessmentRow({
+            id: row.latest_assessment_id,
+            finding_id: row.id,
+            verdict: row.latest_assessment_verdict,
+            importance: row.latest_assessment_importance,
+            confidence: row.latest_assessment_confidence,
+            reasoning_markdown: row.latest_assessment_reasoning_markdown,
+            evidence_refs: row.latest_assessment_evidence_refs,
+            wiki_refs: row.latest_assessment_wiki_refs,
+            tool_calls_summary: row.latest_assessment_tool_calls_summary,
+            created_by_agent_run_id: row.latest_assessment_created_by_agent_run_id,
+            created_by: row.latest_assessment_created_by,
+            metadata: row.latest_assessment_metadata,
+            created_at: row.latest_assessment_created_at,
+          })
+        : null,
+      stackRelevanceChecklist: {
+        seenInWiki: 'unknown',
+        seenInInventory: row.asset_id ? 'confirmed' : 'unknown',
+        activeRuntimePath: 'unknown',
+        customerImpactPath: 'unknown',
+        publicExposure:
+          stringOrNull(normalized.endpoint) || /0\.0\.0\.0\/0|internet|public/i.test(searchableRaw)
+            ? 'confirmed'
+            : 'unknown',
+      },
+      assessmentInstructions: [
+        'Read the security wiki before writing a verdict.',
+        'Use scannerMessage/statusDetail/riskDetails as the failed condition; titles can be misleading.',
+        'Mark not_relevant/noise when wiki and inventory do not show an active runtime, identity, endpoint, data path, customer impact, or compliance need.',
+        'Write metadata.stackRelevance with seenInWiki, seenInInventory, activeRuntimePath, customerImpactPath, publicExposure, evidence, and missingEvidence.',
+      ],
+    };
+  }
+
   private mapFindingRow(
     row: Record<string, unknown>,
     observationsById: Map<string, SecurityFinding['observations'][number]>,
@@ -1313,9 +1725,44 @@ export class SecurityIngestionService {
         : null,
       threatRefs: jsonStringArray(normalized.threatRefs),
       linkedFindingKeys: jsonStringArray(normalized.linkedFindingKeys),
+      latestAssessment: row.latest_assessment_id
+        ? this.mapAssessmentRow({
+            id: row.latest_assessment_id,
+            finding_id: row.id,
+            verdict: row.latest_assessment_verdict,
+            importance: row.latest_assessment_importance,
+            confidence: row.latest_assessment_confidence,
+            reasoning_markdown: row.latest_assessment_reasoning_markdown,
+            evidence_refs: row.latest_assessment_evidence_refs,
+            wiki_refs: row.latest_assessment_wiki_refs,
+            tool_calls_summary: row.latest_assessment_tool_calls_summary,
+            created_by_agent_run_id: row.latest_assessment_created_by_agent_run_id,
+            created_by: row.latest_assessment_created_by,
+            metadata: row.latest_assessment_metadata,
+            created_at: row.latest_assessment_created_at,
+          })
+        : null,
       relatedLinks: linksById.get(String(row.id)) ?? [],
       evidence,
       observations,
+    };
+  }
+
+  private mapAssessmentRow(row: Record<string, unknown>): SecurityFindingAssessment {
+    return {
+      id: String(row.id),
+      findingId: String(row.finding_id ?? row.findingId),
+      verdict: String(row.verdict),
+      importance: String(row.importance),
+      confidence: numberOrNull(row.confidence) ?? 0.7,
+      reasoningMarkdown: String(row.reasoning_markdown ?? row.reasoningMarkdown ?? ''),
+      evidenceRefs: jsonStringArray(row.evidence_refs ?? row.evidenceRefs),
+      wikiRefs: jsonStringArray(row.wiki_refs ?? row.wikiRefs),
+      toolCallsSummary: toRecord(row.tool_calls_summary ?? row.toolCallsSummary),
+      createdByAgentRunId: stringOrNull(row.created_by_agent_run_id ?? row.createdByAgentRunId),
+      createdBy: stringOrNull(row.created_by ?? row.createdBy),
+      metadata: toRecord(row.metadata),
+      createdAt: dateString(row.created_at ?? row.createdAt),
     };
   }
 

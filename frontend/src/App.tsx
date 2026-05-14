@@ -323,6 +323,8 @@ function App() {
                               </Route>
                               <Route element={<FeatureFlagRoute flag="AI_FINDINGS" />}>
                                 <Route path="/findings" element={<FindingsPage />} />
+                                <Route path="/findings/:findingId" element={<FindingsPage />} />
+                                <Route path="/stories/:storyId" element={<FindingsPage />} />
                               </Route>
                               <Route path="/security-wiki" element={<SecurityWikiPage />} />
 

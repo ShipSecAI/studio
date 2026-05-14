@@ -21,6 +21,10 @@ import {
   PersistSecurityIngestionBatchResponseDto,
 } from './dto/ingest-batch.dto';
 import {
+  RecordFindingAssessmentRequestDto,
+  RecordFindingAssessmentRequestSchema,
+} from './dto/finding-assessments.dto';
+import {
   RecordFindingLinkRequestDto,
   RecordFindingLinkRequestSchema,
 } from './dto/finding-links.dto';
@@ -43,6 +47,8 @@ export class SecurityIngestionController {
     @CurrentAuth() auth: AuthContext | null,
     @Query('sourceKind') sourceKind?: string,
     @Query('status') status?: string,
+    @Query('assessmentVerdict') assessmentVerdict?: string,
+    @Query('userVisibleOnly') userVisibleOnly?: string,
     @Query('limit') limit?: string,
   ) {
     if (!auth?.isAuthenticated || !auth.organizationId) {
@@ -52,6 +58,8 @@ export class SecurityIngestionController {
     return this.securityIngestionService.listFindings(auth.organizationId, {
       sourceKind: sourceKind?.trim() || undefined,
       status: status?.trim() || undefined,
+      assessmentVerdict: assessmentVerdict?.trim() || undefined,
+      userVisibleOnly: userVisibleOnly === 'true',
       limit: limit ? Number(limit) : undefined,
     });
   }
@@ -81,6 +89,52 @@ export class SecurityIngestionController {
     );
     if (!evidence) throw new NotFoundException('Finding not found');
     return { evidence };
+  }
+
+  @Get('findings/:id/assessments')
+  @ApiOkResponse({ description: 'List agent assessments for one durable security finding.' })
+  async listFindingAssessments(@CurrentAuth() auth: AuthContext | null, @Param('id') id: string) {
+    if (!auth?.isAuthenticated || !auth.organizationId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const result = await this.securityIngestionService.listFindingAssessments(
+      auth.organizationId,
+      id,
+    );
+    if (!result) throw new NotFoundException('Finding not found');
+    return result;
+  }
+
+  @Post('findings/:id/assessments')
+  @ApiOkResponse({ description: 'Record an agent assessment for one durable security finding.' })
+  async recordFindingAssessment(
+    @CurrentAuth() auth: AuthContext | null,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(RecordFindingAssessmentRequestSchema))
+    body: RecordFindingAssessmentRequestDto,
+  ) {
+    if (!auth?.isAuthenticated || !auth.organizationId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const assessment = await this.securityIngestionService.recordFindingAssessment(
+      auth.organizationId,
+      {
+        findingId: id,
+        verdict: body.verdict,
+        importance: body.importance,
+        confidence: body.confidence,
+        reasoningMarkdown: body.reasoningMarkdown,
+        evidenceRefs: body.evidenceRefs,
+        wikiRefs: body.wikiRefs,
+        toolCallsSummary: body.toolCallsSummary,
+        createdByAgentRunId: body.createdByAgentRunId,
+        createdBy: auth.userId,
+        metadata: body.metadata,
+      },
+    );
+    return { assessment };
   }
 
   @Get('findings/:id/links')

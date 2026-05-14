@@ -14,6 +14,17 @@ const findingLinkRelationshipSchema = z.enum([
   'related',
 ]);
 
+const findingAssessmentVerdictSchema = z.enum([
+  'actionable',
+  'not_relevant',
+  'false_positive',
+  'accepted_risk',
+  'needs_context',
+  'resolved_candidate',
+]);
+
+const findingAssessmentImportanceSchema = z.enum(['critical', 'high', 'medium', 'low', 'noise']);
+
 const threatStoryRecordSchema = {
   storyKey: z.string().min(1).optional(),
   title: z.string().min(1),
@@ -55,6 +66,17 @@ export function registerSecurityIngestionTools(
           .string()
           .optional()
           .describe('Optional finding status filter, for example open or resolved.'),
+        assessmentVerdict: z
+          .string()
+          .optional()
+          .describe(
+            'Optional latest agent assessment verdict filter. Use "unassessed" to find findings no agent has assessed yet.',
+          ),
+        userVisibleOnly: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe('When true, only return findings whose latest agent verdict is user-visible.'),
         limit: z
           .number()
           .int()
@@ -63,9 +85,23 @@ export function registerSecurityIngestionTools(
           .optional()
           .default(50)
           .describe('Maximum number of findings to return, from 1 to 200.'),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .default(0)
+          .describe('Number of findings to skip for pagination. Use with limit <= 200.'),
       },
     },
-    async (args: { sourceKind?: string; status?: string; limit?: number }) => {
+    async (args: {
+      sourceKind?: string;
+      status?: string;
+      assessmentVerdict?: string;
+      userVisibleOnly?: boolean;
+      limit?: number;
+      offset?: number;
+    }) => {
       const gate = checkPermission(auth, 'analytics.query');
       if (!gate.allowed) return gate.error;
       if (!securityIngestionService) {
@@ -79,12 +115,79 @@ export function registerSecurityIngestionTools(
         const result = await securityIngestionService.listFindings(auth.organizationId, {
           sourceKind: args.sourceKind?.trim() || undefined,
           status: args.status?.trim() || undefined,
+          assessmentVerdict: args.assessmentVerdict?.trim() || undefined,
+          userVisibleOnly: args.userVisibleOnly,
           limit: args.limit,
+          offset: args.offset,
         });
 
         return jsonResult({
           count: result.findings.length,
           findings: result.findings,
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'list_finding_assessment_candidates',
+    {
+      description:
+        'List compact finding-assessment candidates designed for agentic noise reduction. ' +
+        'This returns one row per durable finding with scanner rule/status/message/provider/resource fields, evidence refs, latest assessment, and a stack-relevance checklist. ' +
+        'Use this before record_finding_assessment so the agent can decide whether scanner output is product-relevant, noise, false-positive, needs-context, or actionable without parsing giant raw scanner blobs.',
+      inputSchema: {
+        sourceKind: z
+          .string()
+          .optional()
+          .describe('Optional source kind filter, for example prowler or ai_code_review.'),
+        status: z
+          .string()
+          .optional()
+          .describe('Optional finding status filter, for example open or resolved.'),
+        assessmentVerdict: z
+          .string()
+          .optional()
+          .describe(
+            'Optional latest agent assessment verdict filter. Use "unassessed" to find findings no agent has assessed yet.',
+          ),
+        limit: z.number().int().min(1).max(200).optional().default(50),
+        offset: z.number().int().min(0).optional().default(0),
+      },
+    },
+    async (args: {
+      sourceKind?: string;
+      status?: string;
+      assessmentVerdict?: string;
+      limit?: number;
+      offset?: number;
+    }) => {
+      const gate = checkPermission(auth, 'analytics.query');
+      if (!gate.allowed) return gate.error;
+      if (!securityIngestionService?.listFindingAssessmentCandidates) {
+        return errorResult(new Error('Security ingestion service is not available'));
+      }
+      if (!auth.organizationId) {
+        return errorResult(new Error('Organization context is required'));
+      }
+
+      try {
+        const result = await securityIngestionService.listFindingAssessmentCandidates(
+          auth.organizationId,
+          {
+            sourceKind: args.sourceKind?.trim() || undefined,
+            status: args.status?.trim() || undefined,
+            assessmentVerdict: args.assessmentVerdict?.trim() || undefined,
+            limit: args.limit,
+            offset: args.offset,
+          },
+        );
+
+        return jsonResult({
+          count: result.candidates.length,
+          candidates: result.candidates,
         });
       } catch (error) {
         return errorResult(error);
@@ -118,6 +221,101 @@ export function registerSecurityIngestionTools(
         );
         if (!finding) return errorResult(new Error('Finding not found'));
         return jsonResult({ finding });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'list_finding_assessments',
+    {
+      description:
+        'List the append-only agent assessment notes for a durable finding. Use this before changing a verdict so the new reasoning accounts for prior agent decisions.',
+      inputSchema: {
+        findingId: z.string().min(1).describe('The durable security finding ID.'),
+      },
+    },
+    async (args: { findingId: string }) => {
+      const gate = checkPermission(auth, 'analytics.query');
+      if (!gate.allowed) return gate.error;
+      if (!securityIngestionService) {
+        return errorResult(new Error('Security ingestion service is not available'));
+      }
+      if (!auth.organizationId) {
+        return errorResult(new Error('Organization context is required'));
+      }
+
+      try {
+        const result = await securityIngestionService.listFindingAssessments(
+          auth.organizationId,
+          args.findingId,
+        );
+        if (!result) return errorResult(new Error('Finding not found'));
+        return jsonResult({ count: result.assessments.length, assessments: result.assessments });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'record_finding_assessment',
+    {
+      description:
+        'Append an agent assessment note for a durable finding. This is the canonical way to mark scanner output actionable, noisy, irrelevant, accepted risk, needs context, or resolved-candidate after reading ShipSec findings, wiki, and inventory context.',
+      inputSchema: {
+        findingId: z.string().min(1),
+        verdict: findingAssessmentVerdictSchema,
+        importance: findingAssessmentImportanceSchema,
+        confidence: z.number().min(0).max(1).optional(),
+        reasoningMarkdown: z.string().min(1),
+        evidenceRefs: z.array(z.string().min(1)).optional(),
+        wikiRefs: z.array(z.string().min(1)).optional(),
+        toolCallsSummary: z.record(z.string(), z.unknown()).optional(),
+        createdByAgentRunId: z.string().min(1).optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      },
+    },
+    async (args: {
+      findingId: string;
+      verdict: string;
+      importance: string;
+      confidence?: number;
+      reasoningMarkdown: string;
+      evidenceRefs?: string[];
+      wikiRefs?: string[];
+      toolCallsSummary?: Record<string, unknown>;
+      createdByAgentRunId?: string;
+      metadata?: Record<string, unknown>;
+    }) => {
+      const gate = checkPermission(auth, 'analytics.query');
+      if (!gate.allowed) return gate.error;
+      if (!securityIngestionService) {
+        return errorResult(new Error('Security ingestion service is not available'));
+      }
+      if (!auth.organizationId) {
+        return errorResult(new Error('Organization context is required'));
+      }
+
+      try {
+        const assessment = await securityIngestionService.recordFindingAssessment(
+          auth.organizationId,
+          {
+            findingId: args.findingId,
+            verdict: args.verdict,
+            importance: args.importance,
+            confidence: args.confidence,
+            reasoningMarkdown: args.reasoningMarkdown,
+            evidenceRefs: args.evidenceRefs,
+            wikiRefs: args.wikiRefs,
+            toolCallsSummary: args.toolCallsSummary,
+            createdByAgentRunId: args.createdByAgentRunId,
+            createdBy: auth.userId,
+            metadata: args.metadata,
+          },
+        );
+        return jsonResult({ assessment });
       } catch (error) {
         return errorResult(error);
       }

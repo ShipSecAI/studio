@@ -20,7 +20,10 @@ describe('Security Ingestion MCP Tools', () => {
 
   let securityIngestionService: {
     listFindings: ReturnType<typeof jest.fn>;
+    listFindingAssessmentCandidates: ReturnType<typeof jest.fn>;
     getFinding: ReturnType<typeof jest.fn>;
+    listFindingAssessments: ReturnType<typeof jest.fn>;
+    recordFindingAssessment: ReturnType<typeof jest.fn>;
     listFindingLinks: ReturnType<typeof jest.fn>;
     recordFindingLink: ReturnType<typeof jest.fn>;
     listThreatStories: ReturnType<typeof jest.fn>;
@@ -41,10 +44,28 @@ describe('Security Ingestion MCP Tools', () => {
           },
         ],
       }),
+      listFindingAssessmentCandidates: jest.fn().mockResolvedValue({
+        candidates: [
+          {
+            id: 'finding-1',
+            sourceKind: 'prowler',
+            scannerMessage: 'Firewall default-allow-ssh exposes SSH to the internet.',
+            provider: 'gcp',
+            projectId: 'shipsec',
+          },
+        ],
+      }),
       getFinding: jest.fn().mockResolvedValue({
         id: 'finding-1',
         findingKey: 'code:repo:cwe-639:get-/api/invoices/:id',
         evidence: [{ id: 'evidence-1' }],
+      }),
+      listFindingAssessments: jest.fn().mockResolvedValue({
+        assessments: [{ id: 'assessment-1', verdict: 'actionable' }],
+      }),
+      recordFindingAssessment: jest.fn().mockResolvedValue({
+        id: 'assessment-1',
+        verdict: 'actionable',
       }),
       listFindingLinks: jest.fn().mockResolvedValue({
         links: [{ id: 'link-1', relationshipType: 'same_root_cause' }],
@@ -91,18 +112,46 @@ describe('Security Ingestion MCP Tools', () => {
     const result = await tools['list_security_findings'].handler({
       sourceKind: 'ai_code_review',
       status: 'open',
+      assessmentVerdict: 'unassessed',
+      userVisibleOnly: false,
       limit: 25,
+      offset: 50,
     });
 
     expect(securityIngestionService.listFindings).toHaveBeenCalledWith('org-1', {
       sourceKind: 'ai_code_review',
       status: 'open',
+      assessmentVerdict: 'unassessed',
+      userVisibleOnly: false,
       limit: 25,
+      offset: 50,
     });
     expect(result.isError).toBeUndefined();
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.count).toBe(1);
     expect(parsed.findings[0].findingKey).toBe('code:repo:cwe-639:get-/api/invoices/:id');
+  });
+
+  it('lists compact finding assessment candidates for agentic noise reduction', async () => {
+    const result = await tools['list_finding_assessment_candidates'].handler({
+      sourceKind: 'prowler',
+      status: 'open',
+      assessmentVerdict: 'unassessed',
+      limit: 25,
+      offset: 100,
+    });
+
+    expect(securityIngestionService.listFindingAssessmentCandidates).toHaveBeenCalledWith('org-1', {
+      sourceKind: 'prowler',
+      status: 'open',
+      assessmentVerdict: 'unassessed',
+      limit: 25,
+      offset: 100,
+    });
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.count).toBe(1);
+    expect(parsed.candidates[0].scannerMessage).toContain('exposes SSH');
   });
 
   it('gets one durable finding from the official Studio MCP surface', async () => {
@@ -115,6 +164,49 @@ describe('Security Ingestion MCP Tools', () => {
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.finding.id).toBe('finding-1');
     expect(parsed.finding.evidence[0].id).toBe('evidence-1');
+  });
+
+  it('lists agent assessments for a durable finding', async () => {
+    const result = await tools['list_finding_assessments'].handler({
+      findingId: 'finding-1',
+    });
+
+    expect(securityIngestionService.listFindingAssessments).toHaveBeenCalledWith(
+      'org-1',
+      'finding-1',
+    );
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.count).toBe(1);
+    expect(parsed.assessments[0].verdict).toBe('actionable');
+  });
+
+  it('records an agent assessment for a durable finding', async () => {
+    const result = await tools['record_finding_assessment'].handler({
+      findingId: 'finding-1',
+      verdict: 'actionable',
+      importance: 'high',
+      confidence: 0.83,
+      reasoningMarkdown: 'This maps to a product-owned endpoint.',
+      evidenceRefs: ['evidence-1'],
+      wikiRefs: ['wiki://runtime/workflows-agents-and-tools.md'],
+      createdByAgentRunId: 'agent-run-1',
+    });
+
+    expect(securityIngestionService.recordFindingAssessment).toHaveBeenCalledWith('org-1', {
+      findingId: 'finding-1',
+      verdict: 'actionable',
+      importance: 'high',
+      confidence: 0.83,
+      reasoningMarkdown: 'This maps to a product-owned endpoint.',
+      evidenceRefs: ['evidence-1'],
+      wikiRefs: ['wiki://runtime/workflows-agents-and-tools.md'],
+      toolCallsSummary: undefined,
+      createdByAgentRunId: 'agent-run-1',
+      createdBy: 'user-1',
+      metadata: undefined,
+    });
+    expect(result.isError).toBeUndefined();
   });
 
   it('lists links connected to a durable finding', async () => {
