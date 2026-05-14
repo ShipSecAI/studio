@@ -55,6 +55,7 @@ import './security/trufflehog';
 import './security/terminal-demo';
 import './security/virustotal';
 import './security/abuseipdb';
+import './security/katana';
 import './security/aws-mcp-group';
 
 // GitHub components
