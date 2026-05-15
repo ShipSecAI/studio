@@ -41,4 +41,13 @@ describe('MarkdownView', () => {
     expect(codeElement?.textContent).toContain('const');
     expect(codeElement?.textContent).toContain('x = 1');
   });
+
+  it('renders mermaid code fences as diagram containers', () => {
+    const markdown = '```mermaid\ngraph TD\n  A[Start] --> B[Done]\n```';
+    const { container } = render(<MarkdownView content={markdown} />);
+    const diagram = container.querySelector('.mermaid-diagram');
+    expect(diagram).not.toBeNull();
+    expect(diagram).toHaveAttribute('data-mermaid-id');
+    expect(diagram?.textContent).toContain('graph TD');
+  });
 });

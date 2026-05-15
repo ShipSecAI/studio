@@ -29,6 +29,7 @@ import {
   ServerCog,
   Settings,
   ChevronDown,
+  BookOpen,
   Home,
   Globe,
   Radar,
@@ -440,6 +441,12 @@ export function AppLayout({ children }: AppLayoutProps) {
     requiredFlag: 'AI_FINDINGS',
   };
 
+  const securityWikiItem: NavItem = {
+    name: 'Security Wiki',
+    href: '/security-wiki',
+    icon: BookOpen,
+  };
+
   const activityItem: NavItem = {
     name: 'Activity',
     href: '/activity',
@@ -450,7 +457,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     {
       label: 'AI OPERATIONS',
       requiredFlag: 'AI_FINDINGS',
-      items: [sentinelItem],
+      items: [sentinelItem, securityWikiItem],
     },
     {
       label: 'CODE SECURITY',

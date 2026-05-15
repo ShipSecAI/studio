@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   BookOpenText,
   CheckCircle2,
-  ChevronRight,
   Copy,
   FileText,
   Folder,
@@ -19,6 +18,8 @@ import {
   Settings,
   Workflow,
   XCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 
 import { MarkdownView } from '@/components/ui/markdown';
@@ -26,6 +27,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -33,6 +42,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
+import { useCustomHeader, useLayoutControls } from '@/components/layout/PageHeaderContext';
 import {
   api,
   type GitHubRepo,
@@ -64,6 +74,8 @@ interface WorkflowStatus {
   completedAt?: string;
   error?: string;
 }
+
+type SecurityWikiTab = 'overview' | 'wiki' | 'runs' | 'settings';
 
 function flattenFiles(nodes: SecurityWikiTreeNode[]): SecurityWikiTreeNode[] {
   return nodes.flatMap((node) =>
@@ -138,6 +150,15 @@ function statusVariant(status?: string): 'default' | 'secondary' | 'destructive'
 function formatDate(value?: string | null): string {
   if (!value) return 'Not recorded';
   return new Date(value).toLocaleString();
+}
+
+function fileBasename(path: string): string {
+  return path.split('/').filter(Boolean).at(-1) ?? path;
+}
+
+function fileDirname(path: string): string {
+  const parts = path.split('/').filter(Boolean);
+  return parts.length > 1 ? parts.slice(0, -1).join('/') : '';
 }
 
 function deriveSlug(repoPath: string): string {
@@ -615,6 +636,7 @@ function CodeSourcesPanel({ config }: { config?: SecurityWikiConfig }) {
 function RunLauncher({ hasConfig }: { hasConfig: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
   const [repoPath, setRepoPath] = useState('');
   const [repoSlug, setRepoSlug] = useState('');
   const [model, setModel] = useState('gpt-5.5');
@@ -629,6 +651,7 @@ function RunLauncher({ hasConfig }: { hasConfig: boolean }) {
     mutationFn: api.securityWiki.runCodeIngestion,
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ['security-wiki', 'runs'] });
+      setOpen(false);
       toast({
         title: 'CODE wiki ingestion started',
         description: `Workflow run ${result.workflowRunId} is updating the wiki.`,
@@ -644,83 +667,92 @@ function RunLauncher({ hasConfig }: { hasConfig: boolean }) {
   });
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Workflow className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <CardTitle className="text-lg">Update wiki</CardTitle>
-            <CardDescription>
-              Ask an agent to read a repository and write durable security notes back into the wiki.
-            </CardDescription>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button disabled={!hasConfig} className="active:scale-[0.96] transition-transform">
+          <Play className="mr-2 h-4 w-4" />
+          Start wiki update
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        className="max-w-none"
+        style={{
+          width: 'min(720px, calc(100vw - 2rem))',
+          maxWidth: 'min(720px, calc(100vw - 2rem))',
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle>Start wiki update</DialogTitle>
+          <DialogDescription>
+            Ask an agent to read a repository and write durable security notes back into the wiki.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="repo-path">Repository path</Label>
+            <Input
+              id="repo-path"
+              value={repoPath}
+              onChange={(event) => setRepoPath(event.target.value)}
+              placeholder="/workspace/repos/studio"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="repo-slug">Repo slug</Label>
+            <Input
+              id="repo-slug"
+              value={repoSlug}
+              onChange={(event) => setRepoSlug(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="model">Agent model</Label>
+            <Input id="model" value={model} onChange={(event) => setModel(event.target.value)} />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="codex-home">Codex home override</Label>
+            <Input
+              id="codex-home"
+              value={codexHome}
+              onChange={(event) => setCodexHome(event.target.value)}
+              placeholder="Optional path passed to the Codex workflow component"
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="prompt-text">Prompt override</Label>
+            <Textarea
+              id="prompt-text"
+              value={promptText}
+              onChange={(event) => setPromptText(event.target.value)}
+              placeholder="Optional. Leave blank to use the production code-explorer prompt."
+              className="min-h-24"
+            />
+          </div>
+          <div className="flex justify-end md:col-span-2">
+            <Button
+              disabled={!repoPath.trim() || !repoSlug.trim() || mutation.isPending}
+              onClick={() =>
+                mutation.mutate({
+                  repoPath: repoPath.trim(),
+                  repoSlug: repoSlug.trim(),
+                  agentName: 'code-explorer-agent',
+                  model: model.trim() || 'gpt-5.5',
+                  codexHome: codexHome.trim() || undefined,
+                  promptText: promptText.trim() || undefined,
+                })
+              }
+            >
+              {mutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="mr-2 h-4 w-4" />
+              )}
+              Start run
+            </Button>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="repo-path">Repository path</Label>
-          <Input
-            id="repo-path"
-            value={repoPath}
-            onChange={(event) => setRepoPath(event.target.value)}
-            placeholder="/workspace/repos/studio"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="repo-slug">Repo slug</Label>
-          <Input
-            id="repo-slug"
-            value={repoSlug}
-            onChange={(event) => setRepoSlug(event.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="model">Agent model</Label>
-          <Input id="model" value={model} onChange={(event) => setModel(event.target.value)} />
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="codex-home">Codex home override</Label>
-          <Input
-            id="codex-home"
-            value={codexHome}
-            onChange={(event) => setCodexHome(event.target.value)}
-            placeholder="Optional path passed to the Codex workflow component"
-          />
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="prompt-text">Prompt override</Label>
-          <Textarea
-            id="prompt-text"
-            value={promptText}
-            onChange={(event) => setPromptText(event.target.value)}
-            placeholder="Optional. Leave blank to use the production code-explorer prompt."
-            className="min-h-24"
-          />
-        </div>
-        <div className="md:col-span-2">
-          <Button
-            disabled={!hasConfig || !repoPath.trim() || !repoSlug.trim() || mutation.isPending}
-            onClick={() =>
-              mutation.mutate({
-                repoPath: repoPath.trim(),
-                repoSlug: repoSlug.trim(),
-                agentName: 'code-explorer-agent',
-                model: model.trim() || 'gpt-5.5',
-                codexHome: codexHome.trim() || undefined,
-                promptText: promptText.trim() || undefined,
-              })
-            }
-          >
-            {mutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Play className="mr-2 h-4 w-4" />
-            )}
-            Start wiki update
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -766,7 +798,7 @@ function RunsPanel({
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-4">
         {runsQuery.isLoading ? (
           <div className="space-y-2">
             <Skeleton className="h-20 w-full" />
@@ -786,60 +818,113 @@ function RunsPanel({
             const displayStatus = index === 0 && latestStatus ? latestStatus : run.status;
             const files = changedFiles(run);
             return (
-              <div key={run.id} className="rounded-lg border p-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      {statusVariant(displayStatus) === 'destructive' ? (
-                        <XCircle className="h-4 w-4 text-destructive" />
-                      ) : statusVariant(displayStatus) === 'default' ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <GitBranch className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      <p className="truncate text-sm font-semibold">{run.repoSlug}</p>
-                      <Badge variant={statusVariant(displayStatus)}>{displayStatus}</Badge>
+              <div key={run.id} className="overflow-hidden rounded-xl border bg-card">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-muted/20 px-4 py-3">
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-background ring-1 ring-border">
+                        {statusVariant(displayStatus) === 'destructive' ? (
+                          <XCircle className="h-4 w-4 text-destructive" />
+                        ) : statusVariant(displayStatus) === 'default' ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <GitBranch className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate text-sm font-semibold">{run.repoSlug}</p>
+                          <Badge variant={statusVariant(displayStatus)}>{displayStatus}</Badge>
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {formatDate(run.startedAt ?? run.createdAt)}
+                        </p>
+                      </div>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {run.agentName} · {run.model} · {formatDate(run.startedAt ?? run.createdAt)}
-                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge variant="outline" className="font-normal">
+                        {run.agentName}
+                      </Badge>
+                      <Badge variant="outline" className="font-mono font-normal">
+                        {run.model}
+                      </Badge>
+                      <Badge variant="outline" className="font-mono font-normal">
+                        {run.id.slice(0, 8)}
+                      </Badge>
+                    </div>
                   </div>
                   {runWorkflowId && runWorkflowIdForRoute ? (
-                    <Link
-                      to={`/workflows/${runWorkflowIdForRoute}/runs/${runWorkflowId}`}
-                      className="text-xs font-medium text-primary hover:underline"
-                    >
-                      Open workflow run
-                    </Link>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to={`/workflows/${runWorkflowIdForRoute}/runs/${runWorkflowId}`}>
+                        <Workflow className="mr-2 h-4 w-4" />
+                        Open workflow run
+                      </Link>
+                    </Button>
                   ) : null}
                 </div>
-                {run.error ? <p className="mt-2 text-sm text-destructive">{run.error}</p> : null}
-                {files.length ? (
-                  <div className="mt-3 space-y-1">
-                    {files.slice(0, 6).map((file) => (
-                      <button
-                        key={file}
-                        type="button"
-                        onClick={() => onSelectPath(file)}
-                        className={cn(
-                          'block w-full truncate rounded-md px-2 py-1 text-left text-xs hover:bg-muted',
-                          selectedPath === file && 'bg-primary/10 text-primary',
-                        )}
-                      >
-                        {file}
-                      </button>
-                    ))}
-                    {files.length > 6 ? (
-                      <p className="px-2 text-xs text-muted-foreground">
-                        +{files.length - 6} more changed files
+                <div className="px-4 py-3">
+                  {run.error ? (
+                    <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                      {run.error}
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Changelog
                       </p>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        {files.length
+                          ? `${files.length} wiki ${files.length === 1 ? 'file' : 'files'} updated`
+                          : 'No changed-file metadata recorded yet'}
+                      </p>
+                    </div>
+                    {files.length ? (
+                      <Badge variant="secondary" className="tabular-nums">
+                        +{files.length}
+                      </Badge>
                     ) : null}
                   </div>
-                ) : (
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Changed files will appear after the runtime writes validation/output metadata.
-                  </p>
-                )}
+
+                  {files.length ? (
+                    <div className="mt-3 divide-y rounded-lg border bg-background">
+                      {files.slice(0, 8).map((file) => {
+                        const dirname = fileDirname(file);
+                        return (
+                          <button
+                            key={file}
+                            type="button"
+                            onClick={() => onSelectPath(file)}
+                            className={cn(
+                              'grid w-full grid-cols-[20px_minmax(0,1fr)] gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/60',
+                              selectedPath === file &&
+                                'bg-primary/10 text-primary hover:bg-primary/10',
+                            )}
+                          >
+                            <span className="mt-0.5 font-mono text-xs font-semibold text-green-600">
+                              M
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium">
+                                {fileBasename(file)}
+                              </span>
+                              {dirname ? (
+                                <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">
+                                  {dirname}
+                                </span>
+                              ) : null}
+                            </span>
+                          </button>
+                        );
+                      })}
+                      {files.length > 8 ? (
+                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                          +{files.length - 8} more changed files
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               </div>
             );
           })
@@ -1108,6 +1193,9 @@ function WikiBrowser({
 
 export default function SecurityWikiPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<SecurityWikiTab>(() =>
+    searchParams.get('path') ? 'wiki' : 'overview',
+  );
   const selectedPath = searchParams.get('path') ?? undefined;
   const search = searchParams.get('q') ?? '';
 
@@ -1143,6 +1231,12 @@ export default function SecurityWikiPage() {
     }
   }, [files, selectedPath, setSearchParams]);
 
+  useEffect(() => {
+    if (selectedPath) {
+      setActiveTab('wiki');
+    }
+  }, [selectedPath]);
+
   const fileQuery = useQuery({
     queryKey: ['security-wiki', 'file', selectedPath],
     queryFn: () => api.securityWiki.getFile(selectedPath!),
@@ -1158,6 +1252,7 @@ export default function SecurityWikiPage() {
   };
 
   const selectPath = (path: string) => {
+    setActiveTab('wiki');
     setSearchParams((next) => {
       next.set('path', path);
       return next;
@@ -1166,40 +1261,81 @@ export default function SecurityWikiPage() {
 
   const config = configQuery.data;
   const configError = configQuery.error instanceof Error ? configQuery.error.message : null;
+  const { sidebarOpen, onSidebarToggle } = useLayoutControls();
+  const isRefreshing = configQuery.isFetching || treeQuery.isFetching;
+  const refreshWikiData = useCallback(() => {
+    void configQuery.refetch();
+    void treeQuery.refetch();
+  }, [configQuery.refetch, treeQuery.refetch]);
+
+  const wikiHeader = useMemo(
+    () => (
+      <div className="shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="flex h-14 items-center gap-2 px-3 md:px-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onSidebarToggle}
+            aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+            className="h-9 w-9 shrink-0"
+          >
+            {sidebarOpen ? (
+              <PanelLeftClose className="h-5 w-5" />
+            ) : (
+              <PanelLeftOpen className="h-5 w-5" />
+            )}
+          </Button>
+
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <BookOpenText className="h-4 w-4 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-base font-semibold leading-tight tracking-tight">
+                Security Wiki
+              </h1>
+              <p className="truncate text-[11px] leading-tight text-muted-foreground">
+                {files.length} files
+                <span className="mx-1 text-muted-foreground/30">·</span>
+                {config?.codeSources.length ?? 0} code sources
+                {selectedPath ? (
+                  <>
+                    <span className="mx-1 text-muted-foreground/30">·</span>
+                    {fileBasename(selectedPath)}
+                  </>
+                ) : null}
+              </p>
+            </div>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refreshWikiData}
+            disabled={isRefreshing}
+            className="h-8 gap-1.5 text-xs"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')} />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
+        </div>
+      </div>
+    ),
+    [
+      sidebarOpen,
+      onSidebarToggle,
+      files.length,
+      config?.codeSources.length,
+      selectedPath,
+      isRefreshing,
+      refreshWikiData,
+    ],
+  );
+
+  useCustomHeader(wikiHeader);
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col gap-5 overflow-hidden p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>ShipSec</span>
-            <ChevronRight className="h-4 w-4" />
-            <span>Security Wiki</span>
-          </div>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">Security Wiki</h1>
-          <p className="mt-1 max-w-3xl text-muted-foreground">
-            Product security memory for agents and humans: what exists, what matters, what changed,
-            and what still needs proof.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          onClick={() => {
-            void configQuery.refetch();
-            void treeQuery.refetch();
-          }}
-          disabled={configQuery.isFetching || treeQuery.isFetching}
-        >
-          <RefreshCw
-            className={cn(
-              'mr-2 h-4 w-4',
-              (configQuery.isFetching || treeQuery.isFetching) && 'animate-spin',
-            )}
-          />
-          Refresh
-        </Button>
-      </div>
-
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-6">
       {configQuery.isError ? (
         <Alert>
           <Settings className="h-4 w-4" />
@@ -1210,7 +1346,11 @@ export default function SecurityWikiPage() {
         </Alert>
       ) : null}
 
-      <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col gap-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as SecurityWikiTab)}
+        className="flex min-h-0 flex-1 flex-col gap-4"
+      >
         <TabsList className="h-auto w-fit rounded-lg p-1">
           <TabsTrigger value="overview" className="gap-2 px-4 active:scale-[0.96]">
             <LayoutDashboard className="h-4 w-4" />
@@ -1247,8 +1387,16 @@ export default function SecurityWikiPage() {
         </TabsContent>
 
         <TabsContent value="runs" className="m-0">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
-            <RunLauncher hasConfig={Boolean(config)} />
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-5 py-4">
+              <div>
+                <h2 className="text-lg font-semibold">Wiki update runs</h2>
+                <p className="text-sm text-muted-foreground">
+                  Review agent runs, workflow links, errors, and changed wiki files.
+                </p>
+              </div>
+              <RunLauncher hasConfig={Boolean(config)} />
+            </div>
             <RunsPanel selectedPath={selectedPath} onSelectPath={selectPath} />
           </div>
         </TabsContent>

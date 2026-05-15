@@ -21,6 +21,7 @@ import {
   ScanSearch,
   Cloud,
   GitPullRequest,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -207,6 +208,12 @@ const PAGE_TITLES: Record<string, PageTitleConfig> = {
     shortTitle: 'Sentinel',
     subtitle: 'Threat stories, relevant findings, and hidden scanner noise',
     icon: ShieldAlert,
+  },
+  '/security-wiki': {
+    title: 'Security Wiki',
+    shortTitle: 'Wiki',
+    subtitle: 'Living company security memory for agents and humans',
+    icon: BookOpen,
   },
   '/asm/domains': {
     title: 'Domains',

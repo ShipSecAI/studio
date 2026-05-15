@@ -219,6 +219,7 @@ const DOMPURIFY_CONFIG: Config = {
     'data-task',
     'data-video',
     'data-code',
+    'data-mermaid-id',
     // SVG attributes (for code block copy icon)
     'viewBox',
     'stroke',
@@ -251,20 +252,22 @@ function sanitizeHTML(html: string): string {
   return DOMPurify.sanitize(html, DOMPURIFY_CONFIG).toString();
 }
 
-// Initialize mermaid with theme detection
-let mermaidInitialized = false;
+// Initialize mermaid with theme detection. Mermaid keeps global config, so
+// refresh when the app theme changes instead of only doing it once forever.
+let mermaidTheme: 'default' | 'dark' | null = null;
 const initMermaid = () => {
-  if (mermaidInitialized) return;
-
   const isDark = document.documentElement.classList.contains('dark');
+  const theme = isDark ? 'dark' : 'default';
+  if (mermaidTheme === theme) return;
+
   mermaid.initialize({
     startOnLoad: false,
-    theme: isDark ? 'dark' : 'default',
-    securityLevel: 'loose',
+    theme,
+    securityLevel: 'strict',
     fontFamily: 'inherit',
     flowchart: {
       useMaxWidth: true,
-      htmlLabels: true,
+      htmlLabels: false,
       curve: 'basis',
     },
     themeVariables: isDark
@@ -289,7 +292,7 @@ const initMermaid = () => {
           tertiaryColor: '#e5e7eb',
         },
   });
-  mermaidInitialized = true;
+  mermaidTheme = theme;
 };
 
 // Helper function to escape HTML - standalone to avoid circular reference
@@ -306,7 +309,7 @@ function highlightCode(str: string, lang: string): string {
   // Handle mermaid diagrams - return placeholder that will be processed
   if (lang === 'mermaid') {
     const id = `mermaid-${Math.random().toString(36).substring(2, 11)}`;
-    return `<div class="mermaid-diagram" data-mermaid-id="${id}">${str.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`;
+    return `<div class="mermaid-diagram" data-mermaid-id="${id}">${escapeHtml(str)}</div>`;
   }
 
   // Syntax highlighting for code blocks
@@ -459,14 +462,24 @@ export const MarkdownView = memo(function MarkdownView({
       const id = diagram.getAttribute('data-mermaid-id');
       const code = diagram.textContent;
 
-      if (id && code && !diagram.querySelector('svg')) {
+      if (id && code && diagram.getAttribute('data-mermaid-rendered') !== 'true') {
         try {
           const { svg } = await mermaid.render(id, code);
-          diagram.innerHTML = svg;
+          diagram.innerHTML = DOMPurify.sanitize(svg, {
+            USE_PROFILES: { svg: true, svgFilters: true },
+          }).toString();
           diagram.classList.add('mermaid-rendered');
+          diagram.setAttribute('data-mermaid-rendered', 'true');
         } catch (error) {
           console.error('Mermaid render error:', error);
-          diagram.innerHTML = `<div class="mermaid-error">Failed to render diagram</div><pre>${code}</pre>`;
+          diagram.replaceChildren();
+          const errorEl = document.createElement('div');
+          errorEl.className = 'mermaid-error';
+          errorEl.textContent = 'Failed to render diagram';
+          const pre = document.createElement('pre');
+          pre.textContent = code;
+          diagram.append(errorEl, pre);
+          diagram.setAttribute('data-mermaid-rendered', 'true');
         }
       }
     });
