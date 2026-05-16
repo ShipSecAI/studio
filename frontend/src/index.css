@@ -1,6 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;450;500;550;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap');
+@import './styles/color-swatch.css';
 
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @plugin "@tailwindcss/typography";
 
@@ -26,20 +27,28 @@
   --radius-sm: calc(var(--radius) - 4px);
 
   /* Font families */
-  --font-sans: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", SFMono-Regular, Consolas, monospace;
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', 'SF Mono', SFMono-Regular, Consolas, monospace;
 
   /* Animations */
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
 
   @keyframes accordion-down {
-    from { height: 0; }
-    to { height: var(--radix-accordion-content-height); }
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
   }
   @keyframes accordion-up {
-    from { height: var(--radix-accordion-content-height); }
-    to { height: 0; }
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
   }
 
   /* Colors - semantic tokens mapped from CSS custom properties */
@@ -70,8 +79,11 @@
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
 
-  --color-tertiary: #7A7C80;
-  --color-tertiary-foreground: #7A7C80;
+  --color-success: hsl(var(--success));
+  --color-warning: hsl(var(--warning));
+  --color-error: hsl(var(--error));
+  --color-tertiary: #7a7c80;
+  --color-tertiary-foreground: #7a7c80;
 }
 
 @layer utilities {
@@ -109,86 +121,17 @@
 }
 
 @keyframes loading-bar {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(400%); }
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
 }
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
-    --color-success: 142.1 76.2% 36.3%;
-    --color-warning: 37.7 92.1% 50.2%;
-    --color-error: 0 84.2% 60.2%;
-    --tertiary: 220 9% 46%;
-    /* Edge colors for React Flow */
-    --edge-default: 214.3 31.8% 80%;
-    --edge-highlighted: 217 92% 60%;
-    --edge-active: 217 92% 70%;
-  }
-
-  .dark {
-    /* BG: #1C1C1C */
-    --background: 0 0% 11%;
-    /* Text Primary: #FFFFFF */
-    --foreground: 0 0% 100%;
-    /* Card: #232427 */
-    --card: 225 8% 15%;
-    --card-foreground: 0 0% 100%;
-    /* BG Alt: #1F2023 */
-    --popover: 225 6% 13%;
-    --popover-foreground: 0 0% 100%;
-    /* Accent Blue: #3C82F6 */
-    --primary: 217 92% 60%;
-    --primary-foreground: 0 0% 100%;
-    /* BG Alt: #1F2023 */
-    --secondary: 225 6% 13%;
-    --secondary-foreground: 0 0% 100%;
-    /* Muted: slightly lighter than card for subtle backgrounds */
-    --muted: 225 8% 19%;
-    /* Text Secondary: #C6C7C8 */
-    --muted-foreground: 210 2% 78%;
-    /* Hover/active highlight - clearly visible against background */
-    --accent: 225 8% 24%;
-    --accent-foreground: 0 0% 100%;
-    /* Accent Error: #EF4444 */
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    /* Border: #2A2B2D */
-    --border: 220 5% 17%;
-    --input: 220 5% 17%;
-    /* Accent Blue: #3C82F6 */
-    --ring: 217 92% 60%;
-    /* Accent Success: #4ADE80 */
-    --color-success: 142 69% 58%;
-    /* Accent Warning: #FACC15 */
-    --color-warning: 48 96% 53%;
-    /* Accent Error: #EF4444 */
-    --color-error: 0 84% 60%;
-    /* Text Tertiary: #7A7C80 */
-    --tertiary: 220 3% 49%;
-    /* Edge colors for React Flow - Dark */
-    --edge-default: 220 5% 30%;
-    --edge-highlighted: 217 92% 60%;
-    --edge-active: 217 92% 55%;
+    --radius: 0.625rem;
   }
 }
 
@@ -201,11 +144,41 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family:
-      'DM Sans',
+      'Geist',
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
       sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-variant-numeric: tabular-nums;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 20% 0%, hsl(var(--foreground) / 0.035), transparent 28rem),
+      linear-gradient(180deg, hsl(var(--muted) / 0.4), transparent 22rem);
+  }
+
+  ::selection {
+    background: hsl(var(--ring) / 0.22);
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    letter-spacing: -0.015em;
+  }
+
+  p,
+  li {
+    text-wrap: pretty;
   }
 
   /* Disable all transitions during theme switching for instant color change */
@@ -326,15 +299,15 @@ textarea {
 
 /* Semantic color utilities for light/dark mode compatibility */
 .text-success {
-  color: hsl(var(--color-success));
+  color: hsl(var(--success));
 }
 
 .text-warning {
-  color: hsl(var(--color-warning));
+  color: hsl(var(--warning));
 }
 
 .text-error {
-  color: hsl(var(--color-error));
+  color: hsl(var(--error));
 }
 
 /* Status colors that adapt to theme */
@@ -924,12 +897,24 @@ table tbody tr:hover {
   color: hsl(var(--foreground));
 }
 
-.markdown-content h1 { font-size: 1.75em; }
-.markdown-content h2 { font-size: 1.5em; }
-.markdown-content h3 { font-size: 1.25em; }
-.markdown-content h4 { font-size: 1.125em; }
-.markdown-content h5 { font-size: 1em; }
-.markdown-content h6 { font-size: 0.875em; }
+.markdown-content h1 {
+  font-size: 1.75em;
+}
+.markdown-content h2 {
+  font-size: 1.5em;
+}
+.markdown-content h3 {
+  font-size: 1.25em;
+}
+.markdown-content h4 {
+  font-size: 1.125em;
+}
+.markdown-content h5 {
+  font-size: 1em;
+}
+.markdown-content h6 {
+  font-size: 0.875em;
+}
 
 /* Paragraphs */
 .markdown-content p {
@@ -1027,7 +1012,9 @@ table tbody tr:hover {
   border: none;
   border-radius: 0.25rem;
   cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
 }
 
 .markdown-content pre.hljs.code-block .copy-button:hover {
@@ -1036,8 +1023,8 @@ table tbody tr:hover {
 }
 
 .markdown-content pre.hljs.code-block .copy-button.copied {
-  color: hsl(var(--color-success));
-  border-color: hsl(var(--color-success) / 0.5);
+  color: hsl(var(--success));
+  border-color: hsl(var(--success) / 0.5);
 }
 
 .markdown-content pre.hljs.code-block .copy-button .copy-icon {
@@ -1192,22 +1179,34 @@ table tbody tr:hover {
   border-radius: 0.75rem;
   padding: 1.5rem;
   margin: 1em 0;
-  overflow-x: auto;
-  text-align: center;
+  max-width: 100%;
+  overflow: auto;
+  text-align: left;
+  contain: content;
 }
 
 .markdown-content .mermaid-diagram.mermaid-rendered {
   background: hsl(var(--card) / 0.5);
+  text-align: center;
 }
 
 .markdown-content .mermaid-diagram svg {
+  display: block;
   max-width: 100%;
+  max-height: min(70vh, 36rem);
   height: auto;
+  margin-inline: auto;
+}
+
+.markdown-content .mermaid-diagram.mermaid-failed {
+  padding: 1rem;
+  text-align: left;
 }
 
 .markdown-content .mermaid-error {
   color: hsl(var(--destructive));
   font-size: 0.875rem;
+  font-weight: 500;
   padding: 0.5rem;
   margin-bottom: 0.5rem;
   background: hsl(var(--destructive) / 0.1);
@@ -1221,6 +1220,10 @@ table tbody tr:hover {
   border-radius: 0.375rem;
   font-size: 0.75rem;
   color: hsl(var(--muted-foreground));
+  max-height: 14rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Table styles */
@@ -1269,7 +1272,7 @@ table tbody tr:hover {
   margin-left: -1.5em;
 }
 
-.markdown-content .task-list-item input[type="checkbox"] {
+.markdown-content .task-list-item input[type='checkbox'] {
   margin-right: 0.5em;
   width: 1em;
   height: 1em;
@@ -1303,9 +1306,18 @@ table tbody tr:hover {
 
 /* Navigation progress bar animation */
 @keyframes nprogress-indeterminate {
-  0%   { transform: translateX(-100%); opacity: 1; }
-  60%  { transform: translateX(60%);   opacity: 1; }
-  100% { transform: translateX(100%);  opacity: 0; }
+  0% {
+    transform: translateX(-100%);
+    opacity: 1;
+  }
+  60% {
+    transform: translateX(60%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
 }
 
 /* Chat working chip shimmer sweep */

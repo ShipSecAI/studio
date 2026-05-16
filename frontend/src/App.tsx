@@ -96,9 +96,6 @@ const IntegrationDetailPage = lazy(() =>
 const GitHubIntegrationPage = lazy(() =>
   import('@/pages/GitHubIntegrationPage').then((m) => ({ default: m.GitHubIntegrationPage })),
 );
-const SecurityDashboard = lazy(() =>
-  import('@/pages/SecurityDashboard').then((m) => ({ default: m.SecurityDashboardContent })),
-);
 const FindingsPage = lazy(() =>
   import('@/pages/FindingsPage').then((m) => ({ default: m.FindingsPage })),
 );
@@ -314,11 +311,11 @@ function App() {
                                 <Route path="/asm/scans" element={<AsmScansPage />} />
                               </Route>
 
-                              {/* Security Dashboard — gated */}
+                              {/* Legacy security dashboard paths now resolve to Sentinel. */}
                               <Route element={<FeatureFlagRoute flag="SECURITY_DASHBOARD" />}>
                                 <Route
                                   path="/dashboards/security"
-                                  element={<SecurityDashboard />}
+                                  element={<Navigate to="/findings" replace />}
                                 />
                               </Route>
                               <Route element={<FeatureFlagRoute flag="AI_FINDINGS" />}>

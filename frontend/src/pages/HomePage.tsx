@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -12,15 +12,9 @@ import { useSchedules } from '@/hooks/queries/useScheduleQueries';
 import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries';
 import { useRecentRuns } from '@/hooks/queries/useRunQueries';
 import { getCurrentUserId } from '@/lib/currentUser';
-import { useSecurityViewStore } from '@/store/securityViewStore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCategoryCounts } from '@/hooks/queries/useSecurityQueries';
 import { QueryErrorBoundary } from '@/components/ui/QueryErrorBoundary';
-
-// Lazy-load the heavy SecurityDashboardContent (pulls in recharts, markdown-it, etc.)
-const SecurityDashboardContent = lazy(() =>
-  import('@/pages/SecurityDashboard').then((m) => ({ default: m.SecurityDashboardContent })),
-);
 import { BUILT_IN_VIEWS } from '@/config/securityViews';
 import { Clock } from 'lucide-react';
 
@@ -109,7 +103,6 @@ export function HomePage() {
   const { data: orgConnections = [], isLoading: connectionsLoading } =
     useIntegrationConnections(userId);
   const { data: recentRuns = [] } = useRecentRuns(10);
-  const activeViewId = useSecurityViewStore((s) => s.activeViewId);
 
   // True until we have enough data to determine the user's onboarding state
   const stateLoading = installationsLoading || connectionsLoading;
@@ -245,14 +238,14 @@ export function HomePage() {
         category: 'Cloud',
         critical: cloud.critical,
         high: cloud.high,
-        href: '/?view=cloud-security',
+        href: '/findings',
       },
-      { category: 'Code', critical: code.critical, high: code.high, href: '/?view=code-security' },
+      { category: 'Code', critical: code.critical, high: code.high, href: '/findings' },
       {
         category: 'Dependencies',
         critical: dep.critical,
         high: dep.high,
-        href: '/?view=dependency-security',
+        href: '/findings',
       },
     ];
   }, [categoryCounts]);
@@ -262,137 +255,47 @@ export function HomePage() {
     return schedules.filter((s) => s.status === 'active').slice(0, 3);
   }, [schedules]);
 
-  // --- Home tab: adaptive layout ---
-  if (activeViewId === 'home') {
-    // Show lightweight skeleton while determining user state to avoid flash of wrong layout
-    if (stateLoading && !stageOverride) {
-      return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-20 rounded-lg" />
-            ))}
-          </div>
-          <Skeleton className="h-32 rounded-lg" />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Skeleton className="lg:col-span-2 h-48 rounded-lg" />
-            <Skeleton className="h-48 rounded-lg" />
-          </div>
+  // Show lightweight skeleton while determining user state to avoid flash of wrong layout
+  if (stateLoading && !stageOverride) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-lg" />
+          ))}
         </div>
-      );
-    }
-
-    // ═══════════════════════════════════════════
-    // STATE 1: New User (0/5 done)
-    // ═══════════════════════════════════════════
-    if (userState === 'new') {
-      return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6">
-          <HeroBanner />
-          <div data-tour="getting-started">
-            <GettingStartedChecklist
-              checklist={checklist}
-              completedCount={completedCount}
-              mode="expanded"
-            />
-          </div>
-          <WhatYouWillUnlockSection />
+        <Skeleton className="h-32 rounded-lg" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Skeleton className="lg:col-span-2 h-48 rounded-lg" />
+          <Skeleton className="h-48 rounded-lg" />
         </div>
-      );
-    }
+      </div>
+    );
+  }
 
-    // ═══════════════════════════════════════════
-    // STATE 2: Partially Onboarded (1-4/5 done)
-    // ═══════════════════════════════════════════
-    if (userState === 'partial') {
-      return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6">
-          <QuickStatsRow
-            totalFindings={analyticsError ? 0 : totalFindings}
-            totalRepos={repositories.length}
-            totalScans={totalScans}
-            integrationsConnected={integrationsConnected}
+  // ═══════════════════════════════════════════
+  // STATE 1: New User (0/5 done)
+  // ═══════════════════════════════════════════
+  if (userState === 'new') {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <HeroBanner />
+        <div data-tour="getting-started">
+          <GettingStartedChecklist
+            checklist={checklist}
+            completedCount={completedCount}
+            mode="expanded"
           />
-
-          <div data-tour="getting-started">
-            <GettingStartedChecklist
-              checklist={checklist}
-              completedCount={completedCount}
-              mode="expanded"
-            />
-          </div>
-
-          <QueryErrorBoundary>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-2 h-full">
-                <FindingsTrendChart />
-              </div>
-              <NeedsAttentionCard categories={attentionCategories} mode="normal" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-2 h-full">
-                <ActivityHeatmap />
-              </div>
-              <RecentActivityFeed
-                scanResults={scanResults}
-                repositories={repositories}
-                recentRuns={recentRuns}
-                connections={orgConnections}
-              />
-            </div>
-          </QueryErrorBoundary>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <CoverageDetailCard repositories={repositories} triggerRules={triggerRules} />
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Upcoming Scans</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {upcomingSchedules.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No scheduled scans.</p>
-                ) : (
-                  <div className="space-y-1">
-                    <div className="flex items-center text-[11px] text-muted-foreground uppercase tracking-wide px-2 -mx-2 mb-1">
-                      <span className="flex-1">Scan</span>
-                      <span>Next run</span>
-                    </div>
-                    {upcomingSchedules.map((schedule) => (
-                      <div
-                        key={schedule.id}
-                        className="flex items-start gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50 transition-colors"
-                        onClick={() => navigate('/schedules')}
-                      >
-                        <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                        <div className="min-w-0 flex-1">
-                          <span className="truncate block">{schedule.name}</span>
-                          <span className="text-[10px] text-muted-foreground/70 font-mono">
-                            {schedule.cronExpression}
-                          </span>
-                        </div>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="text-xs text-muted-foreground whitespace-nowrap ml-2 mt-0.5">
-                              {formatFutureRelative(schedule.nextRunAt)}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>{formatDateTime(schedule.nextRunAt)}</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
         </div>
-      );
-    }
+        <WhatYouWillUnlockSection />
+      </div>
+    );
+  }
 
-    // ═══════════════════════════════════════════
-    // STATE 3: Fully Onboarded (5/5 done)
-    // ═══════════════════════════════════════════
+  // ═══════════════════════════════════════════
+  // STATE 2: Partially Onboarded (1-4/5 done)
+  // ═══════════════════════════════════════════
+  if (userState === 'partial') {
     return (
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         <QuickStatsRow
@@ -400,16 +303,22 @@ export function HomePage() {
           totalRepos={repositories.length}
           totalScans={totalScans}
           integrationsConnected={integrationsConnected}
-          securityScore={analyticsError ? 0 : securityScore}
-          showScore
         />
+
+        <div data-tour="getting-started">
+          <GettingStartedChecklist
+            checklist={checklist}
+            completedCount={completedCount}
+            mode="expanded"
+          />
+        </div>
 
         <QueryErrorBoundary>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 h-full">
               <FindingsTrendChart />
             </div>
-            <NeedsAttentionCard categories={attentionCategories} mode="prominent" />
+            <NeedsAttentionCard categories={attentionCategories} mode="normal" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -426,9 +335,7 @@ export function HomePage() {
         </QueryErrorBoundary>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 h-full">
-            <CoverageDetailCard repositories={repositories} triggerRules={triggerRules} />
-          </div>
+          <CoverageDetailCard repositories={repositories} triggerRules={triggerRules} />
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Upcoming Scans</CardTitle>
@@ -474,20 +381,86 @@ export function HomePage() {
     );
   }
 
-  // --- Any other view: full Security Dashboard ---
+  // ═══════════════════════════════════════════
+  // STATE 3: Fully Onboarded (5/5 done)
+  // ═══════════════════════════════════════════
   return (
-    <Suspense
-      fallback={
-        <div className="container py-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-9 w-28" />
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <QuickStatsRow
+        totalFindings={analyticsError ? 0 : totalFindings}
+        totalRepos={repositories.length}
+        totalScans={totalScans}
+        integrationsConnected={integrationsConnected}
+        securityScore={analyticsError ? 0 : securityScore}
+        showScore
+      />
+
+      <QueryErrorBoundary>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 h-full">
+            <FindingsTrendChart />
           </div>
-          <Skeleton className="h-64 rounded-lg" />
+          <NeedsAttentionCard categories={attentionCategories} mode="prominent" />
         </div>
-      }
-    >
-      <SecurityDashboardContent />
-    </Suspense>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 h-full">
+            <ActivityHeatmap />
+          </div>
+          <RecentActivityFeed
+            scanResults={scanResults}
+            repositories={repositories}
+            recentRuns={recentRuns}
+            connections={orgConnections}
+          />
+        </div>
+      </QueryErrorBoundary>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 h-full">
+          <CoverageDetailCard repositories={repositories} triggerRules={triggerRules} />
+        </div>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Upcoming Scans</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {upcomingSchedules.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No scheduled scans.</p>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex items-center text-[11px] text-muted-foreground uppercase tracking-wide px-2 -mx-2 mb-1">
+                  <span className="flex-1">Scan</span>
+                  <span>Next run</span>
+                </div>
+                {upcomingSchedules.map((schedule) => (
+                  <div
+                    key={schedule.id}
+                    className="flex items-start gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 -mx-2 hover:bg-muted/50 transition-colors"
+                    onClick={() => navigate('/schedules')}
+                  >
+                    <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <span className="truncate block">{schedule.name}</span>
+                      <span className="text-[10px] text-muted-foreground/70 font-mono">
+                        {schedule.cronExpression}
+                      </span>
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap ml-2 mt-0.5">
+                          {formatFutureRelative(schedule.nextRunAt)}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>{formatDateTime(schedule.nextRunAt)}</TooltipContent>
+                    </Tooltip>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }

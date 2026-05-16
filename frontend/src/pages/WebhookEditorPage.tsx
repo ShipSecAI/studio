@@ -275,7 +275,7 @@ export function WebhookEditorPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex h-[100dvh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );

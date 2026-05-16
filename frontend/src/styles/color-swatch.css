@@ -1,0 +1,85 @@
+/*
+ * ShipSec color swatch
+ *
+ * This is the single source of truth for product color choices.
+ * Edit values here to change the app palette; component classes consume
+ * these semantic tokens through Tailwind's theme mapping in index.css.
+ *
+ * Values are HSL triplets without the hsl() wrapper.
+ */
+
+:root {
+  /* Neutral canvas */
+  --background: 0 0% 98.5%;
+  --foreground: 240 8% 7%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 8% 7%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 8% 7%;
+
+  /* Primary swatch: ShipSec blue */
+  --primary: 217 78% 52%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 217 78% 52%;
+
+  /* Quiet UI surfaces */
+  --secondary: 240 5% 95.5%;
+  --secondary-foreground: 240 8% 10%;
+  --muted: 240 5% 95.5%;
+  --muted-foreground: 240 4% 42%;
+  --accent: 217 58% 94%;
+  --accent-foreground: 240 8% 8%;
+  --border: 240 6% 88%;
+  --input: 240 6% 88%;
+  --tertiary: 220 9% 46%;
+
+  /* Status semantics */
+  --destructive: 0 72% 48%;
+  --destructive-foreground: 210 40% 98%;
+  --success: 150 61% 34%;
+  --warning: 35 91% 44%;
+  --error: 0 72% 48%;
+
+  /* Graph/workflow edges */
+  --edge-default: 240 5% 74%;
+  --edge-highlighted: 217 78% 52%;
+  --edge-active: 217 78% 58%;
+}
+
+.dark {
+  /* Neutral canvas */
+  --background: 240 8% 6.5%;
+  --foreground: 0 0% 96%;
+  --card: 240 7% 9.5%;
+  --card-foreground: 0 0% 96%;
+  --popover: 240 7% 9.5%;
+  --popover-foreground: 0 0% 96%;
+
+  /* Primary swatch: ShipSec blue */
+  --primary: 217 78% 58%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 217 78% 58%;
+
+  /* Quiet UI surfaces */
+  --secondary: 240 5% 13%;
+  --secondary-foreground: 0 0% 96%;
+  --muted: 240 5% 13%;
+  --muted-foreground: 240 5% 70%;
+  --accent: 217 35% 17%;
+  --accent-foreground: 0 0% 96%;
+  --border: 240 5% 17%;
+  --input: 240 5% 17%;
+  --tertiary: 240 4% 52%;
+
+  /* Status semantics */
+  --destructive: 0 72% 56%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 150 55% 53%;
+  --warning: 42 91% 58%;
+  --error: 0 72% 56%;
+
+  /* Graph/workflow edges */
+  --edge-default: 240 5% 29%;
+  --edge-highlighted: 217 78% 58%;
+  --edge-active: 217 78% 62%;
+}

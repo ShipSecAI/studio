@@ -822,11 +822,11 @@ function RunsPanel({
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-muted/20 px-4 py-3">
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-background ring-1 ring-border">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg border bg-background">
                         {statusVariant(displayStatus) === 'destructive' ? (
                           <XCircle className="h-4 w-4 text-destructive" />
                         ) : statusVariant(displayStatus) === 'default' ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          <CheckCircle2 className="h-4 w-4 text-success" />
                         ) : (
                           <GitBranch className="h-4 w-4 text-muted-foreground" />
                         )}
@@ -901,7 +901,7 @@ function RunsPanel({
                                 'bg-primary/10 text-primary hover:bg-primary/10',
                             )}
                           >
-                            <span className="mt-0.5 font-mono text-xs font-semibold text-green-600">
+                            <span className="mt-0.5 font-mono text-xs font-semibold text-success">
                               M
                             </span>
                             <span className="min-w-0">
@@ -1297,7 +1297,7 @@ export default function SecurityWikiPage() {
               <p className="truncate text-[11px] leading-tight text-muted-foreground">
                 {files.length} files
                 <span className="mx-1 text-muted-foreground/30">·</span>
-                {config?.codeSources.length ?? 0} code sources
+                {config?.codeSources?.length ?? 0} code sources
                 {selectedPath ? (
                   <>
                     <span className="mx-1 text-muted-foreground/30">·</span>
@@ -1325,7 +1325,7 @@ export default function SecurityWikiPage() {
       sidebarOpen,
       onSidebarToggle,
       files.length,
-      config?.codeSources.length,
+      config?.codeSources?.length,
       selectedPath,
       isRefreshing,
       refreshWikiData,

@@ -82,12 +82,13 @@ export function useLayoutControls(): LayoutControls {
  */
 export function useCustomHeader(header: ReactNode | null) {
   const ctx = useContext(PageHeaderContext);
+  const setHeaderSlot = ctx?.setHeaderSlot;
 
   useEffect(() => {
-    if (!ctx) return;
-    ctx.setHeaderSlot(header);
-    return () => ctx.setHeaderSlot(undefined);
-  }, [ctx, header]);
+    if (!setHeaderSlot) return;
+    setHeaderSlot(header);
+    return () => setHeaderSlot(undefined);
+  }, [setHeaderSlot, header]);
 }
 
 /**

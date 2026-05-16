@@ -263,6 +263,7 @@ const initMermaid = () => {
   mermaid.initialize({
     startOnLoad: false,
     theme,
+    suppressErrorRendering: true,
     securityLevel: 'strict',
     fontFamily: 'inherit',
     flowchart: {
@@ -294,6 +295,27 @@ const initMermaid = () => {
   });
   mermaidTheme = theme;
 };
+
+function cleanupMermaidRenderArtifacts(id: string, owner: Element): void {
+  for (const artifactId of [id, `d${id}`, `i${id}`]) {
+    const artifact = document.getElementById(artifactId);
+    if (artifact && !owner.contains(artifact)) {
+      artifact.remove();
+    }
+  }
+}
+
+function renderMermaidFallback(diagram: Element, code: string): void {
+  diagram.replaceChildren();
+  const errorEl = document.createElement('div');
+  errorEl.className = 'mermaid-error';
+  errorEl.textContent = 'Diagram could not be rendered';
+  const pre = document.createElement('pre');
+  pre.textContent = code;
+  diagram.append(errorEl, pre);
+  diagram.classList.add('mermaid-failed');
+  diagram.setAttribute('data-mermaid-rendered', 'true');
+}
 
 // Helper function to escape HTML - standalone to avoid circular reference
 function escapeHtml(str: string): string {
@@ -464,6 +486,10 @@ export const MarkdownView = memo(function MarkdownView({
 
       if (id && code && diagram.getAttribute('data-mermaid-rendered') !== 'true') {
         try {
+          const parseResult = await mermaid.parse(code, { suppressErrors: true });
+          if (!parseResult) {
+            throw new Error('Invalid Mermaid diagram syntax');
+          }
           const { svg } = await mermaid.render(id, code);
           diagram.innerHTML = DOMPurify.sanitize(svg, {
             USE_PROFILES: { svg: true, svgFilters: true },
@@ -471,15 +497,9 @@ export const MarkdownView = memo(function MarkdownView({
           diagram.classList.add('mermaid-rendered');
           diagram.setAttribute('data-mermaid-rendered', 'true');
         } catch (error) {
-          console.error('Mermaid render error:', error);
-          diagram.replaceChildren();
-          const errorEl = document.createElement('div');
-          errorEl.className = 'mermaid-error';
-          errorEl.textContent = 'Failed to render diagram';
-          const pre = document.createElement('pre');
-          pre.textContent = code;
-          diagram.append(errorEl, pre);
-          diagram.setAttribute('data-mermaid-rendered', 'true');
+          console.warn('Mermaid render skipped:', error);
+          cleanupMermaidRenderArtifacts(id, diagram);
+          renderMermaidFallback(diagram, code);
         }
       }
     });

@@ -89,13 +89,13 @@ export function GettingStartedChecklist({
                   <Link
                     key={step.label}
                     to={step.href}
-                    className={`group relative flex flex-col items-center text-center p-4 rounded-lg border transition-all hover:border-primary/50 hover:bg-primary/5 ${
-                      step.done ? 'border-green-500/30 bg-green-500/5' : 'border-border'
+                    className={`group relative flex flex-col items-center rounded-lg border p-4 text-center transition-[background-color,border-color] hover:border-primary/35 hover:bg-muted/35 ${
+                      step.done ? 'border-border bg-muted/25' : 'border-border'
                     }`}
                   >
                     <div
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${
-                        step.done ? 'bg-green-500/10' : 'bg-muted'
+                      className={`mb-2 flex h-10 w-10 items-center justify-center rounded-lg border ${
+                        step.done ? 'bg-muted/40 opacity-70' : 'bg-muted'
                       }`}
                     >
                       <img
@@ -113,7 +113,7 @@ export function GettingStartedChecklist({
                       {step.description}
                     </span>
                     {step.done && (
-                      <CheckCircle2 className="absolute top-2 right-2 h-4 w-4 text-green-500" />
+                      <CheckCircle2 className="absolute right-2 top-2 h-4 w-4 text-success" />
                     )}
                   </Link>
                 );
@@ -159,7 +159,7 @@ export function GettingStartedChecklist({
               className="flex items-center gap-3 text-sm hover:bg-muted/50 rounded-lg p-2 -mx-2 transition-colors"
             >
               {step.done ? (
-                <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-success" />
               ) : (
                 <Circle className="h-4 w-4 text-muted-foreground/40 flex-shrink-0" />
               )}

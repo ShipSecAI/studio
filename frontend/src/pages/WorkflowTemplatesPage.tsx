@@ -28,30 +28,30 @@ const CATEGORY_CONFIG: Record<
   'code-security': {
     label: 'Code Security',
     icon: Shield,
-    color: 'text-blue-600 dark:text-blue-400',
-    badgeClass: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-    iconBg: 'bg-blue-100 dark:bg-blue-900/20',
+    color: 'text-muted-foreground',
+    badgeClass: 'border-border/80 bg-background/70 text-muted-foreground',
+    iconBg: 'border bg-muted',
   },
   'cloud-security': {
     label: 'Cloud Security',
     icon: Cloud,
-    color: 'text-orange-600 dark:text-orange-400',
-    badgeClass: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-    iconBg: 'bg-orange-100 dark:bg-orange-900/20',
+    color: 'text-muted-foreground',
+    badgeClass: 'border-border/80 bg-background/70 text-muted-foreground',
+    iconBg: 'border bg-muted',
   },
   'attack-surface': {
     label: 'Attack Surface',
     icon: Globe,
-    color: 'text-purple-600 dark:text-purple-400',
-    badgeClass: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-    iconBg: 'bg-purple-100 dark:bg-purple-900/20',
+    color: 'text-muted-foreground',
+    badgeClass: 'border-border/80 bg-background/70 text-muted-foreground',
+    iconBg: 'border bg-muted',
   },
   notification: {
     label: 'Notifications',
     icon: Bell,
-    color: 'text-green-600 dark:text-green-400',
-    badgeClass: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-    iconBg: 'bg-green-100 dark:bg-green-900/20',
+    color: 'text-muted-foreground',
+    badgeClass: 'border-border/80 bg-background/70 text-muted-foreground',
+    iconBg: 'border bg-muted',
   },
 };
 
@@ -160,7 +160,7 @@ function TemplateCard({
 
   return (
     <Card
-      className="group flex flex-col overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-200 cursor-pointer"
+      className="group flex cursor-pointer flex-col overflow-hidden transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-border hover:bg-muted/20 hover:shadow-[0_10px_30px_-24px_rgba(0,0,0,0.35)]"
       onClick={() => onShowDetails(template)}
     >
       {/* Preview — full on sm+, compact icon on mobile */}

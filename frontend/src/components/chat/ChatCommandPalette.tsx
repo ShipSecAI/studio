@@ -305,7 +305,7 @@ export function ChatCommandPalette({ onSelectPrompt }: ChatCommandPaletteProps) 
   return (
     <Dialog open={isCommandPaletteOpen} onOpenChange={setCommandPaletteOpen}>
       <DialogContent
-        className="max-w-[560px] p-0 gap-0 bg-background border-border rounded-2xl shadow-2xl overflow-hidden"
+        className="max-w-[560px] gap-0 overflow-hidden border-border bg-background p-0 shadow-lg"
         onKeyDown={handleKeyDown}
       >
         {/* Search Input */}

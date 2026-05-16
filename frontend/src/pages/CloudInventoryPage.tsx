@@ -230,29 +230,33 @@ function SummaryCards() {
           <Cloud className="h-4 w-4" />
           Total Assets
         </div>
-        <div className="text-2xl font-bold">{summary.totalAssets.toLocaleString()}</div>
+        <div className="text-2xl font-semibold tabular-nums">
+          {summary.totalAssets.toLocaleString()}
+        </div>
       </div>
       <div className="border rounded-lg p-4">
         <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
           <CheckCircle2 className="h-4 w-4" />
           Active
         </div>
-        <div className="text-2xl font-bold text-green-600">{activeCount.toLocaleString()}</div>
-        {staleCount > 0 && <span className="text-xs text-amber-600">{staleCount} stale</span>}
+        <div className="text-2xl font-semibold tabular-nums text-success">
+          {activeCount.toLocaleString()}
+        </div>
+        {staleCount > 0 && <span className="text-xs text-warning">{staleCount} stale</span>}
       </div>
       <div className="border rounded-lg p-4">
         <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
           <Layers className="h-4 w-4" />
           Asset Types
         </div>
-        <div className="text-2xl font-bold">{typeCount}</div>
+        <div className="text-2xl font-semibold tabular-nums">{typeCount}</div>
       </div>
       <div className="border rounded-lg p-4">
         <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
           <Globe className="h-4 w-4" />
           Regions
         </div>
-        <div className="text-2xl font-bold">{regionCount}</div>
+        <div className="text-2xl font-semibold tabular-nums">{regionCount}</div>
       </div>
     </div>
   );
@@ -379,11 +383,11 @@ function SyncRunHistory({
             className="flex items-start gap-3 text-sm py-2 px-2 rounded hover:bg-muted/50"
           >
             {run.status === 'completed' ? (
-              <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-success" />
             ) : run.status === 'failed' ? (
               <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
             ) : (
-              <RefreshCw className="h-4 w-4 text-blue-500 animate-spin flex-shrink-0" />
+              <RefreshCw className="h-4 w-4 flex-shrink-0 animate-spin text-muted-foreground" />
             )}
             <div className="min-w-0 flex-1">
               <div className="font-medium truncate">
@@ -657,7 +661,7 @@ export function CloudInventoryPage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Cloud Inventory</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">Cloud Inventory</h1>
               <p className="text-muted-foreground text-sm mt-1">
                 {total.toLocaleString()} asset{total !== 1 ? 's' : ''} discovered across connected
                 cloud environments
@@ -820,7 +824,7 @@ export function CloudInventoryPage() {
             <LoadingSkeleton />
           ) : assets.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="rounded-full bg-muted p-4 mb-4">
+              <div className="mb-4 rounded-xl border bg-muted p-4">
                 <Cloud className="h-8 w-8 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-semibold mb-2">No assets found</h3>

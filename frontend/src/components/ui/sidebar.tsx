@@ -6,7 +6,7 @@ const Sidebar = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivEle
     <aside
       ref={ref}
       className={cn(
-        'flex flex-col border-r bg-background overflow-hidden',
+        'flex flex-col overflow-hidden border-r border-border/70 bg-background/90 shadow-[1px_0_0_rgba(255,255,255,0.55)] backdrop-blur dark:shadow-[1px_0_0_rgba(255,255,255,0.04)]',
         // Ensure smooth transition for width changes
         'will-change-[width,transform]',
         className,
@@ -21,7 +21,7 @@ const SidebarHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('border-b p-3 md:p-4 h-14 flex items-center', className)}
+      className={cn('flex h-14 items-center border-b border-border/70 p-3 md:p-4', className)}
       {...props}
     />
   ),
@@ -30,7 +30,7 @@ SidebarHeader.displayName = 'SidebarHeader';
 
 const SidebarFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('border-t p-2 mt-auto', className)} {...props} />
+    <div ref={ref} className={cn('mt-auto border-t border-border/70 p-2', className)} {...props} />
   ),
 );
 SidebarFooter.displayName = 'SidebarFooter';
@@ -61,12 +61,14 @@ const SidebarItem = React.forwardRef<
     ref={ref}
     className={cn(
       'flex w-full items-center gap-3 px-3 py-2.5 md:py-2 text-left rounded-lg text-sm font-medium',
-      'transition-colors duration-150',
+      'transition-[background-color,color,box-shadow] duration-150',
       'hover:bg-accent hover:text-accent-foreground',
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
       // Touch-friendly sizing on mobile
       'min-h-[44px] md:min-h-0',
-      isActive ? 'bg-accent text-accent-foreground' : 'text-muted-foreground',
+      isActive
+        ? 'bg-accent text-accent-foreground shadow-[inset_0_0_0_1px_hsl(var(--border))]'
+        : 'text-muted-foreground',
       className,
     )}
     {...props}

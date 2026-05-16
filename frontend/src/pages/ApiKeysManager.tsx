@@ -209,7 +209,7 @@ export function ApiKeysManager() {
         )}
 
         {successMessage && (
-          <div className="mb-4 md:mb-6 rounded-md bg-green-500/10 p-3 md:p-4 text-xs md:text-sm text-green-600 dark:text-green-400">
+          <div className="mb-4 rounded-md border bg-muted/25 p-3 text-xs text-success md:mb-6 md:p-4 md:text-sm">
             {successMessage}
           </div>
         )}
@@ -288,7 +288,7 @@ export function ApiKeysManager() {
                         {key.isActive ? (
                           <Badge
                             variant="outline"
-                            className="bg-green-500/10 text-green-600 border-green-500/20 text-xs"
+                            className="border-border/80 bg-background/70 text-xs text-success"
                           >
                             Active
                           </Badge>

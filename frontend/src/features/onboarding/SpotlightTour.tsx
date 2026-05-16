@@ -386,7 +386,7 @@ export function SpotlightTour() {
 
           <motion.div
             ref={tooltipRef}
-            className="fixed bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-border/50 overflow-hidden"
+            className="fixed overflow-hidden rounded-xl border bg-popover shadow-lg"
             style={{ width: tooltipWidth, zIndex: 10001 }}
             key={`step-${currentStep}`}
             initial={{ opacity: 0, scale: 0.92, y: 8 }}
@@ -403,7 +403,7 @@ export function SpotlightTour() {
               damping: 32,
             }}
           >
-            <div className="h-1 bg-gradient-to-r from-primary/0 via-primary to-primary/0" />
+            <div className="h-px bg-border" />
 
             {targetRect && <TooltipArrow placement={actualPlacement} />}
 
@@ -444,12 +444,12 @@ export function SpotlightTour() {
                       key={i}
                       onClick={() => useTourStore.getState().goToStep(i)}
                       className={cn(
-                        'rounded-full transition-all duration-300',
+                        'h-2 rounded-sm transition-all duration-300',
                         i === currentStep
-                          ? 'w-6 h-2 bg-primary'
+                          ? 'w-5 bg-primary'
                           : i < currentStep
-                            ? 'w-2 h-2 bg-primary/40 hover:bg-primary/60'
-                            : 'w-2 h-2 bg-muted-foreground/20 hover:bg-muted-foreground/40',
+                            ? 'w-2 bg-primary/40 hover:bg-primary/60'
+                            : 'w-2 bg-muted-foreground/20 hover:bg-muted-foreground/40',
                       )}
                       aria-label={`Go to step ${i + 1}`}
                     />

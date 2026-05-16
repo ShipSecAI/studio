@@ -18,6 +18,7 @@ import {
   Archive,
   BarChart3,
   CalendarClock,
+  Zap,
   Sun,
   Moon,
   Shield,
@@ -56,7 +57,6 @@ import { setMobilePlacementSidebarClose } from '@/components/layout/sidebar-stat
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { usePrefetchOnIdle } from '@/hooks/usePrefetchOnIdle';
 import { prefetchIdleRoutes, prefetchRoute } from '@/lib/prefetch-routes';
-import { SecurityTabBar } from '@/components/security/SecurityTabBar';
 import { PageHeaderProvider, useHeaderSlot } from '@/components/layout/PageHeaderContext';
 import { SpotlightTour, useAppTour } from '@/features/onboarding';
 import { useAllFeatureFlags } from '@/features/feature-flags';
@@ -158,13 +158,6 @@ function MainHeader({
       sidebarOpen={sidebarOpen}
       onSidebarToggle={onSidebarToggle}
       actions={getPageActions()}
-      afterTitle={
-        location.pathname === '/' ||
-        location.pathname.startsWith('/security') ||
-        location.pathname.startsWith('/dashboards/security') ? (
-          <SecurityTabBar />
-        ) : undefined
-      }
       isMobile={isMobile}
     />
   );
@@ -455,16 +448,16 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const navigationGroups: NavGroup[] = [
     {
-      label: 'AI OPERATIONS',
+      label: 'COMMAND CENTER',
       requiredFlag: 'AI_FINDINGS',
       items: [sentinelItem, securityWikiItem],
     },
     {
-      label: 'CODE SECURITY',
+      label: 'SOURCE CONTROL',
       requiredFlag: 'GITHUB_INTEGRATION',
       items: [
         {
-          name: 'Repositories',
+          name: 'GitHub',
           href: '/github/repositories',
           icon: Archive,
           requiredFlag: 'GITHUB_INTEGRATION',
@@ -484,29 +477,23 @@ export function AppLayout({ children }: AppLayoutProps) {
       ],
     },
     {
-      label: 'CLOUD SECURITY',
+      label: 'CLOUD ESTATE',
       requiredFlag: 'CLOUD_SECURITY',
       items: [
         {
-          name: 'Cloud Accounts',
+          name: 'Accounts',
           href: '/cloud/accounts',
           icon: Cloud,
           requiredFlag: 'CLOUD_SECURITY',
         },
         {
-          name: 'Cloud Inventory',
+          name: 'Inventory',
           href: '/cloud/inventory',
           icon: Server,
           requiredFlag: 'CLOUD_INVENTORY',
         },
         {
-          name: 'Cloud Findings',
-          href: '/dashboards/security?view=cloud-security',
-          icon: ShieldCheck,
-          requiredFlag: 'SECURITY_DASHBOARD',
-        },
-        {
-          name: 'Cloud Scans',
+          name: 'Scans',
           href: '/cloud/scans',
           icon: ScanSearch,
           requiredFlag: 'CLOUD_SCANS',
@@ -523,7 +510,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       ],
     },
     {
-      label: 'WORKFLOWS',
+      label: 'AUTOMATION',
       requiredFlag: 'WORKFLOWS',
       items: [
         { name: 'Builder', href: '/builder', icon: Workflow, requiredFlag: 'WORKFLOWS' },
@@ -540,6 +527,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           requiredFlag: 'WORKFLOW_SCHEDULES',
         },
         { name: 'Webhooks', href: '/webhooks', icon: Webhook, requiredFlag: 'WEBHOOKS' },
+        { name: 'Approvals', href: '/action-center', icon: Zap, requiredFlag: 'ACTION_CENTER' },
       ],
     },
     ...(env.VITE_ANALYTICS_URL
@@ -548,7 +536,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             label: undefined,
             items: [
               {
-                name: 'Dashboards',
+                name: 'Analytics',
                 href: env.VITE_ANALYTICS_URL,
                 icon: BarChart3,
                 external: true,
@@ -585,6 +573,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/agent-skills',
       icon: Sparkles,
     },
+    {
+      name: 'Artifacts',
+      href: '/artifacts',
+      icon: Archive,
+      requiredFlag: 'ARTIFACTS',
+    },
     ...(canManageWorkflows
       ? [
           {
@@ -620,7 +614,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     (item) => !item.requiredFlag || featureFlags[item.requiredFlag],
   );
 
-  // Collect all base paths that have query-param siblings (e.g. /dashboards/security has ?view=cloud-security)
+  // Collect all base paths that have query-param siblings.
   const queryParamPaths = new Set<string>();
   for (const group of filteredNavigationGroups) {
     for (const item of group.items) {
@@ -641,7 +635,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     if (path === '/builder') {
       return location.pathname === '/builder' || location.pathname.startsWith('/workflows');
     }
-    // Handle query-param-based nav items like /dashboards/security?view=cloud-security
+    // Handle query-param-based nav items.
     if (path.includes('?')) {
       const [basePath, queryString] = path.split('?');
       const queryParams = new URLSearchParams(queryString);
@@ -713,7 +707,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     <SidebarContext.Provider value={sidebarContextValue}>
       <ThemeTransition />
       <NavigationProgress />
-      <div className="flex h-screen bg-background overflow-hidden">
+      <div className="flex h-[100dvh] overflow-hidden bg-background">
         {/* Mobile backdrop overlay */}
         {isMobile && sidebarOpen && (
           <div
@@ -965,13 +959,13 @@ export function AppLayout({ children }: AppLayoutProps) {
               <div
                 key={group.label ?? 'ungrouped'}
                 className="px-2 mt-1"
-                {...(group.label === 'CODE SECURITY'
+                {...(group.label === 'SOURCE CONTROL'
                   ? { 'data-tour': 'nav-code-security' }
-                  : group.label === 'CLOUD SECURITY'
+                  : group.label === 'CLOUD ESTATE'
                     ? { 'data-tour': 'nav-cloud-security' }
                     : group.label === 'ATTACK SURFACE'
                       ? { 'data-tour': 'nav-attack-surface' }
-                      : group.label === 'WORKFLOWS'
+                      : group.label === 'AUTOMATION'
                         ? { 'data-tour': 'nav-workflows' }
                         : {})}
               >
@@ -985,7 +979,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 )}
                 <div
                   className="space-y-1"
-                  {...(group.label === 'WORKFLOWS' ? { 'data-tour': 'nav-workflows' } : {})}
+                  {...(group.label === 'AUTOMATION' ? { 'data-tour': 'nav-workflows' } : {})}
                 >
                   {group.items.map((item) => {
                     const Icon = item.icon;

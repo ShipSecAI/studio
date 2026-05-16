@@ -158,7 +158,7 @@ function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
-      <div className="rounded-full bg-muted p-4 mb-4">
+      <div className="mb-4 rounded-xl border bg-muted p-4">
         <Icon className="h-8 w-8 text-muted-foreground" />
       </div>
       <h3 className="text-lg font-semibold mb-2">{title}</h3>
@@ -437,7 +437,7 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
               </div>
             )}
             {selectedWorkflowRequiresPrContext && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
+              <p className="rounded-md border bg-muted/25 px-2 py-1.5 text-xs text-muted-foreground">
                 This workflow requires PR context (for example `prNumber`) and cannot be triggered
                 manually from this modal.
               </p>
@@ -490,10 +490,10 @@ function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
 
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="rounded-full bg-muted p-6 mb-6">
+      <div className="mb-6 rounded-xl border bg-muted p-6">
         <img src="/icons/github.svg" alt="GitHub" className="h-12 w-12" />
       </div>
-      <h2 className="text-2xl font-bold mb-2">Connect GitHub</h2>
+      <h2 className="mb-2 text-2xl font-semibold">Connect GitHub</h2>
       <p className="text-muted-foreground mb-6 max-w-lg">
         Install the ShipSec GitHub App to connect your repositories and enable automated security
         scans on pull requests.
@@ -2260,10 +2260,10 @@ function ScansTab() {
                         return (
                           <div
                             key={`live-${scan.id}`}
-                            className="rounded-lg border border-blue-200 dark:border-blue-700/50 bg-blue-500/5 p-3 space-y-2"
+                            className="space-y-2 rounded-lg border bg-muted/25 p-3"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" />
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span className="text-sm font-medium truncate">
@@ -2796,7 +2796,7 @@ function ConnectionOverview({
       {installUrl && (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center h-full min-h-[200px] py-6">
-            <div className="rounded-full bg-muted p-3 mb-3">
+            <div className="mb-3 rounded-xl border bg-muted p-3">
               <Plus className="h-5 w-5 text-muted-foreground" />
             </div>
             <p className="text-sm text-muted-foreground mb-3">Connect another account</p>
@@ -2943,7 +2943,7 @@ export function GitHubPage() {
     return (
       <div className="container py-6 space-y-6">
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="rounded-full bg-destructive/10 p-4 mb-4">
+          <div className="mb-4 rounded-xl border bg-destructive/10 p-4">
             <AlertCircle className="h-8 w-8 text-destructive" />
           </div>
           <h3 className="text-lg font-semibold mb-2">Failed to load GitHub status</h3>

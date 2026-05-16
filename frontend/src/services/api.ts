@@ -278,8 +278,8 @@ function resolveApiBaseUrl() {
   }
 
   // No explicit API URL — use same-origin relative paths.
-  // Works with path-based routing (/api/v1/* routed to backend via Ingress).
-  // For local dev, set VITE_API_URL=http://localhost:3211 in frontend/.env
+  // Works with Vite's local /api proxy and path-based routing in deployed ingress.
+  // Keep VITE_API_URL empty for local dev so multi-instance ports resolve correctly.
   return '';
 }
 

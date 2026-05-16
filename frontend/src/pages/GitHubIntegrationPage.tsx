@@ -136,11 +136,11 @@ export function GitHubIntegrationPage() {
         {/* Provider Header */}
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex-shrink-0 p-3">
+            <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl border bg-muted p-3">
               <img src="/icons/github.svg" alt="GitHub" className="h-full w-full object-contain" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">GitHub</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">GitHub</h1>
               <p className="text-sm text-muted-foreground mt-1 max-w-xl">
                 Connect GitHub to scan repositories for secrets, vulnerabilities, and security
                 issues. Run automated scans on pull requests and pushes.
@@ -318,11 +318,11 @@ export function GitHubIntegrationPage() {
                   <h3 className="text-sm font-semibold">Connection Summary</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-md bg-muted/50 p-3 text-center">
-                      <p className="text-2xl font-bold">{installations.length}</p>
+                      <p className="text-2xl font-semibold tabular-nums">{installations.length}</p>
                       <p className="text-xs text-muted-foreground">Installations</p>
                     </div>
                     <div className="rounded-md bg-muted/50 p-3 text-center">
-                      <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                      <p className="text-2xl font-semibold tabular-nums text-success">
                         {activeCount}
                       </p>
                       <p className="text-xs text-muted-foreground">Active</p>
@@ -331,13 +331,11 @@ export function GitHubIntegrationPage() {
                   {installations.length > 0 && (
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-md bg-muted/50 p-3 text-center">
-                        <p className="text-2xl font-bold">{totalRepoCount}</p>
+                        <p className="text-2xl font-semibold tabular-nums">{totalRepoCount}</p>
                         <p className="text-xs text-muted-foreground">Repositories</p>
                       </div>
                       <div className="rounded-md bg-muted/50 p-3 text-center">
-                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                          {scansEnabledCount}
-                        </p>
+                        <p className="text-2xl font-semibold tabular-nums">{scansEnabledCount}</p>
                         <p className="text-xs text-muted-foreground">Scans Enabled</p>
                       </div>
                     </div>

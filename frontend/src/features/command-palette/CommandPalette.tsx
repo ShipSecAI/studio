@@ -18,6 +18,7 @@ import {
   CalendarClock,
   Archive,
   Plug,
+  Zap,
   Plus,
   Sun,
   Moon,
@@ -278,6 +279,16 @@ export function CommandPalette() {
         href: '/schedules',
       },
       {
+        id: 'nav-approvals',
+        type: 'navigation',
+        label: 'Approvals',
+        description: 'Review paused workflow requests',
+        category: 'navigation',
+        icon: Zap,
+        keywords: ['approvals', 'actions', 'human input', 'review', 'requests'],
+        href: '/action-center',
+      },
+      {
         id: 'nav-secrets',
         type: 'navigation',
         label: 'Secrets',
@@ -300,8 +311,8 @@ export function CommandPalette() {
       {
         id: 'nav-artifacts',
         type: 'navigation',
-        label: 'Artifact Library',
-        description: 'Browse stored artifacts',
+        label: 'Artifacts',
+        description: 'Browse workflow outputs and evidence',
         category: 'navigation',
         icon: Archive,
         keywords: ['artifacts', 'files', 'storage', 'library'],
@@ -517,7 +528,7 @@ export function CommandPalette() {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && close()}>
       <DialogContent
-        className="max-w-2xl p-0 gap-0 overflow-hidden bg-background/95 backdrop-blur-xl border-border/50 shadow-2xl"
+        className="max-w-2xl gap-0 overflow-hidden border-border/80 bg-background/95 p-0 shadow-lg backdrop-blur-xl"
         // Hide close button for cleaner look
         onPointerDownOutside={(e) => {
           e.preventDefault();

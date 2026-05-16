@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Server, Search, ChevronLeft, ChevronRight, Globe, Code2 } from 'lucide-react';
+import { Server, Search, ChevronLeft, ChevronRight, Globe, Code2, Radar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -201,7 +201,7 @@ export function AssetsPage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Assets</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">Assets</h1>
               <p className="text-muted-foreground text-sm mt-1">
                 {total} unique host{total !== 1 ? 's' : ''} discovered across all domains
               </p>
@@ -256,15 +256,33 @@ export function AssetsPage() {
           {isLoading ? (
             <LoadingSkeleton />
           ) : hits.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="rounded-full bg-muted p-4 mb-4">
-                <Server className="h-8 w-8 text-muted-foreground" />
+            <section className="rounded-xl border bg-card/80 p-6 shadow-sm">
+              <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                <div className="flex max-w-2xl gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-muted/70">
+                    <Server className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold tracking-tight">No assets found</h3>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      Assets appear after a domain scan discovers DNS records, HTTP services, and
+                      exposed hosts.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3 md:w-[28rem]">
+                  {['Run a domain scan', 'Review new hosts', 'Open asset details'].map((step) => (
+                    <div
+                      key={step}
+                      className="flex min-h-10 items-center gap-2 rounded-md border bg-background/70 px-3"
+                    >
+                      <Radar className="h-3.5 w-3.5 shrink-0" />
+                      <span>{step}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <h3 className="text-lg font-semibold mb-2">No assets found</h3>
-              <p className="text-muted-foreground max-w-md">
-                Assets will appear here after running a scan on your domains.
-              </p>
-            </div>
+            </section>
           ) : (
             <>
               <div className="border rounded-lg overflow-hidden">

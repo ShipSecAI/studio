@@ -167,13 +167,13 @@ export const featureRegistry: FeatureRegistry = {
   },
   ARTIFACTS: {
     key: 'ARTIFACTS',
-    label: 'Artifacts Library',
+    label: 'Artifacts',
     defaultEnabled: true,
     posthogKey: 'ff_artifacts',
   },
   ACTION_CENTER: {
     key: 'ACTION_CENTER',
-    label: 'Action Center',
+    label: 'Approvals',
     dependsOn: ['WORKFLOWS'],
     defaultEnabled: true,
     posthogKey: 'ff_action_center',

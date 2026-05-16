@@ -24,16 +24,30 @@ export function ReportTemplatesPage() {
 
   return (
     <div className="flex-1 bg-background">
-      <div className="container mx-auto px-4 py-8 space-y-6">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <FileText className="h-5 w-5 text-primary" />
-            <h1 className="text-2xl font-semibold">Report Templates</h1>
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-3 py-4 md:px-6 md:py-8">
+        <div className="rounded-lg border border-border/70 bg-card p-5 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary">
+                  <FileText className="h-5 w-5" />
+                </span>
+                <div>
+                  <h1 className="text-xl font-semibold tracking-tight">Report templates</h1>
+                  <p className="text-sm text-muted-foreground">
+                    Published report layouts for AI-generated security briefings.
+                  </p>
+                </div>
+              </div>
+              <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                Drafts stay in chat until promoted. This surface is the reusable template shelf for
+                operational reports, evidence packets, and stakeholder summaries.
+              </p>
+            </div>
+            <Badge variant="secondary" className="w-fit">
+              {templates.length} templates
+            </Badge>
           </div>
-          <p className="text-muted-foreground max-w-2xl">
-            Built-in and published organization report templates. Drafts stay chat-only until they
-            are promoted.
-          </p>
         </div>
 
         {isLoading ? (
@@ -55,7 +69,7 @@ export function ReportTemplatesPage() {
             {templates.map((template) => (
               <Card
                 key={template.id}
-                className="cursor-pointer transition-colors hover:border-primary/40"
+                className="cursor-pointer border-border/70 transition-colors hover:border-primary/40 hover:bg-primary/5"
                 onClick={() => setSelectedId(template.id)}
               >
                 <CardHeader className="space-y-3">
@@ -85,7 +99,7 @@ export function ReportTemplatesPage() {
         )}
 
         <Dialog open={Boolean(selectedId)} onOpenChange={(open) => !open && setSelectedId(null)}>
-          <DialogContent className="max-w-5xl p-0 overflow-hidden">
+          <DialogContent className="max-w-5xl overflow-hidden p-0">
             <DialogHeader className="px-6 pt-6">
               <DialogTitle>{selectedTemplate?.name ?? 'Report Template'}</DialogTitle>
             </DialogHeader>

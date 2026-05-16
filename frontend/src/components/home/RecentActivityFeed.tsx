@@ -31,18 +31,18 @@ function detectScanType(name: string): ScanType {
 const SCAN_TYPE_ICON: Record<ScanType, { icon: ElementType; bg: string; color: string }> = {
   sast: {
     icon: FileCode2,
-    bg: 'bg-blue-100 dark:bg-blue-900/40',
-    color: 'text-blue-600 dark:text-blue-400',
+    bg: 'bg-muted',
+    color: 'text-muted-foreground',
   },
   dependency: {
     icon: Package,
-    bg: 'bg-purple-100 dark:bg-purple-900/40',
-    color: 'text-purple-600 dark:text-purple-400',
+    bg: 'bg-muted',
+    color: 'text-muted-foreground',
   },
   secret: {
     icon: KeyRound,
-    bg: 'bg-amber-100 dark:bg-amber-900/40',
-    color: 'text-amber-600 dark:text-amber-400',
+    bg: 'bg-muted',
+    color: 'text-muted-foreground',
   },
   generic: { icon: Workflow, bg: 'bg-muted', color: 'text-muted-foreground' },
 };

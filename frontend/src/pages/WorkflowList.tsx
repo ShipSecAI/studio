@@ -272,7 +272,7 @@ export function WorkflowList() {
         )}
 
         <div className="mb-4 md:mb-6">
-          <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">Your Workflows</h2>
+          <h2 className="mb-1 text-xl font-semibold md:mb-2 md:text-2xl">Your Workflows</h2>
           <p className="text-sm md:text-base text-muted-foreground">
             Create and manage security automation workflows with powerful visual tools
           </p>

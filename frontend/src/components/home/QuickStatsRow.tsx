@@ -29,23 +29,17 @@ export function QuickStatsRow({
       label: 'Actionable Findings',
       value: totalFindings,
       icon: ShieldAlert,
-      color: 'text-red-500',
-      bg: 'bg-red-500/10',
     },
     {
       label: 'Repositories',
       value: totalRepos,
       icon: GitBranch,
-      color: 'text-purple-500',
-      bg: 'bg-purple-500/10',
     },
-    { label: 'Scans', value: totalScans, icon: Scan, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+    { label: 'Scans', value: totalScans, icon: Scan },
     {
       label: 'Integrations',
       value: integrationsConnected,
       icon: Link2,
-      color: 'text-green-500',
-      bg: 'bg-green-500/10',
     },
   ];
 
@@ -58,13 +52,11 @@ export function QuickStatsRow({
         return (
           <Card key={stat.label}>
             <CardContent className="p-4 flex items-center gap-3">
-              <div
-                className={`w-9 h-9 rounded-lg ${stat.bg} flex items-center justify-center flex-shrink-0`}
-              >
-                <Icon className={`h-4.5 w-4.5 ${stat.color}`} />
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border bg-muted/45 text-muted-foreground">
+                <Icon className="h-[18px] w-[18px]" />
               </div>
               <div className="min-w-0">
-                <div className="text-xl font-bold">{formatNumber(stat.value)}</div>
+                <div className="text-xl font-semibold tabular-nums">{formatNumber(stat.value)}</div>
                 <div className="text-[11px] text-muted-foreground">{stat.label}</div>
               </div>
             </CardContent>

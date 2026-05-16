@@ -8,6 +8,8 @@ import {
   Trash2,
   Loader2,
   Radio,
+  CheckCircle2,
+  ArrowRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -87,7 +89,7 @@ function DomainCard({
           <div className="flex items-center gap-2">
             <Badge
               variant="outline"
-              className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800"
+              className="border-border/80 bg-background/70 text-xs text-muted-foreground"
             >
               Active
             </Badge>
@@ -136,7 +138,7 @@ function DomainCard({
         </div>
         {domain.monitoringEnabled && (
           <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Radio className="h-3 w-3 text-emerald-500" />
+            <Radio className="h-3 w-3 text-success" />
             <span>Monitoring {domain.frequency ? `· ${domain.frequency}` : 'on'}</span>
           </div>
         )}
@@ -291,36 +293,57 @@ function AddDomainDialog({
 }
 
 function EmptyState({ onAddDomain }: { onAddDomain: () => void }) {
+  const capabilities = [
+    'Subdomains',
+    'DNS records',
+    'HTTP services',
+    'Open ports',
+    'Certificates',
+    'Vulnerabilities',
+  ];
+
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="rounded-full bg-muted p-6 mb-6">
-        <Globe className="h-10 w-10 text-muted-foreground" />
-      </div>
-      <h3 className="text-xl font-semibold mb-2">Add your first domain</h3>
-      <p className="text-muted-foreground max-w-md mb-6">
-        Enter a root domain to discover your external attack surface — subdomains, DNS records, open
-        ports, certificates, and vulnerabilities.
-      </p>
-      <Button onClick={onAddDomain} size="lg">
-        <Plus className="h-4 w-4 mr-2" />
-        Add Domain
-      </Button>
-      <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm text-muted-foreground max-w-lg">
-        {[
-          'Subdomain enumeration',
-          'DNS analysis',
-          'HTTP fingerprinting',
-          'Port scanning',
-          'Vulnerability detection',
-          'Certificate inventory',
-        ].map((feature) => (
-          <div key={feature} className="flex items-center gap-2">
-            <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-            {feature}
+    <section className="rounded-xl border bg-card/80 p-6 shadow-sm md:p-8">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-center">
+        <div className="max-w-2xl">
+          <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-lg border bg-muted/70">
+            <Globe className="h-5 w-5 text-muted-foreground" />
           </div>
-        ))}
+          <h3 className="text-2xl font-semibold tracking-tight">Add your first domain</h3>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+            Add a root domain to start external attack surface discovery across hosts, DNS,
+            certificates, exposed services, and findings.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Button onClick={onAddDomain}>
+              <Plus className="h-4 w-4" />
+              Add domain
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Scans can run now or after scope review.
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-background/70 p-4">
+          <div className="mb-3 flex items-center justify-between text-xs">
+            <span className="font-medium text-muted-foreground">Discovery coverage</span>
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {capabilities.map((feature) => (
+              <div
+                key={feature}
+                className="flex min-h-9 items-center gap-2 rounded-md border bg-card px-2.5 text-xs text-muted-foreground"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
+                <span className="truncate">{feature}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -393,7 +416,7 @@ export function DomainsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Domains</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Domains</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Manage root domains for attack surface discovery
           </p>

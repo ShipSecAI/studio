@@ -1040,7 +1040,7 @@ export function ChatInterface() {
             }`}
           >
             {graphPanelRun && isRunInspectorOpen && (
-              <div className="relative ml-auto mr-0 h-[52vh] w-[min(100%,72rem)] rounded-b-none rounded-bl-xl border border-t-0 border-r-0 bg-background/95 shadow-lg backdrop-blur-sm">
+              <div className="relative ml-auto mr-0 h-[52vh] w-[min(100%,72rem)] rounded-b-none rounded-bl-xl border border-t-0 border-r-0 bg-background/95 shadow-sm backdrop-blur-sm">
                 <div className="flex h-full flex-col px-3 py-2 md:px-4 pointer-events-auto">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <div className="min-w-0">
@@ -1106,17 +1106,17 @@ export function ChatInterface() {
                     return (
                       <div key={item.id} className="py-1">
                         <div className="flex items-center gap-3">
-                          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-border" />
+                          <div className="h-px flex-1 bg-border/70" />
                           <span
-                            className={`rounded-full border px-3 py-1 text-[11px] font-medium tracking-wide ${
+                            className={`rounded-md border px-2.5 py-1 text-[11px] font-medium ${
                               isCompacted
-                                ? 'border-primary/35 bg-primary/10 text-primary'
-                                : 'border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-200'
+                                ? 'border-border bg-muted text-foreground'
+                                : 'border-warning/30 bg-warning/10 text-warning'
                             }`}
                           >
                             {item.label}
                           </span>
-                          <div className="h-px flex-1 bg-gradient-to-l from-transparent via-border to-border" />
+                          <div className="h-px flex-1 bg-border/70" />
                         </div>
                         {isCompacted && item.snapshot && (
                           <div className="mt-2 flex flex-col items-center gap-2">
@@ -1130,7 +1130,7 @@ export function ChatInterface() {
                                   return next;
                                 })
                               }
-                              className="rounded-full border border-border bg-background px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+                              className="rounded-md border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                             >
                               {isExpanded ? 'Hide compact snapshot' : 'View compact snapshot'}
                             </button>
@@ -1177,8 +1177,7 @@ export function ChatInterface() {
               <div className="min-h-5">
                 {isAgentWorking ? (
                   <div className="flex items-center gap-2 justify-start">
-                    <div className="relative overflow-hidden rounded-full border border-border/70 bg-muted/70 px-3 py-1 text-xs text-muted-foreground">
-                      <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-foreground/15 to-transparent dark:via-foreground/25 animate-[shipsec-shimmer_1.8s_linear_infinite]" />
+                    <div className="relative overflow-hidden rounded-md border border-border/70 bg-muted/70 px-3 py-1 text-xs text-muted-foreground">
                       <div className="relative flex items-center">
                         <span className="font-medium text-foreground/80">Working</span>
                         <span className="ml-2 inline-flex items-center gap-1">
@@ -1190,7 +1189,7 @@ export function ChatInterface() {
                     </div>
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-background px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-background px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
                       onClick={(event) => {
                         event.preventDefault();
                         void handleInterrupt();

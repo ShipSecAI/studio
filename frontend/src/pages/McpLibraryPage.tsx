@@ -183,12 +183,12 @@ function GroupLogo({ slug, name, className }: { slug: string; name: string; clas
 function getGroupTheme(groupSlug: string) {
   if (groupSlug === 'aws') {
     return {
-      container: 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800',
-      headerBorder: 'border-orange-200 dark:border-orange-800',
-      iconWrapper: 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800',
-      iconText: 'text-orange-700 dark:text-orange-300',
-      pillBorder: 'border-orange-200 dark:border-orange-800',
-      accentText: 'text-orange-700 dark:text-orange-300',
+      container: 'bg-card border-border/70',
+      headerBorder: 'border-border/70',
+      iconWrapper: 'bg-muted border-border/70',
+      iconText: 'text-muted-foreground',
+      pillBorder: 'border-border/70',
+      accentText: 'text-muted-foreground',
     };
   }
 
@@ -1983,7 +1983,7 @@ export function McpLibraryPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">MCP Servers</h1>
+          <h1 className="text-2xl font-semibold">MCP Servers</h1>
           <p className="text-muted-foreground">
             Configure Model Context Protocol servers for AI agents
           </p>

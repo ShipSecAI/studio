@@ -82,8 +82,8 @@ const PROVIDER_VISUALS: Record<
   {
     logo?: string;
     darkLogo?: string;
-    gradient: string;
-    borderAccent: string;
+    gradient?: string;
+    borderAccent?: string;
     darkBg?: boolean;
     monogram?: string;
     monogramClassName?: string;
@@ -92,24 +92,16 @@ const PROVIDER_VISUALS: Record<
   aws: {
     logo: '/icons/aws.svg',
     darkLogo: '/icons/aws-dark.svg',
-    gradient: '',
-    borderAccent: 'border-orange-200 dark:border-orange-800',
     darkBg: true,
   },
   gcp: {
     logo: '/icons/gcp.svg',
-    gradient: 'from-sky-50 to-blue-50 dark:from-sky-950/20 dark:to-blue-950/20',
-    borderAccent: 'border-sky-200 dark:border-sky-800',
   },
   slack: {
     logo: '/icons/slack.svg',
-    gradient: 'from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20',
-    borderAccent: 'border-purple-200 dark:border-purple-800',
   },
   jira: {
     logo: '/icons/jira.svg',
-    gradient: 'from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20',
-    borderAccent: 'border-blue-200 dark:border-blue-800',
   },
 };
 
@@ -135,7 +127,7 @@ function healthBadge(connection: IntegrationConnection) {
   const status = connection.lastValidationStatus ?? connection.status;
   if (status === 'active' || status === 'valid' || status === 'ok') {
     return (
-      <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+      <Badge variant="outline" className="gap-1 border-border/80 bg-background/70 text-success">
         <CheckCircle className="h-3 w-3" />
         Healthy
       </Badge>
@@ -495,11 +487,11 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
                   </div>
 
                   {/* Collapsible: Why IAM Role Assumption? */}
-                  <div className="rounded-md border bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+                  <div className="rounded-md border bg-muted/25">
                     <button
                       type="button"
                       onClick={() => setWhyOpen((v) => !v)}
-                      className="flex w-full items-center gap-2 p-3 text-left text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-md transition-colors"
+                      className="flex w-full items-center gap-2 rounded-md p-3 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground"
                     >
                       <Info className="h-3.5 w-3.5 shrink-0" />
                       <span className="flex-1">
@@ -513,7 +505,7 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
                       />
                     </button>
                     {whyOpen && (
-                      <div className="px-3 pb-3 text-xs text-blue-700/80 dark:text-blue-300/80 space-y-2">
+                      <div className="space-y-2 px-3 pb-3 text-xs text-muted-foreground">
                         <p>
                           <strong>IAM Role assumption with an External ID</strong> is the
                           AWS-recommended approach for granting cross-account access. Here is why it
@@ -630,8 +622,8 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
                       </div>
                     </div>
 
-                    <div className="rounded-md border bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 p-3">
-                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                    <div className="rounded-md border bg-muted/25 p-3">
+                      <p className="text-xs text-muted-foreground">
                         <strong>Tip:</strong> In the AWS IAM console, search for each policy name in
                         the &ldquo;Add permissions &rarr; Attach policies directly&rdquo; step and
                         check the box to attach it. These are AWS managed policies &mdash; no custom
@@ -858,7 +850,7 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
         <TabsContent value="webhook" className="mt-4 space-y-4">
           {/* Main CTA */}
           <div className="flex flex-col items-center text-center py-2 space-y-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border bg-muted">
               <img src="/icons/slack.svg" alt="Slack" className="h-7 w-7" />
             </div>
             <div>
@@ -913,11 +905,7 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
             )}
 
             <div className="flex justify-center pt-2">
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="gap-2 bg-[#4A154B] hover:bg-[#3a1139] text-white"
-              >
+              <Button type="submit" disabled={submitting} className="gap-2">
                 {submitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -943,7 +931,7 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
         <TabsContent value="oauth" className="mt-4 space-y-4">
           {/* Main CTA */}
           <div className="flex flex-col items-center text-center py-2 space-y-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border bg-muted">
               <img src="/icons/slack.svg" alt="Slack" className="h-7 w-7" />
             </div>
             <div>
@@ -952,11 +940,7 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
                 You&apos;ll be redirected to Slack to authorize the app.
               </p>
             </div>
-            <Button
-              onClick={handleOAuthConnect}
-              disabled={submitting}
-              className="gap-2 bg-[#4A154B] hover:bg-[#3a1139] text-white"
-            >
+            <Button onClick={handleOAuthConnect} disabled={submitting} className="gap-2">
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1134,7 +1118,7 @@ function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
 
         <TabsContent value="oauth" className="mt-4 space-y-4">
           <div className="flex flex-col items-center text-center space-y-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl border bg-muted">
               <img src="/icons/jira.svg" alt="Jira" className="h-8 w-8" />
             </div>
             <p className="text-base font-semibold">Connect Jira with Atlassian OAuth</p>
@@ -1170,7 +1154,7 @@ function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
 
         <TabsContent value="forge_app" className="mt-4">
           <div className="flex flex-col items-center text-center space-y-3 mb-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl border bg-muted">
               <img src="/icons/jira.svg" alt="Jira" className="h-8 w-8" />
             </div>
             <p className="text-base font-semibold">Connect a self-managed Jira app</p>
@@ -1469,21 +1453,8 @@ export function IntegrationDetailPage() {
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-center gap-4">
             {visuals ? (
-              visuals.logo && visuals.gradient ? (
-                <div
-                  className={cn(
-                    'flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br flex-shrink-0 p-3',
-                    visuals.gradient,
-                  )}
-                >
-                  <img
-                    src={visuals.logo}
-                    alt={catalogEntry?.name ?? provider ?? ''}
-                    className="h-full w-full object-contain"
-                  />
-                </div>
-              ) : visuals.logo && visuals.darkBg ? (
-                <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-[#232F3E] flex-shrink-0 p-3">
+              visuals.logo && visuals.darkBg ? (
+                <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl border bg-muted p-3">
                   <img
                     src={visuals.darkLogo ?? visuals.logo}
                     alt={catalogEntry?.name ?? provider ?? ''}
@@ -1494,13 +1465,12 @@ export function IntegrationDetailPage() {
                 <img
                   src={visuals.logo}
                   alt={catalogEntry?.name ?? provider ?? ''}
-                  className="h-16 w-16 rounded-xl object-cover flex-shrink-0"
+                  className="h-16 w-16 flex-shrink-0 rounded-xl border bg-muted object-contain p-3"
                 />
               ) : (
                 <div
                   className={cn(
-                    'flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br flex-shrink-0 text-base font-semibold tracking-wide',
-                    visuals.gradient,
+                    'flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl border bg-muted text-base font-semibold tracking-wide text-muted-foreground',
                     visuals.monogramClassName,
                   )}
                 >
@@ -1509,12 +1479,12 @@ export function IntegrationDetailPage() {
                 </div>
               )
             ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex-shrink-0 p-3">
+              <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl border bg-muted p-3">
                 <Shield className="h-8 w-8 text-muted-foreground" />
               </div>
             )}
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">
+              <h1 className="text-2xl font-semibold tracking-tight">
                 {catalogEntry?.name ?? provider}
               </h1>
               <p className="text-sm text-muted-foreground mt-1 max-w-xl">
@@ -1620,7 +1590,7 @@ export function IntegrationDetailPage() {
               className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
               onClick={() => setDialogOpen(true)}
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 mx-auto mb-3">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl border bg-muted">
                 <Plus className="h-6 w-6 text-primary" />
               </div>
               <h3 className="text-base font-medium mb-1">No connections yet</h3>
@@ -1687,8 +1657,7 @@ export function IntegrationDetailPage() {
                         ) : connVisuals?.monogram ? (
                           <div
                             className={cn(
-                              'flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-gradient-to-br text-xs font-semibold tracking-wide',
-                              connVisuals.gradient,
+                              'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border bg-muted text-xs font-semibold tracking-wide text-muted-foreground',
                               connVisuals.monogramClassName,
                             )}
                           >
@@ -1878,11 +1847,11 @@ export function IntegrationDetailPage() {
                   <h3 className="text-sm font-semibold">Connection Summary</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-md bg-muted/50 p-3 text-center">
-                      <p className="text-2xl font-bold">{connections.length}</p>
+                      <p className="text-2xl font-semibold tabular-nums">{connections.length}</p>
                       <p className="text-xs text-muted-foreground">Total</p>
                     </div>
                     <div className="rounded-md bg-muted/50 p-3 text-center">
-                      <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                      <p className="text-2xl font-semibold tabular-nums text-success">
                         {healthyCount}
                       </p>
                       <p className="text-xs text-muted-foreground">Healthy</p>

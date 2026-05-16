@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MarkdownView } from '../markdown';
 
 describe('MarkdownView', () => {
@@ -49,5 +49,17 @@ describe('MarkdownView', () => {
     expect(diagram).not.toBeNull();
     expect(diagram).toHaveAttribute('data-mermaid-id');
     expect(diagram?.textContent).toContain('graph TD');
+  });
+
+  it('contains invalid mermaid diagrams without rendering Mermaid syntax SVGs', async () => {
+    const markdown = '```mermaid\nthis is not valid\n```';
+    const { container } = render(<MarkdownView content={markdown} />);
+
+    await waitFor(() => {
+      expect(container.querySelector('.mermaid-failed')).not.toBeNull();
+    });
+
+    expect(screen.getByText('Diagram could not be rendered')).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('Syntax error in text');
   });
 });

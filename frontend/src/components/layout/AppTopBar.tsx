@@ -40,7 +40,7 @@ export function AppTopBar({
   return (
     <div
       className={cn(
-        'h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
+        'h-14 border-b border-border/70 bg-background/88 shadow-[0_1px_0_rgba(255,255,255,0.55)] backdrop-blur supports-[backdrop-filter]:bg-background/74 dark:shadow-[0_1px_0_rgba(255,255,255,0.04)]',
         'flex items-center px-3 md:px-4 gap-2 md:gap-4 sticky top-0 z-40',
       )}
     >
@@ -91,10 +91,12 @@ export function AppTopBar({
             )}
           </div>
         ) : !afterTitle ? (
-          /* Desktop: Icon + Full page title (hidden when afterTitle like SecurityTabBar is shown) */
+          /* Desktop: Icon + full page title */
           <div className="flex items-center gap-2.5">
-            {PageIcon && <PageIcon className="h-5 w-5 text-muted-foreground flex-shrink-0" />}
-            <h1 className="text-xl font-semibold truncate">
+            {PageIcon && (
+              <PageIcon className="h-[18px] w-[18px] flex-shrink-0 text-muted-foreground" />
+            )}
+            <h1 className="truncate text-[15px] font-semibold tracking-[-0.01em]">
               {pageInfo.breadcrumb ? (
                 <>
                   <Link

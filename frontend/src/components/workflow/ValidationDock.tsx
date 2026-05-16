@@ -143,7 +143,7 @@ export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDo
         <div
           className={cn(
             'fixed left-0 right-0 bottom-0 z-[60]',
-            'bg-background border-t rounded-t-2xl shadow-2xl',
+            'rounded-t-xl border-t bg-background shadow-lg',
             'transition-transform duration-300 ease-out',
             'max-h-[60vh] flex flex-col',
             isMobileSheetOpen ? 'translate-y-0' : 'translate-y-full',

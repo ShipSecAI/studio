@@ -159,7 +159,29 @@ export function ActionCenterPage() {
   return (
     <>
       <div className="flex-1 bg-background">
-        <div className="container mx-auto px-3 md:px-4 py-4 md:py-8 space-y-4 md:space-y-6">
+        <div className="mx-auto w-full max-w-7xl space-y-4 px-3 py-4 md:space-y-6 md:px-6 md:py-8">
+          <div className="rounded-lg border border-border/70 bg-card p-5 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary">
+                  <Zap className="h-5 w-5" />
+                </span>
+                <div>
+                  <h1 className="text-xl font-semibold tracking-tight">Approvals</h1>
+                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                    Resolve workflow pauses, human reviews, and acknowledgement steps from one
+                    queue.
+                  </p>
+                </div>
+              </div>
+              {pendingCount > 0 && (
+                <Badge variant="default" className="w-fit px-2.5 py-0.5">
+                  {pendingCount} pending
+                </Badge>
+              )}
+            </div>
+          </div>
+
           {/* Filters */}
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div className="flex-1 space-y-2">
@@ -174,11 +196,6 @@ export function ActionCenterPage() {
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {pendingCount > 0 && (
-                <Badge variant="default" className="px-2.5 py-0.5">
-                  {pendingCount} pending
-                </Badge>
-              )}
               <Select
                 value={statusFilter}
                 onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}
@@ -366,14 +383,18 @@ export function ActionCenterPage() {
                   {!isLoading && !hasData && (
                     <TableRow>
                       <TableCell colSpan={7}>
-                        <div className="flex flex-col items-center justify-center py-10 text-center space-y-2">
-                          <Zap className="h-12 w-12 text-muted-foreground/30" />
-                          <p className="font-medium">No pending actions</p>
-                          <p className="text-sm text-muted-foreground max-w-lg">
-                            {statusFilter === 'pending'
-                              ? 'All requests have been handled. Check back later or view all statuses.'
-                              : 'No requests match your filters. Try adjusting the search or status filter.'}
-                          </p>
+                        <div className="mx-auto my-8 flex max-w-xl items-start gap-4 rounded-lg border border-border/70 bg-muted/30 p-5 text-left">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                            <Zap className="h-5 w-5" />
+                          </span>
+                          <div className="space-y-1">
+                            <p className="font-medium">No approvals in this view</p>
+                            <p className="text-sm leading-6 text-muted-foreground">
+                              {statusFilter === 'pending'
+                                ? 'All workflow requests have been handled. Switch to all statuses to audit previous decisions.'
+                                : 'No requests match your filters. Adjust the search or status filter to broaden the queue.'}
+                            </p>
+                          </div>
                         </div>
                       </TableCell>
                     </TableRow>

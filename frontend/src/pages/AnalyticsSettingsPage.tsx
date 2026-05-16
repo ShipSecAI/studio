@@ -163,8 +163,8 @@ export function AnalyticsSettingsPage() {
         {/* Retention Overview — full-width banner */}
         <div className="rounded-xl border bg-card p-4 md:p-5 mb-4">
           <div className="flex items-center gap-4">
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-              <BarChart3 className="h-5 w-5 text-primary" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border bg-muted">
+              <BarChart3 className="h-5 w-5 text-muted-foreground" />
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-sm font-semibold">Retention Limits</h2>
@@ -189,8 +189,8 @@ export function AnalyticsSettingsPage() {
           {/* Data Retention */}
           <div className="rounded-xl border bg-card p-4 md:p-5">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                <Calendar className="h-4.5 w-4.5 text-primary" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-muted">
+                <Calendar className="h-[18px] w-[18px] text-muted-foreground" />
               </div>
               <div>
                 <h2 className="text-sm font-semibold">Data Retention</h2>
@@ -240,8 +240,8 @@ export function AnalyticsSettingsPage() {
           {/* Storage Usage */}
           <div className="rounded-xl border bg-card p-4 md:p-5">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                <Database className="h-4.5 w-4.5 text-primary" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-muted">
+                <Database className="h-[18px] w-[18px] text-muted-foreground" />
               </div>
               <div>
                 <h2 className="text-sm font-semibold">Storage Usage</h2>

@@ -20,22 +20,24 @@ export function NeedsAttentionCard({ categories, mode }: NeedsAttentionCardProps
 
   if (mode === 'prominent') {
     return (
-      <Card className={`h-full ${hasIssues ? 'border-2 border-red-500/30 shadow-lg' : ''}`}>
+      <Card className={`h-full ${hasIssues ? 'border-destructive/25' : ''}`}>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">
-            <ShieldAlert className={`h-5 w-5 ${hasIssues ? 'text-red-500' : 'text-green-500'}`} />
+            <ShieldAlert
+              className={`h-5 w-5 ${hasIssues ? 'text-destructive' : 'text-muted-foreground'}`}
+            />
             <CardTitle className="text-base">Needs Attention</CardTitle>
           </div>
           {hasIssues && (
-            <Link to="/?view=all-findings" className="text-xs text-primary hover:underline">
-              View all
+            <Link to="/findings" className="text-xs text-primary hover:underline">
+              Open Sentinel
             </Link>
           )}
         </CardHeader>
         <CardContent>
           {!hasIssues ? (
             <div className="flex items-center gap-2 py-2">
-              <ShieldCheck className="h-5 w-5 text-green-500" />
+              <ShieldCheck className="h-5 w-5 text-success" />
               <span className="text-sm text-muted-foreground">
                 All clear! No critical or high findings.
               </span>
@@ -49,14 +51,14 @@ export function NeedsAttentionCard({ categories, mode }: NeedsAttentionCardProps
                   <Link
                     key={cat.category}
                     to={cat.href}
-                    className="flex flex-col p-3 rounded-lg border border-red-500/10 bg-red-500/5 hover:bg-red-500/10 transition-colors"
+                    className="flex flex-col rounded-lg border bg-muted/25 p-3 transition-[background-color,border-color] hover:border-destructive/25 hover:bg-muted/45"
                   >
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
                       {cat.category}
                     </span>
                     <div className="flex items-baseline gap-2">
-                      <span className="text-red-500 text-sm font-medium">{cat.critical}c</span>
-                      <span className="text-orange-500 text-sm font-medium">{cat.high}h</span>
+                      <span className="text-sm font-medium text-destructive">{cat.critical}c</span>
+                      <span className="text-sm font-medium text-warning">{cat.high}h</span>
                     </div>
                   </Link>
                 );
@@ -70,19 +72,19 @@ export function NeedsAttentionCard({ categories, mode }: NeedsAttentionCardProps
 
   // Normal mode (State 2)
   return (
-    <Card className={`h-full ${hasIssues ? 'border-orange-500/20' : ''}`}>
+    <Card className={`h-full ${hasIssues ? 'border-warning/25' : ''}`}>
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
         <CardTitle className="text-base">Needs Attention</CardTitle>
         {hasIssues && (
-          <Link to="/?view=all-findings" className="text-xs text-primary hover:underline">
-            View all
+          <Link to="/findings" className="text-xs text-primary hover:underline">
+            Open Sentinel
           </Link>
         )}
       </CardHeader>
       <CardContent>
         {!hasIssues ? (
           <div className="flex items-center gap-2 py-2">
-            <ShieldCheck className="h-5 w-5 text-green-500" />
+            <ShieldCheck className="h-5 w-5 text-success" />
             <span className="text-xs text-muted-foreground">Looking good!</span>
           </div>
         ) : (
@@ -100,9 +102,9 @@ export function NeedsAttentionCard({ categories, mode }: NeedsAttentionCardProps
                     {cat.category}
                   </span>
                   <span>
-                    <span className="text-red-500">{cat.critical}c</span>
+                    <span className="text-destructive">{cat.critical}c</span>
                     {', '}
-                    <span className="text-orange-500">{cat.high}h</span>
+                    <span className="text-warning">{cat.high}h</span>
                   </span>
                 </Link>
               );

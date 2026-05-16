@@ -142,7 +142,7 @@ export function WorkflowWebhooksSidebar({
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
         {/* Default Webhook - Always shown */}
-        <div className="space-y-2 rounded-lg border bg-gradient-to-r from-primary/5 to-transparent px-3 py-3">
+        <div className="space-y-2 rounded-lg border bg-muted/35 px-3 py-3">
           <div className="flex items-start justify-between gap-2">
             <div className="space-y-1 flex-1 min-w-0">
               <div className="flex items-center gap-2">

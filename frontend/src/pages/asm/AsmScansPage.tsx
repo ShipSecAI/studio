@@ -9,6 +9,7 @@ import {
   XCircle,
   Loader2,
   AlertTriangle,
+  ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,19 +34,14 @@ const STATUS_ICONS: Record<string, typeof CheckCircle2> = {
   AWAITING_INPUT: Clock,
 };
 
+const BASE_STATUS_BADGE = 'border-border/80 bg-background text-muted-foreground';
 const STATUS_COLORS: Record<string, string> = {
-  COMPLETED:
-    'text-emerald-600 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950 dark:border-emerald-800',
-  RUNNING:
-    'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950 dark:border-blue-800',
-  FAILED:
-    'text-red-600 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950 dark:border-red-800',
-  TIMED_OUT:
-    'text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950 dark:border-amber-800',
-  QUEUED:
-    'text-gray-600 bg-gray-50 border-gray-200 dark:text-gray-400 dark:bg-gray-950 dark:border-gray-800',
-  AWAITING_INPUT:
-    'text-purple-600 bg-purple-50 border-purple-200 dark:text-purple-400 dark:bg-purple-950 dark:border-purple-800',
+  COMPLETED: `${BASE_STATUS_BADGE} text-success`,
+  RUNNING: `${BASE_STATUS_BADGE} text-primary`,
+  FAILED: `${BASE_STATUS_BADGE} text-destructive`,
+  TIMED_OUT: `${BASE_STATUS_BADGE} text-warning`,
+  QUEUED: BASE_STATUS_BADGE,
+  AWAITING_INPUT: BASE_STATUS_BADGE,
 };
 
 function formatDuration(ms: number | undefined): string {
@@ -118,7 +114,7 @@ export function AsmScansPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">ASM Scans</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">ASM Scans</h1>
           <p className="text-muted-foreground text-sm mt-1">
             History of attack surface discovery scans
           </p>
@@ -149,9 +145,9 @@ export function AsmScansPage() {
 
       {/* Live scans section */}
       {liveRuns.length > 0 && (
-        <div className="mb-6 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50/50 dark:bg-blue-950/30 p-4">
+        <div className="mb-6 rounded-lg border bg-muted/25 p-4">
           <div className="flex items-center gap-2 mb-3">
-            <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+            <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
             <span className="text-sm font-medium">
               {liveRuns.length} scan{liveRuns.length !== 1 ? 's' : ''} in progress
             </span>
@@ -164,7 +160,7 @@ export function AsmScansPage() {
                 onClick={() => navigate(`/runs/${run.id}`)}
               >
                 <div className="flex items-center gap-3">
-                  <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                   <span className="text-sm font-medium">
                     {run.workflowName || run.triggerLabel || 'ASM Scan'}
                   </span>
@@ -192,18 +188,26 @@ export function AsmScansPage() {
       {isLoading ? (
         <LoadingSkeleton />
       ) : runs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="rounded-full bg-muted p-4 mb-4">
-            <Radar className="h-8 w-8 text-muted-foreground" />
+        <section className="rounded-xl border bg-card/80 p-6 shadow-sm">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div className="flex max-w-2xl gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-muted/70">
+                <Radar className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold tracking-tight">No scans yet</h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  Scan history appears here after a domain discovery run starts from the Domains
+                  page.
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" onClick={() => navigate('/asm/domains')}>
+              Go to domains
+              <ArrowRight className="h-4 w-4" />
+            </Button>
           </div>
-          <h3 className="text-lg font-semibold mb-2">No scans yet</h3>
-          <p className="text-muted-foreground max-w-md mb-4">
-            Scans will appear here after you trigger a scan from the Domains page.
-          </p>
-          <Button variant="outline" onClick={() => navigate('/asm/domains')}>
-            Go to Domains
-          </Button>
-        </div>
+        </section>
       ) : (
         <>
           <div className="border rounded-lg overflow-hidden">

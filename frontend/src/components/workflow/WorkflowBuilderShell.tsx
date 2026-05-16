@@ -249,7 +249,7 @@ export function WorkflowBuilderShell({
   const showLibraryToggleButton = mode === 'design' && !isLibraryVisible;
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
       {topBar}
       <div ref={layoutRef} className="flex flex-1 overflow-hidden relative">
         {/* Mobile backdrop for library panel */}
@@ -432,7 +432,7 @@ export function WorkflowBuilderShell({
           {isMobile ? (
             <aside
               className={cn(
-                'fixed inset-x-0 bottom-0 z-[60] bg-background border-t rounded-t-2xl shadow-2xl overflow-hidden',
+                'fixed inset-x-0 bottom-0 z-[60] overflow-hidden rounded-t-xl border-t bg-background shadow-lg',
                 'transition-opacity duration-200',
                 anyMobilePanelVisible
                   ? 'opacity-100'

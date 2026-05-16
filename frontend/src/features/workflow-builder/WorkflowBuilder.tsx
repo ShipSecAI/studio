@@ -966,7 +966,7 @@ function WorkflowBuilderContent() {
   // Check if we have nodes in either mode to avoid showing during mode switches
   if (shouldShowInitialLoader) {
     return (
-      <div className="h-screen flex items-center justify-center bg-background">
+      <div className="flex h-[100dvh] items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading workflow...</p>

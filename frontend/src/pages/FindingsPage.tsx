@@ -6,7 +6,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock3,
-  Download,
   ExternalLink,
   FileCode2,
   Filter,
@@ -43,6 +42,9 @@ const severityOrder: Record<string, number> = {
   info: 4,
   unknown: 5,
 };
+
+const EMPTY_FINDINGS: SecurityFinding[] = [];
+const EMPTY_THREAT_STORIES: SecurityThreatStory[] = [];
 
 const severityConfig: Record<
   string,
@@ -1056,12 +1058,24 @@ function FindingDetailPanel({
                   <MarkdownBlock content={linkedAssessmentMarkdown} className="mt-3" />
                   <div className="mt-4 grid gap-2 text-xs sm:grid-cols-3">
                     {[
-                      ['Wiki', getStackRelevanceValue(finding, 'seenInWiki')],
-                      ['Inventory', getStackRelevanceValue(finding, 'seenInInventory')],
-                      ['Runtime path', getStackRelevanceValue(finding, 'activeRuntimePath')],
-                      ['Customer path', getStackRelevanceValue(finding, 'customerImpactPath')],
-                      ['Public exposure', getStackRelevanceValue(finding, 'publicExposure')],
-                    ].map(([label, value]) => (
+                      { label: 'Wiki', value: getStackRelevanceValue(finding, 'seenInWiki') },
+                      {
+                        label: 'Inventory',
+                        value: getStackRelevanceValue(finding, 'seenInInventory'),
+                      },
+                      {
+                        label: 'Runtime path',
+                        value: getStackRelevanceValue(finding, 'activeRuntimePath'),
+                      },
+                      {
+                        label: 'Customer path',
+                        value: getStackRelevanceValue(finding, 'customerImpactPath'),
+                      },
+                      {
+                        label: 'Public exposure',
+                        value: getStackRelevanceValue(finding, 'publicExposure'),
+                      },
+                    ].map(({ label, value }) => (
                       <div key={label} className="rounded-md border bg-background px-2.5 py-2">
                         <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                           {label}
@@ -1099,22 +1113,15 @@ function FindingDetailPanel({
               )}
 
               {finding.fix && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-                  <SectionLabel className="text-emerald-700 dark:text-emerald-400">
-                    Recommended fix
-                  </SectionLabel>
-                  <MarkdownBlock
-                    content={linkMarkdown(finding.fix)}
-                    className="text-emerald-900 dark:text-emerald-200"
-                  />
+                <div className="rounded-xl border bg-muted/25 p-4">
+                  <SectionLabel className="text-success">Recommended fix</SectionLabel>
+                  <MarkdownBlock content={linkMarkdown(finding.fix)} />
                   {finding.verification && (
-                    <div className="mt-3 rounded-lg bg-emerald-100/70 px-3 py-2 dark:bg-emerald-950/50">
-                      <SectionLabel className="mb-1 text-emerald-700 dark:text-emerald-400">
-                        Validation
-                      </SectionLabel>
+                    <div className="mt-3 rounded-lg border bg-background/70 px-3 py-2">
+                      <SectionLabel className="mb-1">Validation</SectionLabel>
                       <MarkdownBlock
                         content={linkMarkdown(finding.verification)}
-                        className="text-xs text-emerald-800 dark:text-emerald-300"
+                        className="text-xs"
                       />
                     </div>
                   )}
@@ -1415,14 +1422,9 @@ function StoryDetailPanel({ story }: { story: SecurityThreatStory }) {
               )}
 
               {story.recommendedAction && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-                  <SectionLabel className="text-emerald-700 dark:text-emerald-400">
-                    Recommended fix
-                  </SectionLabel>
-                  <MarkdownBlock
-                    content={linkStoryMarkdown(story.recommendedAction)}
-                    className="text-emerald-900 dark:text-emerald-200"
-                  />
+                <div className="rounded-xl border bg-muted/25 p-4">
+                  <SectionLabel className="text-success">Recommended fix</SectionLabel>
+                  <MarkdownBlock content={linkStoryMarkdown(story.recommendedAction)} />
                 </div>
               )}
             </div>
@@ -1498,10 +1500,7 @@ function LinkedFindingCard({ link }: { link: SecurityFindingLink }) {
       <div className="flex items-center gap-2">
         <span
           className={cn(
-            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold',
-            link.direction === 'outgoing'
-              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-              : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+            'inline-flex items-center gap-1 rounded-md border bg-muted/40 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground',
           )}
         >
           {link.direction === 'outgoing' ? (
@@ -1653,8 +1652,8 @@ export function FindingsPage() {
     refetchInterval: 20_000,
   });
 
-  const relevantFindings = relevantFindingsData?.findings ?? [];
-  const noiseFindings = noiseFindingsData?.findings ?? [];
+  const relevantFindings = relevantFindingsData?.findings ?? EMPTY_FINDINGS;
+  const noiseFindings = noiseFindingsData?.findings ?? EMPTY_FINDINGS;
   const findings = activeTab === 'noise' ? noiseFindings : relevantFindings;
   const allLoadedFindings = useMemo(
     () => [...relevantFindings, ...noiseFindings],
@@ -1662,7 +1661,7 @@ export function FindingsPage() {
   );
   const findingsLoading = activeTab === 'noise' ? noiseFindingsLoading : relevantFindingsLoading;
   const findingsError = activeTab === 'noise' ? noiseFindingsError : relevantFindingsError;
-  const threatStories = threatStoriesData?.stories ?? [];
+  const threatStories = threatStoriesData?.stories ?? EMPTY_THREAT_STORIES;
 
   // Severity counts for the stats bar
   const severityCounts = useMemo(() => {
@@ -1691,7 +1690,6 @@ export function FindingsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [storySearchQuery, setStorySearchQuery] = useState('');
   const [storySeverityFilter, setStorySeverityFilter] = useState<string | null>(null);
-  const [listVariant, setListVariant] = useState(0);
 
   // Selection from URL
   const selection: Selection | null = useMemo(() => {
@@ -1722,7 +1720,7 @@ export function FindingsPage() {
           f.description?.toLowerCase().includes(q),
       );
     }
-    return result.sort(
+    return [...result].sort(
       (a, b) =>
         (severityOrder[a.severity.toLowerCase()] ?? 5) -
         (severityOrder[b.severity.toLowerCase()] ?? 5),
@@ -1743,7 +1741,7 @@ export function FindingsPage() {
           s.summary?.toLowerCase().includes(q),
       );
     }
-    return result.sort(
+    return [...result].sort(
       (a, b) =>
         (severityOrder[a.severity.toLowerCase()] ?? 5) -
         (severityOrder[b.severity.toLowerCase()] ?? 5),
@@ -1845,7 +1843,7 @@ export function FindingsPage() {
                   story={story}
                   active={selection?.kind === 'story' && selection.item.id === story.id}
                   onClick={() => navigate(`/stories/${story.id}`)}
-                  variant={listVariant}
+                  variant={0}
                 />
               ))
             )}
@@ -1934,7 +1932,7 @@ export function FindingsPage() {
                   finding={finding}
                   active={selection?.kind === 'finding' && selection.item.id === finding.id}
                   onClick={() => navigate(`/findings/${finding.id}`)}
-                  variant={listVariant}
+                  variant={0}
                 />
               ))
             )}
@@ -1984,19 +1982,23 @@ export function FindingsPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-              <Download className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Export report</span>
+            <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+              <Link to="/security-wiki">
+                <Link2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Security wiki</span>
+              </Link>
             </Button>
-            <Button size="sm" className="h-8 gap-1.5 text-xs">
-              <Plus className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Create scan</span>
+            <Button asChild size="sm" className="h-8 gap-1.5 text-xs">
+              <Link to="/templates">
+                <Plus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Run scan</span>
+              </Link>
             </Button>
           </div>
         </div>
 
         {/* Stats bar */}
-        <div className="flex items-center gap-4 border-t bg-muted/20 px-4 py-2.5">
+        <div className="flex items-center gap-3 overflow-x-auto border-t bg-muted/20 px-4 py-2.5">
           <SeverityRing counts={storySeverityCounts} total={threatStories.length} size={48} />
           <Separator orientation="vertical" className="h-7" />
           {(['critical', 'high', 'medium', 'low'] as const).map((sev) => (
@@ -2021,9 +2023,9 @@ export function FindingsPage() {
   return (
     <div className="absolute inset-0 flex flex-col overflow-hidden bg-background">
       {/* ===== Master-detail layout ===== */}
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* Left panel — list */}
-        <div className="flex w-[340px] shrink-0 flex-col overflow-hidden border-r 2xl:w-[380px]">
+        <div className="flex h-[44dvh] shrink-0 flex-col overflow-hidden border-b md:h-auto md:w-[340px] md:border-b-0 md:border-r 2xl:w-[380px]">
           {/* Tab switcher */}
           <div className="shrink-0 border-b px-3 pt-1">
             <nav className="flex">
@@ -2074,30 +2076,6 @@ export function FindingsPage() {
 
           {/* List content */}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{listContent}</div>
-
-          {/* Debug variant switcher */}
-          <div className="flex shrink-0 items-center justify-between border-t bg-muted/30 px-2 py-1">
-            <span className="text-[9px] font-medium text-muted-foreground/50">
-              variant {listVariant}
-            </span>
-            <div className="flex items-center gap-0.5">
-              {[0, 1, 2, 3, 4].map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setListVariant(v)}
-                  className={cn(
-                    'flex h-5 w-5 items-center justify-center rounded text-[9px] font-mono transition-colors',
-                    listVariant === v
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground/50 hover:text-foreground',
-                  )}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Right panel — detail */}

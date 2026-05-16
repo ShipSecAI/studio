@@ -17,9 +17,9 @@ interface ProviderMeta {
   logo?: string;
   darkLogo?: string;
   darkBg?: boolean;
-  gradient: string;
-  borderAccent: string;
-  hoverGradient: string;
+  gradient?: string;
+  borderAccent?: string;
+  hoverGradient?: string;
   category: string;
   route: string;
   monogram?: string;
@@ -34,9 +34,6 @@ const PROVIDERS: ProviderMeta[] = [
     logo: '/icons/aws.svg',
     darkLogo: '/icons/aws-dark.svg',
     darkBg: true,
-    gradient: '',
-    borderAccent: 'hover:border-orange-300 dark:hover:border-orange-700',
-    hoverGradient: 'linear-gradient(to right, #f97316, #f59e0b)',
     category: 'Cloud Security',
     route: '/integrations/aws',
   },
@@ -46,9 +43,6 @@ const PROVIDERS: ProviderMeta[] = [
     description:
       'Connect GCP projects and organizations for cloud inventory indexing, graph mapping, and posture visibility.',
     logo: '/icons/gcp.svg',
-    gradient: 'from-sky-50 to-blue-50 dark:from-sky-950/20 dark:to-blue-950/20',
-    borderAccent: 'hover:border-sky-300 dark:hover:border-sky-700',
-    hoverGradient: 'linear-gradient(to right, #4285F4, #34A853)',
     category: 'Cloud Security',
     route: '/integrations/gcp',
   },
@@ -58,9 +52,6 @@ const PROVIDERS: ProviderMeta[] = [
     description:
       'Send workflow notifications, security alerts, and scan results to Slack channels.',
     logo: '/icons/slack.svg',
-    gradient: 'from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20',
-    borderAccent: 'hover:border-purple-300 dark:hover:border-purple-700',
-    hoverGradient: 'linear-gradient(to right, #a855f7, #ec4899)',
     category: 'Notifications',
     route: '/integrations/slack',
   },
@@ -70,9 +61,6 @@ const PROVIDERS: ProviderMeta[] = [
     description:
       'Create and manage vulnerability tickets, assign to maintainers, and track remediation.',
     logo: '/icons/jira.svg',
-    gradient: 'from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20',
-    borderAccent: 'hover:border-blue-300 dark:hover:border-blue-700',
-    hoverGradient: 'linear-gradient(to right, #3b82f6, #6366f1)',
     category: 'Ticketing',
     route: '/integrations/jira',
   },
@@ -143,37 +131,18 @@ export function IntegrationsPage() {
                   key={provider.id}
                   className={cn(
                     'group relative rounded-xl border bg-card transition-all duration-200 cursor-pointer overflow-hidden',
-                    'hover:shadow-lg hover:-translate-y-0.5',
+                    'hover:-translate-y-0.5 hover:bg-muted/20 hover:shadow-[0_10px_30px_-24px_rgba(0,0,0,0.35)]',
                     provider.borderAccent,
                   )}
                   onClick={() => navigate(provider.route)}
                 >
-                  {/* Gradient accent top bar */}
-                  <div
-                    className="absolute inset-x-0 top-0 h-1 rounded-t-xl opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ background: provider.hoverGradient }}
-                  />
-
                   <div className="p-6 flex flex-col h-full">
                     {/* Logo + Info */}
                     <div className="flex items-start gap-4 flex-1">
                       {provider.logo && provider.darkBg ? (
-                        <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#232F3E] flex-shrink-0 p-2.5">
+                        <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl border bg-muted p-2.5">
                           <img
                             src={provider.darkLogo ?? provider.logo}
-                            alt={provider.name}
-                            className="h-full w-full object-contain"
-                          />
-                        </div>
-                      ) : provider.logo && provider.gradient ? (
-                        <div
-                          className={cn(
-                            'flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br flex-shrink-0 p-2.5',
-                            provider.gradient,
-                          )}
-                        >
-                          <img
-                            src={provider.logo}
                             alt={provider.name}
                             className="h-full w-full object-contain"
                           />
@@ -182,13 +151,12 @@ export function IntegrationsPage() {
                         <img
                           src={provider.logo}
                           alt={provider.name}
-                          className="h-14 w-14 rounded-xl object-cover flex-shrink-0"
+                          className="h-14 w-14 flex-shrink-0 rounded-xl border bg-muted object-contain p-2.5"
                         />
                       ) : (
                         <div
                           className={cn(
-                            'flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br flex-shrink-0 text-sm font-semibold tracking-wide',
-                            provider.gradient,
+                            'flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl border bg-muted text-sm font-semibold tracking-wide text-muted-foreground',
                             provider.monogramClassName,
                           )}
                         >

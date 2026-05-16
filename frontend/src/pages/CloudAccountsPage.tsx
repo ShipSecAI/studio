@@ -122,31 +122,41 @@ function getProviderLabel(provider: string): string {
 
 function CloudEmptyState({ onConnect }: { onConnect: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="rounded-full bg-muted p-4 mb-4">
-        <Cloud className="h-8 w-8 text-muted-foreground" />
+    <section className="rounded-xl border bg-card/80 p-6 shadow-sm md:p-8">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-center">
+        <div className="max-w-2xl">
+          <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-lg border bg-muted/70">
+            <Cloud className="h-5 w-5 text-primary" />
+          </div>
+          <h3 className="text-2xl font-semibold tracking-tight">Connect a cloud account</h3>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+            Add AWS or Google Cloud to run posture checks, compliance scans, and cloud inventory
+            collection from one control plane.
+          </p>
+          <div className="mt-6">
+            <Button onClick={onConnect}>
+              <Plus className="h-4 w-4" />
+              Connect account
+            </Button>
+          </div>
+        </div>
+        <div className="grid gap-2 text-xs text-muted-foreground">
+          {[
+            'Prowler misconfiguration checks',
+            'Container image vulnerability scans',
+            'CIS, HIPAA, and GDPR reporting',
+          ].map((item) => (
+            <div
+              key={item}
+              className="flex min-h-10 items-center gap-2 rounded-md border bg-background/70 px-3"
+            >
+              <Shield className="h-3.5 w-3.5 shrink-0 text-success" />
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
       </div>
-      <h3 className="text-lg font-semibold mb-2">Connect a Cloud Account</h3>
-      <p className="text-muted-foreground mb-6 max-w-md">
-        Enable cloud security scanning, misconfiguration detection, and compliance auditing for your
-        infrastructure across AWS and Google Cloud.
-      </p>
-      <ul className="text-sm text-muted-foreground mb-6 space-y-1 text-left">
-        <li className="flex items-center gap-2">
-          <Shield className="h-4 w-4 text-green-500" /> Misconfiguration scanning (Prowler)
-        </li>
-        <li className="flex items-center gap-2">
-          <Shield className="h-4 w-4 text-green-500" /> Container image scanning (Trivy)
-        </li>
-        <li className="flex items-center gap-2">
-          <Shield className="h-4 w-4 text-green-500" /> Compliance reporting (CIS, HIPAA, GDPR)
-        </li>
-      </ul>
-      <Button onClick={onConnect}>
-        <Plus className="mr-2 h-4 w-4" />
-        Connect Cloud Account
-      </Button>
-    </div>
+    </section>
   );
 }
 
@@ -435,21 +445,16 @@ function AccountCard({
     : 'Never';
 
   return (
-    <Card
-      className={cn('overflow-hidden transition-shadow hover:shadow-md', {
-        'border-orange-200 dark:border-orange-800': !isGcp,
-        'border-sky-200 dark:border-sky-800': isGcp,
-      })}
-    >
+    <Card className="overflow-hidden transition-[background-color,border-color] hover:bg-muted/20">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {isGcp ? (
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
                 <Cloud className="h-5 w-5" />
               </div>
             ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-[#232F3E] p-1.5">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border bg-muted p-1.5">
                 <img src="/icons/aws-dark.svg" alt="AWS" className="h-full w-full object-contain" />
               </div>
             )}
@@ -571,11 +576,9 @@ function AccountCard({
             </DropdownMenu>
           </div>
           <Button variant="outline" size="sm" className="flex-1" asChild>
-            <Link
-              to={`/dashboards/security?view=cloud-security&account=${encodeURIComponent(connection.displayName || '')}`}
-            >
+            <Link to="/findings">
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-              View Findings
+              Open Sentinel
             </Link>
           </Button>
         </div>
@@ -674,7 +677,7 @@ function AccountsTab({
             onClick={onConnect}
           >
             <CardContent className="p-4 h-full flex flex-col items-center justify-center gap-2 min-h-[160px]">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border bg-muted">
                 <Plus className="h-5 w-5 text-primary" />
               </div>
               <span className="text-sm font-medium text-muted-foreground">Add Connection</span>
@@ -714,7 +717,7 @@ function AccountsTab({
                             key={stepIdx}
                             className="flex gap-3 text-sm text-muted-foreground leading-relaxed"
                           >
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border bg-muted text-xs font-semibold text-muted-foreground">
                               {stepIdx + 1}
                             </span>
                             <span className="pt-0.5">{renderStepText(step)}</span>
@@ -770,11 +773,11 @@ function AccountsTab({
                 <h3 className="text-sm font-semibold">Connection Summary</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-md bg-muted/50 p-3 text-center">
-                    <p className="text-2xl font-bold">{connections.length}</p>
+                    <p className="text-2xl font-semibold tabular-nums">{connections.length}</p>
                     <p className="text-xs text-muted-foreground">Total</p>
                   </div>
                   <div className="rounded-md bg-muted/50 p-3 text-center">
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                    <p className="text-2xl font-semibold tabular-nums text-success">
                       {healthyCount}
                     </p>
                     <p className="text-xs text-muted-foreground">Healthy</p>
@@ -1077,15 +1080,19 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
   // 1. No cloud connections
   if (connections.length === 0 && !isPanelOpen) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-muted p-4 mb-4">
-          <Cloud className="h-8 w-8 text-muted-foreground" />
+      <section className="rounded-xl border bg-card/80 p-6 shadow-sm">
+        <div className="flex max-w-2xl gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-muted/70">
+            <Cloud className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight">Connect a cloud account first</h3>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              Connect AWS or Google Cloud from Accounts before running cloud scans.
+            </p>
+          </div>
         </div>
-        <h3 className="text-lg font-semibold mb-2">Connect a Cloud Account First</h3>
-        <p className="text-muted-foreground max-w-md">
-          Connect an AWS or Google Cloud account from the Accounts tab to start running cloud scans.
-        </p>
-      </div>
+      </section>
     );
   }
 
@@ -1104,7 +1111,7 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
   if (!hasCloudWorkflows && !isPanelOpen) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-muted p-4 mb-4">
+        <div className="mb-4 rounded-xl border bg-muted p-4">
           <Workflow className="h-8 w-8 text-muted-foreground" />
         </div>
         <h3 className="text-lg font-semibold mb-2">No Cloud Scan Workflows</h3>
@@ -1133,8 +1140,8 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
   if (isError && !isPanelOpen) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-red-100 dark:bg-red-900/30 p-4 mb-4">
-          <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
+        <div className="mb-4 rounded-xl border bg-destructive/10 p-4">
+          <AlertCircle className="h-8 w-8 text-destructive" />
         </div>
         <h3 className="text-lg font-semibold mb-2">Failed to Load Scans</h3>
         <p className="text-muted-foreground max-w-md mb-4">
@@ -1226,12 +1233,9 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
                       ? formatDuration(run.startTime, new Date().toISOString())
                       : null;
                     return (
-                      <div
-                        key={run.id}
-                        className="rounded-lg border border-blue-200 dark:border-blue-700/50 bg-blue-500/5 p-3 space-y-2"
-                      >
+                      <div key={run.id} className="space-y-2 rounded-lg border bg-muted/25 p-3">
                         <div className="flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" />
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="text-sm font-medium truncate">
@@ -1277,8 +1281,8 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
 
             {isError && (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="rounded-full bg-red-100 dark:bg-red-900/30 p-4 mb-4">
-                  <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
+                <div className="mb-4 rounded-xl border bg-destructive/10 p-4">
+                  <AlertCircle className="h-8 w-8 text-destructive" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">Failed to Load Scans</h3>
                 <p className="text-muted-foreground max-w-md mb-4">
@@ -1291,7 +1295,7 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
             {/* 6. No runs match filter */}
             {!isLoading && !isError && allRuns.length === 0 && activeStatus && (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="rounded-full bg-muted p-4 mb-4">
+                <div className="mb-4 rounded-xl border bg-muted p-4">
                   <ScanSearch className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">No Runs Match Your Filter</h3>
@@ -1308,15 +1312,19 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
 
             {/* 7. No runs, no filter */}
             {!isLoading && !isError && allRuns.length === 0 && !activeStatus && (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="rounded-full bg-muted p-4 mb-4">
-                  <ScanSearch className="h-8 w-8 text-muted-foreground" />
+              <section className="rounded-xl border bg-card/80 p-6 shadow-sm">
+                <div className="flex max-w-2xl gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-muted/70">
+                    <ScanSearch className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold tracking-tight">No cloud scans yet</h3>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      Run a cloud scan from Accounts to build scan history here.
+                    </p>
+                  </div>
                 </div>
-                <h3 className="text-lg font-semibold mb-2">No Cloud Scans Yet</h3>
-                <p className="text-muted-foreground max-w-md">
-                  Run your first cloud scan from the Accounts tab to see scan history here.
-                </p>
-              </div>
+              </section>
             )}
 
             {/* 8. Compact list (panel open) */}

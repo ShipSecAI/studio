@@ -94,9 +94,9 @@ const PAGE_TITLES: Record<string, PageTitleConfig> = {
     icon: Webhook,
   },
   '/action-center': {
-    title: 'Action Center',
-    shortTitle: 'Actions',
-    subtitle: 'Review and respond to workflow requests',
+    title: 'Approvals',
+    shortTitle: 'Approvals',
+    subtitle: 'Review paused workflow requests and human-in-the-loop decisions',
     icon: Zap,
   },
   '/integrations': {
@@ -107,9 +107,9 @@ const PAGE_TITLES: Record<string, PageTitleConfig> = {
     icon: Plug,
   },
   '/artifacts': {
-    title: 'Artifact Library',
+    title: 'Artifacts',
     shortTitle: 'Artifacts',
-    subtitle: 'Browse artifacts saved across workflow runs',
+    subtitle: 'Browse workflow outputs, files, and evidence saved across runs',
     icon: Archive,
   },
   '/secrets': {
@@ -192,10 +192,10 @@ const PAGE_TITLES: Record<string, PageTitleConfig> = {
     icon: ScanSearch,
   },
   '/dashboards/security': {
-    title: 'Cloud Findings',
-    shortTitle: 'Findings',
-    subtitle: 'Unified security findings across all scanners',
-    icon: ShieldCheck,
+    title: 'ShipSec Sentinel',
+    shortTitle: 'Sentinel',
+    subtitle: 'Legacy findings dashboard redirected to Sentinel',
+    icon: ShieldAlert,
   },
   '/findings': {
     title: 'ShipSec Sentinel',
