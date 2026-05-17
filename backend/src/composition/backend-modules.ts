@@ -20,6 +20,7 @@ import { SecretsModule } from '../secrets/secrets.module';
 import { SlackBotModule } from '../slack-bot/slack-bot.module';
 import { StorageModule } from '../storage/storage.module';
 import { StudioMcpModule } from '../studio-mcp/studio-mcp.module';
+import { TemplatesModule } from '../templates/templates.module';
 import { TestingSupportModule } from '../testing/testing.module';
 import { TraceModule } from '../trace/trace.module';
 import { AgentSkillsModule } from '../agent-skills/agent-skills.module';
@@ -55,6 +56,7 @@ export function getCoreBackendModules(): NestModule[] {
     McpModule,
     GitHubAppModule,
     StudioMcpModule,
+    TemplatesModule,
     WorkflowTemplatesModule,
     ReportTemplatesModule,
     AsmModule,

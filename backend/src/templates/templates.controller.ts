@@ -10,17 +10,32 @@ import {
   HttpStatus,
   HttpException,
 } from '@nestjs/common';
+import { ApiAcceptedResponse, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ZodValidationPipe } from 'nestjs-zod';
 import { TemplateService } from './templates.service';
 import { GitHubSyncService } from './github-sync.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { Public } from '../auth/public.decorator';
+import {
+  PublishTemplateRequestDto,
+  PublishTemplateRequestSchema,
+  TemplateLibrarySyncResponseDto,
+  TemplateCategoryResponseDto,
+  TemplateRepoInfoResponseDto,
+  TemplateResponseDto,
+  TemplateSubmissionResponseDto,
+  UseTemplateRequestDto,
+  UseTemplateRequestSchema,
+  UseTemplateResponseDto,
+} from './dto';
 
 /**
  * Templates Controller
  * Handles template library API endpoints
  */
+@ApiTags('templates')
 @Controller('templates')
 export class TemplatesController {
   constructor(
@@ -33,6 +48,10 @@ export class TemplatesController {
    */
   @Public()
   @Get()
+  @ApiQuery({ name: 'category', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'tags', required: false, type: String })
+  @ApiOkResponse({ type: [TemplateResponseDto] })
   async listTemplates(
     @Query('category') category?: string,
     @Query('search') search?: string,
@@ -56,6 +75,7 @@ export class TemplatesController {
    */
   @Public()
   @Get('categories')
+  @ApiOkResponse({ type: [TemplateCategoryResponseDto] })
   async getCategories() {
     return await this.templateService.getCategories();
   }
@@ -65,6 +85,7 @@ export class TemplatesController {
    */
   @Public()
   @Get('tags')
+  @ApiOkResponse({ type: [String] })
   async getTags() {
     return await this.templateService.getTags();
   }
@@ -73,6 +94,7 @@ export class TemplatesController {
    * GET /templates/my - Get user's submitted templates
    */
   @Get('my')
+  @ApiOkResponse({ type: [TemplateSubmissionResponseDto] })
   async getMyTemplates(@CurrentAuth() auth: { userId?: string; organizationId?: string }) {
     return await this.templateService.getMyTemplates(auth.userId || auth.organizationId);
   }
@@ -83,6 +105,7 @@ export class TemplatesController {
    */
   @Public()
   @Get('repo-info')
+  @ApiOkResponse({ type: TemplateRepoInfoResponseDto })
   async getRepoInfo() {
     return await this.githubSyncService.getRepositoryInfo();
   }
@@ -92,6 +115,7 @@ export class TemplatesController {
    * IMPORTANT: Must come before :id route to avoid route conflict
    */
   @Get('submissions')
+  @ApiOkResponse({ type: [TemplateSubmissionResponseDto] })
   async getSubmissions(@CurrentAuth() auth: { userId?: string; organizationId?: string }) {
     return await this.templateService.getSubmissions(auth.userId || auth.organizationId || '');
   }
@@ -102,6 +126,7 @@ export class TemplatesController {
    */
   @Public()
   @Get(':id')
+  @ApiOkResponse({ type: TemplateResponseDto })
   async getTemplate(@Param('id') id: string) {
     const template = await this.templateService.getTemplateById(id);
     if (!template) {
@@ -120,17 +145,12 @@ export class TemplatesController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
   @HttpCode(HttpStatus.ACCEPTED)
+  @ApiAcceptedResponse({
+    description: 'Template publishing via API is disabled; use the GitHub web flow.',
+  })
   async publishTemplate(
     @CurrentAuth() auth: { userId?: string; organizationId?: string },
-    @Body()
-    dto: {
-      workflowId: string;
-      name: string;
-      description: string;
-      category: string;
-      tags: string[];
-      author: string;
-    },
+    @Body(new ZodValidationPipe(PublishTemplateRequestSchema)) dto: PublishTemplateRequestDto,
   ) {
     return await this.templateService.publishTemplate({
       ...dto,
@@ -145,14 +165,11 @@ export class TemplatesController {
   @Post(':id/use')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
+  @ApiOkResponse({ type: UseTemplateResponseDto })
   async useTemplate(
     @Param('id') id: string,
     @CurrentAuth() auth: { userId?: string; organizationId?: string },
-    @Body()
-    dto: {
-      workflowName: string;
-      secretMappings?: Record<string, string>;
-    },
+    @Body(new ZodValidationPipe(UseTemplateRequestSchema)) dto: UseTemplateRequestDto,
   ) {
     return await this.templateService.useTemplate(id, {
       ...dto,
@@ -169,6 +186,7 @@ export class TemplatesController {
   @Post('sync')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
+  @ApiOkResponse({ type: TemplateLibrarySyncResponseDto })
   async syncTemplates(@CurrentAuth() _auth: { organizationId?: string }) {
     return await this.githubSyncService.syncTemplates();
   }

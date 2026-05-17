@@ -11,7 +11,7 @@ import {
   Query,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from 'nestjs-zod';
 
 import { InternalOnly } from '../common/guards/internal-only.guard';
@@ -32,6 +32,17 @@ import {
   RecordThreatStoryRequestDto,
   RecordThreatStoryRequestSchema,
 } from './dto/threat-stories.dto';
+import {
+  RecordFindingAssessmentResponseDto,
+  RecordFindingLinkResponseDto,
+  SecurityFindingAssessmentsResponseDto,
+  SecurityFindingEvidenceResponseDto,
+  SecurityFindingLinksResponseDto,
+  SecurityFindingResponseDto,
+  SecurityFindingsResponseDto,
+  SecurityThreatStoriesResponseDto,
+  SecurityThreatStoryResponseDto,
+} from './dto/responses.dto';
 import { SecurityIngestionService } from './security-ingestion.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
@@ -42,7 +53,15 @@ export class SecurityIngestionController {
   constructor(private readonly securityIngestionService: SecurityIngestionService) {}
 
   @Get('findings')
-  @ApiOkResponse({ description: 'List durable security findings for the organization.' })
+  @ApiQuery({ name: 'sourceKind', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'assessmentVerdict', required: false, type: String })
+  @ApiQuery({ name: 'userVisibleOnly', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiOkResponse({
+    description: 'List durable security findings for the organization.',
+    type: SecurityFindingsResponseDto,
+  })
   async listFindings(
     @CurrentAuth() auth: AuthContext | null,
     @Query('sourceKind') sourceKind?: string,
@@ -65,7 +84,10 @@ export class SecurityIngestionController {
   }
 
   @Get('findings/:id')
-  @ApiOkResponse({ description: 'Get one durable security finding with evidence.' })
+  @ApiOkResponse({
+    description: 'Get one durable security finding with evidence.',
+    type: SecurityFindingResponseDto,
+  })
   async getFinding(@CurrentAuth() auth: AuthContext | null, @Param('id') id: string) {
     if (!auth?.isAuthenticated || !auth.organizationId) {
       throw new UnauthorizedException('Authentication required');
@@ -77,7 +99,10 @@ export class SecurityIngestionController {
   }
 
   @Get('findings/:id/evidence')
-  @ApiOkResponse({ description: 'List evidence attached to one durable security finding.' })
+  @ApiOkResponse({
+    description: 'List evidence attached to one durable security finding.',
+    type: SecurityFindingEvidenceResponseDto,
+  })
   async getFindingEvidence(@CurrentAuth() auth: AuthContext | null, @Param('id') id: string) {
     if (!auth?.isAuthenticated || !auth.organizationId) {
       throw new UnauthorizedException('Authentication required');
@@ -92,7 +117,10 @@ export class SecurityIngestionController {
   }
 
   @Get('findings/:id/assessments')
-  @ApiOkResponse({ description: 'List agent assessments for one durable security finding.' })
+  @ApiOkResponse({
+    description: 'List agent assessments for one durable security finding.',
+    type: SecurityFindingAssessmentsResponseDto,
+  })
   async listFindingAssessments(@CurrentAuth() auth: AuthContext | null, @Param('id') id: string) {
     if (!auth?.isAuthenticated || !auth.organizationId) {
       throw new UnauthorizedException('Authentication required');
@@ -107,7 +135,10 @@ export class SecurityIngestionController {
   }
 
   @Post('findings/:id/assessments')
-  @ApiOkResponse({ description: 'Record an agent assessment for one durable security finding.' })
+  @ApiOkResponse({
+    description: 'Record an agent assessment for one durable security finding.',
+    type: RecordFindingAssessmentResponseDto,
+  })
   async recordFindingAssessment(
     @CurrentAuth() auth: AuthContext | null,
     @Param('id') id: string,
@@ -138,7 +169,10 @@ export class SecurityIngestionController {
   }
 
   @Get('findings/:id/links')
-  @ApiOkResponse({ description: 'List links connected to one durable security finding.' })
+  @ApiOkResponse({
+    description: 'List links connected to one durable security finding.',
+    type: SecurityFindingLinksResponseDto,
+  })
   async listFindingLinks(@CurrentAuth() auth: AuthContext | null, @Param('id') id: string) {
     if (!auth?.isAuthenticated || !auth.organizationId) {
       throw new UnauthorizedException('Authentication required');
@@ -150,7 +184,10 @@ export class SecurityIngestionController {
   }
 
   @Post('findings/:id/links')
-  @ApiOkResponse({ description: 'Record a relationship between two durable security findings.' })
+  @ApiOkResponse({
+    description: 'Record a relationship between two durable security findings.',
+    type: RecordFindingLinkResponseDto,
+  })
   async recordFindingLink(
     @CurrentAuth() auth: AuthContext | null,
     @Param('id') id: string,
@@ -176,7 +213,12 @@ export class SecurityIngestionController {
   }
 
   @Get('threat-stories')
-  @ApiOkResponse({ description: 'List durable agent-written threat stories.' })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: String })
+  @ApiOkResponse({
+    description: 'List durable agent-written threat stories.',
+    type: SecurityThreatStoriesResponseDto,
+  })
   async listThreatStories(
     @CurrentAuth() auth: AuthContext | null,
     @Query('status') status?: string,
@@ -193,7 +235,10 @@ export class SecurityIngestionController {
   }
 
   @Get('threat-stories/:id')
-  @ApiOkResponse({ description: 'Get one durable threat story.' })
+  @ApiOkResponse({
+    description: 'Get one durable threat story.',
+    type: SecurityThreatStoryResponseDto,
+  })
   async getThreatStory(@CurrentAuth() auth: AuthContext | null, @Param('id') id: string) {
     if (!auth?.isAuthenticated || !auth.organizationId) {
       throw new UnauthorizedException('Authentication required');
@@ -205,7 +250,10 @@ export class SecurityIngestionController {
   }
 
   @Post('threat-stories')
-  @ApiOkResponse({ description: 'Record an agent-written threat story over durable findings.' })
+  @ApiOkResponse({
+    description: 'Record an agent-written threat story over durable findings.',
+    type: SecurityThreatStoryResponseDto,
+  })
   async recordThreatStory(
     @CurrentAuth() auth: AuthContext | null,
     @Body(new ZodValidationPipe(RecordThreatStoryRequestSchema))
