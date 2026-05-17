@@ -2880,6 +2880,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/asm/internal/assets/upsert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AsmInternalController_upsertAssets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workflow-templates": {
         parameters: {
             query?: never;
@@ -3050,6 +3066,294 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["ReportTemplatesController_renderPublished"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-ingestion/findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SecurityIngestionController_listFindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-ingestion/findings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SecurityIngestionController_getFinding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-ingestion/findings/{id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SecurityIngestionController_getFindingEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-ingestion/findings/{id}/assessments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SecurityIngestionController_listFindingAssessments"];
+        put?: never;
+        post: operations["SecurityIngestionController_recordFindingAssessment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-ingestion/findings/{id}/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SecurityIngestionController_listFindingLinks"];
+        put?: never;
+        post: operations["SecurityIngestionController_recordFindingLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-ingestion/threat-stories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SecurityIngestionController_listThreatStories"];
+        put?: never;
+        post: operations["SecurityIngestionController_recordThreatStory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-ingestion/threat-stories/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SecurityIngestionController_getThreatStory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-ingestion/internal/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SecurityIngestionController_persistBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TemplatesController_listTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TemplatesController_getCategories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TemplatesController_getTags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/my": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TemplatesController_getMyTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/repo-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TemplatesController_getRepoInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TemplatesController_getSubmissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TemplatesController_getTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TemplatesController_publishTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{id}/use": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TemplatesController_useTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TemplatesController_syncTemplates"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3282,6 +3586,86 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["SlackEventsController_handleEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-wikis/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SecurityWikisController_getConfig"];
+        put?: never;
+        post: operations["SecurityWikisController_upsertConfig"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-wikis/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SecurityWikisController_listRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-wikis/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SecurityWikisController_getTree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-wikis/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SecurityWikisController_getFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-wikis/runs/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SecurityWikisController_runCodeWikiIngestion"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4457,6 +4841,20 @@ export interface components {
                     read?: boolean;
                     resolve?: boolean;
                 };
+                analytics?: {
+                    query?: boolean;
+                };
+                assets?: {
+                    list?: boolean;
+                    read?: boolean;
+                };
+                "cloud-graph"?: {
+                    query?: boolean;
+                };
+                "report-templates"?: {
+                    read?: boolean;
+                    write?: boolean;
+                };
             };
             isActive: boolean;
             /** Format: date-time */
@@ -4510,6 +4908,20 @@ export interface components {
                     read?: boolean;
                     resolve?: boolean;
                 };
+                analytics?: {
+                    query?: boolean;
+                };
+                assets?: {
+                    list?: boolean;
+                    read?: boolean;
+                };
+                "cloud-graph"?: {
+                    query?: boolean;
+                };
+                "report-templates"?: {
+                    read?: boolean;
+                    write?: boolean;
+                };
             };
             /** Format: date-time */
             expiresAt?: string;
@@ -4559,6 +4971,20 @@ export interface components {
                 "human-inputs"?: {
                     read?: boolean;
                     resolve?: boolean;
+                };
+                analytics?: {
+                    query?: boolean;
+                };
+                assets?: {
+                    list?: boolean;
+                    read?: boolean;
+                };
+                "cloud-graph"?: {
+                    query?: boolean;
+                };
+                "report-templates"?: {
+                    read?: boolean;
+                    write?: boolean;
                 };
             };
             isActive: boolean;
@@ -4614,6 +5040,20 @@ export interface components {
                 "human-inputs"?: {
                     read?: boolean;
                     resolve?: boolean;
+                };
+                analytics?: {
+                    query?: boolean;
+                };
+                assets?: {
+                    list?: boolean;
+                    read?: boolean;
+                };
+                "cloud-graph"?: {
+                    query?: boolean;
+                };
+                "report-templates"?: {
+                    read?: boolean;
+                    write?: boolean;
                 };
             };
             isActive?: boolean;
@@ -6592,6 +7032,49 @@ export interface components {
             domains: number;
             assets: number;
         };
+        UpsertAsmAssetsRequestDto: {
+            /** Format: uuid */
+            domainId?: string;
+            domain?: string;
+            runId?: string;
+            workflowId?: string;
+            /** @default [] */
+            assets: {
+                hostname: string;
+                /** @default subdomain */
+                type: string;
+                /** @default [] */
+                ipAddresses: string[];
+                /** @default [] */
+                techStack: string[];
+                /** @default [] */
+                ports: {
+                    port: number;
+                    /** @default tcp */
+                    protocol: string;
+                    /** @default  */
+                    service: string;
+                }[];
+                riskScore?: number | string;
+                dnsRecords?: {
+                    [key: string]: unknown;
+                };
+                tlsInfo?: {
+                    [key: string]: unknown;
+                };
+                metadata?: {
+                    [key: string]: unknown;
+                };
+            }[];
+        };
+        UpsertAsmAssetsResponseDto: {
+            /** Format: uuid */
+            domainId: string;
+            assetCount: number;
+            created: number;
+            updated: number;
+            skipped: number;
+        };
         WorkflowTemplateResponseDto: {
             /** Format: uuid */
             id: string;
@@ -6930,6 +7413,889 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        SecurityFindingsResponseDto: {
+            findings: {
+                id: string;
+                findingKey: string;
+                status: string;
+                severity: string;
+                confidence: number;
+                firstSeenAt: string;
+                lastSeenAt: string;
+                sourceKind: string;
+                sourceVersion?: string | null;
+                workflowId?: string | null;
+                workflowName?: string | null;
+                runId?: string | null;
+                repository?: string | null;
+                branch?: string | null;
+                commitSha?: string | null;
+                prNumber?: string | null;
+                reviewMode?: string | null;
+                lifecycleHint?: string | null;
+                title?: string | null;
+                description?: string | null;
+                impact?: string | null;
+                fix?: string | null;
+                verification?: string | null;
+                file?: string | null;
+                line?: number | null;
+                endpoint?: string | null;
+                asset: {
+                    id: string;
+                    kind: string;
+                    stableKey: string;
+                    displayName: string;
+                } | null;
+                threatRefs: string[];
+                linkedFindingKeys: string[];
+                latestAssessment?: {
+                    id: string;
+                    findingId: string;
+                    verdict: ("actionable" | "not_relevant" | "false_positive" | "accepted_risk" | "needs_context" | "resolved_candidate") | string;
+                    importance: ("critical" | "high" | "medium" | "low" | "noise") | string;
+                    confidence: number;
+                    reasoningMarkdown: string;
+                    evidenceRefs: string[];
+                    wikiRefs: string[];
+                    toolCallsSummary: {
+                        [key: string]: unknown;
+                    };
+                    createdByAgentRunId?: string | null;
+                    createdBy?: string | null;
+                    metadata: {
+                        [key: string]: unknown;
+                    };
+                    createdAt: string;
+                } | null;
+                relatedLinks: {
+                    id: string;
+                    fromFindingId: string;
+                    toFindingId: string;
+                    relationshipType: ("duplicate_of" | "same_root_cause" | "enables" | "contradicts" | "same_asset" | "same_control" | "mitigated_by" | "related") | string;
+                    confidence: number;
+                    rationale: string;
+                    evidenceRefs: string[];
+                    createdByAgentRunId?: string | null;
+                    createdBy?: string | null;
+                    createdAt: string;
+                    updatedAt: string;
+                    fromFinding: {
+                        id: string;
+                        findingKey: string;
+                        status: string;
+                        severity: string;
+                        title?: string | null;
+                        sourceKind: string;
+                    };
+                    toFinding: {
+                        id: string;
+                        findingKey: string;
+                        status: string;
+                        severity: string;
+                        title?: string | null;
+                        sourceKind: string;
+                    };
+                    relatedFinding: {
+                        id: string;
+                        findingKey: string;
+                        status: string;
+                        severity: string;
+                        title?: string | null;
+                        sourceKind: string;
+                    };
+                    /** @enum {string} */
+                    direction: "outgoing" | "incoming";
+                }[];
+                evidence: {
+                    id: string;
+                    summary?: string | null;
+                    artifactUri: string;
+                    capturedAt: string;
+                }[];
+                observations: {
+                    id: string;
+                    status?: string | null;
+                    title: string;
+                    observedAt: string;
+                    runId?: string | null;
+                    reviewMode?: string | null;
+                    lifecycleHint?: string | null;
+                    prNumber?: string | null;
+                }[];
+            }[];
+        };
+        SecurityFindingResponseDto: {
+            finding: {
+                id: string;
+                findingKey: string;
+                status: string;
+                severity: string;
+                confidence: number;
+                firstSeenAt: string;
+                lastSeenAt: string;
+                sourceKind: string;
+                sourceVersion?: string | null;
+                workflowId?: string | null;
+                workflowName?: string | null;
+                runId?: string | null;
+                repository?: string | null;
+                branch?: string | null;
+                commitSha?: string | null;
+                prNumber?: string | null;
+                reviewMode?: string | null;
+                lifecycleHint?: string | null;
+                title?: string | null;
+                description?: string | null;
+                impact?: string | null;
+                fix?: string | null;
+                verification?: string | null;
+                file?: string | null;
+                line?: number | null;
+                endpoint?: string | null;
+                asset: {
+                    id: string;
+                    kind: string;
+                    stableKey: string;
+                    displayName: string;
+                } | null;
+                threatRefs: string[];
+                linkedFindingKeys: string[];
+                latestAssessment?: {
+                    id: string;
+                    findingId: string;
+                    verdict: ("actionable" | "not_relevant" | "false_positive" | "accepted_risk" | "needs_context" | "resolved_candidate") | string;
+                    importance: ("critical" | "high" | "medium" | "low" | "noise") | string;
+                    confidence: number;
+                    reasoningMarkdown: string;
+                    evidenceRefs: string[];
+                    wikiRefs: string[];
+                    toolCallsSummary: {
+                        [key: string]: unknown;
+                    };
+                    createdByAgentRunId?: string | null;
+                    createdBy?: string | null;
+                    metadata: {
+                        [key: string]: unknown;
+                    };
+                    createdAt: string;
+                } | null;
+                relatedLinks: {
+                    id: string;
+                    fromFindingId: string;
+                    toFindingId: string;
+                    relationshipType: ("duplicate_of" | "same_root_cause" | "enables" | "contradicts" | "same_asset" | "same_control" | "mitigated_by" | "related") | string;
+                    confidence: number;
+                    rationale: string;
+                    evidenceRefs: string[];
+                    createdByAgentRunId?: string | null;
+                    createdBy?: string | null;
+                    createdAt: string;
+                    updatedAt: string;
+                    fromFinding: {
+                        id: string;
+                        findingKey: string;
+                        status: string;
+                        severity: string;
+                        title?: string | null;
+                        sourceKind: string;
+                    };
+                    toFinding: {
+                        id: string;
+                        findingKey: string;
+                        status: string;
+                        severity: string;
+                        title?: string | null;
+                        sourceKind: string;
+                    };
+                    relatedFinding: {
+                        id: string;
+                        findingKey: string;
+                        status: string;
+                        severity: string;
+                        title?: string | null;
+                        sourceKind: string;
+                    };
+                    /** @enum {string} */
+                    direction: "outgoing" | "incoming";
+                }[];
+                evidence: {
+                    id: string;
+                    summary?: string | null;
+                    artifactUri: string;
+                    capturedAt: string;
+                }[];
+                observations: {
+                    id: string;
+                    status?: string | null;
+                    title: string;
+                    observedAt: string;
+                    runId?: string | null;
+                    reviewMode?: string | null;
+                    lifecycleHint?: string | null;
+                    prNumber?: string | null;
+                }[];
+            };
+        };
+        SecurityFindingEvidenceResponseDto: {
+            evidence: {
+                id: string;
+                summary?: string | null;
+                artifactUri: string;
+                capturedAt: string;
+            }[];
+        };
+        SecurityFindingAssessmentsResponseDto: {
+            assessments: {
+                id: string;
+                findingId: string;
+                verdict: ("actionable" | "not_relevant" | "false_positive" | "accepted_risk" | "needs_context" | "resolved_candidate") | string;
+                importance: ("critical" | "high" | "medium" | "low" | "noise") | string;
+                confidence: number;
+                reasoningMarkdown: string;
+                evidenceRefs: string[];
+                wikiRefs: string[];
+                toolCallsSummary: {
+                    [key: string]: unknown;
+                };
+                createdByAgentRunId?: string | null;
+                createdBy?: string | null;
+                metadata: {
+                    [key: string]: unknown;
+                };
+                createdAt: string;
+            }[];
+        };
+        RecordFindingAssessmentRequestDto: {
+            /** @enum {string} */
+            verdict: "actionable" | "not_relevant" | "false_positive" | "accepted_risk" | "needs_context" | "resolved_candidate";
+            /** @enum {string} */
+            importance: "critical" | "high" | "medium" | "low" | "noise";
+            confidence?: number;
+            reasoningMarkdown: string;
+            evidenceRefs?: string[];
+            wikiRefs?: string[];
+            toolCallsSummary?: {
+                [key: string]: unknown;
+            };
+            createdByAgentRunId?: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        RecordFindingAssessmentResponseDto: {
+            assessment: {
+                id: string;
+                findingId: string;
+                verdict: ("actionable" | "not_relevant" | "false_positive" | "accepted_risk" | "needs_context" | "resolved_candidate") | string;
+                importance: ("critical" | "high" | "medium" | "low" | "noise") | string;
+                confidence: number;
+                reasoningMarkdown: string;
+                evidenceRefs: string[];
+                wikiRefs: string[];
+                toolCallsSummary: {
+                    [key: string]: unknown;
+                };
+                createdByAgentRunId?: string | null;
+                createdBy?: string | null;
+                metadata: {
+                    [key: string]: unknown;
+                };
+                createdAt: string;
+            };
+        };
+        SecurityFindingLinksResponseDto: {
+            links: {
+                id: string;
+                fromFindingId: string;
+                toFindingId: string;
+                relationshipType: ("duplicate_of" | "same_root_cause" | "enables" | "contradicts" | "same_asset" | "same_control" | "mitigated_by" | "related") | string;
+                confidence: number;
+                rationale: string;
+                evidenceRefs: string[];
+                createdByAgentRunId?: string | null;
+                createdBy?: string | null;
+                createdAt: string;
+                updatedAt: string;
+                fromFinding: {
+                    id: string;
+                    findingKey: string;
+                    status: string;
+                    severity: string;
+                    title?: string | null;
+                    sourceKind: string;
+                };
+                toFinding: {
+                    id: string;
+                    findingKey: string;
+                    status: string;
+                    severity: string;
+                    title?: string | null;
+                    sourceKind: string;
+                };
+                relatedFinding: {
+                    id: string;
+                    findingKey: string;
+                    status: string;
+                    severity: string;
+                    title?: string | null;
+                    sourceKind: string;
+                };
+                /** @enum {string} */
+                direction: "outgoing" | "incoming";
+            }[];
+        };
+        RecordFindingLinkRequestDto: {
+            toFindingId: string;
+            /** @enum {string} */
+            relationshipType: "duplicate_of" | "same_root_cause" | "enables" | "contradicts" | "same_asset" | "same_control" | "mitigated_by" | "related";
+            confidence?: number;
+            rationale: string;
+            evidenceRefs?: string[];
+            createdByAgentRunId?: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        RecordFindingLinkResponseDto: {
+            link: {
+                id: string;
+                fromFindingId: string;
+                toFindingId: string;
+                relationshipType: ("duplicate_of" | "same_root_cause" | "enables" | "contradicts" | "same_asset" | "same_control" | "mitigated_by" | "related") | string;
+                confidence: number;
+                rationale: string;
+                evidenceRefs: string[];
+                createdByAgentRunId?: string | null;
+                createdBy?: string | null;
+                createdAt: string;
+                updatedAt: string;
+                fromFinding: {
+                    id: string;
+                    findingKey: string;
+                    status: string;
+                    severity: string;
+                    title?: string | null;
+                    sourceKind: string;
+                };
+                toFinding: {
+                    id: string;
+                    findingKey: string;
+                    status: string;
+                    severity: string;
+                    title?: string | null;
+                    sourceKind: string;
+                };
+                relatedFinding: {
+                    id: string;
+                    findingKey: string;
+                    status: string;
+                    severity: string;
+                    title?: string | null;
+                    sourceKind: string;
+                };
+                /** @enum {string} */
+                direction: "outgoing" | "incoming";
+            };
+        };
+        SecurityThreatStoriesResponseDto: {
+            stories: {
+                id: string;
+                storyKey: string;
+                title: string;
+                status: string;
+                severity: string;
+                confidence: number;
+                summary: string;
+                impact: string;
+                attackPath?: string | null;
+                recommendedAction?: string | null;
+                affectedAssetRefs: string[];
+                evidenceRefs: string[];
+                createdByAgentRunId?: string | null;
+                createdBy?: string | null;
+                firstSeenAt: string;
+                lastSeenAt: string;
+                createdAt: string;
+                updatedAt: string;
+                findings: {
+                    id: string;
+                    findingKey: string;
+                    status: string;
+                    severity: string;
+                    title?: string | null;
+                    sourceKind: string;
+                    role: string;
+                    rationale?: string | null;
+                }[];
+                metadata: {
+                    [key: string]: unknown;
+                };
+            }[];
+        };
+        SecurityThreatStoryResponseDto: {
+            story: {
+                id: string;
+                storyKey: string;
+                title: string;
+                status: string;
+                severity: string;
+                confidence: number;
+                summary: string;
+                impact: string;
+                attackPath?: string | null;
+                recommendedAction?: string | null;
+                affectedAssetRefs: string[];
+                evidenceRefs: string[];
+                createdByAgentRunId?: string | null;
+                createdBy?: string | null;
+                firstSeenAt: string;
+                lastSeenAt: string;
+                createdAt: string;
+                updatedAt: string;
+                findings: {
+                    id: string;
+                    findingKey: string;
+                    status: string;
+                    severity: string;
+                    title?: string | null;
+                    sourceKind: string;
+                    role: string;
+                    rationale?: string | null;
+                }[];
+                metadata: {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        RecordThreatStoryRequestDto: {
+            storyKey?: string;
+            title: string;
+            status?: string;
+            severity: string;
+            confidence?: number;
+            summary: string;
+            impact: string;
+            attackPath?: string;
+            recommendedAction?: string;
+            findingIds: string[];
+            findingRoles?: {
+                [key: string]: string;
+            };
+            findingRationales?: {
+                [key: string]: string;
+            };
+            evidenceRefs?: string[];
+            affectedAssetRefs?: string[];
+            createdByAgentRunId?: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        PersistSecurityIngestionBatchRequestDto: {
+            batch: {
+                id: string;
+                organizationId: string;
+                /** @enum {string} */
+                sourceKind: "prowler" | "opengrep" | "trivy" | "trufflehog" | "dependency_scanner" | "nuclei" | "asm" | "ai_code_review" | "architecture_facts" | "manual";
+                scannerRun: {
+                    id: string;
+                    organizationId: string;
+                    /** @enum {string} */
+                    sourceKind: "prowler" | "opengrep" | "trivy" | "trufflehog" | "dependency_scanner" | "nuclei" | "asm" | "ai_code_review" | "architecture_facts" | "manual";
+                    sourceVersion?: string;
+                    scope: {
+                        organizationId: string;
+                        accountId?: string;
+                        projectId?: string;
+                        provider?: string;
+                        repository?: string;
+                        branch?: string;
+                        domain?: string;
+                        labels?: {
+                            [key: string]: string;
+                        };
+                    };
+                    /** @enum {string} */
+                    triggerKind: "manual" | "scheduled" | "webhook" | "workflow" | "retest";
+                    /** @enum {string} */
+                    status: "queued" | "running" | "completed" | "failed" | "cancelled";
+                    /** Format: date-time */
+                    startedAt: string;
+                    /** Format: date-time */
+                    completedAt?: string;
+                    parentRunId?: string;
+                    /** @default [] */
+                    artifactRefs: {
+                        uri: string;
+                        /** @enum {string} */
+                        kind?: "raw_scanner_output" | "normalized_observation" | "code_snippet" | "log_excerpt" | "screenshot" | "graph_query" | "agent_output" | "manual_attestation" | "ticket" | "pull_request";
+                        hash?: string;
+                        contentType?: string;
+                    }[];
+                    configHash?: string;
+                    workflowId?: string;
+                    runId?: string;
+                    nodeRef?: string;
+                    createdBy?: string;
+                };
+                /** @default [] */
+                assets: {
+                    id: string;
+                    organizationId: string;
+                    /** @enum {string} */
+                    assetKind: "cloud_account" | "cloud_resource" | "repository" | "service" | "package" | "file" | "api_route" | "domain" | "host" | "ip" | "port" | "http_service" | "certificate" | "iam_principal" | "iam_role" | "iam_policy" | "data_store" | "secret" | "queue" | "topic" | "container_image" | "deployment";
+                    provider?: string;
+                    nativeId?: string;
+                    stableKey: string;
+                    displayName: string;
+                    /** @default [] */
+                    aliases: string[];
+                    /** @enum {string} */
+                    confidence: "deterministic" | "inferred_high" | "inferred_medium" | "candidate";
+                    ownerRef?: string;
+                    environment?: string;
+                    /**
+                     * @default unknown
+                     * @enum {string}
+                     */
+                    criticality: "critical" | "high" | "medium" | "low" | "unknown";
+                    /** Format: date-time */
+                    firstSeenAt?: string;
+                    /** Format: date-time */
+                    lastSeenAt?: string;
+                    /** @default {} */
+                    metadata: {
+                        [key: string]: unknown;
+                    };
+                }[];
+                /** @default [] */
+                observations: {
+                    id: string;
+                    organizationId: string;
+                    scannerRunId: string;
+                    /** @enum {string} */
+                    sourceKind: "prowler" | "opengrep" | "trivy" | "trufflehog" | "dependency_scanner" | "nuclei" | "asm" | "ai_code_review" | "architecture_facts" | "manual";
+                    sourceRuleId?: string;
+                    assetRef?: string;
+                    status?: string;
+                    /**
+                     * @default unknown
+                     * @enum {string}
+                     */
+                    severity: "critical" | "high" | "medium" | "low" | "info" | "unknown";
+                    title: string;
+                    rawArtifactRef?: {
+                        uri: string;
+                        /** @enum {string} */
+                        kind?: "raw_scanner_output" | "normalized_observation" | "code_snippet" | "log_excerpt" | "screenshot" | "graph_query" | "agent_output" | "manual_attestation" | "ticket" | "pull_request";
+                        hash?: string;
+                        contentType?: string;
+                    };
+                    /** @default [] */
+                    evidenceRefs: string[];
+                    /** Format: date-time */
+                    observedAt: string;
+                    /** @default {} */
+                    normalized: {
+                        [key: string]: unknown;
+                    };
+                }[];
+                /** @default [] */
+                findingInstances: {
+                    id: string;
+                    organizationId: string;
+                    scannerRunId: string;
+                    /** @default [] */
+                    observationRefs: string[];
+                    assetRef?: string;
+                    findingKey: string;
+                    /** @enum {string} */
+                    status: "open" | "in_progress" | "suppressed" | "accepted_risk" | "fixed" | "reopened" | "false_positive";
+                    /** @enum {string} */
+                    severity: "critical" | "high" | "medium" | "low" | "info" | "unknown";
+                    /** @default 1 */
+                    confidence: number;
+                    /** Format: date-time */
+                    firstSeenAt: string;
+                    /** Format: date-time */
+                    lastSeenAt: string;
+                    suppressionRef?: string;
+                    acceptedRiskRef?: string;
+                    /** @default [] */
+                    evidenceRefs: string[];
+                }[];
+                /** @default [] */
+                evidenceItems: {
+                    id: string;
+                    organizationId: string;
+                    /** @enum {string} */
+                    kind: "raw_scanner_output" | "normalized_observation" | "code_snippet" | "log_excerpt" | "screenshot" | "graph_query" | "agent_output" | "manual_attestation" | "ticket" | "pull_request";
+                    /** @enum {string} */
+                    sourceKind?: "prowler" | "opengrep" | "trivy" | "trufflehog" | "dependency_scanner" | "nuclei" | "asm" | "ai_code_review" | "architecture_facts" | "manual";
+                    scannerRunId?: string;
+                    artifactUri: string;
+                    summary?: string;
+                    hash?: string;
+                    /** Format: date-time */
+                    capturedAt: string;
+                    /**
+                     * @default standard
+                     * @enum {string}
+                     */
+                    retentionClass: "standard" | "audit" | "ephemeral";
+                    /** @default {} */
+                    metadata: {
+                        [key: string]: unknown;
+                    };
+                }[];
+                stats: {
+                    rawRecordCount: number;
+                    assetCount: number;
+                    observationCount: number;
+                    findingInstanceCount: number;
+                    evidenceItemCount: number;
+                    passedCount: number;
+                    failedCount: number;
+                    warningCount: number;
+                    unknownCount: number;
+                };
+                validation: {
+                    /** @enum {string} */
+                    status: "pass" | "warn" | "fail";
+                    /** @default [] */
+                    errors: string[];
+                    /** @default [] */
+                    warnings: string[];
+                };
+                /** Format: date-time */
+                createdAt: string;
+            };
+        };
+        PersistSecurityIngestionBatchResponseDto: {
+            batchId: string;
+            scannerRunId: string;
+            assetCount: number;
+            observationCount: number;
+            findingCount: number;
+            evidenceCount: number;
+            controlResultCount: number;
+            graphEdgeCount: number;
+        };
+        TemplateResponseDto: {
+            id: string;
+            name: string;
+            description?: string | null;
+            category?: string | null;
+            tags?: string[] | null;
+            author?: string | null;
+            repository: string;
+            path: string;
+            branch?: string | null;
+            version?: string | null;
+            commitSha?: string | null;
+            manifest: {
+                name: string;
+                description?: string;
+                version?: string;
+                author?: string;
+                category?: string;
+                tags?: string[];
+                requiredSecrets?: {
+                    name: string;
+                    type: string;
+                    description?: string;
+                    placeholder?: string;
+                }[];
+                entryPoint?: string;
+                screenshots?: string[];
+                documentation?: string;
+            };
+            graph?: {
+                [key: string]: unknown;
+            } | null;
+            requiredSecrets?: {
+                name: string;
+                type: string;
+                description?: string;
+                placeholder?: string;
+            }[] | null;
+            popularity: number;
+            isOfficial: boolean;
+            isVerified: boolean;
+            isActive: boolean;
+            createdAt: string;
+            updatedAt: string;
+        };
+        TemplateCategoryResponseDto: {
+            category: string | null;
+            count: number;
+        };
+        TemplateSubmissionResponseDto: {
+            id: string;
+            templateName: string;
+            description?: string | null;
+            category?: string | null;
+            repository: string;
+            branch?: string | null;
+            path: string;
+            commitSha?: string | null;
+            pullRequestNumber?: number | null;
+            pullRequestUrl?: string | null;
+            status: string;
+            submittedBy: string;
+            organizationId?: string | null;
+            manifest?: {
+                name: string;
+                description?: string;
+                version?: string;
+                author?: string;
+                category?: string;
+                tags?: string[];
+                requiredSecrets?: {
+                    name: string;
+                    type: string;
+                    description?: string;
+                    placeholder?: string;
+                }[];
+                entryPoint?: string;
+                screenshots?: string[];
+                documentation?: string;
+            } | null;
+            graph?: {
+                [key: string]: unknown;
+            } | null;
+            feedback?: string | null;
+            reviewedBy?: string | null;
+            reviewedAt?: string | null;
+            createdAt: string;
+            updatedAt: string;
+        };
+        TemplateRepoInfoResponseDto: {
+            owner: string;
+            repo: string;
+            branch: string;
+            url: string;
+        };
+        PublishTemplateRequestDto: {
+            workflowId: string;
+            name: string;
+            description: string;
+            category: string;
+            tags: string[];
+            author: string;
+        };
+        UseTemplateRequestDto: {
+            workflowName: string;
+            secretMappings?: {
+                [key: string]: string;
+            };
+        };
+        UseTemplateResponseDto: {
+            workflow: {
+                id: string;
+                name: string;
+                description?: string | null;
+                graph: {
+                    id?: string;
+                    name: string;
+                    description?: string;
+                    nodes: {
+                        id: string;
+                        type: string;
+                        position: {
+                            x: number;
+                            y: number;
+                        };
+                        data: {
+                            label: string;
+                            /**
+                             * @default {
+                             *       "params": {},
+                             *       "inputOverrides": {}
+                             *     }
+                             */
+                            config: {
+                                /** @default {} */
+                                params: {
+                                    [key: string]: unknown;
+                                };
+                                /** @default {} */
+                                inputOverrides: {
+                                    [key: string]: unknown;
+                                };
+                                /** @enum {string} */
+                                joinStrategy?: "all" | "any" | "first";
+                                streamId?: string;
+                                groupId?: string;
+                                maxConcurrency?: number;
+                                /** @enum {string} */
+                                mode?: "normal" | "tool";
+                                toolConfig?: {
+                                    /** @default [] */
+                                    boundInputIds: string[];
+                                    /** @default [] */
+                                    exposedInputIds: string[];
+                                };
+                                connectedToolNodeIds?: string[];
+                            };
+                            dynamicInputs?: {
+                                [key: string]: unknown;
+                            }[];
+                            dynamicOutputs?: {
+                                [key: string]: unknown;
+                            }[];
+                        };
+                    }[];
+                    edges: {
+                        id: string;
+                        source: string;
+                        target: string;
+                        sourceHandle?: string;
+                        targetHandle?: string;
+                        /** @enum {string} */
+                        type?: "default" | "smoothstep" | "step" | "straight" | "bezier";
+                    }[];
+                    /**
+                     * @default {
+                     *       "x": 0,
+                     *       "y": 0,
+                     *       "zoom": 1
+                     *     }
+                     */
+                    viewport: {
+                        x: number;
+                        y: number;
+                        zoom: number;
+                    };
+                };
+                compiledDefinition: unknown;
+                icon: string | null;
+                iconColor: string | null;
+                isSystem: boolean;
+                /** Format: uuid */
+                templateId: string | null;
+                lastRun: string | null;
+                runCount: number;
+                createdAt: string;
+                updatedAt: string;
+                /** Format: uuid */
+                currentVersionId: string | null;
+                currentVersion: number | null;
+            };
+            templateId: string;
+            templateName: string;
+        };
+        TemplateLibrarySyncResponseDto: {
+            synced: string[];
+            failed: {
+                path: string;
+                error: string;
+            }[];
+            unchanged: string[];
+            total: number;
+            directoryCacheHit: boolean;
+        };
         CreateSessionDto: {
             title?: string;
         };
@@ -7070,6 +8436,11 @@ export interface components {
             name: string;
             description: string;
             content: string;
+            files: {
+                path: string;
+                content: string;
+                executable?: boolean;
+            }[];
             license: string | null;
             compatibility: string | null;
             metadata: {
@@ -7086,6 +8457,11 @@ export interface components {
             name: string;
             description: string;
             content: string;
+            files?: {
+                path: string;
+                content: string;
+                executable?: boolean;
+            }[];
             license?: string;
             compatibility?: string;
             metadata?: {
@@ -7098,6 +8474,11 @@ export interface components {
             name?: string;
             description?: string;
             content?: string;
+            files?: {
+                path: string;
+                content: string;
+                executable?: boolean;
+            }[];
             license?: string | null;
             compatibility?: string | null;
             metadata?: {
@@ -7105,6 +8486,166 @@ export interface components {
             } | null;
             allowedTools?: string | null;
             isEnabled?: boolean;
+        };
+        SecurityWikiConfigResponseDto: {
+            id: string;
+            organizationId: string;
+            /** @enum {string} */
+            provider: "local" | "github";
+            repoOwner?: string | null;
+            repoName: string;
+            repoUrl?: string | null;
+            localPath?: string | null;
+            defaultBranch: string;
+            rootPath: string;
+            status: string;
+            pathPolicy: {
+                [key: string]: unknown;
+            };
+            metadata: {
+                [key: string]: unknown;
+            };
+            codeSources: {
+                repoId: string | number;
+                fullName: string;
+                repoOwner?: string;
+                repoName?: string;
+                defaultBranch?: string | null;
+                /** @default true */
+                enabled: boolean;
+                /**
+                 * @default manual
+                 * @enum {string}
+                 */
+                cadence: "manual" | "nightly" | "weekly";
+                addedAt?: string;
+            }[];
+            createdAt: string;
+            updatedAt: string;
+        };
+        UpsertSecurityWikiConfigDto: {
+            /**
+             * @default local
+             * @enum {string}
+             */
+            provider: "local" | "github";
+            repoOwner?: string;
+            repoName: string;
+            /** Format: uri */
+            repoUrl?: string;
+            localPath?: string;
+            /** @default main */
+            defaultBranch: string;
+            /** @default / */
+            rootPath: string;
+            /** @default {} */
+            pathPolicy: {
+                [key: string]: unknown;
+            };
+            /** @default {} */
+            metadata: {
+                [key: string]: unknown;
+            };
+            codeSources?: {
+                repoId: string | number;
+                fullName: string;
+                repoOwner?: string;
+                repoName?: string;
+                defaultBranch?: string | null;
+                /** @default true */
+                enabled: boolean;
+                /**
+                 * @default manual
+                 * @enum {string}
+                 */
+                cadence: "manual" | "nightly" | "weekly";
+                addedAt?: string;
+            }[];
+        };
+        SecurityWikiRunResponseDto: {
+            id: string;
+            organizationId: string;
+            wikiConfigId: string;
+            runId: string;
+            agentName: string;
+            repoSlug: string;
+            repoPath?: string | null;
+            repoCommit?: string | null;
+            model?: string | null;
+            branchName?: string | null;
+            wikiBaseCommit?: string | null;
+            outputCommit?: string | null;
+            mergeCommit?: string | null;
+            status: string;
+            changedFiles: string[];
+            validation: {
+                [key: string]: unknown;
+            };
+            error?: string | null;
+            createdAt: string;
+            startedAt?: string | null;
+            completedAt?: string | null;
+        };
+        SecurityWikiTreeResponseDto__schema0: {
+            name: string;
+            path: string;
+            /** @enum {string} */
+            type: "file" | "directory";
+            size?: number;
+            updatedAt: string;
+            extension?: string;
+            children?: components["schemas"]["SecurityWikiTreeResponseDto__schema0"][];
+        };
+        SecurityWikiTreeResponseDto: {
+            configId: string;
+            /** @enum {string} */
+            provider: "local" | "github";
+            repoName?: string | null;
+            rootPath: string;
+            codeSources: {
+                repoId: string | number;
+                fullName: string;
+                repoOwner?: string;
+                repoName?: string;
+                defaultBranch?: string | null;
+                /** @default true */
+                enabled: boolean;
+                /**
+                 * @default manual
+                 * @enum {string}
+                 */
+                cadence: "manual" | "nightly" | "weekly";
+                addedAt?: string;
+            }[];
+            tree: components["schemas"]["SecurityWikiTreeResponseDto__schema0"][];
+        };
+        SecurityWikiFileResponseDto: {
+            path: string;
+            name: string;
+            extension: string;
+            size: number;
+            updatedAt: string;
+            content: string;
+        };
+        RunCodeWikiIngestionDto: {
+            repoPath: string;
+            repoSlug: string;
+            runId?: string;
+            /** @default code-explorer-agent */
+            agentName: string;
+            /** @default gpt-5.5 */
+            model: string;
+            promptText?: string;
+            codexHome?: string;
+        };
+        RunCodeWikiIngestionResponseDto: {
+            runId: string;
+            status: string;
+            workflowRunId: string;
+            temporalRunId?: string | null;
+            workflowId: string;
+            workflowVersionId?: string | null;
+            securityWikiRunId: string;
         };
     };
     responses: never;
@@ -11989,6 +13530,31 @@ export interface operations {
             };
         };
     };
+    AsmInternalController_upsertAssets: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-organization-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertAsmAssetsRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpsertAsmAssetsResponseDto"];
+                };
+            };
+        };
+    };
     WorkflowTemplatesController_list: {
         parameters: {
             query?: never;
@@ -12301,6 +13867,471 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RenderReportTemplateResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityIngestionController_listFindings: {
+        parameters: {
+            query?: {
+                sourceKind?: string;
+                status?: string;
+                assessmentVerdict?: string;
+                userVisibleOnly?: string;
+                limit?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List durable security findings for the organization. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityFindingsResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityIngestionController_getFinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Get one durable security finding with evidence. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityFindingResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityIngestionController_getFindingEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List evidence attached to one durable security finding. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityFindingEvidenceResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityIngestionController_listFindingAssessments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List agent assessments for one durable security finding. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityFindingAssessmentsResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityIngestionController_recordFindingAssessment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordFindingAssessmentRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Record an agent assessment for one durable security finding. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordFindingAssessmentResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityIngestionController_listFindingLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List links connected to one durable security finding. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityFindingLinksResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityIngestionController_recordFindingLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordFindingLinkRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Record a relationship between two durable security findings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordFindingLinkResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityIngestionController_listThreatStories: {
+        parameters: {
+            query?: {
+                status?: string;
+                limit?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List durable agent-written threat stories. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityThreatStoriesResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityIngestionController_recordThreatStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordThreatStoryRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Record an agent-written threat story over durable findings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityThreatStoryResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityIngestionController_getThreatStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Get one durable threat story. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityThreatStoryResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityIngestionController_persistBatch: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-organization-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersistSecurityIngestionBatchRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersistSecurityIngestionBatchResponseDto"];
+                };
+            };
+        };
+    };
+    TemplatesController_listTemplates: {
+        parameters: {
+            query?: {
+                category?: string;
+                search?: string;
+                tags?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateResponseDto"][];
+                };
+            };
+        };
+    };
+    TemplatesController_getCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateCategoryResponseDto"][];
+                };
+            };
+        };
+    };
+    TemplatesController_getTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+        };
+    };
+    TemplatesController_getMyTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateSubmissionResponseDto"][];
+                };
+            };
+        };
+    };
+    TemplatesController_getRepoInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateRepoInfoResponseDto"];
+                };
+            };
+        };
+    };
+    TemplatesController_getSubmissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateSubmissionResponseDto"][];
+                };
+            };
+        };
+    };
+    TemplatesController_getTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateResponseDto"];
+                };
+            };
+        };
+    };
+    TemplatesController_publishTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishTemplateRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Template publishing via API is disabled; use the GitHub web flow. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TemplatesController_useTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UseTemplateRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UseTemplateResponseDto"];
+                };
+            };
+        };
+    };
+    TemplatesController_syncTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateLibrarySyncResponseDto"];
                 };
             };
         };
@@ -12738,6 +14769,130 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    SecurityWikisController_getConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityWikiConfigResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityWikisController_upsertConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertSecurityWikiConfigDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityWikiConfigResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityWikisController_listRuns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityWikiRunResponseDto"][];
+                };
+            };
+        };
+    };
+    SecurityWikisController_getTree: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityWikiTreeResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityWikisController_getFile: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityWikiFileResponseDto"];
+                };
+            };
+        };
+    };
+    SecurityWikisController_runCodeWikiIngestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunCodeWikiIngestionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunCodeWikiIngestionResponseDto"];
+                };
             };
         };
     };

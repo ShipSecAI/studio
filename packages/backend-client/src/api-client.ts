@@ -24,6 +24,12 @@ type StartOAuthPayload = components['schemas']['StartOAuthDto'];
 type CompleteOAuthPayload = components['schemas']['CompleteOAuthDto'];
 type RefreshConnectionPayload = Record<string, never>;
 type DisconnectConnectionPayload = Record<string, never>;
+type CreateAwsAccessKeyConnectionPayload =
+  components['schemas']['CreateAwsAccessKeyConnectionDto'];
+type CreateGcpConnectionPayload = components['schemas']['CreateGcpConnectionDto'];
+type CreateGcpServiceAccountKeyConnectionPayload =
+  components['schemas']['CreateGcpServiceAccountKeyConnectionDto'];
+type CreateJiraForgeConnectionPayload = components['schemas']['CreateJiraForgeConnectionDto'];
 type ArtifactDestination = 'run' | 'library';
 type CreateSchedulePayload = components['schemas']['CreateScheduleRequestDto'];
 type UpdateSchedulePayload = components['schemas']['UpdateScheduleRequestDto'];
@@ -36,6 +42,9 @@ type TriggerCloudSyncPayload = components['schemas']['TriggerSyncDto'];
 type UpdateSyncRunStatusPayload = components['schemas']['UpdateSyncRunStatusRequestDto'];
 type UpdateOnboardingPreferencesPayload = components['schemas']['UpdateOnboardingPreferencesDto'];
 type AnalyticsQueryPayload = components['schemas']['AnalyticsQueryRequestDto'];
+type TimeSeriesPayload = components['schemas']['TimeSeriesRequestDto'];
+type LifecyclePayload = components['schemas']['LifecycleRequestDto'];
+type ScannerSeverityCountsPayload = components['schemas']['ScannerSeverityCountsRequestDto'];
 type DiscoveryInputPayload = components['schemas']['DiscoveryInputDto'];
 type GroupDiscoveryInputPayload = components['schemas']['GroupDiscoveryInputDto'];
 type ResolvePortsPayload = components['schemas']['ResolvePortsRequestDto'];
@@ -47,17 +56,18 @@ type RegisterMcpServerPayload = components['schemas']['RegisterMcpServerInput'];
 type CleanupMcpRunPayload = components['schemas']['CleanupRunRequestDto'];
 type ToolsReadyPayload = components['schemas']['ToolsReadyRequestDto'];
 type RegisterGroupServerPayload = components['schemas']['RegisterGroupServerRequestDto'];
+type ImportMcpServerTemplatePayload = components['schemas']['ImportMcpServerTemplateDto'];
 type InstantiateWorkflowTemplatePayload =
   components['schemas']['InstantiateWorkflowTemplateRequestDto'];
-type CreateReportTemplateDraftPayload = components['schemas']['CreateReportTemplateDraftRequestDto'];
-type UpdateReportTemplateDraftPayload = components['schemas']['UpdateReportTemplateDraftRequestDto'];
+type CreateReportTemplateDraftPayload =
+  components['schemas']['CreateReportTemplateDraftRequestDto'];
+type UpdateReportTemplateDraftPayload =
+  components['schemas']['UpdateReportTemplateDraftRequestDto'];
 type PublishReportTemplatePayload = components['schemas']['PublishReportTemplateRequestDto'];
 type RenderReportTemplatePreviewPayload =
   components['schemas']['RenderReportTemplatePreviewRequestDto'];
-type RenderPublishedReportTemplatePayload = {
-  versionId?: string | null;
-  data: Record<string, unknown>;
-};
+type RenderPublishedReportTemplatePayload =
+  components['schemas']['RenderPublishedReportTemplateRequestDto'];
 type WorkflowRunTerminalQuery =
   operations['WorkflowsController_terminalChunks']['parameters']['query'];
 type ToggleGitHubRepositoryScansPayload = components['schemas']['ToggleRepoScansDto'];
@@ -65,13 +75,28 @@ type SetupGitHubInstallationPayload = components['schemas']['CompleteInstallatio
 type CreateGitHubTriggerRulePayload = components['schemas']['CreateTriggerRuleDto'];
 type UpdateGitHubTriggerRulePayload = components['schemas']['UpdateTriggerRuleDto'];
 type TriggerGitHubScanPayload = components['schemas']['GitHubTriggerScanDto'];
-type ListGitHubScansQuery = operations['GitHubAppController_listScanResults']['parameters']['query'];
+type ListGitHubScansQuery =
+  operations['GitHubAppController_listScanResults']['parameters']['query'];
 type AppendChatInternalEventPayload = components['schemas']['AppendInternalEventDto'];
 type CompleteChatRunPayload = components['schemas']['CompleteRunRequestDto'];
+type SubmitChatOperationPayload = components['schemas']['SubmitOperationDto'];
+type UpsertSecurityWikiConfigPayload = components['schemas']['UpsertSecurityWikiConfigDto'];
+type RunCodeWikiIngestionPayload = components['schemas']['RunCodeWikiIngestionDto'];
+type CreateAgentSkillPayload = components['schemas']['CreateAgentSkillDto'];
+type UpdateAgentSkillPayload = components['schemas']['UpdateAgentSkillDto'];
+type ListTemplatesQuery = operations['TemplatesController_listTemplates']['parameters']['query'];
+type PublishTemplatePayload = components['schemas']['PublishTemplateRequestDto'];
+type UseTemplatePayload = components['schemas']['UseTemplateRequestDto'];
+type ListSecurityFindingsQuery =
+  operations['SecurityIngestionController_listFindings']['parameters']['query'];
+type RecordFindingLinkPayload = components['schemas']['RecordFindingLinkRequestDto'];
+type ListThreatStoriesQuery =
+  operations['SecurityIngestionController_listThreatStories']['parameters']['query'];
+type RecordThreatStoryPayload = components['schemas']['RecordThreatStoryRequestDto'];
 
 /**
  * ShipSec API Client
- * 
+ *
  * Type-safe client for the ShipSec backend API
  */
 export class ShipSecApiClient {
@@ -80,7 +105,7 @@ export class ShipSecApiClient {
 
   constructor(config: ClientConfig = {}) {
     this.baseUrl = config.baseUrl ?? 'http://localhost:3211';
-    
+
     this.client = createClient<paths>({
       baseUrl: this.baseUrl,
       headers: {
@@ -116,9 +141,26 @@ export class ShipSecApiClient {
   }
 
   // ===== Health =====
-  
+
   async health() {
     return this.client.GET('/api/v1/health');
+  }
+
+  async validateAuth() {
+    return this.client.GET('/api/v1/auth/validate');
+  }
+
+  async login(authorization: string) {
+    return this.client.POST('/api/v1/auth/login', {
+      params: { header: { authorization } },
+      credentials: 'include',
+    });
+  }
+
+  async logout() {
+    return this.client.POST('/api/v1/auth/logout', {
+      credentials: 'include',
+    });
   }
 
   // ===== Onboarding =====
@@ -134,7 +176,7 @@ export class ShipSecApiClient {
   }
 
   // ===== Workflows =====
-  
+
   async listWorkflows() {
     return this.client.GET('/api/v1/workflows');
   }
@@ -221,16 +263,13 @@ export class ShipSecApiClient {
   }
 
   async renderReportTemplate(id: string, body: RenderPublishedReportTemplatePayload) {
-    return (this.client.POST as any)('/api/v1/report-templates/{id}/render', {
+    return this.client.POST('/api/v1/report-templates/{id}/render', {
       params: { path: { id } },
       body,
     });
   }
 
-  async instantiateWorkflowTemplate(
-    id: string,
-    body: InstantiateWorkflowTemplatePayload = {},
-  ) {
+  async instantiateWorkflowTemplate(id: string, body: InstantiateWorkflowTemplatePayload = {}) {
     return this.client.POST('/api/v1/workflow-templates/{id}/instantiate', {
       params: { path: { id } },
       body,
@@ -256,6 +295,19 @@ export class ShipSecApiClient {
 
   async deleteChatSession(id: string) {
     return this.client.DELETE('/api/v1/chat/sessions/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async submitChatOperation(id: string, body: SubmitChatOperationPayload) {
+    return this.client.POST('/api/v1/chat/sessions/{id}/submissions', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  async getChatThreadHistory(id: string) {
+    return this.client.GET('/api/v1/chat/sessions/{id}/thread-history', {
       params: { path: { id } },
     });
   }
@@ -307,10 +359,10 @@ export class ShipSecApiClient {
   }
 
   // ===== Workflow Runs =====
-  
+
   async getWorkflowRunStatus(runId: string, temporalRunId?: string) {
     return this.client.GET('/api/v1/workflows/runs/{runId}/status', {
-      params: { 
+      params: {
         path: { runId },
         query: temporalRunId ? { temporalRunId } : {},
       },
@@ -358,7 +410,9 @@ export class ShipSecApiClient {
 
   async getRunActivity(options?: { days?: number }) {
     const queryStr = options?.days ? `?days=${options.days}` : '';
-    return this.client.GET(`/api/v1/workflows/runs/activity${queryStr}` as '/api/v1/workflows/runs/activity');
+    return this.client.GET(
+      `/api/v1/workflows/runs/activity${queryStr}` as '/api/v1/workflows/runs/activity',
+    );
   }
 
   async listWorkflowRuns(options?: {
@@ -397,13 +451,16 @@ export class ShipSecApiClient {
     });
   }
 
-  async getWorkflowRunLogs(runId: string, options?: {
-    nodeRef?: string;
-    stream?: 'stdout' | 'stderr' | 'console';
-    level?: 'debug' | 'info' | 'warn' | 'error';
-    limit?: number;
-    cursor?: string;
-  }) {
+  async getWorkflowRunLogs(
+    runId: string,
+    options?: {
+      nodeRef?: string;
+      stream?: 'stdout' | 'stderr' | 'console';
+      level?: 'debug' | 'info' | 'warn' | 'error';
+      limit?: number;
+      cursor?: string;
+    },
+  ) {
     return this.client.GET('/api/v1/workflows/runs/{runId}/logs', {
       params: {
         path: { runId },
@@ -570,7 +627,7 @@ export class ShipSecApiClient {
   }
 
   // ===== Files =====
-  
+
   async listFiles(limit: number = 100) {
     return this.client.GET('/api/v1/files', {
       params: {
@@ -582,7 +639,7 @@ export class ShipSecApiClient {
   async uploadFile(file: File) {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     // Use the typed client - it will automatically apply middleware (including auth headers)
     // For multipart/form-data, openapi-fetch accepts FormData directly
     return this.client.POST('/api/v1/files/upload', {
@@ -600,16 +657,16 @@ export class ShipSecApiClient {
   async downloadFile(id: string): Promise<Blob> {
     // Use the typed client - it will automatically apply middleware (including auth headers)
     // For blob responses, openapi-fetch returns the blob directly or in a response object
-    const response = await this.client.GET('/api/v1/files/{id}/download', {
+    const response = (await this.client.GET('/api/v1/files/{id}/download', {
       params: { path: { id } },
       parseAs: 'blob', // Request blob response for binary data
-    }) as any; // Type assertion needed as parseAs: 'blob' changes the response type
-    
+    })) as any; // Type assertion needed as parseAs: 'blob' changes the response type
+
     // Handle both response.data and direct blob response
     if (response?.error) {
       throw new Error(`Failed to download file: ${String(response.error)}`);
     }
-    
+
     return (response?.data ?? response) as Blob;
   }
 
@@ -620,7 +677,7 @@ export class ShipSecApiClient {
   }
 
   // ===== Components =====
-  
+
   async listComponents() {
     return this.client.GET('/api/v1/components');
   }
@@ -693,7 +750,8 @@ export class ShipSecApiClient {
         query: {
           limit: options?.limit?.toString(), // API expects string for some reason? No, schema says regex string or transformed number. Let's pass as is if typed correctly or string. DTO schema accepts string.
           offset: options?.offset?.toString(),
-          isActive: options?.isActive === undefined ? undefined : (options.isActive ? 'true' : 'false'),
+          isActive:
+            options?.isActive === undefined ? undefined : options.isActive ? 'true' : 'false',
         },
       },
     });
@@ -824,10 +882,18 @@ export class ShipSecApiClient {
     return this.client.GET('/api/v1/integrations/aws/setup-info');
   }
 
-  async createAwsIntegrationConnection(
-    body: components['schemas']['CreateAwsConnectionDto'],
-  ) {
+  async getGcpSetupInfo() {
+    return this.client.GET('/api/v1/integrations/gcp/setup-info');
+  }
+
+  async createAwsIntegrationConnection(body: components['schemas']['CreateAwsConnectionDto']) {
     return this.client.POST('/api/v1/integrations/aws/connections', {
+      body,
+    });
+  }
+
+  async createAwsAccessKeyIntegrationConnection(body: CreateAwsAccessKeyConnectionPayload) {
+    return this.client.POST('/api/v1/integrations/aws/connections/access-key', {
       body,
     });
   }
@@ -858,14 +924,35 @@ export class ShipSecApiClient {
     });
   }
 
-  async createJiraForgeIntegrationConnection(body: {
-    displayName: string;
-    webTriggerUrl: string;
-    sharedSecret?: string;
-  }) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (this.client as any).POST('/api/v1/integrations/jira/connections', {
+  async createJiraForgeIntegrationConnection(body: CreateJiraForgeConnectionPayload) {
+    return this.client.POST('/api/v1/integrations/jira/connections', {
       body,
+    });
+  }
+
+  async createGcpIntegrationConnection(body: CreateGcpConnectionPayload) {
+    return this.client.POST('/api/v1/integrations/gcp/connections', {
+      body,
+    });
+  }
+
+  async createGcpServiceAccountKeyIntegrationConnection(
+    body: CreateGcpServiceAccountKeyConnectionPayload,
+  ) {
+    return this.client.POST('/api/v1/integrations/gcp/connections/service-account-key', {
+      body,
+    });
+  }
+
+  async validateGcpIntegrationConnection(id: string) {
+    return this.client.POST('/api/v1/integrations/gcp/connections/{id}/validate', {
+      params: { path: { id } },
+    });
+  }
+
+  async discoverGcpProjects(id: string) {
+    return this.client.POST('/api/v1/integrations/gcp/connections/{id}/discover-projects', {
+      params: { path: { id } },
     });
   }
 
@@ -1014,6 +1101,24 @@ export class ShipSecApiClient {
     });
   }
 
+  async getAnalyticsTimeSeries(body: TimeSeriesPayload) {
+    return this.client.POST('/api/v1/analytics/time-series', {
+      body,
+    });
+  }
+
+  async getAnalyticsLifecycle(body: LifecyclePayload) {
+    return this.client.POST('/api/v1/analytics/lifecycle', {
+      body,
+    });
+  }
+
+  async getAnalyticsScannerSeverityCounts(body: ScannerSeverityCountsPayload) {
+    return this.client.POST('/api/v1/analytics/scanner-severity-counts', {
+      body,
+    });
+  }
+
   async getAnalyticsProwlerChecksMetadata() {
     return this.client.GET('/api/v1/analytics/prowler-checks-metadata');
   }
@@ -1099,6 +1204,10 @@ export class ShipSecApiClient {
     return this.client.GET('/api/v1/mcp-servers/tools');
   }
 
+  async listMcpServerTemplates() {
+    return this.client.GET('/api/v1/mcp-servers/templates');
+  }
+
   async listMcpServerHealth() {
     return this.client.GET('/api/v1/mcp-servers/health');
   }
@@ -1131,6 +1240,13 @@ export class ShipSecApiClient {
   async listMcpServerTools(id: string) {
     return this.client.GET('/api/v1/mcp-servers/{id}/tools', {
       params: { path: { id } },
+    });
+  }
+
+  async importMcpServerTemplate(slug: string, body: ImportMcpServerTemplatePayload) {
+    return this.client.POST('/api/v1/mcp-servers/templates/{slug}/import', {
+      params: { path: { slug } },
+      body,
     });
   }
 
@@ -1317,8 +1433,8 @@ export class ShipSecApiClient {
   }
 
   async resolveHumanInputByToken(
-    token: string, 
-    payload: components['schemas']['ResolveByTokenDto']
+    token: string,
+    payload: components['schemas']['ResolveByTokenDto'],
   ) {
     return this.client.POST('/api/v1/human-inputs/resolve/{token}', {
       params: { path: { token } },
@@ -1344,7 +1460,10 @@ export class ShipSecApiClient {
     });
   }
 
-  async updateWebhookConfiguration(id: string, payload: components['schemas']['UpdateWebhookRequestDto']) {
+  async updateWebhookConfiguration(
+    id: string,
+    payload: components['schemas']['UpdateWebhookRequestDto'],
+  ) {
     return this.client.PUT('/api/v1/webhooks/configurations/{id}', {
       params: { path: { id } },
       body: payload,
@@ -1360,7 +1479,7 @@ export class ShipSecApiClient {
   async deleteWebhookConfiguration(id: string) {
     return this.client.DELETE('/api/v1/webhooks/configurations/{id}', {
       params: { path: { id } },
-      });
+    });
   }
 
   async listDeliveries(id: string) {
@@ -1393,6 +1512,10 @@ export class ShipSecApiClient {
     return this.client.GET('/api/v1/github/repos/{id}/branches', {
       params: { path: { id } },
     });
+  }
+
+  async listGitHubQuickScanWorkflows() {
+    return this.client.GET('/api/v1/github/quick-scan-workflows');
   }
 
   async toggleGitHubRepositoryScans(id: string, body: ToggleGitHubRepositoryScansPayload) {
@@ -1490,15 +1613,178 @@ export class ShipSecApiClient {
     });
   }
 
+  async createAgentSkill(body: CreateAgentSkillPayload) {
+    return this.client.POST('/api/v1/agent-skills', {
+      body,
+    });
+  }
+
+  async updateAgentSkill(id: string, body: UpdateAgentSkillPayload) {
+    return this.client.PATCH('/api/v1/agent-skills/{id}', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  async deleteAgentSkill(id: string) {
+    return this.client.DELETE('/api/v1/agent-skills/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async toggleAgentSkill(id: string) {
+    return this.client.POST('/api/v1/agent-skills/{id}/toggle', {
+      params: { path: { id } },
+    });
+  }
+
+  async previewAgentSkill(id: string) {
+    return this.client.GET('/api/v1/agent-skills/{id}/preview', {
+      params: { path: { id } },
+    });
+  }
+
+  // ===== Security Wikis =====
+
+  async getSecurityWikiConfig() {
+    return this.client.GET('/api/v1/security-wikis/config');
+  }
+
+  async upsertSecurityWikiConfig(body: UpsertSecurityWikiConfigPayload) {
+    return this.client.POST('/api/v1/security-wikis/config', {
+      body,
+    });
+  }
+
+  async listSecurityWikiRuns() {
+    return this.client.GET('/api/v1/security-wikis/runs');
+  }
+
+  async getSecurityWikiTree() {
+    return this.client.GET('/api/v1/security-wikis/tree');
+  }
+
+  async getSecurityWikiFile(path: string) {
+    return this.client.GET('/api/v1/security-wikis/file', {
+      params: { query: { path } },
+    });
+  }
+
+  async runCodeWikiIngestion(body: RunCodeWikiIngestionPayload) {
+    return this.client.POST('/api/v1/security-wikis/runs/code', {
+      body,
+    });
+  }
+
+  // ===== Template Library =====
+
+  async listTemplates(query?: ListTemplatesQuery) {
+    return this.client.GET('/api/v1/templates', {
+      params: { query },
+    });
+  }
+
+  async getTemplate(id: string) {
+    return this.client.GET('/api/v1/templates/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async getTemplateCategories() {
+    return this.client.GET('/api/v1/templates/categories');
+  }
+
+  async getTemplateTags() {
+    return this.client.GET('/api/v1/templates/tags');
+  }
+
+  async getMyTemplates() {
+    return this.client.GET('/api/v1/templates/my');
+  }
+
+  async getTemplateRepoInfo() {
+    return this.client.GET('/api/v1/templates/repo-info');
+  }
+
+  async getTemplateSubmissions() {
+    return this.client.GET('/api/v1/templates/submissions');
+  }
+
+  async publishTemplate(body: PublishTemplatePayload) {
+    return this.client.POST('/api/v1/templates/publish', {
+      body,
+    });
+  }
+
+  async useTemplate(id: string, body: UseTemplatePayload) {
+    return this.client.POST('/api/v1/templates/{id}/use', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  async syncTemplates() {
+    return this.client.POST('/api/v1/templates/sync');
+  }
+
+  // ===== Security Ingestion =====
+
+  async listSecurityFindings(query?: Partial<ListSecurityFindingsQuery>) {
+    return this.client.GET('/api/v1/security-ingestion/findings', {
+      params: { query },
+    });
+  }
+
+  async getSecurityFinding(id: string) {
+    return this.client.GET('/api/v1/security-ingestion/findings/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async getSecurityFindingEvidence(id: string) {
+    return this.client.GET('/api/v1/security-ingestion/findings/{id}/evidence', {
+      params: { path: { id } },
+    });
+  }
+
+  async listSecurityFindingLinks(id: string) {
+    return this.client.GET('/api/v1/security-ingestion/findings/{id}/links', {
+      params: { path: { id } },
+    });
+  }
+
+  async recordSecurityFindingLink(id: string, body: RecordFindingLinkPayload) {
+    return this.client.POST('/api/v1/security-ingestion/findings/{id}/links', {
+      params: { path: { id } },
+      body,
+    });
+  }
+
+  async listSecurityThreatStories(query?: Partial<ListThreatStoriesQuery>) {
+    return this.client.GET('/api/v1/security-ingestion/threat-stories', {
+      params: { query },
+    });
+  }
+
+  async getSecurityThreatStory(id: string) {
+    return this.client.GET('/api/v1/security-ingestion/threat-stories/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async recordSecurityThreatStory(body: RecordThreatStoryPayload) {
+    return this.client.POST('/api/v1/security-ingestion/threat-stories', {
+      body,
+    });
+  }
+
   // ── Analytics Settings ─────────────────────────────────────────────────────
 
   async getAnalyticsSettings() {
     return this.client.GET('/api/v1/analytics/settings');
   }
 
-  async updateAnalyticsSettings(
-    body: components['schemas']['UpdateAnalyticsSettingsDto'],
-  ) {
+  async updateAnalyticsSettings(body: components['schemas']['UpdateAnalyticsSettingsDto']) {
     return this.client.PUT('/api/v1/analytics/settings', { body });
   }
 
