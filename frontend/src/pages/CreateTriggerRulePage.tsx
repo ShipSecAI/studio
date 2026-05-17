@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,10 +14,15 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Loader2, X, Plus } from 'lucide-react';
 import type { CreateTriggerRuleInput } from '@/store/githubStore';
-import { useCreateTriggerRule } from '@/hooks/queries/useGithubQueries';
+import {
+  useCreateTriggerRule,
+  useTriggerRules,
+  useUpdateTriggerRule,
+} from '@/hooks/queries/useGithubQueries';
 import { api } from '@/services/api';
 
 interface Workflow {
@@ -30,11 +35,16 @@ const PR_ACTIONS = ['opened', 'synchronize', 'reopened', 'closed'];
 type TriggerEvent = 'pull_request' | 'push' | 'repository_added';
 
 export default function CreateTriggerRulePage() {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const isEditing = Boolean(id);
+  const { data: triggerRules = [], isLoading: triggerRulesLoading } = useTriggerRules();
   const { mutateAsync: createTriggerRule } = useCreateTriggerRule();
+  const { mutateAsync: updateTriggerRule } = useUpdateTriggerRule();
 
   // Form state
+  const [loadingRule, setLoadingRule] = useState(isEditing);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [repositoryPattern, setRepositoryPattern] = useState('');
@@ -69,6 +79,35 @@ export default function CreateTriggerRulePage() {
     }
     fetchWorkflows();
   }, [toast]);
+
+  useEffect(() => {
+    if (!isEditing || !id) {
+      setLoadingRule(false);
+      return;
+    }
+    if (triggerRulesLoading) return;
+
+    const foundRule = triggerRules.find((r) => r.id === id);
+    if (!foundRule) {
+      toast({ title: 'Error', description: 'Trigger rule not found', variant: 'destructive' });
+      navigate('/github/triggers');
+      return;
+    }
+
+    setName(foundRule.name);
+    setDescription(foundRule.description || '');
+    setRepositoryPattern(foundRule.repositoryPattern);
+    setEvent(foundRule.event as TriggerEvent);
+    setActions(foundRule.actions);
+    setBranches(foundRule.branches);
+    setWorkflowId(foundRule.workflowId);
+    setPostPrComment(foundRule.postPrComment);
+    setPostPrReview(foundRule.postPrReview ?? false);
+    setCreateCheckRun(foundRule.createCheckRun);
+    setFailOn(foundRule.failOn || 'high');
+    setEnabled(foundRule.enabled);
+    setLoadingRule(false);
+  }, [id, isEditing, navigate, toast, triggerRules, triggerRulesLoading]);
 
   const handleActionToggle = (action: string) => {
     setActions((prev) =>
@@ -131,16 +170,47 @@ export default function CreateTriggerRulePage() {
         enabled,
       };
 
-      await createTriggerRule(input);
-      toast({ title: 'Success', description: 'Trigger rule created' });
+      if (isEditing && id) {
+        await updateTriggerRule({ id, input });
+        toast({ title: 'Success', description: 'Trigger rule updated' });
+      } else {
+        await createTriggerRule(input);
+        toast({ title: 'Success', description: 'Trigger rule created' });
+      }
       navigate('/github/triggers');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create trigger rule';
+      const message =
+        error instanceof Error
+          ? error.message
+          : isEditing
+            ? 'Failed to update trigger rule'
+            : 'Failed to create trigger rule';
       toast({ title: 'Error', description: message, variant: 'destructive' });
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (loadingRule) {
+    return (
+      <div className="container max-w-6xl py-8">
+        <div className="mb-6">
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-64 mt-2" />
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {[...Array(6)].map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container max-w-6xl py-8">
@@ -153,9 +223,11 @@ export default function CreateTriggerRulePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Create Trigger Rule</CardTitle>
+          <CardTitle>{isEditing ? 'Edit Trigger Rule' : 'Create Trigger Rule'}</CardTitle>
           <CardDescription>
-            Configure a rule to automatically trigger security scans when events occur.
+            {isEditing
+              ? 'Update the configuration for this trigger rule.'
+              : 'Configure a rule to automatically trigger security scans when events occur.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -392,7 +464,7 @@ export default function CreateTriggerRulePage() {
             <div className="flex gap-4 border-t pt-4">
               <Button type="submit" disabled={submitting}>
                 {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Create Rule
+                {isEditing ? 'Save Changes' : 'Create Rule'}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate('/github/triggers')}>
                 Cancel
