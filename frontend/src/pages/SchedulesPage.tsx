@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -62,6 +61,8 @@ import { CloudScanScheduleDialog } from '@/components/security/CloudScanSchedule
 import { CodeScanScheduleDialog } from '@/components/security/CodeScanScheduleDialog';
 import { AsmScheduleDialog } from '@/components/security/AsmScheduleDialog';
 import { CODE_SCHEDULE_SCANS, ASM_SCHEDULE_SCANS } from '@/components/security/constants';
+import { ACTIVE_STATUS_OPTIONS, formatDateTime, getWorkflowName } from './scheduled-surface-utils';
+import { ScheduledStatusBadge } from './ScheduledStatusBadge';
 
 const CLOUD_SCAN_TYPES = [
   {
@@ -87,35 +88,7 @@ const CLOUD_SCAN_TYPES = [
   },
 ];
 
-const STATUS_OPTIONS = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'paused', label: 'Paused' },
-  { value: 'error', label: 'Error' },
-];
-
-const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  active: 'default',
-  paused: 'secondary',
-  error: 'destructive',
-};
-
-const formatDateTime = (value?: string | null) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    timeZoneName: 'short',
-  }).format(date);
-};
-
-const getWorkflowName = (workflowId: string, workflows: WorkflowOption[]): string => {
-  const match = workflows.find((workflow) => workflow.id === workflowId);
-  return match?.name ?? 'Unknown workflow';
-};
+const STATUS_OPTIONS = [...ACTIVE_STATUS_OPTIONS.filter((option) => option.value !== 'inactive')];
 
 export function SchedulesPage() {
   const { toast } = useToast();
@@ -349,11 +322,6 @@ export function SchedulesPage() {
   };
 
   const isActionBusy = (id: string) => Boolean(actionState[id]);
-  const renderStatusBadge = (status: string) => {
-    const variant = STATUS_VARIANTS[status] || 'outline';
-    const label = status.charAt(0).toUpperCase() + status.slice(1);
-    return <Badge variant={variant}>{label}</Badge>;
-  };
 
   const hasData = filteredSchedules.length > 0;
 
@@ -555,7 +523,9 @@ export function SchedulesPage() {
                                 </TooltipContent>
                               </Tooltip>
                             </TableCell>
-                            <TableCell>{renderStatusBadge(schedule.status)}</TableCell>
+                            <TableCell>
+                              <ScheduledStatusBadge status={schedule.status} />
+                            </TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <Tooltip>

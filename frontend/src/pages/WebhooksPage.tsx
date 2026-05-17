@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -32,6 +31,8 @@ import { useWorkflowsSummary } from '@/hooks/queries/useWorkflowQueries';
 import { useQueryClient } from '@tanstack/react-query';
 import { env } from '@/config/env';
 import type { WebhookConfiguration } from '@shipsec/shared';
+import { ACTIVE_STATUS_OPTIONS, formatDateTime, getWorkflowName } from './scheduled-surface-utils';
+import { ScheduledStatusBadge } from './ScheduledStatusBadge';
 
 interface WorkflowOption {
   id: string;
@@ -39,33 +40,10 @@ interface WorkflowOption {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
+  ...ACTIVE_STATUS_OPTIONS.filter(
+    (option) => option.value !== 'paused' && option.value !== 'error',
+  ),
 ];
-
-const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  active: 'default',
-  inactive: 'secondary',
-  error: 'destructive',
-};
-
-const formatDateTime = (value?: string | null) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    timeZoneName: 'short',
-  }).format(date);
-};
-
-const getWorkflowName = (workflowId: string, workflows: WorkflowOption[]): string => {
-  const match = workflows.find((workflow) => workflow.id === workflowId);
-  return match?.name ?? 'Unknown workflow';
-};
 
 const WEBHOOK_BASE_URL = env.VITE_API_URL || 'https://api.shipsec.ai';
 
@@ -161,12 +139,6 @@ export function WebhooksPage() {
         variant: 'destructive',
       });
     }
-  };
-
-  const renderStatusBadge = (status: string) => {
-    const variant = STATUS_VARIANTS[status] || 'outline';
-    const label = status.charAt(0).toUpperCase() + status.slice(1);
-    return <Badge variant={variant}>{label}</Badge>;
   };
 
   const isActionBusy = (id: string) => Boolean(actionState[id]);
@@ -423,7 +395,9 @@ export function WebhooksPage() {
                           <TableCell className="text-sm hidden lg:table-cell">
                             {formatDateTime(webhook.createdAt)}
                           </TableCell>
-                          <TableCell>{renderStatusBadge(webhook.status)}</TableCell>
+                          <TableCell>
+                            <ScheduledStatusBadge status={webhook.status} />
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1 md:gap-2">
                               <Tooltip>
