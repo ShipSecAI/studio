@@ -1,6 +1,7 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { api } from '@/services/api';
+import type { components } from '../../../../packages/backend-client/src/client';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -174,9 +175,9 @@ export function useAsmAssets(filters: {
   return useQuery({
     queryKey: queryKeys.asm.assets(filters),
     queryFn: async () => {
-      const queryFilters: { field: string; op: string; value?: unknown }[] = [
-        { field: 'scanner', op: 'in', value: filters.scanner ?? ['dnsx', 'httpx'] },
-      ];
+      const queryFilters: NonNullable<
+        components['schemas']['AnalyticsQueryRequestDto']['filters']
+      > = [{ field: 'scanner', op: 'in', value: filters.scanner ?? ['dnsx', 'httpx'] }];
       if (filters.search) {
         queryFilters.push({ field: 'asset_key', op: 'like', value: filters.search });
       }

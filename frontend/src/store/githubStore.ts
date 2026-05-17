@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { API_BASE_URL } from '@/services/api';
+import { api } from '@/services/api';
 
 // Types
 export interface GitHubInstallation {
@@ -279,28 +279,12 @@ const createInitialState = (): GitHubStoreState => ({
   lastFetched: {},
 });
 
-async function fetchWithHeaders(url: string, options: RequestInit = {}): Promise<Response> {
-  const { getApiAuthHeaders } = await import('@/services/api');
-  const headers = await getApiAuthHeaders();
-
-  return fetch(url, {
-    ...options,
-    headers: {
-      ...headers,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-}
-
 export const useGitHubStore = create<GitHubStore>((set, get) => ({
   ...createInitialState(),
 
   fetchStatus: async () => {
     try {
-      const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/status`);
-      if (!response.ok) throw new Error('Failed to fetch GitHub status');
-      const data = await response.json();
+      const data = await api.github.getStatus();
       set({
         isConfigured: data.configured,
         installUrl: data.installUrl,
@@ -324,9 +308,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
     set({ systemWorkflowsLoading: true });
 
     try {
-      const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/quick-scan-workflows`);
-      if (!response.ok) throw new Error('Failed to fetch system workflows');
-      const systemWorkflows = await response.json();
+      const systemWorkflows = await api.github.listQuickScanWorkflows();
       set({
         systemWorkflows,
         systemWorkflowsLoading: false,
@@ -351,9 +333,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
     set({ installationsLoading: true, error: null });
 
     try {
-      const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/installations`);
-      if (!response.ok) throw new Error('Failed to fetch installations');
-      const installations = await response.json();
+      const installations = await api.github.listInstallations();
       set({
         installations,
         installationsLoading: false,
@@ -368,12 +348,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
   },
 
   setupInstallation: async (installationId: number) => {
-    const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/installations/setup`, {
-      method: 'POST',
-      body: JSON.stringify({ installationId }),
-    });
-    if (!response.ok) throw new Error('Failed to setup installation');
-    const installation = await response.json();
+    const installation = await api.github.setupInstallation(installationId);
 
     // Force refresh installations and repositories
     await get().fetchInstallations({ force: true });
@@ -394,9 +369,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
     set({ repositoriesLoading: true, error: null });
 
     try {
-      const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/repos`);
-      if (!response.ok) throw new Error('Failed to fetch repositories');
-      const repositories = await response.json();
+      const repositories = await api.github.listRepositories();
       set({
         repositories,
         repositoriesLoading: false,
@@ -411,12 +384,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
   },
 
   toggleRepoScans: async (id, enabled) => {
-    const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/repos/${id}/scans`, {
-      method: 'PATCH',
-      body: JSON.stringify({ enabled }),
-    });
-    if (!response.ok) throw new Error('Failed to update repository');
-    const repo = await response.json();
+    const repo = await api.github.toggleRepoScans(id, enabled);
 
     set((state) => ({
       repositories: state.repositories.map((r) => (r.id === id ? repo : r)),
@@ -429,11 +397,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
     set({ repositoriesLoading: true, error: null });
 
     try {
-      const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/repos/sync`, {
-        method: 'POST',
-      });
-      if (!response.ok) throw new Error('Failed to sync repositories');
-      const result = await response.json();
+      const result = await api.github.syncRepositories();
 
       // Refetch repositories after sync
       await get().fetchRepositories({ force: true });
@@ -458,9 +422,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
     set({ triggerRulesLoading: true, error: null });
 
     try {
-      const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/triggers`);
-      if (!response.ok) throw new Error('Failed to fetch trigger rules');
-      const triggerRules = await response.json();
+      const triggerRules = await api.github.listTriggerRules();
       set({
         triggerRules,
         triggerRulesLoading: false,
@@ -475,12 +437,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
   },
 
   createTriggerRule: async (input) => {
-    const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/triggers`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    });
-    if (!response.ok) throw new Error('Failed to create trigger rule');
-    const rule = await response.json();
+    const rule = await api.github.createTriggerRule(input);
 
     set((state) => ({
       triggerRules: [...state.triggerRules, rule],
@@ -490,12 +447,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
   },
 
   updateTriggerRule: async (id, input) => {
-    const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/triggers/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(input),
-    });
-    if (!response.ok) throw new Error('Failed to update trigger rule');
-    const rule = await response.json();
+    const rule = await api.github.updateTriggerRule(id, input);
 
     set((state) => ({
       triggerRules: state.triggerRules.map((r) => (r.id === id ? rule : r)),
@@ -505,10 +457,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
   },
 
   deleteTriggerRule: async (id) => {
-    const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/triggers/${id}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) throw new Error('Failed to delete trigger rule');
+    await api.github.deleteTriggerRule(id);
 
     set((state) => ({
       triggerRules: state.triggerRules.filter((r) => r.id !== id),
@@ -585,19 +534,15 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
     }
 
     try {
-      const params = new URLSearchParams();
-      if (options?.repositoryId) params.set('repositoryId', options.repositoryId);
-      if (options?.status) params.set('status', options.status);
-      if (options?.source) params.set('source', options.source);
-      if (options?.scheduleId) params.set('scheduleId', options.scheduleId);
-      if (options?.triggerRuleId) params.set('triggerRuleId', options.triggerRuleId);
-      params.set('limit', String(limit + 1));
-      if (offset > 0) params.set('offset', String(offset));
-
-      const url = `${API_BASE_URL}/api/v1/github/scans${params.toString() ? `?${params}` : ''}`;
-      const response = await fetchWithHeaders(url);
-      if (!response.ok) throw new Error('Failed to fetch scan results');
-      const rows = (await response.json()) as GitHubScanResult[];
+      const rows = (await api.github.listScans({
+        repositoryId: options?.repositoryId,
+        status: options?.status,
+        source: options?.source,
+        scheduleId: options?.scheduleId,
+        triggerRuleId: options?.triggerRuleId,
+        limit: limit + 1,
+        offset: offset > 0 ? offset : undefined,
+      })) as GitHubScanResult[];
       const hasMore = rows.length > limit;
       const scanResults = hasMore ? rows.slice(0, limit) : rows;
 
@@ -643,9 +588,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
       return cached.data;
     }
 
-    const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/scans/${id}`);
-    if (!response.ok) throw new Error('Failed to fetch scan result');
-    const data = await response.json();
+    const data = (await api.github.getScan(id)) as GitHubScanResult;
 
     set((state) => ({
       scanDetailCache: {
@@ -663,18 +606,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
       body.branch = branch;
     }
 
-    const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/repos/${repoId}/scan`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const message = errorData.message || 'Failed to trigger scan';
-      throw new Error(message);
-    }
-
-    const data = await response.json();
+    const data = await api.github.triggerScan(repoId, body);
     return { scanId: data.scanId, runId: data.runId };
   },
 
@@ -691,11 +623,7 @@ export const useGitHubStore = create<GitHubStore>((set, get) => ({
     set({ branchesLoading: repoId });
 
     try {
-      const response = await fetchWithHeaders(
-        `${API_BASE_URL}/api/v1/github/repos/${repoId}/branches`,
-      );
-      if (!response.ok) throw new Error('Failed to fetch branches');
-      const branches = await response.json();
+      const branches = await api.github.listBranches(repoId);
       set({
         branchesByRepo: { ...get().branchesByRepo, [repoId]: branches },
         branchesLoading: null,

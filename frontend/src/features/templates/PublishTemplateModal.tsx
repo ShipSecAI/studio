@@ -29,8 +29,9 @@ import {
   Copy,
   ClipboardCheck,
 } from 'lucide-react';
-import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
+import { api } from '@/services/api';
 import { cn } from '@/lib/utils';
+import type { components } from '../../../../packages/backend-client/src/client';
 
 interface PublishTemplateModalProps {
   workflowId: string;
@@ -75,13 +76,7 @@ const COMMON_TAGS = [
   'detection',
 ];
 
-interface WorkflowResponse {
-  id: string;
-  name: string;
-  description?: string;
-  manifest: Record<string, unknown>;
-  graph: Record<string, unknown>;
-}
+type WorkflowResponse = components['schemas']['WorkflowResponseDto'];
 
 interface TemplateMetadata {
   name: string;
@@ -94,14 +89,14 @@ interface TemplateMetadata {
 
 interface TemplateJson {
   _metadata: TemplateMetadata;
-  graph: Record<string, unknown>;
+  graph: unknown;
   requiredSecrets: { name: string; type: string; description?: string }[];
 }
 
 /**
  * Sanitize secrets from the workflow graph by replacing secret references with placeholders
  */
-function sanitizeGraphForTemplate(graph: Record<string, unknown>): Record<string, unknown> {
+function sanitizeGraphForTemplate(graph: unknown): unknown {
   const sanitized = JSON.parse(JSON.stringify(graph)); // Deep clone
 
   // Helper to recursively sanitize secret references
@@ -144,14 +139,14 @@ function sanitizeGraphForTemplate(graph: Record<string, unknown>): Record<string
     return obj;
   };
 
-  return traverseAndSanitize(sanitized) as Record<string, unknown>;
+  return traverseAndSanitize(sanitized);
 }
 
 /**
  * Extract secret requirements from the graph for documentation
  */
 function extractRequiredSecrets(
-  graph: Record<string, unknown>,
+  graph: unknown,
 ): { name: string; type: string; description?: string }[] {
   const secrets = new Map<string, { type: string; description?: string }>();
 
@@ -196,8 +191,11 @@ function extractRequiredSecrets(
  * Viewport is a UI layout hint and not needed for the template's functionality.
  * Note: Node positions are preserved because WorkflowGraphSchema requires them.
  */
-function stripLayoutData(graph: Record<string, unknown>): Record<string, unknown> {
-  const stripped = { ...graph };
+function stripLayoutData(graph: unknown): unknown {
+  if (typeof graph !== 'object' || graph === null || Array.isArray(graph)) {
+    return graph;
+  }
+  const stripped: Record<string, unknown> = { ...graph };
   delete stripped.viewport;
   return stripped;
 }
@@ -301,16 +299,7 @@ export function PublishTemplateModal({
       }
 
       try {
-        // Fetch the workflow data from the backend
-        const headers = await getApiAuthHeaders();
-        const response = await fetch(`${API_BASE_URL}/api/v1/workflows/${workflowId}`, {
-          headers,
-        });
-        if (!response.ok) {
-          throw new Error('Failed to fetch workflow data');
-        }
-
-        const workflow: WorkflowResponse = await response.json();
+        const workflow = await api.workflows.get(workflowId);
 
         // Generate the template JSON
         const metadata: TemplateMetadata = {
@@ -341,16 +330,10 @@ export function PublishTemplateModal({
         let repo: string;
         let branch: string;
         try {
-          const repoInfoRes = await fetch(`${API_BASE_URL}/api/v1/templates/repo-info`);
-          if (repoInfoRes.ok) {
-            const repoInfo = await repoInfoRes.json();
-            owner = repoInfo.owner;
-            repo = repoInfo.repo;
-            branch = repoInfo.branch;
-          } else {
-            [owner, repo] = DEFAULT_GITHUB_TEMPLATE_REPO.split('/');
-            branch = DEFAULT_GITHUB_BRANCH;
-          }
+          const repoInfo = await api.templates.getRepoInfo();
+          owner = repoInfo.owner;
+          repo = repoInfo.repo;
+          branch = repoInfo.branch;
         } catch {
           [owner, repo] = DEFAULT_GITHUB_TEMPLATE_REPO.split('/');
           branch = DEFAULT_GITHUB_BRANCH;

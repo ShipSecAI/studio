@@ -1,110 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { CreateMcpServer, UpdateMcpServer } from '@shipsec/shared';
-import { getApiAuthHeaders, API_BASE_URL } from '@/services/api';
+import { api } from '@/services/api';
 import { mcpDiscoveryApi } from '@/services/mcpDiscoveryApi';
 import { queryKeys } from '@/lib/queryKeys';
+import type { components } from '@shipsec/backend-client';
 
 // Re-export types that consumers need
-export interface McpServerResponse {
-  id: string;
-  name: string;
-  description?: string | null;
-  transportType: 'http' | 'stdio';
-  runtimeType: 'docker' | 'host';
-  endpoint?: string | null;
-  command?: string | null;
-  args?: string[] | null;
-  hasHeaders: boolean;
-  headerKeys?: string[] | null;
-  enabled: boolean;
-  healthCheckUrl?: string | null;
-  lastHealthCheck?: string | null;
-  lastHealthStatus?: import('@shipsec/shared').McpHealthStatus | null;
-  createdAt: string;
-  updatedAt: string;
-  groupId?: string | null;
-  templateSlug?: string | null;
-  githubInstallationId?: number | null;
-  templateHash?: string | null;
-  templateConfig?: Record<string, unknown> | null;
-}
-
-export interface McpServerTemplateResponse {
-  slug: string;
-  name: string;
-  description?: string | null;
-  transportType: 'http' | 'stdio';
-  runtimeType: 'docker' | 'host';
-  authSource: 'none' | 'github_app';
-  docsUrl?: string | null;
-  icon?: string | null;
-  supportsReadOnly?: boolean;
-  readOnlyDisabledTools?: string[];
-  supportsDynamicToolsets?: boolean;
-  availableToolsets?: string[];
-  defaultToolsets?: string[];
-  defaultTools?: string[];
-  importedServerId?: string | null;
-  version: {
-    major: number;
-    minor: number;
-    patch: number;
-  };
-}
-
-export interface ImportMcpServerTemplateInput {
-  name?: string;
-  description?: string;
-  github?: {
-    installationId: number;
-    readOnly?: boolean;
-    toolsets?: string[];
-    tools?: string[];
-    dynamicToolsets?: boolean;
-    githubHost?: string;
-  };
-}
-
-export interface ImportMcpServerTemplateResponse {
-  action: 'created' | 'updated';
-  server: McpServerResponse;
-}
-
-export interface McpToolResponse {
-  id: string;
-  toolName: string;
-  description?: string | null;
-  inputSchema?: Record<string, unknown> | null;
-  serverId: string;
-  serverName: string;
-  enabled: boolean;
-  discoveredAt: string;
-}
-
-async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const headers = await getApiAuthHeaders();
-  const { signal, ...restOptions } = options;
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...restOptions,
-    signal,
-    headers: {
-      ...headers,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Request failed' }));
-    throw new Error(error.message || `Request failed: ${response.status}`);
-  }
-  if (response.status === 204) return undefined as T;
-  return response.json();
-}
+export type McpServerResponse = components['schemas']['McpServerResponseDto'];
+export type McpServerTemplateResponse = components['schemas']['McpServerTemplateDto'];
+export type ImportMcpServerTemplateInput = components['schemas']['ImportMcpServerTemplateDto'];
+export type ImportMcpServerTemplateResponse =
+  components['schemas']['ImportMcpServerTemplateResponseDto'];
+export type McpToolResponse = components['schemas']['McpToolResponseDto'];
+export type CreateMcpServer = components['schemas']['CreateMcpServerDto'];
+export type UpdateMcpServer = components['schemas']['UpdateMcpServerDto'];
 
 export function useMcpServers() {
   return useQuery({
     queryKey: queryKeys.mcpServers.all(),
-    queryFn: () => apiRequest<McpServerResponse[]>('/api/v1/mcp-servers'),
+    queryFn: () => api.mcpServers.list(),
     staleTime: 120_000,
   });
 }
@@ -112,7 +25,7 @@ export function useMcpServers() {
 export function useMcpServerTemplates() {
   return useQuery({
     queryKey: queryKeys.mcpServers.templates(),
-    queryFn: () => apiRequest<McpServerTemplateResponse[]>('/api/v1/mcp-servers/templates'),
+    queryFn: () => api.mcpServers.listTemplates(),
     staleTime: Infinity,
     gcTime: Infinity,
   });
@@ -121,7 +34,7 @@ export function useMcpServerTemplates() {
 export function useMcpAllTools() {
   return useQuery({
     queryKey: queryKeys.mcpServers.tools(),
-    queryFn: () => apiRequest<McpToolResponse[]>('/api/v1/mcp-servers/tools'),
+    queryFn: () => api.mcpServers.listTools(),
     staleTime: 120_000,
   });
 }
@@ -129,11 +42,7 @@ export function useMcpAllTools() {
 export function useCreateMcpServer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateMcpServer) =>
-      apiRequest<McpServerResponse>('/api/v1/mcp-servers', {
-        method: 'POST',
-        body: JSON.stringify(input),
-      }),
+    mutationFn: (input: CreateMcpServer) => api.mcpServers.create(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
     },
@@ -144,10 +53,7 @@ export function useImportMcpServerTemplate() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ slug, input }: { slug: string; input: ImportMcpServerTemplateInput }) =>
-      apiRequest<ImportMcpServerTemplateResponse>(`/api/v1/mcp-servers/templates/${slug}/import`, {
-        method: 'POST',
-        body: JSON.stringify(input),
-      }),
+      api.mcpServers.importTemplate(slug, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
       qc.invalidateQueries({ queryKey: queryKeys.mcpServers.templates() });
@@ -160,10 +66,7 @@ export function useUpdateMcpServer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateMcpServer }) =>
-      apiRequest<McpServerResponse>(`/api/v1/mcp-servers/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(input),
-      }),
+      api.mcpServers.update(id, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
     },
@@ -173,7 +76,7 @@ export function useUpdateMcpServer() {
 export function useDeleteMcpServer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiRequest(`/api/v1/mcp-servers/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => api.mcpServers.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
       qc.invalidateQueries({ queryKey: queryKeys.mcpServers.tools() });
@@ -184,10 +87,7 @@ export function useDeleteMcpServer() {
 export function useToggleMcpServer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiRequest<McpServerResponse>(`/api/v1/mcp-servers/${id}/toggle`, {
-        method: 'POST',
-      }),
+    mutationFn: (id: string) => api.mcpServers.toggle(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
     },
@@ -196,19 +96,14 @@ export function useToggleMcpServer() {
 
 export function useTestMcpConnection() {
   return useMutation({
-    mutationFn: (id: string) =>
-      apiRequest<{ success: boolean; message?: string; toolCount?: number }>(
-        `/api/v1/mcp-servers/${id}/test`,
-        { method: 'POST' },
-      ),
+    mutationFn: (id: string) => api.mcpServers.test(id),
   });
 }
 
 export function useFetchServerTools() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (serverId: string) =>
-      apiRequest<McpToolResponse[]>(`/api/v1/mcp-servers/${serverId}/tools`),
+    mutationFn: (serverId: string) => api.mcpServers.listServerTools(serverId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.mcpServers.tools() });
     },
@@ -219,9 +114,7 @@ export function useToggleMcpTool() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ serverId, toolId }: { serverId: string; toolId: string }) =>
-      apiRequest<McpToolResponse>(`/api/v1/mcp-servers/${serverId}/tools/${toolId}/toggle`, {
-        method: 'POST',
-      }),
+      api.mcpServers.toggleTool(serverId, toolId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.mcpServers.tools() });
     },

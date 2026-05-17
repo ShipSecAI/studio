@@ -5,10 +5,64 @@ interface WorkflowPreviewProps {
   className?: string;
 }
 
+interface PreviewNode {
+  id: string;
+  type?: string;
+  position?: { x?: number; y?: number };
+  data?: {
+    label?: string;
+    componentId?: string;
+    componentSlug?: string;
+  };
+}
+
+interface PreviewEdge {
+  id?: string;
+  source: string;
+  target: string;
+}
+
+interface PositionedNode {
+  id: string;
+  x: number;
+  y: number;
+  label: string;
+  isEntry: boolean;
+}
+
+interface EdgePath {
+  key: string;
+  d: string;
+}
+
 const NODE_W = 160;
 const NODE_H = 52;
 const HEADER_H = 24;
 const PAD = 40;
+
+function getArrayProperty<T>(
+  value: Record<string, unknown> | undefined,
+  key: string,
+  guard: (item: unknown) => item is T,
+): T[] {
+  const raw = value?.[key];
+  return Array.isArray(raw) ? raw.filter(guard) : [];
+}
+
+function isPreviewNode(value: unknown): value is PreviewNode {
+  return (
+    typeof value === 'object' && value !== null && typeof Reflect.get(value, 'id') === 'string'
+  );
+}
+
+function isPreviewEdge(value: unknown): value is PreviewEdge {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof Reflect.get(value, 'source') === 'string' &&
+    typeof Reflect.get(value, 'target') === 'string'
+  );
+}
 
 /**
  * Renders a miniature SVG preview of a workflow graph.
@@ -17,9 +71,8 @@ const PAD = 40;
  */
 export function WorkflowPreview({ graph, className }: WorkflowPreviewProps) {
   const svgContent = useMemo(() => {
-    const graphData = graph as any;
-    const rawNodes: any[] = graphData?.nodes || [];
-    const rawEdges: any[] = graphData?.edges || [];
+    const rawNodes = getArrayProperty(graph, 'nodes', isPreviewNode);
+    const rawEdges = getArrayProperty(graph, 'edges', isPreviewEdge);
 
     // Filter out terminal nodes
     const nodes = rawNodes.filter((n) => n.type !== 'terminal');
@@ -35,7 +88,7 @@ export function WorkflowPreview({ graph, className }: WorkflowPreviewProps) {
       maxX = -Infinity,
       maxY = -Infinity;
 
-    const positioned = nodes.map((node) => {
+    const positioned: PositionedNode[] = nodes.map((node) => {
       const x = node.position?.x ?? 0;
       const y = node.position?.y ?? 0;
       minX = Math.min(minX, x);
@@ -66,8 +119,8 @@ export function WorkflowPreview({ graph, className }: WorkflowPreviewProps) {
     const nodeMap = new Map(positioned.map((n) => [n.id, n]));
 
     // Generate bezier edge paths (from right-center of source to left-center of target)
-    const edgePaths = edges
-      .map((edge: any) => {
+    const edgePaths: EdgePath[] = edges
+      .map((edge) => {
         const s = nodeMap.get(edge.source);
         const t = nodeMap.get(edge.target);
         if (!s || !t) return null;
@@ -83,7 +136,7 @@ export function WorkflowPreview({ graph, className }: WorkflowPreviewProps) {
           d: `M${sx},${sy} C${sx + dx},${sy} ${tx - dx},${ty} ${tx},${ty}`,
         };
       })
-      .filter(Boolean);
+      .filter((edge): edge is EdgePath => Boolean(edge));
 
     return { viewBox, positioned, edgePaths };
   }, [graph]);
@@ -117,7 +170,7 @@ export function WorkflowPreview({ graph, className }: WorkflowPreviewProps) {
       </defs>
 
       {/* Edges */}
-      {edgePaths.map((edge: any) => (
+      {edgePaths.map((edge) => (
         <path
           key={edge.key}
           d={edge.d}

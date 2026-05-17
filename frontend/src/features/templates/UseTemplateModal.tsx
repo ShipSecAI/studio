@@ -73,7 +73,7 @@ export function UseTemplateModal({
         workflowName,
         secretMappings: requiredSecrets.length > 0 ? secretMappings : undefined,
       });
-      const workflowId = result.workflow?.id ?? result.workflowId;
+      const workflowId = result.workflow.id;
       if (!workflowId) {
         throw new Error('Template created without a workflow id');
       }

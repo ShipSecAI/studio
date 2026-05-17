@@ -1095,22 +1095,11 @@ function TriggerRulesTab() {
     setRecentTriggersError(null);
     updateTriggerParams({ trRunsQ: null });
 
-    import('@/services/api')
-      .then(({ API_BASE_URL, getApiAuthHeaders }) =>
-        getApiAuthHeaders().then((headers) => {
-          const params = new URLSearchParams({ triggerRuleId: selectedRuleId, limit: '26' });
-          return fetch(`${API_BASE_URL}/api/v1/github/scans?${params}`, {
-            headers: { ...headers, 'Content-Type': 'application/json' },
-          });
-        }),
-      )
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to load rule trigger history.');
-        return res.json() as Promise<GitHubScanResult[]>;
-      })
+    api.github
+      .listScans({ triggerRuleId: selectedRuleId, limit: 26 })
       .then((rows) => {
         if (cancelled) return;
-        setRecentTriggers(rows.slice(0, 25));
+        setRecentTriggers((rows as GitHubScanResult[]).slice(0, 25));
       })
       .catch((error) => {
         if (cancelled) return;

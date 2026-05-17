@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
+import { api } from '@/services/api';
 
 export interface ChatSession {
   id: string;
@@ -126,24 +126,6 @@ interface ChatState {
   getCurrentSession: () => ChatSession | null;
 }
 
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const headers = await getApiAuthHeaders();
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers,
-      ...options?.headers,
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`API error: ${res.status}`);
-  }
-  // DELETE returns 200 with { success: true }, handle empty/non-JSON
-  const text = await res.text();
-  return text ? JSON.parse(text) : ({} as T);
-}
-
 export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => ({
@@ -167,7 +149,7 @@ export const useChatStore = create<ChatState>()(
       loadSessions: async () => {
         set({ isLoadingSessions: true });
         try {
-          const sessions = await fetchJson<ChatSession[]>(`${API_V1_URL}/chat/sessions`);
+          const sessions = (await api.chat.listSessions()) as ChatSession[];
           // Clear currentSessionId if it points to a deleted session
           const { currentSessionId } = get();
           const sessionExists =
@@ -183,10 +165,7 @@ export const useChatStore = create<ChatState>()(
       },
 
       createSession: async (title?: string) => {
-        const session = await fetchJson<ChatSession>(`${API_V1_URL}/chat/sessions`, {
-          method: 'POST',
-          body: JSON.stringify(title ? { title } : {}),
-        });
+        const session = (await api.chat.createSession(title ? { title } : {})) as ChatSession;
         set((state) => ({
           sessions: [session, ...state.sessions.filter((s) => s.id !== session.id)],
           currentSessionId: session.id,
@@ -195,7 +174,7 @@ export const useChatStore = create<ChatState>()(
       },
 
       deleteSession: async (id) => {
-        await fetchJson(`${API_V1_URL}/chat/sessions/${id}`, { method: 'DELETE' });
+        await api.chat.deleteSession(id);
         set((state) => {
           const filteredSessions = state.sessions.filter((s) => s.id !== id);
           const newCurrentId =
@@ -242,10 +221,7 @@ export const useChatStore = create<ChatState>()(
       },
 
       updateSessionTitle: async (sessionId, title) => {
-        const updated = await fetchJson<ChatSession>(`${API_V1_URL}/chat/sessions/${sessionId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ title }),
-        });
+        const updated = (await api.chat.updateSession(sessionId, { title })) as ChatSession;
         set((state) => ({
           sessions: state.sessions.map((s) =>
             s.id === sessionId ? { ...s, title: updated.title, updatedAt: updated.updatedAt } : s,

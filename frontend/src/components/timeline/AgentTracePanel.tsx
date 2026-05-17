@@ -14,7 +14,7 @@ import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { getRunByIdFromCache } from '@/hooks/queries/useRunQueries';
 import { useExecutionResult } from '@/hooks/queries/useExecutionQueries';
-import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
+import { API_V1_URL, api, getApiAuthHeaders } from '@/services/api';
 import { cn } from '@/lib/utils';
 import type {
   AgentNodeOutput,
@@ -711,6 +711,14 @@ function ensureString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+function isUIMessageChunk(value: unknown): value is UIMessageChunk {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const type = Reflect.get(value, 'type');
+  return typeof type === 'string' && type.length > 0;
+}
+
 function useAgentTranscript(agentRunId: string | null): AgentTranscriptState {
   const [state, setState] = useState<AgentTranscriptState>({
     loading: false,
@@ -731,35 +739,22 @@ function useAgentTranscript(agentRunId: string | null): AgentTranscriptState {
     const load = async () => {
       setState((prev) => ({ ...prev, loading: true, error: null }));
       try {
-        const headers = await getApiAuthHeaders();
-        const response = await fetch(`${API_V1_URL}/agents/${agentRunId}/parts`, {
-          headers,
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to load agent trace for ${agentRunId}`);
-        }
-        const data = await response.json();
+        const data = await api.agents.listParts(agentRunId);
         const parts: AgentTraceChunk[] = Array.isArray(data?.parts)
           ? data.parts
-              .map(
-                (entry: {
-                  sequence?: number | null;
-                  timestamp?: string | null;
-                  chunk?: UIMessageChunk | null;
-                }) => {
-                  if (!entry?.chunk) {
-                    return null;
-                  }
-                  return {
-                    sequence: typeof entry.sequence === 'number' ? entry.sequence : 0,
-                    timestamp:
-                      typeof entry.timestamp === 'string'
-                        ? entry.timestamp
-                        : new Date().toISOString(),
-                    chunk: entry.chunk,
-                  };
-                },
-              )
+              .map((entry) => {
+                if (!isUIMessageChunk(entry.chunk)) {
+                  return null;
+                }
+                return {
+                  sequence: typeof entry.sequence === 'number' ? entry.sequence : 0,
+                  timestamp:
+                    typeof entry.timestamp === 'string'
+                      ? entry.timestamp
+                      : new Date().toISOString(),
+                  chunk: entry.chunk,
+                };
+              })
               .filter((entry: AgentTraceChunk | null): entry is AgentTraceChunk => Boolean(entry))
           : [];
         const chunks: UIMessageChunk[] = parts.map((entry) => entry.chunk);

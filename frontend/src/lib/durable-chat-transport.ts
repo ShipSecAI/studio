@@ -1,4 +1,5 @@
 import type { ChatTransport, UIMessage, UIMessageChunk } from 'ai';
+import { api } from '@/services/api';
 
 export interface DurableChatTransportOptions {
   apiBase: string;
@@ -61,6 +62,51 @@ export interface SendTurnResponse {
   steerTargetTurnId?: string | null;
   afterSeq?: number;
   lastSeq?: number;
+}
+
+function isUiMessageRole(value: unknown): value is UIMessage['role'] {
+  return value === 'system' || value === 'user' || value === 'assistant';
+}
+
+function isUiMessagePart(value: unknown): value is UIMessage['parts'][number] {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const type = Reflect.get(value, 'type');
+  return typeof type === 'string' && type.length > 0;
+}
+
+function toSendTurnResponse(
+  response: Awaited<ReturnType<typeof api.chat.submitOperation>>,
+): SendTurnResponse {
+  return {
+    submissionId: response.submissionId,
+    operation: response.operation,
+    acceptedAtSeq: response.acceptedAtSeq,
+    turnId: response.turnId ?? undefined,
+    generationId: response.generationId ?? undefined,
+  };
+}
+
+function toChatSessionStateResponse(
+  response: Awaited<ReturnType<typeof api.chat.getThreadHistory>>,
+): ChatSessionStateResponse {
+  return {
+    ...response,
+    messages: response.messages.flatMap((message) => {
+      if (!isUiMessageRole(message.role)) {
+        return [];
+      }
+      return [
+        {
+          id: message.id,
+          role: message.role,
+          parts: message.parts.filter(isUiMessagePart),
+          createdAt: message.createdAt,
+        },
+      ];
+    }),
+  };
 }
 
 /**
@@ -358,28 +404,20 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     const { chatId: sessionId, messages, messageId, abortSignal } = options;
     const lastMessage = messages[messages.length - 1];
 
-    const headers = await this.options.getAuthHeaders();
     const clientMessageId = messageId ?? lastMessage?.id;
     const message = this.getLastUserText(lastMessage);
 
     // POST a vNext submission (Op::UserTurn)
-    const postRes = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/submissions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify({
+    const responseData = toSendTurnResponse(
+      await api.chat.submitOperation(sessionId, {
         op: 'UserTurn',
         text: message,
         clientSubmissionId: clientMessageId,
       }),
-      signal: abortSignal,
-    });
-
-    if (!postRes.ok) {
-      const errorText = await postRes.text().catch(() => 'Unknown error');
-      throw new Error(`Failed to send message: ${postRes.status} - ${errorText}`);
+    );
+    if (abortSignal?.aborted) {
+      throw new DOMException('The operation was aborted.', 'AbortError');
     }
-
-    const responseData = (await postRes.json()) as SendTurnResponse;
 
     this.options.onQueuedTurn?.({ ...responseData, clientMessageId }, { sessionId });
     const afterSeq = Math.max(
@@ -444,20 +482,15 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
   }
 
   async interruptGeneration(sessionId: string): Promise<{ success: boolean }> {
-    const headers = await this.options.getAuthHeaders();
-    const res = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/submissions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify({
+    try {
+      const body = await api.chat.submitOperation(sessionId, {
         op: 'Interrupt',
         clientSubmissionId: `interrupt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      }),
-    });
-    if (!res.ok) {
+      });
+      return { success: Boolean(body.acceptedAtSeq || body.submissionId) };
+    } catch {
       return { success: false };
     }
-    const body = (await res.json()) as { success?: boolean; ok?: boolean };
-    return { success: body.success ?? body.ok ?? false };
   }
 
   async steerTurn(sessionId: string, turnId?: string): Promise<{ success: boolean }> {
@@ -470,13 +503,8 @@ export class DurableChatTransport implements ChatTransport<UIMessage> {
     signal?: AbortSignal,
   ): Promise<ChatSessionStateResponse | null> {
     if (this.isEphemeralChatId(sessionId)) return null;
-    const headers = await this.options.getAuthHeaders();
-    const res = await fetch(`${this.options.apiBase}/chat/sessions/${sessionId}/thread-history`, {
-      headers,
-      signal,
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as ChatSessionStateResponse;
+    if (signal?.aborted) return null;
+    return toChatSessionStateResponse(await api.chat.getThreadHistory(sessionId));
   }
 
   private parseSseLine(line: string): unknown | 'DONE' | null {

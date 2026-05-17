@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getApiAuthHeaders, API_BASE_URL } from '@/services/api';
+import { api } from '@/services/api';
 import { queryKeys } from '@/lib/queryKeys';
 
 export interface AgentSkillResponse {
@@ -41,30 +41,10 @@ export interface UpdateAgentSkillInput {
   isEnabled?: boolean;
 }
 
-async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const headers = await getApiAuthHeaders();
-  const { signal, ...restOptions } = options;
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...restOptions,
-    signal,
-    headers: {
-      ...headers,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Request failed' }));
-    throw new Error(error.message || `Request failed: ${response.status}`);
-  }
-  if (response.status === 204) return undefined as T;
-  return response.json();
-}
-
 export function useAgentSkills() {
   return useQuery({
     queryKey: queryKeys.agentSkills.all(),
-    queryFn: () => apiRequest<AgentSkillResponse[]>('/api/v1/agent-skills'),
+    queryFn: () => api.agentSkills.list() as Promise<AgentSkillResponse[]>,
     staleTime: 120_000,
   });
 }
@@ -72,7 +52,7 @@ export function useAgentSkills() {
 export function useAgentSkill(id: string) {
   return useQuery({
     queryKey: queryKeys.agentSkills.detail(id),
-    queryFn: () => apiRequest<AgentSkillResponse>(`/api/v1/agent-skills/${id}`),
+    queryFn: () => api.agentSkills.get(id) as Promise<AgentSkillResponse>,
     enabled: !!id,
   });
 }
@@ -81,10 +61,7 @@ export function useCreateAgentSkill() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateAgentSkillInput) =>
-      apiRequest<AgentSkillResponse>('/api/v1/agent-skills', {
-        method: 'POST',
-        body: JSON.stringify(input),
-      }),
+      api.agentSkills.create(input) as Promise<AgentSkillResponse>,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.agentSkills.all() });
     },
@@ -95,10 +72,7 @@ export function useUpdateAgentSkill() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateAgentSkillInput }) =>
-      apiRequest<AgentSkillResponse>(`/api/v1/agent-skills/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(input),
-      }),
+      api.agentSkills.update(id, input) as Promise<AgentSkillResponse>,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.agentSkills.all() });
     },
@@ -108,7 +82,7 @@ export function useUpdateAgentSkill() {
 export function useDeleteAgentSkill() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiRequest(`/api/v1/agent-skills/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => api.agentSkills.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.agentSkills.all() });
     },
@@ -118,10 +92,7 @@ export function useDeleteAgentSkill() {
 export function useToggleAgentSkill() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiRequest<AgentSkillResponse>(`/api/v1/agent-skills/${id}/toggle`, {
-        method: 'POST',
-      }),
+    mutationFn: (id: string) => api.agentSkills.toggle(id) as Promise<AgentSkillResponse>,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.agentSkills.all() });
     },
@@ -131,7 +102,7 @@ export function useToggleAgentSkill() {
 export function usePreviewAgentSkill(id: string) {
   return useQuery({
     queryKey: [...queryKeys.agentSkills.detail(id), 'preview'],
-    queryFn: () => apiRequest<{ content: string }>(`/api/v1/agent-skills/${id}/preview`),
+    queryFn: () => api.agentSkills.preview(id) as Promise<{ content: string }>,
     enabled: !!id,
   });
 }

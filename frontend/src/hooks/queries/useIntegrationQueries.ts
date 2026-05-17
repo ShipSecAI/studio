@@ -1,42 +1,10 @@
 import { useQuery, useMutation, useQueryClient, skipToken } from '@tanstack/react-query';
-import { API_V1_URL, api } from '@/services/api';
+import { api } from '@/services/api';
 import { queryKeys } from '@/lib/queryKeys';
-import { useAuthStore } from '@/store/authStore';
-import { getFreshAuthToken } from '@/utils/auth-token';
 import type { components } from '@shipsec/backend-client';
 
 type IntegrationProvider = components['schemas']['IntegrationProviderResponse'];
 type IntegrationConnection = components['schemas']['IntegrationConnectionResponse'];
-interface ValidateGcpResponse {
-  valid: boolean;
-  serviceAccountEmail?: string;
-  serviceAccountUniqueId?: string;
-  defaultProjectId?: string;
-  organizationId?: string;
-  projects?: {
-    id: string;
-    displayName: string;
-    type: 'project' | 'folder' | 'organization';
-    parent?: string;
-    state?: string;
-  }[];
-  error?: string;
-}
-interface DiscoverGcpProjectsResponse {
-  resources: {
-    id: string;
-    displayName: string;
-    type: 'project' | 'folder' | 'organization';
-    parent?: string;
-    state?: string;
-  }[];
-}
-interface GcpSetupInfoResponse {
-  serviceAccountEmail: string;
-  serviceAccountMember: string;
-  sourceProjectId?: string;
-  tokenCreatorRole: 'roles/iam.serviceAccountTokenCreator';
-}
 
 function sortProviders(providers: IntegrationProvider[]) {
   return [...providers].sort((a, b) => a.name.localeCompare(b.name));
@@ -44,78 +12,6 @@ function sortProviders(providers: IntegrationProvider[]) {
 
 function sortConnections(connections: IntegrationConnection[]) {
   return [...connections].sort((a, b) => a.providerName.localeCompare(b.providerName));
-}
-
-async function getIntegrationRequestHeaders(): Promise<Record<string, string>> {
-  const storeState = useAuthStore.getState();
-  let token = storeState.token;
-  const organizationId = storeState.provider === 'local' ? 'local-dev' : storeState.organizationId;
-
-  if (storeState.provider !== 'local') {
-    try {
-      const freshToken = await getFreshAuthToken();
-      if (freshToken) {
-        token = freshToken;
-        storeState.setToken(freshToken);
-      }
-    } catch {
-      // fall back to the currently cached token
-    }
-  }
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-
-  if (storeState.provider === 'local' && storeState.adminUsername && storeState.adminPassword) {
-    const credentials = btoa(`${storeState.adminUsername}:${storeState.adminPassword}`);
-    headers['Authorization'] = `Basic ${credentials}`;
-  } else if (token && token.trim().length > 0) {
-    headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-  }
-
-  if (organizationId && organizationId.trim().length > 0) {
-    headers['X-Organization-Id'] = organizationId;
-  }
-
-  return headers;
-}
-
-async function postIntegrationJson<T>(path: string, body?: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${API_V1_URL}${path}`, {
-    method: 'POST',
-    headers: await getIntegrationRequestHeaders(),
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  const payload = response.status === 204 ? null : await response.json().catch(() => null);
-  if (!response.ok) {
-    const message =
-      payload && typeof payload === 'object' && 'message' in payload
-        ? String(payload.message)
-        : `Request failed with status ${response.status}`;
-    throw new Error(message);
-  }
-
-  return payload as T;
-}
-
-async function getIntegrationJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_V1_URL}${path}`, {
-    method: 'GET',
-    headers: await getIntegrationRequestHeaders(),
-  });
-
-  const payload = response.status === 204 ? null : await response.json().catch(() => null);
-  if (!response.ok) {
-    const message =
-      payload && typeof payload === 'object' && 'message' in payload
-        ? String(payload.message)
-        : `Request failed with status ${response.status}`;
-    throw new Error(message);
-  }
-
-  return payload as T;
 }
 
 export function useIntegrationProviders() {
@@ -161,9 +57,7 @@ export function useGcpSetupInfo(enabled = true) {
   const isEnabled = enabled;
   return useQuery({
     queryKey: queryKeys.integrations.gcpSetupInfo(),
-    queryFn: isEnabled
-      ? () => getIntegrationJson<GcpSetupInfoResponse>('/integrations/gcp/setup-info')
-      : skipToken,
+    queryFn: isEnabled ? () => api.integrations.getGcpSetupInfo() : skipToken,
     enabled: isEnabled,
     staleTime: 25 * 60_000,
     ...(isEnabled ? {} : { gcTime: 0 }),
@@ -242,7 +136,7 @@ export function useCreateGcpConnection() {
       targetServiceAccountEmail: string;
       defaultProjectId?: string;
       organizationId?: string;
-    }) => postIntegrationJson<IntegrationConnection>('/integrations/gcp/connections', payload),
+    }) => api.integrations.createGcpConnection(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
     },
@@ -299,8 +193,7 @@ export function useValidateAwsConnection() {
 export function useValidateGcpConnection() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id }: { id: string }) =>
-      postIntegrationJson<ValidateGcpResponse>(`/integrations/gcp/connections/${id}/validate`),
+    mutationFn: ({ id }: { id: string }) => api.integrations.validateGcpConnection(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
     },
@@ -326,10 +219,7 @@ export function useDiscoverOrgAccounts() {
 export function useDiscoverGcpProjects() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id }: { id: string }) =>
-      postIntegrationJson<DiscoverGcpProjectsResponse>(
-        `/integrations/gcp/connections/${id}/discover-projects`,
-      ),
+    mutationFn: ({ id }: { id: string }) => api.integrations.discoverGcpProjects(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.integrations.connections() });
     },

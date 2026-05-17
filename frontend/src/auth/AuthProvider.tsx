@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import type { FrontendAuthProvider, FrontendAuthProviderComponent } from './types';
 import { useAuthStore } from '../store/authStore';
 import { GlobalAuthContext } from './auth-context-def';
-import { API_V1_URL } from '@/services/api';
+import { api } from '@/services/api';
 import { getFrontendAuthProviderComponent as getExternalProviderComponent } from '@shipsec/cloud-extension-runtime';
 
 function getExternalAuthModuleId(): string {
@@ -67,10 +67,7 @@ const LocalAuthProvider: FrontendAuthProviderComponent = ({
       signOut: async () => {
         // Clear session cookie via backend logout endpoint
         try {
-          await fetch(`${API_V1_URL}/auth/logout`, {
-            method: 'POST',
-            credentials: 'include',
-          });
+          await api.auth.logout();
         } catch (error) {
           console.warn('Failed to clear session cookie:', error);
         }

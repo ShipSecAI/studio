@@ -1,5 +1,4 @@
 import { api } from '@/services/api';
-import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
 import type { components } from '../../../packages/backend-client/src/api-client';
 
 type McpGroupBase = components['schemas']['McpGroupResponseDto'];
@@ -107,21 +106,10 @@ export const mcpGroupsApi = {
   async getGroupHealth(
     groupId: string,
   ): Promise<Record<string, 'healthy' | 'unhealthy' | 'unknown'>> {
-    const headers = await getApiAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/${groupId}/health`, {
-      headers,
-    });
-
-    if (!response.ok) {
-      // Health check failures should not throw - return empty status
-      console.warn('Failed to fetch group health status');
-      return {};
-    }
-
-    const data = (await response.json()) as {
-      statuses?: Record<string, 'healthy' | 'unhealthy' | 'unknown'>;
-    };
-    return data.statuses ?? {};
+    const servers = await this.getGroupServers(groupId);
+    return Object.fromEntries(
+      servers.map((server) => [server.serverId, server.healthStatus ?? 'unknown']),
+    );
   },
 
   /**

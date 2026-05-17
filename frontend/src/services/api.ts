@@ -20,6 +20,29 @@ export type IntegrationProviderConfiguration =
 export type OAuthStartResponse = components['schemas']['OAuthStartResponseDto'];
 export type ReportTemplate = components['schemas']['ReportTemplateResponseDto'];
 export type RenderReportTemplateResponse = components['schemas']['RenderReportTemplateResponseDto'];
+type CreateGitHubTriggerRuleInput = Omit<
+  components['schemas']['CreateTriggerRuleDto'],
+  | 'actions'
+  | 'branches'
+  | 'postPrComment'
+  | 'createCheckRun'
+  | 'postPrReview'
+  | 'failOn'
+  | 'enabled'
+  | 'priority'
+> & { failOn?: string } & Partial<
+    Pick<
+      components['schemas']['CreateTriggerRuleDto'],
+      | 'actions'
+      | 'branches'
+      | 'postPrComment'
+      | 'createCheckRun'
+      | 'postPrReview'
+      | 'enabled'
+      | 'priority'
+    >
+  >;
+type UpdateGitHubTriggerRuleInput = Partial<CreateGitHubTriggerRuleInput>;
 
 export interface GitHubRepo {
   id: string;
@@ -60,14 +83,14 @@ export interface SecurityWikiFile {
 }
 
 export interface SecurityWikiCodeSource {
-  repoId: string;
+  repoId: string | number;
   fullName: string;
   repoOwner?: string;
   repoName?: string;
   defaultBranch?: string | null;
   enabled: boolean;
   cadence: 'manual' | 'nightly' | 'weekly';
-  addedAt: string;
+  addedAt?: string;
 }
 
 export interface SecurityWikiConfig {
@@ -80,9 +103,9 @@ export interface SecurityWikiConfig {
   localPath?: string | null;
   defaultBranch: string;
   rootPath: string;
-  pathPolicy?: Record<string, unknown>;
-  metadata?: Record<string, unknown>;
-  codeSources?: SecurityWikiCodeSource[];
+  pathPolicy: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  codeSources: SecurityWikiCodeSource[];
   status: string;
   createdAt: string;
   updatedAt: string;
@@ -366,17 +389,27 @@ async function fetchScheduleById(id: string): Promise<WorkflowSchedule> {
  * Simple wrapper around the backend API client
  */
 export const api = {
+  auth: {
+    login: async (authorization: string) => {
+      const response = await apiClient.login(authorization);
+      if (response.error) throw new Error('Authentication failed');
+      return response.data;
+    },
+
+    logout: async () => {
+      const response = await apiClient.logout();
+      if (response.error) throw new Error('Logout failed');
+      return response.data;
+    },
+  },
+
   securityWiki: {
     getConfig: async (): Promise<SecurityWikiConfig> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/security-wikis/config`, { headers });
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: 'Failed to fetch security wiki config' }));
-        throw new Error(errorData.message || 'Failed to fetch security wiki config');
+      const response = await apiClient.getSecurityWikiConfig();
+      if (!response.data) {
+        throw new Error('Failed to fetch security wiki config');
       }
-      return response.json();
+      return response.data;
     },
 
     upsertConfig: async (body: {
@@ -391,115 +424,87 @@ export const api = {
       metadata?: Record<string, unknown>;
       codeSources?: SecurityWikiCodeSource[];
     }): Promise<SecurityWikiConfig> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/security-wikis/config`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+      const response = await apiClient.upsertSecurityWikiConfig({
+        ...body,
+        pathPolicy: body.pathPolicy ?? {},
+        metadata: body.metadata ?? {},
       });
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: 'Failed to save security wiki config' }));
-        throw new Error(errorData.message || 'Failed to save security wiki config');
+      if (!response.data) {
+        throw new Error('Failed to save security wiki config');
       }
-      return response.json();
+      return response.data;
     },
 
     listRuns: async (): Promise<SecurityWikiRun[]> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/security-wikis/runs`, { headers });
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: 'Failed to fetch security wiki runs' }));
-        throw new Error(errorData.message || 'Failed to fetch security wiki runs');
+      const response = await apiClient.listSecurityWikiRuns();
+      if (!response.data) {
+        throw new Error('Failed to fetch security wiki runs');
       }
-      return response.json();
+      return response.data;
     },
 
     runCodeIngestion: async (
       body: RunCodeWikiIngestionRequest,
     ): Promise<RunCodeWikiIngestionResponse> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/security-wikis/runs/code`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+      const response = await apiClient.runCodeWikiIngestion({
+        agentName: 'code-explorer-agent',
+        model: 'gpt-5.5',
+        ...body,
       });
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: 'Failed to start CODE wiki ingestion' }));
-        throw new Error(errorData.message || 'Failed to start CODE wiki ingestion');
+      if (!response.data) {
+        throw new Error('Failed to start CODE wiki ingestion');
       }
-      return response.json();
+      return response.data;
     },
 
     getTree: async (): Promise<SecurityWikiTreeResponse> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/security-wikis/tree`, { headers });
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: 'Failed to fetch security wiki tree' }));
-        throw new Error(errorData.message || 'Failed to fetch security wiki tree');
+      const response = await apiClient.getSecurityWikiTree();
+      if (!response.data) {
+        throw new Error('Failed to fetch security wiki tree');
       }
-      return response.json();
+      return response.data;
     },
 
     getFile: async (path: string): Promise<SecurityWikiFile> => {
-      const headers = await getAuthHeaders();
-      const searchParams = new URLSearchParams({ path });
-      const response = await fetch(`${API_V1_URL}/security-wikis/file?${searchParams}`, {
-        headers,
-      });
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: 'Failed to fetch security wiki file' }));
-        throw new Error(errorData.message || 'Failed to fetch security wiki file');
+      const response = await apiClient.getSecurityWikiFile(path);
+      if (!response.data) {
+        throw new Error('Failed to fetch security wiki file');
       }
-      return response.json();
+      return response.data;
     },
   },
 
   templates: {
-    list: async (params?: { category?: string; search?: string; tags?: string[] }) => {
-      const searchParams = new URLSearchParams();
-      if (params?.category) searchParams.set('category', params.category);
-      if (params?.search) searchParams.set('search', params.search);
-      if (params?.tags) searchParams.set('tags', params.tags.join(','));
-
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_V1_URL}/templates${searchParams.toString() ? `?${searchParams.toString()}` : ''}`,
-        { headers },
-      );
-
-      if (!response.ok) throw new Error('Failed to fetch templates');
-      return response.json();
+    list: async (params?: {
+      category?: string;
+      search?: string;
+      tags?: string[];
+    }): Promise<components['schemas']['TemplateResponseDto'][]> => {
+      const response = await apiClient.listTemplates({
+        category: params?.category,
+        search: params?.search,
+        tags: params?.tags?.join(','),
+      });
+      if (response.error) throw new Error('Failed to fetch templates');
+      return response.data ?? [];
     },
 
-    get: async (id: string) => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/templates/${id}`, { headers });
-      if (!response.ok) throw new Error('Failed to fetch template');
-      return response.json();
+    get: async (id: string): Promise<components['schemas']['TemplateResponseDto']> => {
+      const response = await apiClient.getTemplate(id);
+      if (response.error || !response.data) throw new Error('Failed to fetch template');
+      return response.data;
     },
 
-    getCategories: async () => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/templates/categories`, { headers });
-      if (!response.ok) throw new Error('Failed to fetch categories');
-      return response.json();
+    getCategories: async (): Promise<components['schemas']['TemplateCategoryResponseDto'][]> => {
+      const response = await apiClient.getTemplateCategories();
+      if (response.error) throw new Error('Failed to fetch categories');
+      return response.data ?? [];
     },
 
-    getTags: async () => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/templates/tags`, { headers });
-      if (!response.ok) throw new Error('Failed to fetch tags');
-      return response.json();
+    getTags: async (): Promise<string[]> => {
+      const response = await apiClient.getTemplateTags();
+      if (response.error) throw new Error('Failed to fetch tags');
+      return response.data ?? [];
     },
 
     publish: async (data: {
@@ -510,73 +515,44 @@ export const api = {
       tags: string[];
       author: string;
     }) => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/templates/publish`, {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: 'Failed to publish template' }));
-        throw new Error(errorData.message || 'Failed to publish template');
-      }
-
-      return response.json();
+      const response = await apiClient.publishTemplate(data);
+      if (response.error) throw new Error('Failed to publish template');
+      return response.data;
     },
 
     use: async (
       templateId: string,
       data: { workflowName: string; secretMappings?: Record<string, string> },
-    ): Promise<{ workflowId?: string; workflow?: { id?: string } }> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/templates/${templateId}/use`, {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: 'Failed to use template' }));
-        throw new Error(errorData.message || 'Failed to use template');
-      }
-
-      return response.json() as Promise<{ workflowId?: string; workflow?: { id?: string } }>;
+    ): Promise<components['schemas']['UseTemplateResponseDto']> => {
+      const response = await apiClient.useTemplate(templateId, data);
+      if (response.error || !response.data) throw new Error('Failed to use template');
+      return response.data;
     },
 
     sync: async () => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/templates/sync`, {
-        method: 'POST',
-        headers,
-      });
-
-      if (!response.ok) throw new Error('Failed to sync templates');
-      return response.json();
+      const response = await apiClient.syncTemplates();
+      if (response.error || !response.data) throw new Error('Failed to sync templates');
+      return response.data;
     },
 
-    getMySubmissions: async () => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/templates/my`, { headers });
-      if (!response.ok) throw new Error('Failed to fetch submissions');
-      return response.json();
+    getMySubmissions: async (): Promise<
+      components['schemas']['TemplateSubmissionResponseDto'][]
+    > => {
+      const response = await apiClient.getMyTemplates();
+      if (response.error) throw new Error('Failed to fetch submissions');
+      return response.data ?? [];
     },
 
-    getSubmissions: async () => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/templates/submissions`, { headers });
-      if (!response.ok) throw new Error('Failed to fetch submissions');
-      return response.json();
+    getRepoInfo: async (): Promise<components['schemas']['TemplateRepoInfoResponseDto']> => {
+      const response = await apiClient.getTemplateRepoInfo();
+      if (response.error || !response.data) throw new Error('Failed to fetch template repo info');
+      return response.data;
+    },
+
+    getSubmissions: async (): Promise<components['schemas']['TemplateSubmissionResponseDto'][]> => {
+      const response = await apiClient.getTemplateSubmissions();
+      if (response.error) throw new Error('Failed to fetch submissions');
+      return response.data ?? [];
     },
   },
 
@@ -889,6 +865,14 @@ export const api = {
       return response.data;
     },
 
+    getGcpSetupInfo: async (): Promise<components['schemas']['GcpSetupInfoResponseDto']> => {
+      const response = await apiClient.getGcpSetupInfo();
+      if (response.error || !response.data) {
+        throw new Error('Failed to load GCP setup info');
+      }
+      return response.data;
+    },
+
     // AWS connection management (IAM role only)
     createAwsConnection: async (payload: {
       displayName: string;
@@ -911,28 +895,21 @@ export const api = {
       sessionToken?: string;
       region?: string;
     }): Promise<IntegrationConnection> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/integrations/aws/connections/access-key`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...headers,
-        },
-        body: JSON.stringify(payload),
-      });
-      const data = (await response.json().catch(() => null)) as
-        | IntegrationConnection
-        | {
-            message?: string;
-          }
-        | null;
-      if (!response.ok || !data || typeof data !== 'object' || !('id' in data)) {
-        throw new Error(
-          (data && typeof data === 'object' && 'message' in data && data.message) ||
-            'Failed to create AWS access key connection',
-        );
+      const response = await apiClient.createAwsAccessKeyIntegrationConnection(payload);
+      if (response.error || !response.data) {
+        throw new Error('Failed to create AWS access key connection');
       }
-      return data as IntegrationConnection;
+      return response.data;
+    },
+
+    createGcpConnection: async (
+      payload: components['schemas']['CreateGcpConnectionDto'],
+    ): Promise<IntegrationConnection> => {
+      const response = await apiClient.createGcpIntegrationConnection(payload);
+      if (response.error || !response.data) {
+        throw new Error('Failed to create GCP connection');
+      }
+      return response.data;
     },
 
     validateAwsConnection: async (id: string): Promise<ValidateAwsResponse> => {
@@ -942,6 +919,26 @@ export const api = {
       }
       if (!response.data.valid) {
         throw new Error(response.data.error || 'AWS connection validation failed');
+      }
+      return response.data;
+    },
+
+    validateGcpConnection: async (
+      id: string,
+    ): Promise<components['schemas']['ValidateGcpResponseDto']> => {
+      const response = await apiClient.validateGcpIntegrationConnection(id);
+      if (response.error || !response.data) {
+        throw new Error('Failed to validate GCP connection');
+      }
+      return response.data;
+    },
+
+    discoverGcpProjects: async (
+      id: string,
+    ): Promise<components['schemas']['DiscoverGcpProjectsResponseDto']> => {
+      const response = await apiClient.discoverGcpProjects(id);
+      if (response.error || !response.data) {
+        throw new Error('Failed to discover GCP projects');
       }
       return response.data;
     },
@@ -985,31 +982,11 @@ export const api = {
       defaultProjectId?: string;
       organizationId?: string;
     }): Promise<IntegrationConnection> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_V1_URL}/integrations/gcp/connections/service-account-key`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...headers,
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-      const data = (await response.json().catch(() => null)) as
-        | IntegrationConnection
-        | {
-            message?: string;
-          }
-        | null;
-      if (!response.ok || !data || typeof data !== 'object' || !('id' in data)) {
-        throw new Error(
-          (data && typeof data === 'object' && 'message' in data && data.message) ||
-            'Failed to create GCP service account key connection',
-        );
+      const response = await apiClient.createGcpServiceAccountKeyIntegrationConnection(payload);
+      if (response.error || !response.data) {
+        throw new Error('Failed to create GCP service account key connection');
       }
-      return data as IntegrationConnection;
+      return response.data;
     },
 
     testSlackConnection: async (id: string): Promise<{ ok: boolean; error?: string }> => {
@@ -1791,6 +1768,12 @@ export const api = {
       return response.data ?? [];
     },
 
+    listTemplates: async () => {
+      const response = await apiClient.listMcpServerTemplates();
+      if (response.error) throw new Error('Failed to fetch MCP server templates');
+      return response.data ?? [];
+    },
+
     create: async (input: components['schemas']['CreateMcpServerDto']) => {
       const response = await apiClient.createMcpServer(input);
       if (response.error || !response.data) throw new Error('Failed to create MCP server');
@@ -1800,6 +1783,15 @@ export const api = {
     update: async (id: string, input: components['schemas']['UpdateMcpServerDto']) => {
       const response = await apiClient.updateMcpServer(id, input);
       if (response.error || !response.data) throw new Error('Failed to update MCP server');
+      return response.data;
+    },
+
+    importTemplate: async (
+      slug: string,
+      input: components['schemas']['ImportMcpServerTemplateDto'],
+    ) => {
+      const response = await apiClient.importMcpServerTemplate(slug, input);
+      if (response.error || !response.data) throw new Error('Failed to import MCP server template');
       return response.data;
     },
 
@@ -1857,12 +1849,68 @@ export const api = {
       if (response.error) throw new Error('Failed to delete chat session');
       return response.data;
     },
+
+    submitOperation: async (id: string, body: components['schemas']['SubmitOperationDto']) => {
+      const response = await apiClient.submitChatOperation(id, body);
+      if (response.error || !response.data) throw new Error('Failed to submit chat operation');
+      return response.data;
+    },
+
+    getThreadHistory: async (id: string) => {
+      const response = await apiClient.getChatThreadHistory(id);
+      if (response.error || !response.data) throw new Error('Failed to fetch chat thread history');
+      return response.data;
+    },
   },
 
   agents: {
     listParts: async (agentRunId: string, cursor?: string) => {
       const response = await apiClient.getAgentParts(agentRunId, cursor);
       if (response.error || !response.data) throw new Error('Failed to fetch agent trace parts');
+      return response.data;
+    },
+  },
+
+  agentSkills: {
+    list: async () => {
+      const response = await apiClient.listAgentSkills();
+      if (response.error || !response.data) throw new Error('Failed to fetch agent skills');
+      return response.data;
+    },
+
+    get: async (id: string) => {
+      const response = await apiClient.getAgentSkill(id);
+      if (response.error || !response.data) throw new Error('Failed to fetch agent skill');
+      return response.data;
+    },
+
+    create: async (input: components['schemas']['CreateAgentSkillDto']) => {
+      const response = await apiClient.createAgentSkill(input);
+      if (response.error || !response.data) throw new Error('Failed to create agent skill');
+      return response.data;
+    },
+
+    update: async (id: string, input: components['schemas']['UpdateAgentSkillDto']) => {
+      const response = await apiClient.updateAgentSkill(id, input);
+      if (response.error || !response.data) throw new Error('Failed to update agent skill');
+      return response.data;
+    },
+
+    delete: async (id: string) => {
+      const response = await apiClient.deleteAgentSkill(id);
+      if (response.error) throw new Error('Failed to delete agent skill');
+      return response.data;
+    },
+
+    toggle: async (id: string) => {
+      const response = await apiClient.toggleAgentSkill(id);
+      if (response.error || !response.data) throw new Error('Failed to toggle agent skill');
+      return response.data;
+    },
+
+    preview: async (id: string) => {
+      const response = await apiClient.previewAgentSkill(id);
+      if (response.error || !response.data) throw new Error('Failed to preview agent skill');
       return response.data;
     },
   },
@@ -1908,6 +1956,12 @@ export const api = {
       return response.data;
     },
 
+    listQuickScanWorkflows: async () => {
+      const response = await apiClient.listGitHubQuickScanWorkflows();
+      if (response.error || !response.data) throw new Error('Failed to fetch quick scan workflows');
+      return response.data;
+    },
+
     listTriggerRules: async () => {
       const response = await apiClient.listGitHubTriggerRules();
       if (response.error || !response.data) throw new Error('Failed to fetch trigger rules');
@@ -1946,14 +2000,29 @@ export const api = {
       return response.data;
     },
 
-    createTriggerRule: async (input: components['schemas']['CreateTriggerRuleDto']) => {
-      const response = await apiClient.createGitHubTriggerRule(input);
+    createTriggerRule: async (input: CreateGitHubTriggerRuleInput) => {
+      const { failOn, ...rest } = input;
+      const body: components['schemas']['CreateTriggerRuleDto'] = {
+        actions: [],
+        branches: [],
+        postPrComment: true,
+        createCheckRun: true,
+        postPrReview: false,
+        failOn: (failOn ?? 'high') as components['schemas']['CreateTriggerRuleDto']['failOn'],
+        enabled: true,
+        priority: 100,
+        ...rest,
+      } as components['schemas']['CreateTriggerRuleDto'];
+      const response = await apiClient.createGitHubTriggerRule(body);
       if (response.error || !response.data) throw new Error('Failed to create trigger rule');
       return response.data;
     },
 
-    updateTriggerRule: async (id: string, input: components['schemas']['UpdateTriggerRuleDto']) => {
-      const response = await apiClient.updateGitHubTriggerRule(id, input);
+    updateTriggerRule: async (id: string, input: UpdateGitHubTriggerRuleInput) => {
+      const response = await apiClient.updateGitHubTriggerRule(
+        id,
+        input as components['schemas']['UpdateTriggerRuleDto'],
+      );
       if (response.error || !response.data) throw new Error('Failed to update trigger rule');
       return response.data;
     },
@@ -1971,43 +2040,20 @@ export const api = {
   },
 
   analytics: {
-    query: async (body: {
-      filters?: { field: string; op: string; value?: unknown }[];
-      search?: string;
-      aggs?: { name: string; field: string; size?: number }[];
-      sort?: { field: string; direction: 'asc' | 'desc' }[];
-      distinct?: string;
-      countDistinct?: string;
-      size?: number;
-      from?: number;
-      useLatest?: boolean;
-    }): Promise<{
-      total: number;
-      results: Record<string, any>[];
-      aggregations?: Record<string, { key: string; count: number }[]>;
-      distinctCount?: number;
-    }> => {
-      const response = await apiClient.queryAnalytics(body as any);
+    query: async (
+      body: components['schemas']['AnalyticsQueryRequestDto'],
+    ): Promise<components['schemas']['AnalyticsQueryResponseDto']> => {
+      const response = await apiClient.queryAnalytics(body);
       if (response.error || !response.data) throw new Error('Analytics query failed');
-      return response.data as any;
+      return response.data;
     },
 
-    timeSeries: async (body: {
-      filters?: { field: string; op: string; value?: unknown }[];
-      interval?: 'day' | 'week' | 'month';
-      days?: number;
-      timezone?: string;
-    }): Promise<{
-      buckets: { date: string; severity: string; count: number }[];
-    }> => {
-      const headers = await getAuthHeaders();
-      const resp = await fetch(`${API_V1_URL}/analytics/time-series`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!resp.ok) throw new Error('Time series query failed');
-      return resp.json();
+    timeSeries: async (
+      body: components['schemas']['TimeSeriesRequestDto'],
+    ): Promise<components['schemas']['TimeSeriesResponseDto']> => {
+      const response = await apiClient.getAnalyticsTimeSeries(body);
+      if (response.error || !response.data) throw new Error('Time series query failed');
+      return response.data;
     },
 
     lifecycle: async (body: {
@@ -2016,30 +2062,17 @@ export const api = {
     }): Promise<{
       lifecycles: Record<string, { firstSeen: string; lastSeen: string; occurrences: number }>;
     }> => {
-      const headers = await getAuthHeaders();
-      const resp = await fetch(`${API_V1_URL}/analytics/lifecycle`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!resp.ok) throw new Error('Lifecycle query failed');
-      return resp.json();
+      const response = await apiClient.getAnalyticsLifecycle(body);
+      if (response.error || !response.data) throw new Error('Lifecycle query failed');
+      return response.data;
     },
 
-    scannerSeverityCounts: async (body: {
-      filters?: { field: string; op: string; value?: unknown }[];
-      useLatest?: boolean;
-    }): Promise<{
-      buckets: { scanner: string; severity: string; count: number }[];
-    }> => {
-      const headers = await getAuthHeaders();
-      const resp = await fetch(`${API_V1_URL}/analytics/scanner-severity-counts`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!resp.ok) throw new Error('Scanner severity counts query failed');
-      return resp.json();
+    scannerSeverityCounts: async (
+      body: components['schemas']['ScannerSeverityCountsRequestDto'],
+    ): Promise<components['schemas']['ScannerSeverityCountsResponseDto']> => {
+      const response = await apiClient.getAnalyticsScannerSeverityCounts(body);
+      if (response.error || !response.data) throw new Error('Scanner severity counts query failed');
+      return response.data;
     },
 
     prowlerChecksMetadata: async (): Promise<Record<string, ProwlerCheckMetadata>> => {
@@ -2063,89 +2096,62 @@ export const api = {
       userVisibleOnly?: boolean;
       limit?: number;
     }): Promise<{ findings: SecurityFinding[] }> => {
-      const searchParams = new URLSearchParams();
-      if (params?.sourceKind) searchParams.set('sourceKind', params.sourceKind);
-      if (params?.status) searchParams.set('status', params.status);
-      if (params?.assessmentVerdict)
-        searchParams.set('assessmentVerdict', params.assessmentVerdict);
-      if (params?.userVisibleOnly) searchParams.set('userVisibleOnly', 'true');
-      if (params?.limit) searchParams.set('limit', String(params.limit));
-      const headers = await getAuthHeaders();
-      const resp = await fetch(
-        `${API_V1_URL}/security-ingestion/findings${searchParams.toString() ? `?${searchParams}` : ''}`,
-        { headers },
-      );
-      if (!resp.ok) throw new Error('Failed to fetch security findings');
-      return resp.json();
+      const response = await apiClient.listSecurityFindings({
+        sourceKind: params?.sourceKind,
+        status: params?.status,
+        assessmentVerdict: params?.assessmentVerdict,
+        userVisibleOnly: params?.userVisibleOnly ? 'true' : undefined,
+        limit: params?.limit ? String(params.limit) : undefined,
+      });
+      if (response.error || !response.data) throw new Error('Failed to fetch security findings');
+      return response.data;
     },
     finding: async (id: string): Promise<{ finding: SecurityFinding }> => {
-      const headers = await getAuthHeaders();
-      const resp = await fetch(`${API_V1_URL}/security-ingestion/findings/${id}`, { headers });
-      if (!resp.ok) throw new Error('Failed to fetch security finding');
-      return resp.json();
+      const response = await apiClient.getSecurityFinding(id);
+      if (response.error || !response.data) throw new Error('Failed to fetch security finding');
+      return response.data;
     },
     findingEvidence: async (id: string): Promise<{ evidence: SecurityFinding['evidence'] }> => {
-      const headers = await getAuthHeaders();
-      const resp = await fetch(`${API_V1_URL}/security-ingestion/findings/${id}/evidence`, {
-        headers,
-      });
-      if (!resp.ok) throw new Error('Failed to fetch security finding evidence');
-      return resp.json();
+      const response = await apiClient.getSecurityFindingEvidence(id);
+      if (response.error || !response.data) {
+        throw new Error('Failed to fetch security finding evidence');
+      }
+      return response.data;
     },
     findingLinks: async (id: string): Promise<{ links: SecurityFindingLink[] }> => {
-      const headers = await getAuthHeaders();
-      const resp = await fetch(`${API_V1_URL}/security-ingestion/findings/${id}/links`, {
-        headers,
-      });
-      if (!resp.ok) throw new Error('Failed to fetch security finding links');
-      return resp.json();
+      const response = await apiClient.listSecurityFindingLinks(id);
+      if (response.error || !response.data) {
+        throw new Error('Failed to fetch security finding links');
+      }
+      return response.data;
     },
     recordFindingLink: async (
       id: string,
-      body: {
-        toFindingId: string;
-        relationshipType: string;
-        confidence?: number;
-        rationale: string;
-        evidenceRefs?: string[];
-        createdByAgentRunId?: string;
-        metadata?: Record<string, unknown>;
-      },
+      body: components['schemas']['RecordFindingLinkRequestDto'],
     ): Promise<{ link: SecurityFindingLink }> => {
-      const headers = await getAuthHeaders();
-      const resp = await fetch(`${API_V1_URL}/security-ingestion/findings/${id}/links`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!resp.ok) throw new Error('Failed to record security finding link');
-      return resp.json();
+      const response = await apiClient.recordSecurityFindingLink(id, body);
+      if (response.error || !response.data)
+        throw new Error('Failed to record security finding link');
+      return response.data;
     },
     threatStories: async (params?: {
       status?: string;
       limit?: number;
     }): Promise<{ stories: SecurityThreatStory[] }> => {
-      const headers = await getAuthHeaders();
-      const search = new URLSearchParams();
-      if (params?.status) search.set('status', params.status);
-      if (params?.limit) search.set('limit', String(params.limit));
-      const qs = search.toString();
-      const resp = await fetch(
-        `${API_V1_URL}/security-ingestion/threat-stories${qs ? `?${qs}` : ''}`,
-        {
-          headers,
-        },
-      );
-      if (!resp.ok) throw new Error('Failed to fetch security threat stories');
-      return resp.json();
+      const response = await apiClient.listSecurityThreatStories({
+        status: params?.status,
+        limit: params?.limit ? String(params.limit) : undefined,
+      });
+      if (response.error || !response.data) {
+        throw new Error('Failed to fetch security threat stories');
+      }
+      return response.data;
     },
     threatStory: async (id: string): Promise<{ story: SecurityThreatStory }> => {
-      const headers = await getAuthHeaders();
-      const resp = await fetch(`${API_V1_URL}/security-ingestion/threat-stories/${id}`, {
-        headers,
-      });
-      if (!resp.ok) throw new Error('Failed to fetch security threat story');
-      return resp.json();
+      const response = await apiClient.getSecurityThreatStory(id);
+      if (response.error || !response.data)
+        throw new Error('Failed to fetch security threat story');
+      return response.data;
     },
     recordThreatStory: async (body: {
       storyKey?: string;
@@ -2165,14 +2171,10 @@ export const api = {
       createdByAgentRunId?: string;
       metadata?: Record<string, unknown>;
     }): Promise<{ story: SecurityThreatStory }> => {
-      const headers = await getAuthHeaders();
-      const resp = await fetch(`${API_V1_URL}/security-ingestion/threat-stories`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!resp.ok) throw new Error('Failed to record security threat story');
-      return resp.json();
+      const response = await apiClient.recordSecurityThreatStory(body);
+      if (response.error || !response.data)
+        throw new Error('Failed to record security threat story');
+      return response.data;
     },
   },
 

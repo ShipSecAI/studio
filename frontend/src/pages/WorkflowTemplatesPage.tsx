@@ -16,7 +16,7 @@ import {
   TrendingUp,
   Eye,
 } from 'lucide-react';
-import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
+import { api } from '@/services/api';
 import { TemplateDetailDialog } from '@/components/templates/TemplateDetailDialog';
 import { WorkflowPreviewCanvas } from '@/components/templates/WorkflowPreviewCanvas';
 import type { WorkflowTemplate } from '@/components/templates/types';
@@ -288,12 +288,8 @@ export function WorkflowTemplatesPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const headers = await getApiAuthHeaders();
-        const response = await fetch(`${API_BASE_URL}/api/v1/workflow-templates`, { headers });
-        if (response.ok) {
-          const data = (await response.json()) as WorkflowTemplate[];
-          setTemplates(data);
-        }
+        const data = (await api.workflowTemplates.list()) as WorkflowTemplate[];
+        setTemplates(data);
       } catch {
         // silently fail — empty list is fine
       } finally {
@@ -306,17 +302,7 @@ export function WorkflowTemplatesPage() {
   const handleUseTemplate = async (template: WorkflowTemplate) => {
     setInstantiating(template.id);
     try {
-      const headers = await getApiAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/api/v1/workflow-templates/${template.id}/instantiate`,
-        {
-          method: 'POST',
-          headers: { ...headers, 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        },
-      );
-      if (!response.ok) throw new Error('Failed to create workflow from template');
-      const workflow = (await response.json()) as { id: string };
+      const workflow = (await api.workflowTemplates.instantiate(template.id)) as { id: string };
       toast({
         title: 'Workflow created',
         description: `Created "${template.name}" workflow`,
