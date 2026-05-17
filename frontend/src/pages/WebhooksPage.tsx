@@ -10,14 +10,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
@@ -33,6 +25,7 @@ import { env } from '@/config/env';
 import type { WebhookConfiguration } from '@shipsec/shared';
 import { ACTIVE_STATUS_OPTIONS, formatDateTime, getWorkflowName } from './scheduled-surface-utils';
 import { ScheduledStatusBadge } from './ScheduledStatusBadge';
+import { StatusWorkflowFilters } from './ScheduledSurfaceFilters';
 
 interface WorkflowOption {
   id: string;
@@ -215,41 +208,15 @@ export function WebhooksPage() {
                 onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs uppercase text-muted-foreground">Status</label>
-              <Select value={filters.status} onValueChange={handleStatusFilterChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs uppercase text-muted-foreground">Workflow</label>
-              <Select
-                value={filters.workflowId ?? 'all'}
-                onValueChange={handleWorkflowFilterChange}
-                disabled={workflowsLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All workflows" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All workflows</SelectItem>
-                  {workflowOptions.map((workflow) => (
-                    <SelectItem key={workflow.id} value={workflow.id}>
-                      {workflow.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <StatusWorkflowFilters
+              status={filters.status}
+              workflowId={filters.workflowId}
+              statusOptions={STATUS_OPTIONS}
+              workflows={workflowOptions}
+              workflowsLoading={workflowsLoading}
+              onStatusChange={handleStatusFilterChange}
+              onWorkflowChange={handleWorkflowFilterChange}
+            />
           </div>
           <div className="flex flex-col shrink-0">
             <label className="text-xs uppercase text-muted-foreground invisible hidden lg:block">
