@@ -7,7 +7,6 @@ import {
   ChevronDown,
   Info,
   ChevronRight,
-  CheckCircle,
   XCircle,
   Eye,
 } from 'lucide-react';
@@ -23,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SetupResultAlert, type SetupResult } from './SetupFormShared';
 
 interface AwsSetupFormProps {
   onCreated: () => void;
@@ -41,7 +41,7 @@ export function AwsSetupForm({ onCreated, onCancel }: AwsSetupFormProps) {
   const createAwsAccessKeyMutation = useCreateAwsAccessKeyConnection();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [result, setResult] = useState<SetupResult | null>(null);
   const [copied, setCopied] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
 
@@ -189,22 +189,7 @@ export function AwsSetupForm({ onCreated, onCancel }: AwsSetupFormProps) {
               />
             </div>
 
-            {result && (
-              <div
-                className={`flex items-start gap-2 rounded-md border p-3 text-sm ${
-                  result.ok
-                    ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200'
-                    : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200'
-                }`}
-              >
-                {result.ok ? (
-                  <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                ) : (
-                  <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                )}
-                <span>{result.message}</span>
-              </div>
-            )}
+            <SetupResultAlert result={result} />
 
             <DialogFooter className="gap-2">
               <Button
@@ -523,22 +508,7 @@ export function AwsSetupForm({ onCreated, onCancel }: AwsSetupFormProps) {
                     </div>
                   </div>
 
-                  {result && (
-                    <div
-                      className={`flex items-start gap-2 rounded-md border p-3 text-sm ${
-                        result.ok
-                          ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200'
-                          : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200'
-                      }`}
-                    >
-                      {result.ok ? (
-                        <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                      ) : (
-                        <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                      )}
-                      <span>{result.message}</span>
-                    </div>
-                  )}
+                  <SetupResultAlert result={result} />
 
                   <DialogFooter className="gap-2">
                     <Button

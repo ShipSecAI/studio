@@ -17,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useProwlerChecksMetadata } from '@/hooks/queries/useSecurityQueries';
 import type { SecurityFinding, FindingLifecycle } from '@/lib/securityQueryHelpers';
 import type { ProwlerCheckMetadata } from '@/services/api';
+import { SeverityBadge, StatusBadge } from './SeverityBadge';
 
 const SCANNER_LOGO: Record<string, { src?: string; emoji?: string; alt: string }> = {
   opengrep: { src: '/icons/opengrep.ico', alt: 'OpenGrep' },
@@ -52,25 +53,6 @@ function formatRelativeTime(isoString: string): string {
   if (days < 30) return `${days}d ago`;
   if (days < 365) return `${Math.floor(days / 30)}mo ago`;
   return `${Math.floor(days / 365)}y ago`;
-}
-
-function SeverityBadge({ severity }: { severity: string }) {
-  const s = severity.toLowerCase();
-  const variant =
-    s === 'critical'
-      ? 'destructive'
-      : s === 'high'
-        ? 'warning'
-        : s === 'medium'
-          ? 'secondary'
-          : 'outline';
-  return <Badge variant={variant}>{severity}</Badge>;
-}
-
-function StatusBadge({ status }: { status: string | null }) {
-  if (!status) return <span className="text-muted-foreground text-xs">—</span>;
-  const variant = status === 'FAILED' ? 'destructive' : status === 'PASS' ? 'success' : 'secondary';
-  return <Badge variant={variant}>{status}</Badge>;
 }
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {

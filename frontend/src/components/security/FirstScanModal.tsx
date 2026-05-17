@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -9,14 +8,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Search, Loader2, FolderGit, CalendarClock } from 'lucide-react';
+import { Loader2, FolderGit, CalendarClock } from 'lucide-react';
 import { useGitHubRepositories, useTriggerScan } from '@/hooks/queries/useGithubQueries';
 import type { GitHubRepo } from '@/store/githubStore';
 import { useGitHubStore } from '@/store/githubStore';
 import { useToast } from '@/components/ui/use-toast';
 import { QUICK_SCANS } from './constants';
 import { CodeScanScheduleDialog } from './CodeScanScheduleDialog';
+import { SearchableSelectionList } from './ScheduleDialogShared';
 
 export function FirstScanModal({
   open,
@@ -99,46 +98,29 @@ export function FirstScanModal({
         </DialogHeader>
 
         {!selectedRepo ? (
-          <div className="space-y-3 py-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search repositories..."
-                value={repoSearch}
-                onChange={(e) => setRepoSearch(e.target.value)}
-                className="h-8 pl-8 text-sm"
-              />
-            </div>
-            <div className="max-h-64 overflow-y-auto space-y-1">
-              {repositoriesLoading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
-                ))
-              ) : filteredRepos.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No repositories found
-                </p>
-              ) : (
-                filteredRepos.map((repo) => (
-                  <button
-                    key={repo.id}
-                    onClick={() => setSelectedRepo(repo)}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors"
-                  >
-                    <FolderGit className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{repo.fullName}</div>
-                      {repo.description && (
-                        <div className="text-xs text-muted-foreground truncate">
-                          {repo.description}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
+          <SearchableSelectionList
+            items={filteredRepos}
+            isLoading={repositoriesLoading}
+            search={repoSearch}
+            onSearchChange={setRepoSearch}
+            searchPlaceholder="Search repositories..."
+            emptyMessage="No repositories found"
+            getKey={(repo) => repo.id}
+            renderItem={(repo) => (
+              <button
+                onClick={() => setSelectedRepo(repo)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors"
+              >
+                <FolderGit className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">{repo.fullName}</div>
+                  {repo.description && (
+                    <div className="text-xs text-muted-foreground truncate">{repo.description}</div>
+                  )}
+                </div>
+              </button>
+            )}
+          />
         ) : (
           <div className="space-y-3 py-2">
             <Button

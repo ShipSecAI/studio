@@ -6,7 +6,6 @@ import {
   ChevronRight,
   ChevronDown,
   Info,
-  CheckCircle,
   XCircle,
   Shield,
   Eye,
@@ -23,6 +22,7 @@ import {
 } from '@/hooks/queries/useIntegrationQueries';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SetupResultAlert, type SetupResult } from './SetupFormShared';
 
 interface GcpSetupFormProps {
   onCreated: () => void;
@@ -45,7 +45,7 @@ export function GcpSetupForm({ onCreated, onCancel }: GcpSetupFormProps) {
   const [organizationId, setOrganizationId] = useState('');
   const [targetServiceAccountEmail, setTargetServiceAccountEmail] = useState('');
   const [serviceAccountJson, setServiceAccountJson] = useState('');
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [result, setResult] = useState<SetupResult | null>(null);
 
   const grantCommand = useMemo(() => {
     if (!setupInfo) return '';
@@ -185,22 +185,7 @@ export function GcpSetupForm({ onCreated, onCancel }: GcpSetupFormProps) {
               />
             </div>
 
-            {result && (
-              <div
-                className={`flex items-start gap-2 rounded-md border p-3 text-sm ${
-                  result.ok
-                    ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200'
-                    : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200'
-                }`}
-              >
-                {result.ok ? (
-                  <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                ) : (
-                  <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                )}
-                <span>{result.message}</span>
-              </div>
-            )}
+            <SetupResultAlert result={result} />
 
             <DialogFooter className="gap-2">
               <Button type="button" variant="outline" onClick={onCancel}>
@@ -562,23 +547,7 @@ export function GcpSetupForm({ onCreated, onCancel }: GcpSetupFormProps) {
                     </div>
                   </div>
 
-                  {result && (
-                    <div
-                      className={cn(
-                        'flex items-start gap-2 rounded-md border p-3 text-sm',
-                        result.ok
-                          ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200'
-                          : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200',
-                      )}
-                    >
-                      {result.ok ? (
-                        <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                      ) : (
-                        <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                      )}
-                      <span>{result.message}</span>
-                    </div>
-                  )}
+                  <SetupResultAlert result={result} />
 
                   <DialogFooter className="gap-2">
                     <Button

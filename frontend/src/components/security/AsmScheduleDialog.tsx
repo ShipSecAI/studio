@@ -7,26 +7,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, ArrowLeft, Globe, Loader2, X } from 'lucide-react';
+import { Globe, X } from 'lucide-react';
 import { useGitHubStore } from '@/store/githubStore';
 import { useCreateSchedule, useSchedules } from '@/hooks/queries/useScheduleQueries';
 import { useWorkflow } from '@/hooks/queries/useWorkflowQueries';
 import { useToast } from '@/components/ui/use-toast';
-import { CadencePicker } from '@/components/schedules/CadencePicker';
 import { ASM_SCHEDULE_SCANS } from './constants';
+import {
+  ScheduleCadenceAndNameFields,
+  ScheduleDialogActions,
+  ScheduleDialogTitle,
+  ScheduleDuplicateWarning,
+  ScheduleScanTypePicker,
+} from './ScheduleDialogShared';
+import { getLocalTimezone } from './schedule-utils';
 
 const SUBFINDER_COMPONENT_ID = 'shipsec.subfinder.run';
-
-function getLocalTimezone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
-  } catch {
-    return 'UTC';
-  }
-}
 
 interface AsmScheduleDialogProps {
   open: boolean;
@@ -213,16 +211,7 @@ export function AsmScheduleDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {onBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                className="inline-flex items-center mr-2 text-muted-foreground hover:text-foreground transition-colors align-middle"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-            )}
-            Schedule Attack Surface Scan
+            <ScheduleDialogTitle onBack={onBack}>Schedule Attack Surface Scan</ScheduleDialogTitle>
           </DialogTitle>
           <DialogDescription>
             {domains.length > 0
@@ -234,26 +223,11 @@ export function AsmScheduleDialog({
         <div className="space-y-4 py-2">
           {/* Scan type (only show if not pre-selected) */}
           {!preSelectedScanId && resolvedScans.length > 1 && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Scan type</Label>
-              <div className="grid gap-2">
-                {resolvedScans.map((scan) => (
-                  <button
-                    key={scan.id}
-                    type="button"
-                    onClick={() => setSelectedScan(scan.id)}
-                    className={`rounded-lg border p-3 text-left text-sm transition-colors ${
-                      selectedScan === scan.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                  >
-                    <div className="font-medium">{scan.name}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{scan.description}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <ScheduleScanTypePicker
+              scans={resolvedScans}
+              selectedScan={selectedScan}
+              onSelect={setSelectedScan}
+            />
           )}
 
           {/* Domain input */}
@@ -289,53 +263,34 @@ export function AsmScheduleDialog({
             )}
           </div>
 
-          {/* Cadence */}
-          <CadencePicker
+          <ScheduleCadenceAndNameFields
             cronExpression={cronExpression}
             humanLabel={humanLabel}
-            onChange={(cron, label) => {
+            scheduleName={scheduleName}
+            onCadenceChange={(cron, label) => {
               setCronExpression(cron);
               setHumanLabel(label);
             }}
+            onScheduleNameChange={(name) => {
+              setScheduleName(name);
+              setNameEdited(true);
+            }}
           />
-
-          {/* Schedule name */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Schedule name</Label>
-            <Input
-              value={scheduleName}
-              onChange={(e) => {
-                setScheduleName(e.target.value);
-                setNameEdited(true);
-              }}
-              className="text-sm"
-            />
-          </div>
 
           {/* Duplicate warning */}
           {hasDuplicate && (
-            <div className="flex items-start gap-2 rounded-md border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-2.5 text-sm">
-              <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
-              <span className="text-yellow-800 dark:text-yellow-200">
-                A schedule already exists for these domains.
-              </span>
-            </div>
+            <ScheduleDuplicateWarning>
+              A schedule already exists for these domains.
+            </ScheduleDuplicateWarning>
           )}
 
-          {/* Actions */}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={!isValid || createSchedule.isPending}
-              onClick={handleSubmit}
-            >
-              {createSchedule.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {hasDuplicate ? 'Create anyway' : 'Create schedule'}
-            </Button>
-          </div>
+          <ScheduleDialogActions
+            onCancel={onClose}
+            onSubmit={handleSubmit}
+            isPending={createSchedule.isPending}
+            isValid={isValid}
+            hasDuplicate={hasDuplicate}
+          />
         </div>
       </DialogContent>
     </Dialog>

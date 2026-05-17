@@ -7,28 +7,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, ArrowLeft, FolderGit, Loader2, Search } from 'lucide-react';
+import { AlertCircle, FolderGit } from 'lucide-react';
 import { useGitHubStore, type GitHubRepo } from '@/store/githubStore';
 import { useGitHubRepositories } from '@/hooks/queries/useGithubQueries';
 import { useWorkflow } from '@/hooks/queries/useWorkflowQueries';
 import { useCreateSchedule, useSchedules } from '@/hooks/queries/useScheduleQueries';
 import { useToast } from '@/components/ui/use-toast';
-import { CadencePicker } from '@/components/schedules/CadencePicker';
 import { CODE_SCHEDULE_SCANS } from './constants';
+import {
+  ScheduleCadenceAndNameFields,
+  ScheduleDialogActions,
+  ScheduleDialogTitle,
+  ScheduleDuplicateWarning,
+  ScheduleScanTypePicker,
+  SearchableSelectionList,
+} from './ScheduleDialogShared';
+import { getLocalTimezone } from './schedule-utils';
 
 const CLONE_COMPONENT_ID = 'github.repo.clone';
-
-function getLocalTimezone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
-  } catch {
-    return 'UTC';
-  }
-}
 
 interface CodeScanScheduleDialogProps {
   open: boolean;
@@ -226,16 +224,7 @@ export function CodeScanScheduleDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {onBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                className="inline-flex items-center mr-2 text-muted-foreground hover:text-foreground transition-colors align-middle"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-            )}
-            Schedule Code Scan
+            <ScheduleDialogTitle onBack={onBack}>Schedule Code Scan</ScheduleDialogTitle>
           </DialogTitle>
           <DialogDescription>
             {selectedRepo ? selectedRepo.fullName : 'Select a repository'}
@@ -244,79 +233,39 @@ export function CodeScanScheduleDialog({
 
         {showRepoPicker ? (
           /* Step 1: Repo picker */
-          <div className="space-y-3 py-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search repositories..."
-                value={repoSearch}
-                onChange={(e) => setRepoSearch(e.target.value)}
-                className="h-8 pl-8 text-sm"
-              />
-            </div>
-            <div className="max-h-64 overflow-y-auto space-y-1">
-              {repositoriesLoading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
-                ))
-              ) : filteredRepos.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No repositories found
-                </p>
-              ) : (
-                filteredRepos.map((repo) => (
-                  <button
-                    key={repo.id}
-                    onClick={() => setSelectedRepo(repo)}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors"
-                  >
-                    <FolderGit className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{repo.fullName}</div>
-                      {repo.description && (
-                        <div className="text-xs text-muted-foreground truncate">
-                          {repo.description}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
+          <SearchableSelectionList
+            items={filteredRepos}
+            isLoading={repositoriesLoading}
+            search={repoSearch}
+            onSearchChange={setRepoSearch}
+            searchPlaceholder="Search repositories..."
+            emptyMessage="No repositories found"
+            getKey={(repo) => repo.id}
+            renderItem={(repo) => (
+              <button
+                onClick={() => setSelectedRepo(repo)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors"
+              >
+                <FolderGit className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">{repo.fullName}</div>
+                  {repo.description && (
+                    <div className="text-xs text-muted-foreground truncate">{repo.description}</div>
+                  )}
+                </div>
+              </button>
+            )}
+          />
         ) : (
           /* Step 2: Configure */
           <div className="space-y-4 py-2">
             {/* Scan type */}
             {!preSelectedScanId && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Scan type</Label>
-                {resolvedScans.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Some scan types are unavailable for your organization. Contact your admin.
-                  </p>
-                ) : (
-                  <div className="grid gap-2">
-                    {resolvedScans.map((scan) => (
-                      <button
-                        key={scan.id}
-                        type="button"
-                        onClick={() => setSelectedScan(scan.id)}
-                        className={`rounded-lg border p-3 text-left text-sm transition-colors ${
-                          selectedScan === scan.id
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <div className="font-medium">{scan.name}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {scan.description}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <ScheduleScanTypePicker
+                scans={resolvedScans}
+                selectedScan={selectedScan}
+                onSelect={setSelectedScan}
+              />
             )}
 
             {/* Branch */}
@@ -332,28 +281,19 @@ export function CodeScanScheduleDialog({
               </p>
             </div>
 
-            {/* Cadence */}
-            <CadencePicker
+            <ScheduleCadenceAndNameFields
               cronExpression={cronExpression}
               humanLabel={humanLabel}
-              onChange={(cron, label) => {
+              scheduleName={scheduleName}
+              onCadenceChange={(cron, label) => {
                 setCronExpression(cron);
                 setHumanLabel(label);
               }}
+              onScheduleNameChange={(name) => {
+                setScheduleName(name);
+                setNameEdited(true);
+              }}
             />
-
-            {/* Schedule name */}
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Schedule name</Label>
-              <Input
-                value={scheduleName}
-                onChange={(e) => {
-                  setScheduleName(e.target.value);
-                  setNameEdited(true);
-                }}
-                className="text-sm"
-              />
-            </div>
 
             {/* Clone node error */}
             {hasCloneNodeError && (
@@ -368,28 +308,19 @@ export function CodeScanScheduleDialog({
 
             {/* Duplicate warning */}
             {hasDuplicate && (
-              <div className="flex items-start gap-2 rounded-md border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-2.5 text-sm">
-                <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
-                <span className="text-yellow-800 dark:text-yellow-200">
-                  A schedule already exists for this target.
-                </span>
-              </div>
+              <ScheduleDuplicateWarning>
+                A schedule already exists for this target.
+              </ScheduleDuplicateWarning>
             )}
 
-            {/* Actions */}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                disabled={!isValid || createSchedule.isPending || hasCloneNodeError}
-                onClick={handleSubmit}
-              >
-                {createSchedule.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {hasDuplicate ? 'Create anyway' : 'Create schedule'}
-              </Button>
-            </div>
+            <ScheduleDialogActions
+              onCancel={onClose}
+              onSubmit={handleSubmit}
+              isPending={createSchedule.isPending}
+              isValid={isValid}
+              hasDuplicate={hasDuplicate}
+              disabled={hasCloneNodeError}
+            />
           </div>
         )}
       </DialogContent>

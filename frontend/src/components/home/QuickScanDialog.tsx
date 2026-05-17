@@ -8,15 +8,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Search, Loader2, FolderGit, Code, Cloud, Shield, Container, Globe } from 'lucide-react';
+import { Loader2, FolderGit, Code, Cloud, Shield, Container, Globe } from 'lucide-react';
 import { useGitHubRepositories, useTriggerScan } from '@/hooks/queries/useGithubQueries';
 import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries';
 import { useAsmDomains, useTriggerDomainScan } from '@/hooks/queries/useAsmQueries';
 import { useGitHubStore } from '@/store/githubStore';
 import { useToast } from '@/components/ui/use-toast';
 import { QUICK_SCANS } from '@/components/security/constants';
+import { SearchableSelectionList } from '@/components/security/ScheduleDialogShared';
 import { api } from '@/services/api';
 
 type Category = 'code' | 'cloud' | 'asm';
@@ -287,43 +286,35 @@ function CodeTargetStep({ templateSlug, onClose }: { templateSlug: string; onClo
   return (
     <div className="space-y-2 border-t pt-3">
       <div className="text-xs font-medium text-muted-foreground">Select repository</div>
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-        <Input
-          placeholder="Search repositories..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-8 pl-8 text-sm"
-        />
-      </div>
-      <div className="max-h-48 overflow-y-auto space-y-1">
-        {isLoading ? (
-          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
-        ) : filteredRepos.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No repositories found</p>
-        ) : (
-          filteredRepos.map((repo) => (
-            <button
-              key={repo.id}
-              onClick={() => handleTrigger(repo)}
-              disabled={triggeringId !== null}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors disabled:opacity-50"
-            >
-              {triggeringId === repo.id ? (
-                <Loader2 className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" />
-              ) : (
-                <FolderGit className="h-4 w-4 text-muted-foreground shrink-0" />
+      <SearchableSelectionList
+        items={filteredRepos}
+        isLoading={isLoading}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search repositories..."
+        emptyMessage="No repositories found"
+        listClassName="max-h-48"
+        getKey={(repo) => repo.id}
+        renderItem={(repo) => (
+          <button
+            onClick={() => handleTrigger(repo)}
+            disabled={triggeringId !== null}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors disabled:opacity-50"
+          >
+            {triggeringId === repo.id ? (
+              <Loader2 className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" />
+            ) : (
+              <FolderGit className="h-4 w-4 text-muted-foreground shrink-0" />
+            )}
+            <div className="min-w-0">
+              <div className="text-sm font-medium truncate">{repo.fullName}</div>
+              {repo.description && (
+                <div className="text-xs text-muted-foreground truncate">{repo.description}</div>
               )}
-              <div className="min-w-0">
-                <div className="text-sm font-medium truncate">{repo.fullName}</div>
-                {repo.description && (
-                  <div className="text-xs text-muted-foreground truncate">{repo.description}</div>
-                )}
-              </div>
-            </button>
-          ))
+            </div>
+          </button>
         )}
-      </div>
+      />
     </div>
   );
 }
@@ -425,54 +416,46 @@ function CloudTargetStep({ templateSlug, onClose }: { templateSlug: string; onCl
       <div className="text-xs font-medium text-muted-foreground">
         Select {selectedProviders.includes('gcp') ? 'GCP account' : 'AWS account'}
       </div>
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-        <Input
-          placeholder="Search accounts..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-8 pl-8 text-sm"
-        />
-      </div>
-      <div className="max-h-48 overflow-y-auto space-y-1">
-        {isLoading ? (
-          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
-        ) : cloudConnections.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No accounts found</p>
-        ) : (
-          cloudConnections.map((conn: AwsConnection) => (
-            <button
-              key={conn.id}
-              onClick={() => handleTrigger(conn)}
-              disabled={triggeringId !== null}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors disabled:opacity-50"
-            >
-              {triggeringId === conn.id ? (
-                <Loader2 className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" />
-              ) : (
-                <Cloud className="h-4 w-4 text-muted-foreground shrink-0" />
-              )}
-              <div className="min-w-0">
-                <div className="text-sm font-medium truncate">
-                  {conn.displayName || (conn.provider === 'gcp' ? 'GCP Account' : 'AWS Account')}
-                </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {conn.provider === 'gcp'
-                    ? conn.config?.defaultProjectId
-                      ? `Project ${String(conn.config.defaultProjectId)}`
-                      : conn.id.slice(0, 8)
-                    : conn.config?.accountId
-                      ? `Account ${String(conn.config.accountId)}`
-                      : conn.id.slice(0, 8)}
-                  {conn.provider === 'aws' && conn.config?.region
-                    ? ` · ${String(conn.config.region)}`
-                    : ''}
-                </div>
+      <SearchableSelectionList
+        items={cloudConnections}
+        isLoading={isLoading}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search accounts..."
+        emptyMessage="No accounts found"
+        listClassName="max-h-48"
+        getKey={(conn) => conn.id}
+        renderItem={(conn: AwsConnection) => (
+          <button
+            onClick={() => handleTrigger(conn)}
+            disabled={triggeringId !== null}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors disabled:opacity-50"
+          >
+            {triggeringId === conn.id ? (
+              <Loader2 className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" />
+            ) : (
+              <Cloud className="h-4 w-4 text-muted-foreground shrink-0" />
+            )}
+            <div className="min-w-0">
+              <div className="text-sm font-medium truncate">
+                {conn.displayName || (conn.provider === 'gcp' ? 'GCP Account' : 'AWS Account')}
               </div>
-            </button>
-          ))
+              <div className="text-xs text-muted-foreground truncate">
+                {conn.provider === 'gcp'
+                  ? conn.config?.defaultProjectId
+                    ? `Project ${String(conn.config.defaultProjectId)}`
+                    : conn.id.slice(0, 8)
+                  : conn.config?.accountId
+                    ? `Account ${String(conn.config.accountId)}`
+                    : conn.id.slice(0, 8)}
+                {conn.provider === 'aws' && conn.config?.region
+                  ? ` · ${String(conn.config.region)}`
+                  : ''}
+              </div>
+            </div>
+          </button>
         )}
-      </div>
+      />
     </div>
   );
 }
@@ -537,46 +520,38 @@ function AsmTargetStep({ onClose }: { onClose: () => void }) {
   return (
     <div className="space-y-2 border-t pt-3">
       <div className="text-xs font-medium text-muted-foreground">Select domain</div>
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-        <Input
-          placeholder="Search domains..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-8 pl-8 text-sm"
-        />
-      </div>
-      <div className="max-h-48 overflow-y-auto space-y-1">
-        {isLoading ? (
-          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
-        ) : filteredDomains.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No domains found</p>
-        ) : (
-          filteredDomains.map((domain) => (
-            <button
-              key={domain.id}
-              onClick={() => handleTrigger(domain)}
-              disabled={triggeringId !== null}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors disabled:opacity-50"
-            >
-              {triggeringId === domain.id ? (
-                <Loader2 className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" />
-              ) : (
-                <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
-              )}
-              <div className="min-w-0">
-                <div className="text-sm font-medium truncate">{domain.domain}</div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {domain.assetCount} asset{domain.assetCount !== 1 ? 's' : ''}
-                  {domain.lastScanAt
-                    ? ` · Last scan ${new Date(domain.lastScanAt).toLocaleDateString()}`
-                    : ' · Never scanned'}
-                </div>
+      <SearchableSelectionList
+        items={filteredDomains}
+        isLoading={isLoading}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search domains..."
+        emptyMessage="No domains found"
+        listClassName="max-h-48"
+        getKey={(domain) => domain.id}
+        renderItem={(domain) => (
+          <button
+            onClick={() => handleTrigger(domain)}
+            disabled={triggeringId !== null}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors disabled:opacity-50"
+          >
+            {triggeringId === domain.id ? (
+              <Loader2 className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" />
+            ) : (
+              <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+            )}
+            <div className="min-w-0">
+              <div className="text-sm font-medium truncate">{domain.domain}</div>
+              <div className="text-xs text-muted-foreground truncate">
+                {domain.assetCount} asset{domain.assetCount !== 1 ? 's' : ''}
+                {domain.lastScanAt
+                  ? ` · Last scan ${new Date(domain.lastScanAt).toLocaleDateString()}`
+                  : ' · Never scanned'}
               </div>
-            </button>
-          ))
+            </div>
+          </button>
         )}
-      </div>
+      />
     </div>
   );
 }
