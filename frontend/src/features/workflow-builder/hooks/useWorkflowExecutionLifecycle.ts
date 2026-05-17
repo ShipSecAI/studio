@@ -125,6 +125,50 @@ export function useWorkflowExecutionLifecycle({
     lastProcessedRouteRunIdRef.current = null;
   }, []);
 
+  const restoreExecutionFromCurrentDesign = useCallback(
+    ({
+      requireSource = false,
+      savedOnly = false,
+    }: { requireSource?: boolean; savedOnly?: boolean } = {}) => {
+      if (designSavedSnapshotRef.current) {
+        const savedNodes = cloneNodes(designSavedSnapshotRef.current.nodes);
+        const savedEdges = cloneEdges(designSavedSnapshotRef.current.edges);
+        const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal');
+        setExecutionNodes([...savedNodes, ...terminalNodes]);
+        setExecutionEdges(savedEdges);
+        executionLoadedSnapshotRef.current = {
+          nodes: cloneNodes(savedNodes),
+          edges: cloneEdges(savedEdges),
+        };
+        return true;
+      }
+
+      if (savedOnly || (requireSource && designNodesRef.current.length === 0)) {
+        return false;
+      }
+
+      const designNodesCopy = cloneNodes(designNodesRef.current);
+      const designEdgesCopy = cloneEdges(designEdgesRef.current);
+      const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal');
+      setExecutionNodes([...designNodesCopy, ...terminalNodes]);
+      setExecutionEdges(designEdgesCopy);
+      executionLoadedSnapshotRef.current = {
+        nodes: cloneNodes(designNodesCopy),
+        edges: cloneEdges(designEdgesCopy),
+      };
+      return true;
+    },
+    [
+      designEdgesRef,
+      designNodesRef,
+      designSavedSnapshotRef,
+      executionLoadedSnapshotRef,
+      executionNodesRef,
+      setExecutionEdges,
+      setExecutionNodes,
+    ],
+  );
+
   useEffect(() => {
     if (!metadata.id) {
       useExecutionTimelineStore.getState().reset();
@@ -250,27 +294,7 @@ export function useWorkflowExecutionLifecycle({
       preservedExecutionStateRef.current = null;
       setExecutionDirty(false);
 
-      if (designSavedSnapshotRef.current) {
-        const savedNodes = cloneNodes(designSavedSnapshotRef.current.nodes);
-        const savedEdges = cloneEdges(designSavedSnapshotRef.current.edges);
-        const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal');
-        setExecutionNodes([...savedNodes, ...terminalNodes]);
-        setExecutionEdges(savedEdges);
-        executionLoadedSnapshotRef.current = {
-          nodes: cloneNodes(savedNodes),
-          edges: cloneEdges(savedEdges),
-        };
-      } else {
-        const designNodesCopy = cloneNodes(designNodesRef.current);
-        const designEdgesCopy = cloneEdges(designEdgesRef.current);
-        const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal');
-        setExecutionNodes([...designNodesCopy, ...terminalNodes]);
-        setExecutionEdges(designEdgesCopy);
-        executionLoadedSnapshotRef.current = {
-          nodes: cloneNodes(designNodesCopy),
-          edges: cloneEdges(designEdgesCopy),
-        };
-      }
+      restoreExecutionFromCurrentDesign();
 
       if (historicalVersionId) {
         setHistoricalVersionId(null);
@@ -288,27 +312,7 @@ export function useWorkflowExecutionLifecycle({
     // If execution graph is empty when navigating directly to a run, hydrate from the latest
     // design snapshot so the canvas isn't blank while we load the historical version.
     if (executionNodesRef.current.length === 0 && executionEdgesRef.current.length === 0) {
-      if (designSavedSnapshotRef.current && designSavedSnapshotRef.current.nodes.length > 0) {
-        const savedNodes = cloneNodes(designSavedSnapshotRef.current.nodes);
-        const savedEdges = cloneEdges(designSavedSnapshotRef.current.edges);
-        const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal');
-        setExecutionNodes([...savedNodes, ...terminalNodes]);
-        setExecutionEdges(savedEdges);
-        executionLoadedSnapshotRef.current = {
-          nodes: cloneNodes(savedNodes),
-          edges: cloneEdges(savedEdges),
-        };
-      } else if (designNodesRef.current.length > 0) {
-        const designNodesCopy = cloneNodes(designNodesRef.current);
-        const designEdgesCopy = cloneEdges(designEdgesRef.current);
-        const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal');
-        setExecutionNodes([...designNodesCopy, ...terminalNodes]);
-        setExecutionEdges(designEdgesCopy);
-        executionLoadedSnapshotRef.current = {
-          nodes: cloneNodes(designNodesCopy),
-          edges: cloneEdges(designEdgesCopy),
-        };
-      } else {
+      if (!restoreExecutionFromCurrentDesign({ requireSource: true })) {
         // Both execution and design graphs are empty - workflow hasn't loaded yet.
         // Return early and let the workflow load effect populate the design state first.
         // This effect will re-run when the design state is populated.
@@ -346,17 +350,7 @@ export function useWorkflowExecutionLifecycle({
         } catch (error) {
           if (latestTargetRunIdRef.current !== targetRunId) return;
           console.error('[VersionLoad] Failed to fetch run details:', error);
-          if (designSavedSnapshotRef.current) {
-            const savedNodes = cloneNodes(designSavedSnapshotRef.current.nodes);
-            const savedEdges = cloneEdges(designSavedSnapshotRef.current.edges);
-            const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal');
-            setExecutionNodes([...savedNodes, ...terminalNodes]);
-            setExecutionEdges(savedEdges);
-            executionLoadedSnapshotRef.current = {
-              nodes: cloneNodes(savedNodes),
-              edges: cloneEdges(savedEdges),
-            };
-          }
+          restoreExecutionFromCurrentDesign({ savedOnly: true });
           return;
         }
       }
@@ -382,27 +376,7 @@ export function useWorkflowExecutionLifecycle({
         preservedExecutionStateRef.current = null;
         setExecutionDirty(false);
 
-        if (designSavedSnapshotRef.current) {
-          const savedNodes = cloneNodes(designSavedSnapshotRef.current.nodes);
-          const savedEdges = cloneEdges(designSavedSnapshotRef.current.edges);
-          const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal');
-          setExecutionNodes([...savedNodes, ...terminalNodes]);
-          setExecutionEdges(savedEdges);
-          executionLoadedSnapshotRef.current = {
-            nodes: cloneNodes(savedNodes),
-            edges: cloneEdges(savedEdges),
-          };
-        } else {
-          const designNodesCopy = cloneNodes(designNodesRef.current);
-          const designEdgesCopy = cloneEdges(designEdgesRef.current);
-          const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal');
-          setExecutionNodes([...designNodesCopy, ...terminalNodes]);
-          setExecutionEdges(designEdgesCopy);
-          executionLoadedSnapshotRef.current = {
-            nodes: cloneNodes(designNodesCopy),
-            edges: cloneEdges(designEdgesCopy),
-          };
-        }
+        restoreExecutionFromCurrentDesign();
 
         if (historicalVersionId) {
           setHistoricalVersionId(null);
