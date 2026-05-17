@@ -141,9 +141,9 @@ describe('CloudAccountsPage ScansTab URL state', () => {
       </Wrapper>,
     );
 
-    expect(screen.getByText('Connect a Cloud Account First')).toBeInTheDocument();
+    expect(screen.getByText('Connect a cloud account first')).toBeInTheDocument();
     expect(
-      screen.getByText(/Connect an AWS or Google Cloud account from the Accounts tab/i),
+      screen.getByText(/Connect AWS or Google Cloud from Accounts before running cloud scans/i),
     ).toBeInTheDocument();
   });
 });
