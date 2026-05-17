@@ -26,9 +26,6 @@ import {
   Workflow,
   AlertCircle,
   Filter,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
   CalendarClock,
   Zap,
   Webhook,
@@ -62,14 +59,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AwsSetupForm } from '@/components/integrations/AwsSetupForm';
 import { GcpSetupForm } from '@/components/integrations/GcpSetupForm';
@@ -88,12 +78,11 @@ import {
   formatDuration,
   getExecutionStatusDisplay,
 } from '@/components/scans/scan-utils';
+import { SortableTableHead } from '@/components/scans/SortableTableHead';
 import { CloudScanDetailPanel } from '@/components/scans/CloudScanDetailPanel';
 import type { ExecutionStatus } from '@/schemas/execution';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { CloudScanScheduleDialog } from '@/components/security/CloudScanScheduleDialog';
-
-// ── Types ────────────────────────────────────────────────────────────────────
 
 interface CloudConnection {
   id: string;
@@ -117,8 +106,6 @@ function getProviderLabel(provider: string): string {
       return provider.toUpperCase();
   }
 }
-
-// ── Empty State ──────────────────────────────────────────────────────────────
 
 function CloudEmptyState({ onConnect }: { onConnect: () => void }) {
   return (
@@ -160,8 +147,6 @@ function CloudEmptyState({ onConnect }: { onConnect: () => void }) {
   );
 }
 
-// ── Loading State ────────────────────────────────────────────────────────────
-
 function CloudLoadingSkeleton() {
   return (
     <div className="space-y-6">
@@ -178,8 +163,6 @@ function CloudLoadingSkeleton() {
     </div>
   );
 }
-
-// ── Cloud Scan Picker Modal ──────────────────────────────────────────────────
 
 const CLOUD_QUICK_SCANS = [
   {
@@ -415,8 +398,6 @@ function CloudScanPickerModal({ open, onClose, connection }: CloudScanPickerModa
   );
 }
 
-// ── Account Card ─────────────────────────────────────────────────────────────
-
 function AccountCard({
   connection,
   onScan,
@@ -587,8 +568,6 @@ function AccountCard({
   );
 }
 
-// ── Accounts Tab ─────────────────────────────────────────────────────────────
-
 function AccountsTab({
   connections,
   onConnect,
@@ -653,7 +632,6 @@ function AccountsTab({
 
   return (
     <div className="space-y-8">
-      {/* Connections Section */}
       <div>
         <h2 className="text-lg font-semibold mb-4">
           Connections
@@ -685,10 +663,7 @@ function AccountsTab({
           </Card>
         </div>
       </div>
-
-      {/* Two-column bottom: Setup Instructions + Info Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Left column: Setup Instructions */}
         {hasSetupSections && (
           <div className="lg:col-span-3">
             <Card>
@@ -731,11 +706,8 @@ function AccountsTab({
             </Card>
           </div>
         )}
-
-        {/* Right column: Info Sidebar */}
         <div className={hasSetupSections ? 'lg:col-span-2' : 'lg:col-span-5'}>
           <div className="space-y-4">
-            {/* Documentation link */}
             {awsEntry?.docsUrl && (
               <Card>
                 <CardContent className="p-4">
@@ -766,8 +738,6 @@ function AccountsTab({
                 </CardContent>
               </Card>
             )}
-
-            {/* Connection stats */}
             <Card>
               <CardContent className="p-4 space-y-3">
                 <h3 className="text-sm font-semibold">Connection Summary</h3>
@@ -785,8 +755,6 @@ function AccountsTab({
                 </div>
               </CardContent>
             </Card>
-
-            {/* Auth methods */}
             {[awsEntry, gcpEntry].some((entry) => entry?.authMethods?.length) && (
               <Card>
                 <CardContent className="p-4 space-y-3">
@@ -810,8 +778,6 @@ function AccountsTab({
     </div>
   );
 }
-
-// ── Scans Tab ────────────────────────────────────────────────────────────────
 
 const ALL_STATUSES_VALUE = '__all__';
 
@@ -858,38 +824,6 @@ function getTriggerLabel(triggerType: string | undefined) {
     default:
       return triggerType ?? 'Manual';
   }
-}
-
-function CloudSortableHeader({
-  column,
-  label,
-  currentSort,
-  currentDir,
-  onSort,
-  className,
-}: {
-  column: CloudSortColumn;
-  label: string;
-  currentSort: CloudSortColumn;
-  currentDir: SortDirection;
-  onSort: (col: CloudSortColumn) => void;
-  className?: string;
-}) {
-  const isActive = currentSort === column;
-  const Icon = isActive ? (currentDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
-  return (
-    <TableHead
-      className={cn('cursor-pointer select-none hover:bg-muted/50', className)}
-      onClick={() => onSort(column)}
-    >
-      <div className="flex items-center gap-1">
-        {label}
-        <Icon
-          className={cn('h-3.5 w-3.5', isActive ? 'text-foreground' : 'text-muted-foreground/50')}
-        />
-      </div>
-    </TableHead>
-  );
 }
 
 function FindingsBadges({ summary }: { summary?: SeveritySummary }) {
@@ -1075,8 +1009,6 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
     setParam('page', page > 1 ? String(page) : null);
   };
 
-  // ── Empty state hierarchy ──────────────────────────────────────────────────
-
   // 1. No cloud connections
   if (connections.length === 0 && !isPanelOpen) {
     return (
@@ -1168,7 +1100,6 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
           )}
         >
           <div className={cn('space-y-4 flex-1', isPanelOpen ? 'p-4 overflow-y-auto' : '')}>
-            {/* Filter bar */}
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
@@ -1208,15 +1139,11 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
                 </Button>
               </div>
             </div>
-
-            {/* Results count */}
             {!isLoading && !isError && allRuns.length > 0 && (
               <div className="text-sm text-muted-foreground">
                 {sortedRuns.length} cloud scan{sortedRuns.length !== 1 ? 's' : ''}
               </div>
             )}
-
-            {/* Live runs section */}
             {liveRuns.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-sm font-medium text-muted-foreground">
@@ -1291,8 +1218,6 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
                 <Button onClick={() => refetch()}>Retry</Button>
               </div>
             )}
-
-            {/* 6. No runs match filter */}
             {!isLoading && !isError && allRuns.length === 0 && activeStatus && (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="mb-4 rounded-xl border bg-muted p-4">
@@ -1309,8 +1234,6 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
                 </Button>
               </div>
             )}
-
-            {/* 7. No runs, no filter */}
             {!isLoading && !isError && allRuns.length === 0 && !activeStatus && (
               <section className="rounded-xl border bg-card/80 p-6 shadow-sm">
                 <div className="flex max-w-2xl gap-4">
@@ -1326,8 +1249,6 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
                 </div>
               </section>
             )}
-
-            {/* 8. Compact list (panel open) */}
             {!isLoading && !isError && allRuns.length > 0 && isPanelOpen && (
               <div className="space-y-1">
                 {pageRuns.map((run) => {
@@ -1373,48 +1294,46 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
                 })}
               </div>
             )}
-
-            {/* 8. Full table (no panel) */}
             {!isLoading && !isError && allRuns.length > 0 && !isPanelOpen && (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <CloudSortableHeader
+                    <SortableTableHead
                       column="time"
                       label="Time"
                       currentSort={sortColumn}
                       currentDir={sortDirection}
                       onSort={handleSort}
                     />
-                    <CloudSortableHeader
+                    <SortableTableHead
                       column="status"
                       label="Status"
                       currentSort={sortColumn}
                       currentDir={sortDirection}
                       onSort={handleSort}
                     />
-                    <CloudSortableHeader
+                    <SortableTableHead
                       column="scanType"
                       label="Scan Type"
                       currentSort={sortColumn}
                       currentDir={sortDirection}
                       onSort={handleSort}
                     />
-                    <CloudSortableHeader
+                    <SortableTableHead
                       column="source"
                       label="Source"
                       currentSort={sortColumn}
                       currentDir={sortDirection}
                       onSort={handleSort}
                     />
-                    <CloudSortableHeader
+                    <SortableTableHead
                       column="duration"
                       label="Duration"
                       currentSort={sortColumn}
                       currentDir={sortDirection}
                       onSort={handleSort}
                     />
-                    <CloudSortableHeader
+                    <SortableTableHead
                       column="findings"
                       label="Findings"
                       currentSort={sortColumn}
@@ -1478,8 +1397,6 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
                 </TableBody>
               </Table>
             )}
-
-            {/* Pagination */}
             {!isLoading && !isError && sortedRuns.length > SCAN_PAGE_SIZE && (
               <div className="flex items-center justify-between text-sm text-muted-foreground pt-2">
                 <span>
@@ -1519,8 +1436,6 @@ export function ScansTab({ connections }: { connections: CloudConnection[] }) {
     </div>
   );
 }
-
-// ── Connect Account Dialog ───────────────────────────────────────────────────
 
 function ConnectAccountDialog({
   open,
@@ -1568,8 +1483,6 @@ function ConnectAccountDialog({
     </Dialog>
   );
 }
-
-// ── Main Page ────────────────────────────────────────────────────────────────
 
 export function CloudAccountsPage() {
   const location = useLocation();
@@ -1669,8 +1582,6 @@ export function CloudAccountsPage() {
     </div>
   );
 }
-
-// ── Setup Instructions Section ────────────────────────────────────────────────
 
 function renderStepText(text: string): React.ReactNode {
   const parts = text.split(/(`[^`]+`)/g);

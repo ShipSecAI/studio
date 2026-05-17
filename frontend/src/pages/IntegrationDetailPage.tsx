@@ -57,10 +57,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GcpSetupForm } from '@/components/integrations/GcpSetupForm';
-
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function formatTimestamp(iso: string | null | undefined): string {
   if (!iso) return '\u2014';
@@ -163,10 +160,7 @@ function renderStepText(text: string): React.ReactNode {
     return <span key={i}>{part}</span>;
   });
 }
-
-// ---------------------------------------------------------------------------
 // AWS Connection Form
-// ---------------------------------------------------------------------------
 
 interface AwsFormProps {
   onCreated: () => void;
@@ -395,7 +389,6 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Step indicator */}
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -448,8 +441,6 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
                   Connection Details
                 </button>
               </div>
-
-              {/* Step 1: Trust Policy */}
               {step === 1 && (
                 <div className="space-y-4">
                   <div className="space-y-3">
@@ -485,8 +476,6 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
                       </Button>
                     </div>
                   </div>
-
-                  {/* Collapsible: Why IAM Role Assumption? */}
                   <div className="rounded-md border bg-muted/25">
                     <button
                       type="button"
@@ -561,8 +550,6 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
                   </DialogFooter>
                 </div>
               )}
-
-              {/* Step 2: Attach Permissions */}
               {step === 2 && (
                 <div className="space-y-4">
                   <div className="space-y-3">
@@ -650,8 +637,6 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
                   </DialogFooter>
                 </div>
               )}
-
-              {/* Step 3: Connection Details */}
               {step === 3 && (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-3">
@@ -740,10 +725,7 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
 // Slack Connection Form
-// ---------------------------------------------------------------------------
 
 interface SlackFormProps {
   onCreated: () => void;
@@ -848,7 +830,6 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
         </TabsList>
 
         <TabsContent value="webhook" className="mt-4 space-y-4">
-          {/* Main CTA */}
           <div className="flex flex-col items-center text-center py-2 space-y-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl border bg-muted">
               <img src="/icons/slack.svg" alt="Slack" className="h-7 w-7" />
@@ -929,7 +910,6 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
         </TabsContent>
 
         <TabsContent value="oauth" className="mt-4 space-y-4">
-          {/* Main CTA */}
           <div className="flex flex-col items-center text-center py-2 space-y-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl border bg-muted">
               <img src="/icons/slack.svg" alt="Slack" className="h-7 w-7" />
@@ -954,8 +934,6 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
               )}
             </Button>
           </div>
-
-          {/* Permissions breakdown */}
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">
               Permissions requested
@@ -1048,10 +1026,7 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
 // Jira Connection Form
-// ---------------------------------------------------------------------------
 
 interface JiraFormProps {
   onCreated: () => void;
@@ -1238,10 +1213,7 @@ function JiraConnectionForm({ onCreated, onCancel }: JiraFormProps) {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
 // Main Page
-// ---------------------------------------------------------------------------
 
 export function IntegrationDetailPage() {
   const { provider } = useParams<{ provider: string }>();
@@ -1279,8 +1251,6 @@ export function IntegrationDetailPage() {
       return s === 'active' || s === 'valid' || s === 'ok';
     }).length;
   }, [connections]);
-
-  // ---- Actions ----
 
   const handleValidate = (connection: IntegrationConnection) => {
     setValidatingId(connection.id);
@@ -1404,8 +1374,6 @@ export function IntegrationDetailPage() {
     setDialogOpen(false);
   };
 
-  // ---- Loading state ----
-
   if (loadingCatalog && !catalogEntry) {
     return (
       <div className="flex-1 bg-background">
@@ -1418,8 +1386,6 @@ export function IntegrationDetailPage() {
       </div>
     );
   }
-
-  // ---- Unknown provider ----
 
   if (!loadingCatalog && !catalogEntry) {
     return (
@@ -1439,8 +1405,6 @@ export function IntegrationDetailPage() {
     );
   }
 
-  // ---- Render ----
-
   const hasSetupSections =
     provider !== 'jira' &&
     catalogEntry?.setupInstructions?.sections &&
@@ -1449,7 +1413,6 @@ export function IntegrationDetailPage() {
   return (
     <div className="flex-1 bg-background">
       <div className="container mx-auto py-8 px-4 max-w-6xl space-y-8">
-        {/* Provider Header */}
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-center gap-4">
             {visuals ? (
@@ -1563,8 +1526,6 @@ export function IntegrationDetailPage() {
             </Dialog>
           </div>
         </div>
-
-        {/* Connection Cards */}
         <div>
           <h2 className="text-lg font-semibold mb-4">
             Connections
@@ -1752,8 +1713,6 @@ export function IntegrationDetailPage() {
                   </Card>
                 );
               })}
-
-              {/* Add Connection card */}
               <Card
                 className="overflow-hidden border-2 border-dashed hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer"
                 onClick={() => setDialogOpen(true)}
@@ -1768,10 +1727,7 @@ export function IntegrationDetailPage() {
             </div>
           )}
         </div>
-
-        {/* Two-column bottom: Setup Instructions + Info Sidebar */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Left column: Setup Instructions */}
           {hasSetupSections && (
             <div className="lg:col-span-3">
               <Card>
@@ -1820,11 +1776,8 @@ export function IntegrationDetailPage() {
               </Card>
             </div>
           )}
-
-          {/* Right column: Info Sidebar */}
           <div className={hasSetupSections ? 'lg:col-span-2' : 'lg:col-span-5'}>
             <div className="space-y-4">
-              {/* Documentation link */}
               {catalogEntry?.docsUrl && (
                 <Card>
                   <CardContent className="p-4">
@@ -1840,8 +1793,6 @@ export function IntegrationDetailPage() {
                   </CardContent>
                 </Card>
               )}
-
-              {/* Connection stats */}
               <Card>
                 <CardContent className="p-4 space-y-3">
                   <h3 className="text-sm font-semibold">Connection Summary</h3>
@@ -1859,8 +1810,6 @@ export function IntegrationDetailPage() {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Auth methods */}
               {catalogEntry?.authMethods && catalogEntry.authMethods.length > 0 && (
                 <Card>
                   <CardContent className="p-4 space-y-3">
@@ -1880,8 +1829,6 @@ export function IntegrationDetailPage() {
           </div>
         </div>
       </div>
-
-      {/* Delete confirmation dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

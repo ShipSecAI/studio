@@ -40,7 +40,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SecretSelect } from '@/components/inputs/SecretSelect';
 import { KeyRound } from 'lucide-react';
-// Card components removed from render — kept in file for future use
 import { McpDiscoveryPreview } from '@/components/mcp/McpDiscoveryPreview';
 import {
   Accordion,
@@ -64,6 +63,7 @@ import {
   Layers,
   Cloud,
   Package,
+  Github,
   Globe,
   Loader,
   Loader2,
@@ -120,14 +120,6 @@ function getGroupIcon(groupSlug: string, groupName: string) {
 
 function getGroupLogoUrl(groupSlug: string) {
   const slug = groupSlug.toLowerCase();
-
-  // Use reliable first-party CDNs for well-known providers
-  const directLogoMap: Record<string, string> = {
-    github: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
-  };
-  if (directLogoMap[slug]) return directLogoMap[slug];
-
-  // Fall back to logo.dev for everything else
   const domainMap: Record<string, string> = {
     aws: 'aws.amazon.com',
   };
@@ -135,24 +127,6 @@ function getGroupLogoUrl(groupSlug: string) {
   if (!domain || !env.VITE_LOGO_DEV_PUBLIC_KEY) return null;
 
   return `https://img.logo.dev/${domain}?token=${env.VITE_LOGO_DEV_PUBLIC_KEY}`;
-}
-
-function GitHubMark({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 98 96"
-      xmlns="http://www.w3.org/2000/svg"
-      className={cn('h-5 w-5', className)}
-      aria-hidden="true"
-      fill="currentColor"
-    >
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"
-      />
-    </svg>
-  );
 }
 
 function GroupLogo({ slug, name, className }: { slug: string; name: string; className?: string }) {
@@ -163,7 +137,7 @@ function GroupLogo({ slug, name, className }: { slug: string; name: string; clas
   const [showFallback, setShowFallback] = useState(!logoUrl);
 
   if (isGitHub) {
-    return <GitHubMark className={className} />;
+    return <Github className={className} aria-hidden="true" />;
   }
 
   if (showFallback) {
@@ -336,7 +310,6 @@ function CuratedRow({
         `md:grid ${CURATED_COLS}`,
       )}
     >
-      {/* Name cell (logo + text) */}
       <div className="flex items-center gap-3 min-w-0">
         <div className="shrink-0">{logo}</div>
         <div className="min-w-0">
@@ -346,27 +319,17 @@ function CuratedRow({
           )}
         </div>
       </div>
-
-      {/* Status */}
       <div className="hidden md:block">
         <StatusBadge status={status} variant={statusVariant} />
       </div>
-
-      {/* Scope */}
       <span className="hidden md:block text-xs text-muted-foreground">{scope ?? '—'}</span>
-
-      {/* Tools */}
       <span className="hidden md:block text-xs text-muted-foreground">{toolsSummary ?? '—'}</span>
-
-      {/* Actions */}
       <div className="flex items-center gap-1 justify-end">
         <div className="md:hidden mr-1">
           <StatusBadge status={status} variant={statusVariant} />
         </div>
         {actions}
       </div>
-
-      {/* Accordion chevron */}
       {accordionTrigger ? (
         <AccordionTrigger className="hover:no-underline p-0 [&>svg]:h-4 [&>svg]:w-4 shrink-0" />
       ) : (
@@ -1732,13 +1695,7 @@ export function McpLibraryPage() {
         // For servers with cached discovery results, skip post-save discovery
         const serversToDiscover: typeof createdServers = [];
         for (const server of createdServers) {
-          const cached = discoveryCacheTokens.get(server.name);
-          if (cached) {
-            // Server has cached discovery results - skip discovery, tools will be added via backend
-            console.log(
-              `[MCP Import] Using cached discovery results for ${server.name}: ${cached.tools.length} tools`,
-            );
-          } else {
+          if (!discoveryCacheTokens.get(server.name)) {
             serversToDiscover.push(server);
           }
         }
@@ -1980,7 +1937,6 @@ export function McpLibraryPage() {
 
   return (
     <div className="container mx-auto py-8 px-4">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold">MCP Servers</h1>
@@ -1993,8 +1949,6 @@ export function McpLibraryPage() {
           Add Server
         </Button>
       </div>
-
-      {/* Search */}
       <div className="flex items-center gap-4 mb-6">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -2018,8 +1972,6 @@ export function McpLibraryPage() {
           <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
         </Button>
       </div>
-
-      {/* Curated Section */}
       <div className="mb-8">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
           Curated
@@ -2057,7 +2009,6 @@ export function McpLibraryPage() {
                 value={curatedAccordionValue}
                 onValueChange={setCuratedAccordionValue}
               >
-                {/* Imported groups */}
                 {filteredGroups.map((group) => {
                   const theme = getGroupTheme(group.slug);
                   const groupServerList = getGroupServers(group.id);
@@ -2245,8 +2196,6 @@ export function McpLibraryPage() {
                     </AccordionItem>
                   );
                 })}
-
-                {/* Available group templates (not yet imported) */}
                 {filteredTemplates
                   .filter((template) => !importedGroupSlugs.has(template.slug))
                   .map((template) => {
@@ -2391,8 +2340,6 @@ export function McpLibraryPage() {
                       </AccordionItem>
                     );
                   })}
-
-                {/* Server templates */}
                 {filteredServerTemplates.map((template) => {
                   const isGitHubTemplate = template.slug === 'github';
                   const githubImportedServers = isGitHubTemplate
@@ -2475,7 +2422,6 @@ export function McpLibraryPage() {
                         }
                         actions={
                           <>
-                            {/* Installed server actions (generic) */}
                             {genericImportedServer && (
                               <>
                                 <Tooltip>
@@ -2529,11 +2475,9 @@ export function McpLibraryPage() {
                                 </Tooltip>
                               </>
                             )}
-                            {/* GitHub installed: show manage label */}
                             {isGitHubTemplate && isImported && (
                               <span className="text-xs text-muted-foreground mr-1">Manage →</span>
                             )}
-                            {/* GitHub not imported: show setup / import hint */}
                             {isGitHubTemplate &&
                               !isImported &&
                               githubInstallations.length === 0 && (
@@ -2602,7 +2546,6 @@ export function McpLibraryPage() {
                                       key={installation.id}
                                       className="flex items-center gap-3 rounded-lg border px-3 py-2.5"
                                     >
-                                      {/* Info */}
                                       <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                           <span className="text-sm font-medium truncate">
@@ -2633,8 +2576,6 @@ export function McpLibraryPage() {
                                           </div>
                                         )}
                                       </div>
-
-                                      {/* Read-only toggle */}
                                       <div className="flex items-center gap-2 shrink-0">
                                         <span className="text-xs text-muted-foreground">
                                           Read-only
@@ -2651,8 +2592,6 @@ export function McpLibraryPage() {
                                           }
                                         />
                                       </div>
-
-                                      {/* Action buttons */}
                                       <div className="flex items-center gap-1 shrink-0">
                                         {installationServer ? (
                                           <>
@@ -2773,8 +2712,6 @@ export function McpLibraryPage() {
           )}
         </div>
       </div>
-
-      {/* Custom Section */}
       <div className="mb-8">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
           Custom
@@ -2965,8 +2902,6 @@ export function McpLibraryPage() {
           )}
         </div>
       </div>
-
-      {/* Server Editor Sheet */}
       <Sheet open={editorOpen} onOpenChange={handleEditorClose}>
         <SheetContent className="sm:max-w-lg overflow-y-auto">
           <SheetHeader>
@@ -3204,8 +3139,6 @@ export function McpLibraryPage() {
                   securely encrypted when stored.
                 </p>
               </div>
-
-              {/* Discovery Status Alerts */}
               {discoveryStatus?.status === 'completed' && (
                 <div className="flex items-center justify-between p-3 rounded-md bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
                   <div className="flex items-center gap-2">
@@ -3311,8 +3244,6 @@ export function McpLibraryPage() {
                     : 'Paste Claude Code config format. Multiple servers will be created.'}
                 </p>
               </div>
-
-              {/* Discovery Preview */}
               {discoveryPreview && (
                 <McpDiscoveryPreview
                   results={discoveryPreview}
@@ -3321,7 +3252,6 @@ export function McpLibraryPage() {
               )}
 
               <div className="flex flex-col gap-3 pt-4">
-                {/* Discovery info message */}
                 {!editingServer && !discoveryPreview && jsonValue.trim() && (
                   <div className="flex items-start gap-2 text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
                     <HelpCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
@@ -3331,8 +3261,6 @@ export function McpLibraryPage() {
                     </span>
                   </div>
                 )}
-
-                {/* Discovery summary when available */}
                 {!editingServer && discoveryPreview && (
                   <div className="flex items-center justify-between text-sm bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md px-3 py-2">
                     <span className="text-green-700 dark:text-green-300">
@@ -3409,8 +3337,6 @@ export function McpLibraryPage() {
           </Tabs>
         </SheetContent>
       </Sheet>
-
-      {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -3429,8 +3355,6 @@ export function McpLibraryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Tools Dialog */}
       <Dialog open={toolsDialogOpen} onOpenChange={setToolsDialogOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>

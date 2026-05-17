@@ -32,8 +32,6 @@ import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { MarkdownView } from '@/components/ui/markdown';
 import { cn } from '@/lib/utils';
 
-/* ---------- constants ---------- */
-
 const severityOrder: Record<string, number> = {
   critical: 0,
   high: 1,
@@ -189,8 +187,6 @@ const assessmentConfig: Record<string, { label: string; className: string }> = {
   },
 };
 
-/* ---------- helpers ---------- */
-
 function getSeverity(s: string) {
   return severityConfig[s.toLowerCase()] ?? severityConfig.unknown;
 }
@@ -241,8 +237,6 @@ function getStackRelevanceValue(finding: SecurityFinding, key: string) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   return (value as Record<string, unknown>)[key];
 }
-
-/* ---------- Selection types ---------- */
 
 type Selection =
   | { kind: 'finding'; item: SecurityFinding }
@@ -350,8 +344,6 @@ function getStoryAttackPathItems(story: SecurityThreatStory) {
     .slice(0, 6);
 }
 
-/* ---------- small components ---------- */
-
 function SeverityBadge({ severity }: { severity: string }) {
   const s = getSeverity(severity);
   return (
@@ -434,8 +426,6 @@ function FilterChip({
   );
 }
 
-/* ---------- Severity ring (mini donut) ---------- */
-
 function SeverityRing({
   counts,
   total,
@@ -492,8 +482,6 @@ function SeverityRing({
   );
 }
 
-/* ---------- Severity stat pill ---------- */
-
 function SeverityStatPill({ severity, count }: { severity: string; count: number }) {
   const s = getSeverity(severity);
   return (
@@ -504,8 +492,6 @@ function SeverityStatPill({ severity, count }: { severity: string; count: number
     </div>
   );
 }
-
-/* ---------- List items ---------- */
 
 function StoryListItem({
   story,
@@ -925,8 +911,6 @@ function FindingListItem({
   }
 }
 
-/* ---------- Detail: Finding ---------- */
-
 function FindingDetailPanel({
   finding,
   knownFindings,
@@ -979,7 +963,6 @@ function FindingDetailPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Header */}
       <div className="shrink-0 border-b px-6 py-5">
         <div className="flex items-start gap-4">
           <div
@@ -1010,8 +993,6 @@ function FindingDetailPanel({
           )}
         </div>
       </div>
-
-      {/* Tab bar */}
       <div className="shrink-0 border-b px-6">
         <nav className="flex gap-1">
           {detailTabs.map((t) => (
@@ -1036,12 +1017,9 @@ function FindingDetailPanel({
           ))}
         </nav>
       </div>
-
-      {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {tab === 'summary' && (
           <div className="flex gap-6">
-            {/* Main content */}
             <div className="min-w-0 flex-1 px-6 py-6 space-y-6">
               {finding.latestAssessment && (
                 <section className="rounded-lg border bg-muted/20 p-4">
@@ -1142,8 +1120,6 @@ function FindingDetailPanel({
                 </section>
               )}
             </div>
-
-            {/* Right sidebar - More context */}
             <aside className="hidden w-64 shrink-0 border-l bg-muted/10 px-5 py-6 xl:block">
               <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 More context
@@ -1250,8 +1226,6 @@ function FindingDetailPanel({
   );
 }
 
-/* ---------- Detail: Threat Story ---------- */
-
 function StoryDetailPanel({ story }: { story: SecurityThreatStory }) {
   const [tab, setTab] = useState<'summary' | 'findings' | 'evidence'>('summary');
   const storyStatus =
@@ -1276,7 +1250,6 @@ function StoryDetailPanel({ story }: { story: SecurityThreatStory }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
-      {/* Header */}
       <div className="shrink-0 border-b px-6 py-5">
         <div className="flex items-start gap-4">
           <div
@@ -1307,8 +1280,6 @@ function StoryDetailPanel({ story }: { story: SecurityThreatStory }) {
           </div>
         </div>
       </div>
-
-      {/* Tab bar */}
       <div className="shrink-0 border-b px-6">
         <nav className="flex gap-1">
           {storyTabs.map((t) => (
@@ -1333,12 +1304,9 @@ function StoryDetailPanel({ story }: { story: SecurityThreatStory }) {
           ))}
         </nav>
       </div>
-
-      {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {tab === 'summary' && (
           <div className="flex gap-6">
-            {/* Main content */}
             <div className="min-w-0 flex-1 space-y-6 px-6 py-6">
               {story.summary && (
                 <section>
@@ -1428,8 +1396,6 @@ function StoryDetailPanel({ story }: { story: SecurityThreatStory }) {
                 </div>
               )}
             </div>
-
-            {/* Right sidebar - More context */}
             <aside className="hidden w-64 shrink-0 border-l bg-muted/10 px-5 py-6 xl:block">
               <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 More context
@@ -1490,8 +1456,6 @@ function StoryDetailPanel({ story }: { story: SecurityThreatStory }) {
     </div>
   );
 }
-
-/* ---------- Linked Finding Card ---------- */
 
 function LinkedFindingCard({ link }: { link: SecurityFindingLink }) {
   const label = relationLabels[link.relationshipType] ?? link.relationshipType.replaceAll('_', ' ');
@@ -1577,8 +1541,6 @@ function StoryEvidenceCard({
   );
 }
 
-/* ---------- Shared small components ---------- */
-
 function MetaField({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -1611,8 +1573,6 @@ function EmptyState({ icon: Icon, message }: { icon: typeof Search; message: str
     </div>
   );
 }
-
-/* ---------- Main Page ---------- */
 
 export function FindingsPage() {
   const navigate = useNavigate();
@@ -1940,14 +1900,11 @@ export function FindingsPage() {
         </div>
       </>
     );
-
-  // --- Custom header via layout slot ---
   const { sidebarOpen, onSidebarToggle } = useLayoutControls();
 
   const sentinelHeader = useMemo(
     () => (
       <div className="shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        {/* Primary bar */}
         <div className="flex h-14 items-center gap-2 px-3 md:px-4">
           <Button
             variant="ghost"
@@ -1996,8 +1953,6 @@ export function FindingsPage() {
             </Button>
           </div>
         </div>
-
-        {/* Stats bar */}
         <div className="flex items-center gap-3 overflow-x-auto border-t bg-muted/20 px-4 py-2.5">
           <SeverityRing counts={storySeverityCounts} total={threatStories.length} size={48} />
           <Separator orientation="vertical" className="h-7" />
@@ -2022,11 +1977,8 @@ export function FindingsPage() {
 
   return (
     <div className="absolute inset-0 flex flex-col overflow-hidden bg-background">
-      {/* ===== Master-detail layout ===== */}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        {/* Left panel — list */}
         <div className="flex h-[44dvh] shrink-0 flex-col overflow-hidden border-b md:h-auto md:w-[340px] md:border-b-0 md:border-r 2xl:w-[380px]">
-          {/* Tab switcher */}
           <div className="shrink-0 border-b px-3 pt-1">
             <nav className="flex">
               {(
@@ -2073,12 +2025,8 @@ export function FindingsPage() {
               ))}
             </nav>
           </div>
-
-          {/* List content */}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{listContent}</div>
         </div>
-
-        {/* Right panel — detail */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {!selection ? (
             <div className="flex flex-1 flex-col items-center justify-center text-center">

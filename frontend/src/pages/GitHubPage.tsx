@@ -56,9 +56,6 @@ import {
   CalendarClock,
   CheckCircle2,
   LinkIcon,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
@@ -94,6 +91,7 @@ import {
   formatDuration,
   getScanSourceMeta,
 } from '@/components/scans/scan-utils';
+import { SortableTableHead } from '@/components/scans/SortableTableHead';
 import {
   buildGitHubBranchOptions,
   getGitHubInstallationManageUrl,
@@ -101,6 +99,7 @@ import {
 } from '@/lib/github-ui';
 import { cn } from '@/lib/utils';
 import { CodeScanScheduleDialog } from '@/components/security/CodeScanScheduleDialog';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 interface WorkflowOption {
   id: string;
@@ -143,8 +142,6 @@ function buildWorkflowCompatibility(runtimeInputs: unknown[]): WorkflowCompatibi
   return { requiresPrContext, requiredRuntimeInputs };
 }
 
-// STATUS_COLORS, STATUS_ICONS, formatRelativeTime, SummaryBadges imported from scan-utils
-
 function EmptyState({
   icon: Icon,
   title,
@@ -168,8 +165,6 @@ function EmptyState({
   );
 }
 
-// Predefined quick scan workflow templates.
-// `templateSlug` matches against system workflow template slugs to resolve to a real workflow UUID.
 const QUICK_SCANS = [
   {
     slug: 'secret-detection',
@@ -194,7 +189,6 @@ const QUICK_SCANS = [
   },
 ];
 
-/** Resolve a quick scan slug to a real workflow UUID by matching system workflow template slugs. */
 function resolveQuickScans(
   systemWorkflows: { id: string; slug: string | null }[],
 ): { slug: string; workflowId: string; name: string; description: string; icon: typeof Shield }[] {
@@ -352,7 +346,6 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Branch Selector */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Branch</label>
             <Select value={selectedBranch} onValueChange={setSelectedBranch}>
@@ -368,8 +361,6 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
               </SelectContent>
             </Select>
           </div>
-
-          {/* Quick Scans Section */}
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground">Quick Scans</h4>
             <div className="grid gap-2">
@@ -397,8 +388,6 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
               })}
             </div>
           </div>
-
-          {/* Custom Workflows Section */}
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground">Custom Workflows</h4>
             {loadingWorkflows ? (
@@ -884,9 +873,7 @@ function RepositoriesTab({ onRunScan, onSchedule }: RepositoriesTabProps) {
           sortedRepositories.map((repo) => (
             <div key={repo.id} className="px-5 py-4 hover:bg-muted/30 transition-colors">
               <div className="flex items-start justify-between gap-4">
-                {/* Left: repo info */}
                 <div className="min-w-0 flex-1">
-                  {/* Row 1: Name + badge */}
                   <div className="flex items-center gap-2 flex-wrap">
                     <a
                       href={repo.htmlUrl ?? '#'}
@@ -904,15 +891,11 @@ function RepositoriesTab({ onRunScan, onSchedule }: RepositoriesTabProps) {
                       {repo.isPrivate ? 'Private' : 'Public'}
                     </Badge>
                   </div>
-
-                  {/* Row 2: Description */}
                   {repo.description && (
                     <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
                       {repo.description}
                     </p>
                   )}
-
-                  {/* Row 3: Metadata */}
                   <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
                     {repo.language && (
                       <span className="flex items-center gap-1">
@@ -954,8 +937,6 @@ function RepositoriesTab({ onRunScan, onSchedule }: RepositoriesTabProps) {
                     <span>Updated {formatRelativeTime(repo.updatedAt)}</span>
                   </div>
                 </div>
-
-                {/* Right: Actions */}
                 <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
                   <Button
                     variant="ghost"
@@ -1676,52 +1657,8 @@ function parseStatusFilters(statusParam: string): string[] {
     .filter((status) => SCAN_STATUS_VALUES.has(status));
 }
 
-function useIsMobile(breakpoint = 768) {
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false,
-  );
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [breakpoint]);
-  return isMobile;
-}
-
 type SortColumn = 'time' | 'status' | 'repository' | 'source' | 'workflow' | 'findings';
 type SortDirection = 'asc' | 'desc';
-
-function SortableHeader({
-  column,
-  label,
-  currentSort,
-  currentDir,
-  onSort,
-  className,
-}: {
-  column: SortColumn;
-  label: string;
-  currentSort: SortColumn;
-  currentDir: SortDirection;
-  onSort: (col: SortColumn) => void;
-  className?: string;
-}) {
-  const isActive = currentSort === column;
-  const Icon = isActive ? (currentDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
-  return (
-    <TableHead
-      className={cn('cursor-pointer select-none hover:bg-muted/50', className)}
-      onClick={() => onSort(column)}
-    >
-      <div className="flex items-center gap-1">
-        {label}
-        <Icon
-          className={cn('h-3.5 w-3.5', isActive ? 'text-foreground' : 'text-muted-foreground/50')}
-        />
-      </div>
-    </TableHead>
-  );
-}
 
 function ScansTab() {
   const SCAN_PAGE_SIZE = 25;
@@ -2068,7 +2005,6 @@ function ScansTab() {
         minHeight: isPanelOpen ? '400px' : undefined,
       }}
     >
-      {/* ── Scan List (Left Side) ────────────────────────────── */}
       {showList && (
         <div
           className={cn(
@@ -2076,7 +2012,6 @@ function ScansTab() {
             isPanelOpen ? 'w-[420px] flex-shrink-0 border-r' : 'w-full',
           )}
         >
-          {/* Filter bar */}
           <div className="flex flex-wrap items-center gap-3 p-3 border-b flex-shrink-0">
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
@@ -2181,8 +2116,6 @@ function ScansTab() {
               </Button>
             </div>
           </div>
-
-          {/* Results count */}
           <div className="px-3 py-2 flex-shrink-0 flex items-center gap-1.5">
             <p className="text-xs text-muted-foreground">
               {scanResults.length} {scanResults.length === 1 ? 'scan' : 'scans'}
@@ -2200,8 +2133,6 @@ function ScansTab() {
               <LinkIcon className="h-3 w-3" />
             </Button>
           </div>
-
-          {/* Scan list */}
           <div className="flex-1 overflow-y-auto">
             {scanResults.length === 0 ? (
               <EmptyState
@@ -2421,42 +2352,42 @@ function ScansTab() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <SortableHeader
+                        <SortableTableHead
                           column="time"
                           label="Time"
                           currentSort={sortColumn}
                           currentDir={sortDirection}
                           onSort={handleSort}
                         />
-                        <SortableHeader
+                        <SortableTableHead
                           column="status"
                           label="Status"
                           currentSort={sortColumn}
                           currentDir={sortDirection}
                           onSort={handleSort}
                         />
-                        <SortableHeader
+                        <SortableTableHead
                           column="repository"
                           label="Repository"
                           currentSort={sortColumn}
                           currentDir={sortDirection}
                           onSort={handleSort}
                         />
-                        <SortableHeader
+                        <SortableTableHead
                           column="source"
                           label="Source"
                           currentSort={sortColumn}
                           currentDir={sortDirection}
                           onSort={handleSort}
                         />
-                        <SortableHeader
+                        <SortableTableHead
                           column="workflow"
                           label="Workflow"
                           currentSort={sortColumn}
                           currentDir={sortDirection}
                           onSort={handleSort}
                         />
-                        <SortableHeader
+                        <SortableTableHead
                           column="findings"
                           label="Findings"
                           currentSort={sortColumn}
@@ -2594,8 +2525,6 @@ function ScansTab() {
           </div>
         </div>
       )}
-
-      {/* ── Detail Panel (Right Side) ────────────────────────── */}
       {showPanel && (
         <div className="flex-1 min-w-0 overflow-hidden bg-background">
           <ScanDetailPanel
@@ -2780,8 +2709,6 @@ function ConnectionOverview({
           </Card>
         );
       })}
-
-      {/* Add another connection card */}
       {installUrl && (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center h-full min-h-[200px] py-6">
@@ -3009,8 +2936,6 @@ export function GitHubPage() {
           <TriggerRulesTab />
         </TabsContent>
       </Tabs>
-
-      {/* Workflow Picker Modal */}
       <WorkflowPickerModal
         open={selectedRepoForScan !== null}
         onClose={() => setSelectedRepoForScan(null)}
