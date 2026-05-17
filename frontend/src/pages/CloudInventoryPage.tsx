@@ -3,8 +3,6 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Server,
   Search,
-  ChevronLeft,
-  ChevronRight,
   X,
   Globe,
   Box,
@@ -24,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PaginationControls } from '@/components/PaginationControls';
 import {
   Select,
   SelectContent,
@@ -888,34 +887,11 @@ export function CloudInventoryPage() {
                 </table>
               </div>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <span className="text-sm text-muted-foreground">
-                    Page {page + 1} of {totalPages}
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page === 0}
-                      onClick={() => setFilterParam('page', String(page - 1))}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page >= totalPages - 1}
-                      onClick={() => setFilterParam('page', String(page + 1))}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <PaginationControls
+                page={page}
+                totalPages={totalPages}
+                onPageChange={(nextPage) => setFilterParam('page', String(nextPage))}
+              />
             </>
           )}
         </div>
