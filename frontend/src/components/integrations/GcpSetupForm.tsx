@@ -1,15 +1,5 @@
 import { useMemo, useState } from 'react';
-import {
-  Loader2,
-  Check,
-  Copy,
-  ChevronRight,
-  ChevronDown,
-  Info,
-  XCircle,
-  Shield,
-  Eye,
-} from 'lucide-react';
+import { Loader2, Check, Copy, Shield, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -20,9 +10,18 @@ import {
   useCreateGcpConnection,
   useCreateGcpServiceAccountKeyConnection,
 } from '@/hooks/queries/useIntegrationQueries';
-import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { SetupResultAlert, type SetupResult } from './SetupFormShared';
+import {
+  ChevronRight,
+  SetupErrorState,
+  SetupLoadingState,
+  SetupPermissionCard,
+  SetupResultAlert,
+  SetupStepIndicator,
+  SetupTip,
+  SetupWhyDisclosure,
+  type SetupResult,
+} from './SetupFormShared';
 
 interface GcpSetupFormProps {
   onCreated: () => void;
@@ -207,79 +206,23 @@ export function GcpSetupForm({ onCreated, onCancel }: GcpSetupFormProps) {
 
         <TabsContent value="impersonation" className="mt-4">
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">Loading setup info...</span>
-            </div>
+            <SetupLoadingState label="Loading setup info..." />
           ) : !setupInfo ? (
-            <div className="space-y-4">
-              <div className="flex items-start gap-2 rounded-md border p-3 text-sm border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-                <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                <span>
-                  {error instanceof Error
-                    ? error.message
-                    : 'Failed to load GCP setup details for impersonation.'}
-                </span>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                Service Account JSON remains available for the community edition path.
-              </div>
-            </div>
+            <SetupErrorState
+              message={error}
+              errorFallback="Failed to load GCP setup details for impersonation."
+              note="Service Account JSON remains available for the community edition path."
+            />
           ) : (
             <div className="space-y-4">
-              {/* Step indicator */}
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep(1);
-                    setResult(null);
-                  }}
-                  className={cn(
-                    'flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
-                    step === 1
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                  )}
-                >
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold border-current">
-                    1
-                  </span>
-                  Create Service Account
-                </button>
-                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className={cn(
-                    'flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
-                    step === 2
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                  )}
-                >
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold border-current">
-                    2
-                  </span>
-                  Grant Permissions
-                </button>
-                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                <button
-                  type="button"
-                  onClick={() => setStep(3)}
-                  className={cn(
-                    'flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
-                    step === 3
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                  )}
-                >
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold border-current">
-                    3
-                  </span>
-                  Connection Details
-                </button>
-              </div>
+              <SetupStepIndicator
+                step={step}
+                steps={['Create Service Account', 'Grant Permissions', 'Connection Details']}
+                onStepChange={(nextStep) => {
+                  setStep(nextStep as 1 | 2 | 3);
+                  setResult(null);
+                }}
+              />
 
               {/* Step 1: Create Service Account */}
               {step === 1 && (
@@ -314,42 +257,26 @@ export function GcpSetupForm({ onCreated, onCancel }: GcpSetupFormProps) {
                   </div>
 
                   {/* Collapsible: Why Impersonation? */}
-                  <div className="rounded-md border bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-                    <button
-                      type="button"
-                      onClick={() => setWhyOpen((v) => !v)}
-                      className="flex w-full items-center gap-2 p-3 text-left text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-md transition-colors"
-                    >
-                      <Info className="h-3.5 w-3.5 shrink-0" />
-                      <span className="flex-1">
-                        Why impersonation instead of service-account keys?
-                      </span>
-                      <ChevronDown
-                        className={cn(
-                          'h-3.5 w-3.5 shrink-0 transition-transform duration-200',
-                          whyOpen && 'rotate-180',
-                        )}
-                      />
-                    </button>
-                    {whyOpen && (
-                      <div className="px-3 pb-3 text-xs text-blue-700/80 dark:text-blue-300/80 space-y-2">
-                        <ul className="list-disc pl-4 space-y-1">
-                          <li>
-                            <strong>No long-lived keys.</strong> ShipSec never stores customer JSON
-                            keys. Access tokens are short-lived and auto-expire.
-                          </li>
-                          <li>
-                            <strong>Revocable instantly.</strong> Remove one IAM binding to revoke
-                            all access.
-                          </li>
-                          <li>
-                            <strong>Auditable.</strong> GCP audit logs show every token generation
-                            and API call made by the impersonated identity.
-                          </li>
-                        </ul>
-                      </div>
-                    )}
-                  </div>
+                  <SetupWhyDisclosure
+                    open={whyOpen}
+                    title="Why impersonation instead of service-account keys?"
+                    onOpenChange={setWhyOpen}
+                  >
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li>
+                        <strong>No long-lived keys.</strong> ShipSec never stores customer JSON
+                        keys. Access tokens are short-lived and auto-expire.
+                      </li>
+                      <li>
+                        <strong>Revocable instantly.</strong> Remove one IAM binding to revoke all
+                        access.
+                      </li>
+                      <li>
+                        <strong>Auditable.</strong> GCP audit logs show every token generation and
+                        API call made by the impersonated identity.
+                      </li>
+                    </ul>
+                  </SetupWhyDisclosure>
 
                   <DialogFooter className="gap-2">
                     <Button type="button" variant="outline" onClick={onCancel}>
@@ -378,42 +305,21 @@ export function GcpSetupForm({ onCreated, onCancel }: GcpSetupFormProps) {
                         Required Roles
                       </p>
                       <div className="space-y-2">
-                        <div className="flex items-start gap-3 rounded-md border p-3 bg-muted/30">
-                          <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary shrink-0 mt-0.5">
-                            <Eye className="h-3 w-3" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">Viewer</p>
-                            <p className="text-xs text-muted-foreground">
-                              Read-only access to list and describe GCP resources (Compute, Storage,
-                              GKE, Cloud SQL, etc.).
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3 rounded-md border p-3 bg-muted/30">
-                          <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary shrink-0 mt-0.5">
-                            <Shield className="h-3 w-3" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">
-                              Security Admin (or Security Reviewer)
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Read security configuration data for CSPM and compliance scanning.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3 rounded-md border p-3 bg-muted/30">
-                          <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary shrink-0 mt-0.5">
-                            <Eye className="h-3 w-3" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">Service Usage Viewer</p>
-                            <p className="text-xs text-muted-foreground">
-                              List enabled APIs per project (required for inventory discovery).
-                            </p>
-                          </div>
-                        </div>
+                        <SetupPermissionCard
+                          icon={<Eye className="h-3 w-3" />}
+                          title="Viewer"
+                          description="Read-only access to list and describe GCP resources (Compute, Storage, GKE, Cloud SQL, etc.)."
+                        />
+                        <SetupPermissionCard
+                          icon={<Shield className="h-3 w-3" />}
+                          title="Security Admin (or Security Reviewer)"
+                          description="Read security configuration data for CSPM and compliance scanning."
+                        />
+                        <SetupPermissionCard
+                          icon={<Eye className="h-3 w-3" />}
+                          title="Service Usage Viewer"
+                          description="List enabled APIs per project (required for inventory discovery)."
+                        />
                       </div>
                     </div>
 
@@ -422,18 +328,11 @@ export function GcpSetupForm({ onCreated, onCancel }: GcpSetupFormProps) {
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                         For Organizations (optional)
                       </p>
-                      <div className="flex items-start gap-3 rounded-md border p-3 bg-muted/30">
-                        <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary shrink-0 mt-0.5">
-                          <Shield className="h-3 w-3" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">Organization Viewer + Role Viewer</p>
-                          <p className="text-xs text-muted-foreground">
-                            Org-level IAM inventory and role discovery. Only needed for org-wide
-                            scans.
-                          </p>
-                        </div>
-                      </div>
+                      <SetupPermissionCard
+                        icon={<Shield className="h-3 w-3" />}
+                        title="Organization Viewer + Role Viewer"
+                        description="Org-level IAM inventory and role discovery. Only needed for org-wide scans."
+                      />
                     </div>
 
                     {/* Impersonation grant command */}
@@ -469,12 +368,10 @@ export function GcpSetupForm({ onCreated, onCancel }: GcpSetupFormProps) {
                       </div>
                     </div>
 
-                    <div className="rounded-md border bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 p-3">
-                      <p className="text-xs text-amber-700 dark:text-amber-300">
-                        <strong>Tip:</strong> You can also assign these roles in the GCP Console
-                        under <strong>IAM &amp; Admin &rarr; IAM &rarr; Grant Access</strong>.
-                      </p>
-                    </div>
+                    <SetupTip>
+                      <strong>Tip:</strong> You can also assign these roles in the GCP Console under{' '}
+                      <strong>IAM &amp; Admin &rarr; IAM &rarr; Grant Access</strong>.
+                    </SetupTip>
                   </div>
 
                   <DialogFooter className="gap-2">
