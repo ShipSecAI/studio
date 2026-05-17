@@ -365,14 +365,14 @@ describe('compileWorkflowGraph', () => {
           },
         },
         {
-          id: 'agent',
-          type: 'core.ai.agent',
+          id: 'toolConsumer',
+          type: 'core.ai.opencode',
           position: { x: 50, y: 200 },
           data: {
-            label: 'Agent',
+            label: 'Tool Consumer',
             config: {
               params: {},
-              inputOverrides: { userInput: 'Hello' },
+              inputOverrides: { task: 'Inspect connected tools' },
             },
           },
         },
@@ -383,14 +383,14 @@ describe('compileWorkflowGraph', () => {
         {
           id: 't1',
           source: 'tool1',
-          target: 'agent',
+          target: 'toolConsumer',
           sourceHandle: 'tools',
           targetHandle: 'tools',
         },
         {
           id: 't2',
           source: 'tool2',
-          target: 'agent',
+          target: 'toolConsumer',
           sourceHandle: 'tools',
           targetHandle: 'tools',
         },
@@ -400,9 +400,9 @@ describe('compileWorkflowGraph', () => {
 
     const definition = compileWorkflowGraph(graph);
 
-    expect(definition.nodes.agent.connectedToolNodeIds).toHaveLength(2);
-    expect(definition.nodes.agent.connectedToolNodeIds).toContain('tool1');
-    expect(definition.nodes.agent.connectedToolNodeIds).toContain('tool2');
+    expect(definition.nodes.toolConsumer.connectedToolNodeIds).toHaveLength(2);
+    expect(definition.nodes.toolConsumer.connectedToolNodeIds).toContain('tool1');
+    expect(definition.nodes.toolConsumer.connectedToolNodeIds).toContain('tool2');
     expect(definition.nodes.tool1.mode).toBe('tool');
     expect(definition.nodes.tool2.mode).toBe('tool');
   });

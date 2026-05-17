@@ -134,9 +134,7 @@ const HUMAN_INPUT_TYPE_DIST: [string, number][] = [
 const NODE_TYPES = [
   'core.workflow.entrypoint',
   'core.http.request',
-  'core.ai.agent',
   'core.logic.script',
-  'core.ai.generate-text',
   'core.workflow.call',
   'core.file.writer',
   'core.artifact.writer',
@@ -385,22 +383,14 @@ function generateLongName(): string {
 
 // ─── Graph Generators ────────────────────────────────────────────────────────
 
-type TemplateType = 'simple_http' | 'ai_agent' | 'complex_branching' | 'subflow' | 'large_pipeline';
+type TemplateType = 'simple_http' | 'complex_branching' | 'subflow' | 'large_pipeline';
 
-const TEMPLATES: TemplateType[] = [
-  'simple_http',
-  'ai_agent',
-  'complex_branching',
-  'subflow',
-  'large_pipeline',
-];
+const TEMPLATES: TemplateType[] = ['simple_http', 'complex_branching', 'subflow', 'large_pipeline'];
 
 function nodeCountForTemplate(template: TemplateType, isLarge: boolean): number {
   switch (template) {
     case 'simple_http':
       return randInt(3, 5);
-    case 'ai_agent':
-      return randInt(5, 8);
     case 'complex_branching':
       return randInt(10, 20);
     case 'subflow':
@@ -477,13 +467,6 @@ function generateWorkflowGraph(
       'core.text.splitter',
       'core.text.joiner',
       'core.file.writer',
-    ],
-    ai_agent: [
-      'core.ai.agent',
-      'core.ai.generate-text',
-      'core.provider.openai',
-      'core.http.request',
-      'core.text.joiner',
     ],
     complex_branching: [
       'core.http.request',
@@ -1334,7 +1317,9 @@ async function seedRuns(
           wf.createdAt.getTime() +
             randInt(60000, Math.max(60001, Date.now() - wf.createdAt.getTime())),
         );
-    const isAgentRun = wf.graph.nodes.some((n) => n.type === 'core.ai.agent');
+    const isAgentRun = wf.graph.nodes.some(
+      (n) => n.type === 'core.ai.opencode' || n.type === 'core.ai.claude-code',
+    );
 
     runs.push({
       runId,

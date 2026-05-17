@@ -67,12 +67,7 @@
           },
           {
             "group": "Components",
-            "pages": [
-              "components/overview",
-              "components/core",
-              "components/security",
-              "components/ai"
-            ]
+            "pages": ["components/overview", "components/core", "components/security"]
           },
           {
             "group": "Development",

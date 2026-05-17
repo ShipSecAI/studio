@@ -42,7 +42,7 @@ export async function connectToHotplugTools(
 }
 
 // ---------------------------------------------------------------------------
-// Shared AI gateway helpers (used by ai-agent.ts and llm-generate-text.ts)
+// Shared AI gateway helpers for agent runtime components.
 // ---------------------------------------------------------------------------
 
 function normalizeBackendOrigin(url: string): string {

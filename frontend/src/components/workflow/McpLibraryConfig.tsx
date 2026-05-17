@@ -429,7 +429,7 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
 
       {/* Footer hint */}
       <div className="text-xs text-muted-foreground text-center pt-2 border-t">
-        Selected servers will register their tools with the AI Agent
+        Selected servers will register their tools with compatible agent runtime nodes
       </div>
     </div>
   );

@@ -86,7 +86,7 @@ const outputSchema = outputs({
   chatModel: port(LLMProviderSchema(), {
     label: 'LLM Provider Config',
     description:
-      'Portable provider payload (provider, model, overrides) for wiring into AI Agent or one-shot nodes.',
+      'Portable provider payload (provider, model, overrides) for wiring into agent runtime nodes.',
   }),
 });
 

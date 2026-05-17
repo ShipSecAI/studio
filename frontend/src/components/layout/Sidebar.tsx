@@ -260,8 +260,7 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
       name === 'parallel sleep' ||
       slug === 'live-event' ||
       slug === 'parallel-sleep' ||
-      id.startsWith('test.') ||
-      id === 'docker-echo'
+      id.startsWith('test.')
     );
   };
 

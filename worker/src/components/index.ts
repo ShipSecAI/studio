@@ -12,7 +12,6 @@ import './core/entry-point';
 import './core/file-loader';
 import './core/http-request';
 import './core/logic-script';
-import './core/test-error-generator';
 import './notification/slack';
 import './core/text-splitter';
 import './core/text-joiner';
@@ -50,8 +49,6 @@ import './manual-action/manual-form';
 import './ai/openai-provider';
 import './ai/gemini-provider';
 import './ai/openrouter-provider';
-import './ai/ai-agent';
-import './ai/llm-generate-text';
 import './ai/opencode';
 import './ai/claude-code';
 
@@ -68,7 +65,6 @@ import './security/prowler-scan';
 import './security/shuffledns-massdns';
 import './it-automation/atlassian-offboarding';
 import './security/trufflehog';
-import './security/terminal-demo';
 import './security/virustotal';
 import './security/abuseipdb';
 import './security/aws-mcp-group';
@@ -96,15 +92,6 @@ import './github/pr-context';
 // IT Automation components
 import './it-automation/google-workspace-license-unassign';
 import './it-automation/okta-user-offboard';
-
-// Dev / debug components
-import './dev/mock-agent';
-
-// Test utility components
-import './test/sleep-parallel';
-import './test/live-event-heartbeat';
-import './test/simple-http-mcp';
-import './test/analytics-fixture';
 
 // Scanner components (GitHub integration)
 import './scanners/trufflehog';

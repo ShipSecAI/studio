@@ -188,7 +188,7 @@ export function AgentTracePanel({ runId }: AgentTracePanelProps) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
         <p>No AI agent outputs were recorded for this run.</p>
-        <p>Run a workflow that includes the core.ai.agent component to view reasoning steps.</p>
+        <p>Run a workflow that includes an agent runtime component to view reasoning steps.</p>
       </div>
     );
   }

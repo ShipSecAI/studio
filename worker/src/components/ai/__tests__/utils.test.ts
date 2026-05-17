@@ -41,7 +41,7 @@ describe('AI gateway key helpers', () => {
     process.env.CHAT_AI_BASE_URL = 'https://gateway.local/v1';
     process.env.CHAT_AI_API_KEY = 'sk-shared';
 
-    await expect(requireOrganizationApiKey(null, { consumer: 'AI Agent' })).resolves.toBe(
+    await expect(requireOrganizationApiKey(null, { consumer: 'OpenCode agent' })).resolves.toBe(
       'sk-shared',
     );
   });

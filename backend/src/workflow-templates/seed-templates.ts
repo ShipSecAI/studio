@@ -635,8 +635,8 @@ function prSecurityGateTemplate(): SeedTemplate {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Template 6: AI Code Review
-// PR Context → Clone → [Scanners] → Normalize → Markdown → Joiner → AI Agent → PR Comment
+// Template 6: Security Code Review
+// PR Context → Clone → [Scanners] → Normalize → Markdown → Joiner → PR Comment
 //   each Normalize → Analytics Sink (indexed findings)
 // ──────────────────────────────────────────────────────────────────────────────
 function aiCodeReviewTemplate(): SeedTemplate {
@@ -655,22 +655,21 @@ function aiCodeReviewTemplate(): SeedTemplate {
   const mdDeps = nid('node');
   const reportArray = nid('node');
   const joiner = nid('node');
-  const aiAgent = nid('node');
   const prComment = nid('node');
   const analytics = nid('node');
 
   return {
-    name: 'AI Code Review',
-    slug: 'sys-ai-code-review',
+    name: 'Security Code Review',
+    slug: 'sys-security-code-review',
     description:
-      'AI-powered code review: scans PR with SAST, secrets, and dependencies, then uses AI to analyze findings in context and post a review.',
+      'Scans PRs with SAST, secrets, and dependencies, then posts a combined security report.',
     category: 'code-security',
     icon: 'sparkles',
     isFeatured: true,
     isDefault: true,
     graph: {
-      name: 'AI Code Review',
-      description: 'AI-powered security analysis on PRs',
+      name: 'Security Code Review',
+      description: 'Security scanner report on PRs',
       nodes: [
         makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
           runtimeInputs: [
@@ -695,10 +694,6 @@ function aiCodeReviewTemplate(): SeedTemplate {
         makeNode(reportArray, 'core.array.pack', 'Pack Reports', 1700, 0),
         makeNode(joiner, 'core.text.joiner', 'Combined Report', 1900, 0, {
           separator: '\n\n---\n\n',
-        }),
-        makeNode(aiAgent, 'core.ai.agent', 'AI Agent', 2200, -100, {
-          systemPrompt:
-            'You are a security code reviewer. Analyze the following security scan report from a pull request. For each finding, assess whether it is actionable or a likely false positive. Provide clear remediation guidance and prioritize the most critical issues.',
         }),
         makeNode(prComment, 'github.pr.comment', 'PR Comment', 2500, -100),
         // Analytics sink (all scanner findings)
@@ -741,10 +736,8 @@ function aiCodeReviewTemplate(): SeedTemplate {
         makeEdge('e21', mdSecrets, reportArray, 'markdown', 'b'),
         makeEdge('e22', mdDeps, reportArray, 'markdown', 'c'),
         makeEdge('e23', reportArray, joiner, 'items', 'items'),
-        // Joiner → AI Agent (combined report as user input)
-        makeEdge('e24', joiner, aiAgent, 'text', 'userInput'),
-        // AI Agent → PR Comment
-        makeEdge('e25', aiAgent, prComment, 'responseText', 'body'),
+        // Joiner → PR Comment
+        makeEdge('e24', joiner, prComment, 'text', 'body'),
         makeEdge('e26', entryPoint, prComment, 'installationId', 'installationId'),
         makeEdge('e27', entryPoint, prComment, 'owner', 'owner'),
         makeEdge('e28', entryPoint, prComment, 'repo', 'repo'),
